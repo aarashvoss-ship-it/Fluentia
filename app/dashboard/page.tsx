@@ -211,6 +211,7 @@ export default function DashboardPage() {
                 <div>
                   <h2 className="mt-2 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">{lesson.title}</h2>
                   <p className="mt-2 text-sm leading-relaxed text-stone-400">{lesson.subtitle}</p>
+                  <p className="mt-3 flex items-center gap-2 text-[11px] text-stone-500"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#283344] text-[8px] font-semibold text-[#d9a63b]">{lesson.instructor?.initials || "AV"}</span> Guided by {lesson.instructor?.fullName || "AVoss"}</p>
                 </div>
                 <Link href={getLessonHref(lesson.slug, status)} className={`mt-5 inline-flex rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
                   status === "completed"
