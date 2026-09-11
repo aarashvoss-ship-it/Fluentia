@@ -14,27 +14,159 @@ export interface StudyStep {
 }
 
 export const STUDY_STEPS: StudyStep[] = [
-  { id: "warm_up", label: "Warm-up", stepNumber: "01" },
-  { id: "lesson", label: "Lesson", stepNumber: "02" },
+  { id: "warm_up",   label: "Warm-up",   stepNumber: "01" },
+  { id: "lesson",    label: "Lesson",    stepNumber: "02" },
   { id: "listening", label: "Listening", stepNumber: "03" },
-  { id: "reading", label: "Reading", stepNumber: "04" },
-  { id: "writing", label: "Writing", stepNumber: "05" },
-  { id: "speaking", label: "Speaking", stepNumber: "06" },
-  { id: "results", label: "Results", stepNumber: "07" },
+  { id: "reading",   label: "Reading",   stepNumber: "04" },
+  { id: "writing",   label: "Writing",   stepNumber: "05" },
+  { id: "speaking",  label: "Speaking",  stepNumber: "06" },
+  { id: "results",   label: "Results",   stepNumber: "07" },
 ];
 
-export interface LessonSection {
-  id?: string;
-  title?: string;
-  content?: string;
-  [key: string]: unknown;
+export interface BlockItem {
+  text: string;
+  enabled: boolean;
 }
 
-export interface LessonExercise {
-  id?: string;
-  prompt?: string;
-  answer?: string;
-  [key: string]: unknown;
+export type ContentBlockType = "text" | "audio" | "video" | "image" | "quiz";
+
+export interface QuizQuestion {
+  id: string;
+  prompt: string;
+  options: string[];
+  correctAnswer?: string;
+}
+
+export interface ContentBlockBase {
+  id: string;
+  type: ContentBlockType;
+  title: string;
+  enabled: boolean;
+}
+
+export interface TextContentBlock extends ContentBlockBase {
+  type: "text";
+  body: string;
+}
+
+export interface AudioContentBlock extends ContentBlockBase {
+  type: "audio";
+  audioUrl: string;
+}
+
+export interface VideoContentBlock extends ContentBlockBase {
+  type: "video";
+  videoUrl: string;
+}
+
+export interface ImageContentBlock extends ContentBlockBase {
+  type: "image";
+  imageUrl: string;
+  caption: string;
+}
+
+export interface QuizContentBlock extends ContentBlockBase {
+  type: "quiz";
+  questions: QuizQuestion[];
+}
+
+export type ContentBlock =
+  | TextContentBlock
+  | AudioContentBlock
+  | VideoContentBlock
+  | ImageContentBlock
+  | QuizContentBlock;
+
+export type DynamicStepContent = { blocks?: ContentBlock[] };
+
+export interface StepWarmUpContent {
+  blocks?: ContentBlock[];
+  quote?: BlockItem;
+  intro_narrative?: BlockItem;
+  media_block?: {
+    image_url: string;
+    caption?: string;
+    enabled: boolean;
+  };
+  quick_prompts?: BlockItem[];
+  lexicon_notes?: BlockItem;
+}
+
+export interface StepLessonContent {
+  blocks?: ContentBlock[];
+  core_concept?: BlockItem;
+  examples?: BlockItem[];
+  flexible_exercises?: BlockItem[];
+}
+
+export interface StepListeningContent {
+  blocks?: ContentBlock[];
+  audio_url?: string;
+  audio_meta?: {
+    duration_seconds?: number;
+    speaker?: string;
+  };
+  transcript?: BlockItem;
+  questions?: Array<{
+    id: string;
+    question: string;
+    options?: string[];
+    correct_answer?: string;
+    enabled: boolean;
+  }>;
+}
+
+export interface StepReadingContent {
+  blocks?: ContentBlock[];
+  article_markdown?: BlockItem;
+  lexicon_notes?: BlockItem;
+  vocabulary_drawer?: Array<{
+    word: string;
+    definition: string;
+    enabled: boolean;
+  }>;
+  analytical_questions?: Array<{
+    id: string;
+    question: string;
+    enabled: boolean;
+  }>;
+}
+
+export interface StepWritingContent {
+  blocks?: ContentBlock[];
+  prompt?: BlockItem;
+  framework_tips?: BlockItem[];
+  min_words?: number;
+  target_words?: number;
+  draft_editor?: {
+    enabled: boolean;
+    placeholder?: string;
+  };
+}
+
+export interface StepSpeakingContent {
+  blocks?: ContentBlock[];
+  scenario?: BlockItem;
+  discussion_points?: BlockItem[];
+  delivery_tips?: BlockItem[];
+  audio_capture?: {
+    enabled: boolean;
+    max_duration_seconds?: number;
+  };
+}
+
+export interface StepResultsContent {
+  blocks?: ContentBlock[];
+  answer_keys?: {
+    listening?: Record<string, string>;
+    reading?: Record<string, string>;
+  };
+  unlocked_transcripts?: boolean;
+  self_reflection?: BlockItem;
+  instructor_review_card?: {
+    enabled: boolean;
+    prompt?: string;
+  };
 }
 
 export interface LessonContent {
@@ -43,110 +175,19 @@ export interface LessonContent {
   title: string;
   subtitle?: string;
   moduleNumber: number;
-  status: "draft" | "published" | "archived";
   coverImage?: string;
-  audioUrl?: string;
   ambientMusicUrl?: string;
-  content?: StrictStepContent;
-  sections?: LessonSection[];
-  exercises?: LessonExercise[];
-  vocabulary?: SavedVocabularyWord[];
+  instructor?: InstructorProfile;
   studentName?: string;
-  instructor?: {
-    fullName?: string;
-    initials?: string;
-  };
+  status?: "draft" | "published";
+  content?: InstructorLessonMock["content"];
 }
 
-export interface Lesson extends LessonContent {
-  studentId?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface BlockItem {
-  text?: string;
-  content?: string;
-  enabled: boolean;
-}
-
-export interface StrictStepContent {
-  warm_up?: {
-    prompt?: BlockItem;
-    reflectionQuestion?: BlockItem;
-    [key: string]: unknown;
-  };
-  lesson?: {
-    mainArticle?: BlockItem;
-    [key: string]: unknown;
-  };
-  listening?: Record<string, unknown>;
-  reading?: Record<string, unknown>;
-  writing?: Record<string, unknown>;
-  speaking?: Record<string, unknown>;
-  results?: Record<string, unknown>;
-  [key: string]: unknown;
-}
-
-export interface LessonEvaluation {
-  scores: Record<string, number>;
-  comments: string;
-  criterionFeedback?: Record<string, string>;
-  strengths?: string;
-  areasToImprove?: string;
-  studyHubPrescription?: string;
-  voiceFeedbackUrl?: string;
-  totalScore?: number;
-  published: boolean;
-}
-
-export type SubmissionStatus = "not_started" | "in_progress" | "submitted" | "reviewed";
-
-export interface StudentSubmission {
-  status: SubmissionStatus;
-  listeningAnswers?: Record<string, unknown>;
-  readingAnswers?: Record<string, unknown>;
-  writingText?: string;
-  speakingAudioUrl?: string;
-  blockResponses?: Record<string, unknown>;
-  quizSelections?: Record<string, unknown>;
-  audioUploads?: Record<string, unknown>;
-  submittedAt?: string;
-}
-
-export interface SavedVocabularyWord {
+export interface InstructorProfile {
   id?: string;
-  word: string;
-  definition: string;
-  translation?: string;
-  context?: string;
-  example?: string;
-  partOfSpeech?: string;
-  phonetic?: string;
-  pronunciationUrl?: string;
-  lessonId?: string;
-  lessonSlug?: string;
-  source: "merriam-webster" | "free-dictionary";
-  savedAt: string;
-}
-
-export interface StudentNote {
-  id: string;
-  content: string;
-  text?: string;
-  lessonId?: string;
-  lessonSlug?: string;
-  createdAt: string;
-  updatedAt?: string;
-}
-
-export interface ChatMessage {
-  id: string;
-  tab: "instructor" | "support";
-  sender: "user" | "ai" | "student" | "instructor" | "support";
-  text: string;
-  timestamp?: string;
-  createdAt?: string;
+  fullName: string;
+  initials: string;
+  avatarUrl?: string;
 }
 
 export interface StudentProfile {
@@ -161,23 +202,73 @@ export interface StudentProfile {
   completedModulesCount: number;
 }
 
-export interface PublishedLessonState {
-  content: StrictStepContent;
-  bannerUrl: string;
-  studentProfile: StudentProfile;
-  evaluation: LessonEvaluation;
-  status: "draft" | "published";
-  submission?: StudentSubmission;
-}
-
 export interface InstructorLessonMock {
   id: string;
   title: string;
-  module_tag?: string;
-  moduleNumber: number;
+  module_tag: string;
   studentName: string;
-  bannerUrl: string;
-  banner_image_url?: string;
+  banner_image_url: string;
+  instructor?: InstructorProfile;
   studentProfile: StudentProfile;
-  content: StrictStepContent;
+  content: {
+    warm_up?: StepWarmUpContent;
+    lesson?: StepLessonContent;
+    listening?: StepListeningContent;
+    reading?: StepReadingContent;
+    writing?: StepWritingContent;
+    speaking?: StepSpeakingContent;
+    results?: StepResultsContent;
+  };
+}
+
+export type StrictStepContent = InstructorLessonMock["content"];
+
+export interface LessonEvaluation {
+  scores: Record<string, number>;
+  comments: string;
+  criterionFeedback?: Record<string, string>;
+  strengths?: string;
+  areasToImprove?: string;
+  studyHubPrescription?: string;
+  voiceFeedbackUrl?: string;
+  published?: boolean;
+}
+
+export type StudentSubmissionStatus = "in_progress" | "submitted" | "reviewed";
+
+export interface StudentSubmission {
+  status: StudentSubmissionStatus;
+  listeningAnswers: Record<string, string>;
+  readingAnswers: Record<string, string>;
+  writingText: string;
+  speakingAudioUrl?: string;
+  blockResponses?: Record<string, string>;
+  quizSelections?: Record<string, string>;
+  audioUploads?: Record<string, string>;
+  submittedAt?: string;
+}
+
+export interface SavedVocabularyWord {
+  word: string;
+  partOfSpeech?: string;
+  definition: string;
+  example?: string;
+  pronunciationUrl?: string;
+  source: "merriam-webster" | "free-dictionary";
+  savedAt: string;
+}
+
+export interface StudentNote {
+  id: string;
+  text: string;
+  lessonSlug?: string;
+  updatedAt: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  tab: "instructor" | "support";
+  text: string;
+  sender: "student" | "team";
+  createdAt: string;
 }

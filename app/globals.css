@@ -54,12 +54,9 @@ body {
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
-@layer utilities {
-  .scrollbar-none {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-  .scrollbar-none::-webkit-scrollbar {
-    display: none;
-  }
+
+/* Student study rooms are intentionally dark and consistent across devices. */
+.fluentia-study-room,
+body {
+  background: #0c1017;
 }

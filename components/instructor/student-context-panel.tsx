@@ -3,15 +3,24 @@
 import React from "react";
 import { Target, AlertCircle, History, Sparkles } from "lucide-react";
 import { StudentProfile } from "@/types/lesson";
+import { FluentiaUser } from "@/lib/users";
 
 interface StudentContextPanelProps {
   studentName?: string;
   profile?: StudentProfile;
+  onUpdateProfile?: (profile: StudentProfile) => void;
+  students?: Array<FluentiaUser & { profile: StudentProfile; token: string }>;
+  selectedStudentToken?: string;
+  onSelectStudent?: (student: FluentiaUser & { profile: StudentProfile; token: string }) => void;
 }
 
 export function StudentContextPanel({
   studentName = "Arash",
   profile,
+  onUpdateProfile,
+  students = [],
+  selectedStudentToken,
+  onSelectStudent,
 }: StudentContextPanelProps) {
   const displayProfile: StudentProfile = profile || {
     id: "demo",
@@ -25,34 +34,71 @@ export function StudentContextPanel({
     completedModulesCount: 12,
   };
 
+  const updateProfile = <K extends keyof StudentProfile>(
+    field: K,
+    value: StudentProfile[K]
+  ) => {
+    onUpdateProfile?.({ ...displayProfile, [field]: value });
+  };
+
   return (
-    <div className="bg-[#182635] border border-[#273647] rounded-xl p-5 shadow-sm text-[#d4e4fa]">
-      <div className="flex items-start justify-between pb-4 border-b border-[#273647]">
+    <div className="bg-[#171d28]/60 border border-[#202631] rounded-xl p-5 text-[#d9dce0]">
+      <div className="flex items-start justify-between pb-4 border-b border-[#202631]">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-[#122131] border border-[#ffc66b] flex items-center justify-center font-bold text-lg text-[#ffc66b]">
+          <div className="w-12 h-12 rounded-full bg-[#0c1017] border border-amber-500 flex items-center justify-center font-bold text-lg text-amber-400">
             {displayProfile.fullName.charAt(0)}
           </div>
           <div>
-            <h2 className="font-semibold text-lg text-white">{displayProfile.fullName}</h2>
-            <span className="text-xs px-2 py-0.5 rounded bg-[#122131] text-[#7ed8ab] border border-[#273647] font-medium">
-              {displayProfile.level}
-            </span>
+            <input
+              value={displayProfile.fullName}
+              onChange={(e) => updateProfile("fullName", e.target.value)}
+              className="w-full bg-transparent font-[var(--font-fraunces)] font-semibold text-xl text-white focus:outline-none"
+              aria-label="Student name"
+            />
+            <input
+              value={displayProfile.level}
+              onChange={(e) => updateProfile("level", e.target.value)}
+              className="mt-1 w-full bg-transparent text-xs text-amber-400 focus:outline-none"
+              aria-label="Student level"
+            />
           </div>
         </div>
         <div className="text-right">
           <div className="text-xs text-slate-400">Attendance</div>
-          <div className="text-sm font-semibold text-[#7ed8ab]">{displayProfile.attendanceRate}%</div>
+          <div className="text-sm font-semibold text-amber-400">{displayProfile.attendanceRate}%</div>
         </div>
       </div>
+
+      {students.length > 0 && (
+        <label className="mt-4 block text-xs text-slate-400">
+          Active student
+          <select
+            value={selectedStudentToken}
+            onChange={(event) => {
+              const nextStudent = students.find((student) => student.token === event.target.value);
+              if (nextStudent) onSelectStudent?.(nextStudent);
+            }}
+            className="mt-1 w-full rounded-lg border border-[#202631] bg-[#0c1017] px-3 py-2 text-xs text-stone-200 outline-none focus:border-amber-500"
+            aria-label="Select active student"
+          >
+            {students.map((student) => (
+              <option key={student.token} value={student.token}>{student.name}</option>
+            ))}
+          </select>
+        </label>
+      )}
 
       <div className="mt-4 space-y-4 text-xs">
         <div>
           <div className="text-slate-400 font-medium flex items-center gap-1.5 mb-1">
-            <Target className="w-3.5 h-3.5 text-[#ffc66b]" /> Core Goal
+            <Target className="w-3.5 h-3.5 text-amber-400" /> Core Goal
           </div>
-          <p className="bg-[#122131] p-2.5 rounded-lg border border-[#273647] text-slate-200">
-            {displayProfile.targetGoal}
-          </p>
+            <input
+              value={displayProfile.targetGoal}
+              onChange={(e) => updateProfile("targetGoal", e.target.value)}
+              className="w-full bg-[#0c1017] p-2.5 rounded-lg border border-[#202631] text-stone-200 focus:outline-none focus:border-amber-500"
+              aria-label="Student core goal"
+            />
         </div>
 
         <div>
@@ -73,15 +119,19 @@ export function StudentContextPanel({
 
         <div>
           <div className="text-slate-400 font-medium flex items-center gap-1.5 mb-1">
-            <History className="w-3.5 h-3.5 text-indigo-400" /> Instructor Notes
+            <History className="w-3.5 h-3.5 text-amber-400" /> Instructor Notes
           </div>
-          <p className="bg-[#122131] p-2.5 rounded-lg border border-[#273647] text-slate-300 italic font-serif">
-            "{displayProfile.teacherNotes}"
-          </p>
+            <textarea
+              value={displayProfile.teacherNotes}
+              onChange={(e) => updateProfile("teacherNotes", e.target.value)}
+              className="w-full bg-[#0c1017] p-2.5 rounded-lg border border-[#202631] text-stone-300 italic focus:outline-none focus:border-amber-500"
+              aria-label="Instructor notes"
+              rows={3}
+            />
         </div>
 
-        <div className="pt-2 border-t border-[#273647] flex items-center justify-between text-[11px] text-slate-400">
-          <span className="flex items-center gap-1 text-[#7ed8ab]">
+        <div className="pt-2 border-t border-[#202631] flex items-center justify-between text-[11px] text-stone-400">
+          <span className="flex items-center gap-1 text-amber-400">
             <Sparkles className="w-3 h-3" /> Personalized Mode Active
           </span>
           <span>{displayProfile.completedModulesCount} Modules Done</span>

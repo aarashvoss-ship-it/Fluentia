@@ -5,7 +5,9 @@ import { Image, Upload, Check } from "lucide-react";
 
 interface BannerManagerProps {
   bannerUrl?: string;
+  customInput?: string;
   onUpdateBanner: (url: string) => void;
+  onUpdateCustomInput?: (url: string) => void;
 }
 
 const PRESET_BANNERS = [
@@ -16,10 +18,11 @@ const PRESET_BANNERS = [
 
 export function InstructorBannerManager({
   bannerUrl = PRESET_BANNERS[0],
+  customInput = "",
   onUpdateBanner,
+  onUpdateCustomInput,
 }: BannerManagerProps) {
   const [selectedUrl, setSelectedUrl] = useState<string>(bannerUrl);
-  const [customInput, setCustomInput] = useState<string>("");
 
   const handleSelect = (url: string) => {
     setSelectedUrl(url);
@@ -29,23 +32,23 @@ export function InstructorBannerManager({
   const handleCustomApply = () => {
     if (customInput.trim()) {
       handleSelect(customInput.trim());
-      setCustomInput("");
+      onUpdateCustomInput?.("");
     }
   };
 
   return (
-    <div className="bg-[#182635] border border-[#273647] rounded-xl p-5 shadow-sm text-[#d4e4fa]">
+    <div className="bg-[#171d28]/60 border border-[#202631] rounded-xl p-5 text-[#d9dce0]">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-base font-medium flex items-center gap-2">
-          <Image className="w-5 h-[#ffc66b]" />
+        <h3 className="font-[var(--font-fraunces)] text-xl font-semibold flex items-center gap-2">
+          <Image className="w-5 h-5 text-amber-400" />
           Lesson Hero Banner
         </h3>
-        <span className="text-xs bg-[#122131] text-[#7ed8ab] px-2.5 py-1 rounded-full border border-[#273647]">
+        <span className="text-xs bg-amber-500/10 text-amber-400 px-2.5 py-1 rounded-full border border-amber-500/20">
           Dynamic Storage Ready
         </span>
       </div>
 
-      <div className="relative h-36 w-full rounded-lg overflow-hidden border border-[#273647] mb-4 bg-black/40">
+      <div className="relative h-36 w-full rounded-lg overflow-hidden border border-[#202631] mb-4 bg-black/40">
         {selectedUrl ? (
           <img
             src={selectedUrl}
@@ -57,8 +60,8 @@ export function InstructorBannerManager({
             No banner selected
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#122131]/80 to-transparent flex items-end p-3">
-          <span className="text-xs text-[#d4e4fa] font-mono">Current Live Banner</span>
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0c1017]/80 to-transparent flex items-end p-3">
+          <span className="text-xs text-[#d9dce0]">Current Live Banner</span>
         </div>
       </div>
 
@@ -72,12 +75,12 @@ export function InstructorBannerManager({
                 key={index}
                 onClick={() => handleSelect(preset)}
                 className={`relative h-16 rounded-md overflow-hidden border transition ${
-                  isSelected ? "border-[#ffc66b] ring-1 ring-[#ffc66b]" : "border-[#273647] opacity-70 hover:opacity-100"
+                  isSelected ? "border-amber-500 ring-1 ring-amber-500" : "border-[#202631] opacity-70 hover:opacity-100"
                 }`}
               >
                 <img src={preset} alt={`Preset ${index + 1}`} className="w-full h-full object-cover" />
                 {isSelected && (
-                  <div className="absolute inset-0 bg-[#ffc66b]/20 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-amber-500/20 flex items-center justify-center">
                     <Check className="w-4 h-4 text-white drop-shadow" />
                   </div>
                 )}
@@ -93,12 +96,12 @@ export function InstructorBannerManager({
               type="text"
               placeholder="Paste image URL or Supabase link..."
               value={customInput}
-              onChange={(e) => setCustomInput(e.target.value)}
-              className="flex-1 bg-[#122131] border border-[#273647] rounded-lg px-3 py-2 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#ffc66b]"
+              onChange={(e) => onUpdateCustomInput?.(e.target.value)}
+              className="flex-1 bg-[#0c1017] border border-[#202631] rounded-lg px-3 py-2 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500"
             />
             <button
               onClick={handleCustomApply}
-              className="bg-[#273647] hover:bg-[#344659] text-xs px-3 py-2 rounded-lg font-medium transition flex items-center gap-1.5"
+              className="bg-[#202631] hover:bg-[#29303c] text-xs px-3 py-2 rounded-lg font-medium transition flex items-center gap-1.5"
             >
               <Upload className="w-3.5 h-3.5" /> Apply
             </button>

@@ -41,7 +41,7 @@ export function CelebrationModal({
 
         {/* Left-aligned Content */}
         <div className="space-y-2 text-left">
-          <h2 className="text-2xl font-serif text-stone-100 tracking-tight">
+          <h2 className="text-2xl font-sans text-stone-100 tracking-tight">
             Outstanding work, {studentName}.
           </h2>
           <p className="text-sm leading-relaxed text-stone-400">
