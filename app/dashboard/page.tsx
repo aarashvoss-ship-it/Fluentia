@@ -1,5 +1,6 @@
 "use client";
 
+export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BookOpen, CheckCircle2, Clock3, Layers3, MessageSquareText, PanelRight, Settings2, UserRound } from "lucide-react";

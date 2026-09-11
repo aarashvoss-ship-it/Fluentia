@@ -1,16 +1,6 @@
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://kmpcilwdndrpjhsvdvdc.supabase.co";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "sb_publishable_cdhA_pIqPDZ4F6wqAVfHSQ_xWtjzuyd";
 
-export const isSupabaseConfigured = (): boolean => {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL && 
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
-};
-
-// Fallback client to prevent build-time prerendering failures when environment variables are missing
-export const supabase: SupabaseClient = isSupabaseConfigured()
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : (createClient("https://placeholder.supabase.co", "placeholder") as SupabaseClient);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
