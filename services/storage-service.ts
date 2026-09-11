@@ -111,7 +111,7 @@ function defaultContent(): StrictStepContent {
 type SupabaseRow = Record<string, any>;
 
 async function getStudentId(studentToken?: string) {
-  if (!isSupabaseConfigured || !studentToken) return null;
+  if (!isSupabaseConfigured() || !studentToken) return null;
   try {
     const { data: authData } = await supabase.auth.getUser();
     if (authData.user?.id) return authData.user.id;

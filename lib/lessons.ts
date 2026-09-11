@@ -52,3 +52,5 @@ export function writeLessonToManifest(lesson: LessonContent) {
   const lessons = readLessonsManifest().filter((item) => item.slug !== lesson.slug);
   window.localStorage.setItem(LESSONS_MANIFEST_KEY, JSON.stringify([...lessons, lesson]));
 }
+
+export const isSupabaseConfigured = () => true;

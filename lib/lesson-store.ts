@@ -1,13 +1,6 @@
-import { LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
+import type { LessonEvaluation, PublishedLessonState, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
 
-export interface PublishedLessonState {
-  content: StrictStepContent;
-  bannerUrl: string;
-  studentProfile: StudentProfile;
-  evaluation: LessonEvaluation;
-  status: "draft" | "published";
-  submission?: StudentSubmission;
-}
+export type { PublishedLessonState } from "@/types/lesson";
 
 export const LESSON_STATE_PREFIX = "fluentia:published-lesson:";
 
