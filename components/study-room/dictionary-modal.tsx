@@ -11,7 +11,7 @@ interface DictionaryEntry {
   definition: string;
   example?: string;
   pronunciationUrl?: string;
-  source: SavedVocabularyWord["source"];
+  source: NonNullable<SavedVocabularyWord["source"]>;
 }
 
 interface DictionaryModalProps {
@@ -74,7 +74,7 @@ export function DictionaryModal({ initialWord = "", onClose, savedWords, onSave 
           <div className="flex flex-col gap-3 border-t border-[#29303c] pt-4 sm:flex-row sm:items-center">
             {entry.pronunciationUrl && <audio controls src={entry.pronunciationUrl} className="h-8 min-w-0 flex-1" aria-label="Audio pronunciation" />}
             {entry.pronunciationUrl && <Volume2 className="h-4 w-4 shrink-0 text-amber-400" />}
-            <button type="button" disabled={isSaved} onClick={() => onSave({ ...entry, savedAt: new Date().toISOString() })} className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2.5 text-sm font-bold text-[#0c1017] shadow-md transition hover:bg-amber-400 disabled:bg-emerald-500/20 disabled:text-emerald-300">{isSaved ? <Check className="h-4 w-4" /> : "+"}{isSaved ? "Saved" : "Save to Vocab"}</button>
+            <button type="button" disabled={isSaved} onClick={() => onSave({ ...entry, id: `${entry.word}-${Date.now()}`, savedAt: new Date().toISOString() })} className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2.5 text-sm font-bold text-[#0c1017] shadow-md transition hover:bg-amber-400 disabled:bg-emerald-500/20 disabled:text-emerald-300">{isSaved ? <Check className="h-4 w-4" /> : "+"}{isSaved ? "Saved" : "Save to Vocab"}</button>
           </div>
           <a href={`https://www.merriam-webster.com/dictionary/${entry.word}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-stone-500 hover:text-amber-300">Open full dictionary entry <ExternalLink className="h-3 w-3" /></a>
         </div>}

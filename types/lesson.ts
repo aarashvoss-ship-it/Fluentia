@@ -117,9 +117,15 @@ export interface LessonContent {
   subtitle?: string;
   moduleNumber: number;
   coverImage?: string;
+  ambientMusicUrl?: string;
   studentName?: string;
+  status?: 'draft' | 'published' | 'archived';
+  instructor?: {
+    initials?: string;
+    fullName?: string;
+  };
+  content?: InstructorLessonMock["content"];
 }
-
 export interface StudentProfile {
   id?: string;
   fullName: string;
@@ -138,6 +144,7 @@ export interface InstructorLessonMock {
   module_tag: string;
   studentName: string;
   banner_image_url: string;
+  bannerUrl?: string;
   studentProfile: StudentProfile;
   content: {
     warm_up?: StepWarmUpContent;
@@ -149,3 +156,57 @@ export interface InstructorLessonMock {
     results?: StepResultsContent;
   };
 }
+export interface ChatMessage {
+  id: string;
+  sender: 'user' | 'ai' | 'instructor';
+  text: string;
+  timestamp: string;
+  tab?: "instructor" | "support";
+}
+
+export interface SavedVocabularyWord {
+  id: string;
+  word: string;
+  definition?: string;
+  translation?: string;
+  partOfSpeech?: string;
+  example?: string;
+  phonetic?: string;
+  pronunciationUrl?: string;
+  source?: "merriam-webster" | "free-dictionary";
+  savedAt?: string;
+}
+
+export interface StudentNote {
+  id: string;
+  content: string;
+  createdAt: string;
+  lessonSlug?: string;
+}
+
+export interface LessonEvaluation {
+  scores: Record<string, number>;
+  comments: string;
+  criterionFeedback?: Record<string, string>;
+  strengths?: string;
+  areasToImprove?: string;
+  studyHubPrescription?: string;
+  voiceFeedbackUrl?: string;
+  published?: boolean;
+}
+
+export type StudentSubmissionStatus = "in_progress" | "submitted" | "reviewed";
+
+export interface StudentSubmission {
+  status: StudentSubmissionStatus;
+  listeningAnswers: Record<string, string>;
+  readingAnswers: Record<string, string>;
+  writingText: string;
+  speakingAudioUrl?: string;
+  blockResponses?: Record<string, string>;
+  quizSelections?: Record<string, string>;
+  audioUploads?: Record<string, string>;
+  submittedAt?: string;
+}
+
+export type StrictStepContent = Record<string, any>;

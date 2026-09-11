@@ -153,7 +153,7 @@ function mapSubmission(row: SupabaseRow): StudentSubmission {
 }
 
 export async function fetchLesson(slug: string): Promise<LessonContent | null> {
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const { data, error } = await supabase.from("lessons").select("*").eq("slug", slug).maybeSingle();
       if (!error && data) return mapLessonRow(data);
@@ -166,7 +166,7 @@ export async function fetchLesson(slug: string): Promise<LessonContent | null> {
 }
 
 export async function fetchLessons(): Promise<LessonContent[]> {
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const { data, error } = await supabase.from("lessons").select("*").neq("status", "draft").order("created_at", { ascending: false });
       if (!error && data) return data.map(mapLessonRow);
@@ -183,7 +183,7 @@ export async function fetchLessons(): Promise<LessonContent[]> {
 }
 
 export async function saveLesson(lesson: LessonContent): Promise<void> {
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const { error } = await supabase.from("lessons").upsert({
         id: lesson.id,
@@ -215,7 +215,7 @@ export async function updateLessonStatus(slug: string, status: LessonStatus): Pr
 }
 
 export async function fetchLessonState(slug: string, studentToken?: string): Promise<PublishedLessonState | null> {
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const [lesson, studentId] = await Promise.all([fetchLesson(slug), getStudentId(studentToken)]);
       if (lesson && studentId) {
@@ -238,7 +238,7 @@ export async function fetchLessonState(slug: string, studentToken?: string): Pro
 }
 
 export async function fetchStudentProgress(slug: string, studentToken?: string): Promise<StudentProgressRecord> {
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const [lesson, studentId] = await Promise.all([fetchLesson(slug), getStudentId(studentToken)]);
       if (lesson && studentId) {
@@ -263,7 +263,7 @@ export async function saveStudentProgress(
   studentToken?: string
 ): Promise<StudentProgressRecord> {
   const updated = { ...progress, updatedAt: new Date().toISOString() };
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const [lesson, studentId] = await Promise.all([fetchLesson(slug), getStudentId(studentToken)]);
       if (lesson && studentId) {
@@ -302,7 +302,7 @@ export async function submitStudentLesson(
     status: current?.status || "published",
     submission,
   };
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const [lesson, studentId] = await Promise.all([fetchLesson(slug), getStudentId(studentToken)]);
       if (lesson && studentId) {
@@ -345,7 +345,7 @@ export async function saveInstructorFeedback(
     status: current?.status || "published",
     submission,
   };
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const [lesson, studentId] = await Promise.all([fetchLesson(slug), getStudentId(studentToken)]);
       if (lesson && studentId) {
@@ -374,7 +374,7 @@ export async function prepareMediaUrl(
   bucket: StorageMediaAsset["bucket"],
   name = `media-${Date.now()}`
 ): Promise<StorageMediaAsset> {
-  if (typeof input !== "string" && isSupabaseConfigured) {
+  if (typeof input !== "string" && isSupabaseConfigured()) {
     try {
       const path = `${Date.now()}-${name}`;
       const { error } = await supabase.storage.from(bucket).upload(path, input, { upsert: true, contentType: input.type || undefined });
@@ -408,24 +408,24 @@ export async function uploadVoiceFeedback(input: string | Blob, name?: string) {
 }
 
 export async function fetchSavedVocabulary(studentToken?: string): Promise<SavedVocabularyWord[]> {
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const studentId = await getStudentId(studentToken);
       if (studentId) {
         const { data, error } = await supabase.from("user_vocab").select("*").eq("user_id", studentId).order("saved_at", { ascending: false });
-        if (!error && data) return data.map((row: SupabaseRow) => ({ word: row.word, partOfSpeech: row.part_of_speech || row.partOfSpeech, definition: row.definition, example: row.example, pronunciationUrl: row.pronunciation_url || row.pronunciationUrl, source: row.source || "free-dictionary", savedAt: row.saved_at || row.savedAt || new Date().toISOString() }));
+        if (!error && data) return data.map((row: SupabaseRow) => ({ id: String(row.id || `${row.word}-${row.saved_at || Date.now()}`), word: row.word, partOfSpeech: row.part_of_speech || row.partOfSpeech, definition: row.definition, example: row.example, pronunciationUrl: row.pronunciation_url || row.pronunciationUrl, source: row.source || "free-dictionary", savedAt: row.saved_at || row.savedAt || new Date().toISOString() }));
       }
     } catch {
       // Use local vocabulary when Supabase is unavailable.
     }
   }
-  return readJson<SavedVocabularyWord[]>(scopedKey(VOCAB_PREFIX, studentToken)) || [];
+    return (readJson<Array<SavedVocabularyWord & { id?: string }>>(scopedKey(VOCAB_PREFIX, studentToken)) || []).map((word) => ({ ...word, id: word.id || `${word.word}-${word.savedAt || Date.now()}` }));
 }
 
 export async function saveVocabularyWord(studentToken: string | undefined, word: SavedVocabularyWord): Promise<SavedVocabularyWord[]> {
   const current = await fetchSavedVocabulary(studentToken);
   const next = [word, ...current.filter((item) => item.word.toLowerCase() !== word.word.toLowerCase())];
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const studentId = await getStudentId(studentToken);
       if (studentId) {
@@ -442,7 +442,7 @@ export async function saveVocabularyWord(studentToken: string | undefined, word:
 
 export async function removeVocabularyWord(studentToken: string | undefined, word: string): Promise<SavedVocabularyWord[]> {
   const next = (await fetchSavedVocabulary(studentToken)).filter((item) => item.word.toLowerCase() !== word.toLowerCase());
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const studentId = await getStudentId(studentToken);
       if (studentId) {
@@ -458,28 +458,28 @@ export async function removeVocabularyWord(studentToken: string | undefined, wor
 }
 
 export async function fetchStudentNotes(studentToken?: string): Promise<StudentNote[]> {
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const studentId = await getStudentId(studentToken);
       if (studentId) {
         const { data, error } = await supabase.from("user_notes").select("*").eq("user_id", studentId).order("updated_at", { ascending: false });
-        if (!error && data) return data.map((row: SupabaseRow) => ({ id: row.id, text: row.text, lessonSlug: row.lesson_slug || row.lessonSlug, updatedAt: row.updated_at || new Date().toISOString() }));
+        if (!error && data) return data.map((row: SupabaseRow) => ({ id: String(row.id), content: row.content || row.text || "", lessonSlug: row.lesson_slug || row.lessonSlug, createdAt: row.created_at || row.updated_at || new Date().toISOString() }));
       }
     } catch {
       // Use local notes when Supabase is unavailable.
     }
   }
-  return readJson<StudentNote[]>(scopedKey(NOTES_PREFIX, studentToken)) || [];
+    return (readJson<Array<StudentNote & { text?: string; updatedAt?: string }>>(scopedKey(NOTES_PREFIX, studentToken)) || []).map((note) => ({ id: note.id, content: note.content || note.text || "", lessonSlug: note.lessonSlug, createdAt: note.createdAt || note.updatedAt || new Date().toISOString() }));
 }
 
 export async function saveStudentNote(studentToken: string | undefined, note: StudentNote): Promise<StudentNote[]> {
   const current = await fetchStudentNotes(studentToken);
   const next = [note, ...current.filter((item) => item.id !== note.id)];
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const studentId = await getStudentId(studentToken);
       if (studentId) {
-        const { error } = await supabase.from("user_notes").upsert({ id: note.id, user_id: studentId, text: note.text, lesson_slug: note.lessonSlug, updated_at: note.updatedAt }, { onConflict: "id" });
+        const { error } = await supabase.from("user_notes").upsert({ id: note.id, user_id: studentId, content: note.content, lesson_slug: note.lessonSlug, created_at: note.createdAt, updated_at: note.createdAt }, { onConflict: "id" });
         if (!error) return next;
       }
     } catch {
@@ -491,7 +491,7 @@ export async function saveStudentNote(studentToken: string | undefined, note: St
 }
 
 export async function fetchChatMessages(studentToken?: string): Promise<ChatMessage[]> {
-  return readJson<ChatMessage[]>(scopedKey(CHAT_PREFIX, studentToken)) || [];
+  return (readJson<Array<ChatMessage & { createdAt?: string }>>(scopedKey(CHAT_PREFIX, studentToken)) || []).map((message) => ({ ...message, sender: message.sender || "ai", timestamp: message.timestamp || message.createdAt || new Date().toISOString() }));
 }
 
 export async function saveChatMessage(studentToken: string | undefined, message: ChatMessage): Promise<ChatMessage[]> {
