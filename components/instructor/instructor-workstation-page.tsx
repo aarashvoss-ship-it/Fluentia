@@ -8,7 +8,7 @@ import { LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor
 import { InstructorBannerManager } from "@/components/instructor/banner-manager";
 import { SubmissionEvaluator } from "@/components/instructor/submission-evaluator";
 import { LessonContent, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
-import { INSTRUCTOR_TOKEN, persistActiveStudentToken, PublishedLessonState } from "@/lib/lesson-store";
+import { INSTRUCTOR_TOKEN, persistActiveStudentToken, PublishedLessonState, resolveActiveStudent } from "@/lib/lesson-store";
 import { FeedbackPayload } from "@/components/instructor/submission-evaluator";
 import { DEFAULT_STUDENT, findUser, STUDENT_USERS, StudentUser } from "@/lib/users";
 import { fetchLesson, fetchLessonState, saveInstructorFeedback, saveLesson, saveLessonState } from "@/services/storage-service";
@@ -111,7 +111,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
       const query = new URLSearchParams(window.location.search);
       const requestedStudent = allowStudentQuery
         ? persistActiveStudentToken(query.get("student"))
-        : persistActiveStudentToken();
+        : resolveActiveStudent();
       window.localStorage.setItem("fluentia:active-user", INSTRUCTOR_TOKEN);
       setSelectedStudent(requestedStudent);
       setIsMounted(true);
