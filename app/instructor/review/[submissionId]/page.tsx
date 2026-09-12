@@ -27,7 +27,7 @@ export default function SubmissionReviewPage() {
       {/* Top Bar */}
       <div className="max-w-7xl mx-auto flex items-center justify-between border-b border-[#273647] pb-4 mb-8">
         <div className="flex items-center gap-3">
-          <Link href="/instructor/lessons/habits-01" className="p-2 bg-[#122131] border border-[#273647] rounded-lg hover:bg-[#273647] transition">
+          <Link href="/instructor/avoss-9042/lessons/habits-01?token=avoss-9042" className="p-2 bg-[#122131] border border-[#273647] rounded-lg hover:bg-[#273647] transition">
             <ArrowLeft className="w-4 h-4 text-white" />
           </Link>
           <div>

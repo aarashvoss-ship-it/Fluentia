@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
 import { MOCK_INSTRUCTOR_LESSONS } from "@/lib/mock-instructor-data";
 import { StudentContextPanel } from "@/components/instructor/student-context-panel";
 import { LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
@@ -14,10 +13,13 @@ import { DEFAULT_STUDENT, findUser, STUDENT_USERS, StudentUser } from "@/lib/use
 import { fetchLesson, fetchLessonState, saveInstructorFeedback, saveLesson, saveLessonState } from "@/services/storage-service";
 import { AccessCard } from "@/components/access/access-card";
 
-export default function InstructorLessonWorkstationPage() {
-  const params = useParams();
-  const rawId = params?.id;
-  const lessonId = typeof rawId === "string" ? rawId : "habits-01";
+interface InstructorWorkstationProps {
+  instructorToken: string;
+  lessonSlug: string;
+}
+
+export default function InstructorLessonWorkstationPage({ instructorToken, lessonSlug }: InstructorWorkstationProps) {
+  const lessonId = lessonSlug;
 
   const initialLesson = MOCK_INSTRUCTOR_LESSONS[lessonId] || MOCK_INSTRUCTOR_LESSONS["habits-01"];
   const [isMounted, setIsMounted] = useState(false);
@@ -94,13 +96,12 @@ export default function InstructorLessonWorkstationPage() {
 
   useEffect(() => {
     void (async () => {
-      const query = new URLSearchParams(window.location.search);
-      const instructorToken = query.get("instructor") || query.get("token");
       if (instructorToken !== INSTRUCTOR_TOKEN) {
         setAccessDenied(true);
         setIsMounted(true);
         return;
       }
+      const query = new URLSearchParams(window.location.search);
       const requestedStudent = persistActiveStudentToken(query.get("student"));
       window.localStorage.setItem("fluentia:active-user", INSTRUCTOR_TOKEN);
       setSelectedStudent(requestedStudent);
