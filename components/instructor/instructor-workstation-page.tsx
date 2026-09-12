@@ -2,16 +2,17 @@
 
 import React, { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
+import { supabase } from "@/lib/supabaseClient";
 import { MOCK_INSTRUCTOR_LESSONS } from "@/lib/mock-instructor-data";
 import { StudentContextPanel } from "@/components/instructor/student-context-panel";
 import { LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
 import { InstructorBannerManager } from "@/components/instructor/banner-manager";
 import { SubmissionEvaluator } from "@/components/instructor/submission-evaluator";
 import { LessonContent, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
-import { INSTRUCTOR_TOKEN, persistActiveStudentToken, PublishedLessonState, resolveActiveStudent } from "@/lib/lesson-store";
+import { INSTRUCTOR_TOKEN, PublishedLessonState } from "@/lib/lesson-store";
 import { FeedbackPayload } from "@/components/instructor/submission-evaluator";
-import { DEFAULT_STUDENT, findUser, STUDENT_USERS, StudentUser } from "@/lib/users";
-import { fetchLesson, fetchLessonState, saveInstructorFeedback, saveLesson, saveLessonState } from "@/services/storage-service";
+import { DEFAULT_STUDENT, StudentUser } from "@/lib/users";
+import { saveInstructorFeedback, saveLesson } from "@/services/storage-service";
 import { AccessCard } from "@/components/access/access-card";
 
 interface InstructorWorkstationProps {
@@ -27,6 +28,8 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
   const [isMounted, setIsMounted] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(DEFAULT_STUDENT);
+  const [students, setStudents] = useState<StudentUser[]>([]);
+  const [databaseLessonId, setDatabaseLessonId] = useState<string | null>(null);
   const [lessonStatus, setLessonStatus] = useState<"draft" | "published">("published");
   const [activeTab, setActiveTab] = useState<"dashboard" | "builder" | "evaluation">("dashboard");
   const [sidebarBlocks, setSidebarBlocks] = useState([
@@ -72,7 +75,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
   });
 
   async function handleCreateLesson() {
-    const student = STUDENT_USERS.find((item) => item.id === newLesson.studentId);
+    const student = students.find((item) => item.id === newLesson.studentId);
     const slug = newLesson.slug.trim().toLowerCase();
     const moduleNumber = Number(newLesson.moduleNumber);
     if (!student || !newLesson.title.trim() || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || !Number.isInteger(moduleNumber)) {
@@ -113,22 +116,45 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
         return;
       }
       const query = new URLSearchParams(window.location.search);
-      const requestedStudent = allowStudentQuery
-        ? persistActiveStudentToken(query.get("student"))
-        : resolveActiveStudent();
+      const requestedStudentToken = allowStudentQuery ? query.get("student") : null;
+      const { data: studentRows, error: studentsError } = await supabase
+        .from("students")
+        .select("*")
+        .eq("is_active", true)
+        .order("full_name");
+      if (studentsError) {
+        setPublishStatus("Unable to load active students from Supabase.");
+        setIsMounted(true);
+        return;
+      }
+      const databaseStudents = (studentRows || []).map((row) => ({
+        id: row.id,
+        token: row.token || row.id,
+        name: row.full_name || row.name || row.email || row.id,
+        role: "student" as const,
+        profile: {
+          id: row.id,
+          fullName: row.full_name || row.name || row.email || row.id,
+          avatarUrl: row.avatar_url || "",
+          level: row.level || "B2 Intermediate",
+          targetGoal: row.target_goal || "Fluency",
+          weaknesses: row.weaknesses || [],
+          teacherNotes: row.teacher_notes || "",
+          attendanceRate: row.attendance_rate || 0,
+          completedModulesCount: row.completed_modules_count || 0,
+        },
+      }));
+      setStudents(databaseStudents);
+      const requestedStudent = databaseStudents.find((student) => student.id === requestedStudentToken || student.token === requestedStudentToken)
+        || databaseStudents[0];
+      if (!requestedStudent) {
+        setIsMounted(true);
+        return;
+      }
       window.localStorage.setItem("fluentia:active-user", INSTRUCTOR_TOKEN);
       setSelectedStudent(requestedStudent);
       setNewLesson((previous) => ({ ...previous, studentId: requestedStudent.id }));
       setIsMounted(true);
-      const manifestLesson = await fetchLesson(lessonId);
-      if (manifestLesson) {
-        setLessonStatus(manifestLesson.status || "draft");
-        setWorkstationState((previous) => ({
-          ...previous,
-          content: manifestLesson.content || {},
-          bannerUrl: manifestLesson.coverImage || previous.bannerUrl,
-        }));
-      }
       await handleStudentChange(requestedStudent);
     })();
   }, []);
@@ -142,9 +168,21 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
   }
 
   async function handleStudentChange(student: StudentUser) {
-    const publishedState = await fetchLessonState(lessonId, student.token);
-    const manifestLesson = await fetchLesson(lessonId);
-    const baseContent = manifestLesson?.content || initialLesson.content || {};
+    const { data: lesson, error } = await supabase
+      .from("lessons")
+      .select("*")
+      .eq("student_id", student.id)
+      .eq("slug", lessonId)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      setPublishStatus("Unable to load this student's lesson from Supabase.");
+      return;
+    }
+    const lessonContent = lesson?.content || {};
+    const savedEvaluation = lesson?.evaluation || lessonContent.evaluation;
+    const baseContent = lessonContent || initialLesson.content || {};
     const demoSubmission: StudentSubmission = {
       status: "submitted",
       listeningAnswers: Object.fromEntries((initialLesson.content.listening?.questions || []).map((question) => [question.id, question.correct_answer || "Environmental design"])),
@@ -154,21 +192,22 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
       submittedAt: new Date().toISOString(),
     };
     setSelectedStudent(student);
+    setDatabaseLessonId(lesson?.id || null);
     setNewLesson((previous) => ({ ...previous, studentId: student.id }));
     setWorkstationState({
-      content: publishedState?.content || baseContent,
-      bannerUrl: publishedState?.bannerUrl || initialLesson.banner_image_url || "",
+      content: baseContent,
+      bannerUrl: lesson?.banner_url || initialLesson.banner_image_url || "",
       customBannerUrl: "",
-      studentProfile: publishedState?.studentProfile || student.profile,
-      evaluation: publishedState?.evaluation || {
+      studentProfile: lesson?.student_profile || student.profile,
+      evaluation: savedEvaluation || {
         scores: { task: 4, coherence: 4, lexical: 3, grammar: 4 },
         comments: "Great work on incorporating specific behavioral terms. Focus a bit more on hedging phrases in your introduction.",
         criterionFeedback: {},
         published: false,
       },
-      submission: publishedState?.submission || (student.token === "arash-1024" ? demoSubmission : undefined),
+      submission: lesson?.submission || (student.token === "arash-1024" ? demoSubmission : undefined),
     });
-    if (publishedState?.status) setLessonStatus(publishedState.status);
+    if (lesson?.status === "draft" || lesson?.status === "published") setLessonStatus(lesson.status);
     window.localStorage.setItem("fluentia:active-student-token", student.token);
     window.localStorage.setItem("fluentia:active-user", INSTRUCTOR_TOKEN);
   }
@@ -177,27 +216,24 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
     setIsPublishing(true);
     setPublishStatus(null);
     setLessonStatus(status);
-    const state: PublishedLessonState = {
-      content: workstationState.content,
-      bannerUrl: workstationState.bannerUrl,
-      studentProfile: workstationState.studentProfile,
-      evaluation: workstationState.evaluation,
+    const content = { ...workstationState.content, evaluation: workstationState.evaluation };
+    const { data, error } = await supabase.from("lessons").upsert({
+      id: databaseLessonId || initialLesson.id,
+      slug: lessonId,
+      student_id: selectedStudent.id,
+      title: initialLesson.title,
+      subtitle: "Seven stages. One connected journey.",
+      module_number: initialLesson.moduleNumber || 1,
+      banner_url: workstationState.bannerUrl || initialLesson.banner_image_url,
       status,
-      submission: workstationState.submission,
-    };
-    await saveLessonState(lessonId, state, selectedStudent.token);
-    const manifestLesson = await fetchLesson(lessonId);
-    await saveLesson({
-      id: manifestLesson?.id || initialLesson.id,
-      slug: manifestLesson?.slug || lessonId,
-      title: manifestLesson?.title || initialLesson.title,
-      studentId: manifestLesson?.studentId || selectedStudent.id,
-      subtitle: manifestLesson?.subtitle || "Seven stages. One connected journey.",
-      moduleNumber: manifestLesson?.moduleNumber || initialLesson.moduleNumber || Number((initialLesson.module_tag || "module-1").replace("module-", "")) || 1,
-      coverImage: workstationState.bannerUrl || initialLesson.banner_image_url,
-      status,
-      content: workstationState.content,
-    });
+      content,
+    }).select("id").single();
+    if (error) {
+      setIsPublishing(false);
+      setPublishStatus("Unable to save this lesson to Supabase.");
+      return;
+    }
+    setDatabaseLessonId(data.id);
 
     setTimeout(() => {
       setIsPublishing(false);
@@ -306,7 +342,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
             <select
               value={newLesson.studentId}
               onChange={(event) => {
-                const nextStudent = STUDENT_USERS.find((student) => student.id === event.target.value);
+                const nextStudent = students.find((student) => student.id === event.target.value);
                 if (!nextStudent) return;
                 setNewLesson((previous) => ({ ...previous, studentId: nextStudent.id }));
                 void handleStudentChange(nextStudent);
@@ -314,7 +350,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
               className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
               aria-label="Select student for lesson"
             >
-              {STUDENT_USERS.map((student) => (
+              {students.map((student) => (
                 <option key={student.id} value={student.id}>{student.name}</option>
               ))}
             </select>
@@ -415,7 +451,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
       </>}
 
       {activeTab === "evaluation" && <>
-      <div className="mb-6"><StudentContextPanel studentName={selectedStudent.name} profile={workstationState.studentProfile} students={STUDENT_USERS} selectedStudentToken={selectedStudent.token} onSelectStudent={handleStudentChange} onUpdateProfile={(studentProfile: StudentProfile) => setWorkstationState((previous) => ({ ...previous, studentProfile }))} /></div>
+      <div className="mb-6"><StudentContextPanel studentName={selectedStudent.name} profile={workstationState.studentProfile} students={students} selectedStudentToken={selectedStudent.token} onSelectStudent={handleStudentChange} onUpdateProfile={(studentProfile: StudentProfile) => setWorkstationState((previous) => ({ ...previous, studentProfile }))} /></div>
       <section className="mt-8 grid grid-cols-1 items-start gap-6 lg:grid-cols-12" aria-label="Student submission review workspace">
         <div className="space-y-5 lg:col-span-7">
           <div className="flex flex-col justify-between gap-3 border-b border-[#202631] pb-4 sm:flex-row sm:items-end">
