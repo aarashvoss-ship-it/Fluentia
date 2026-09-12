@@ -217,7 +217,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
             Fluentia Instructor Studio
           </span>
           <h1 className="font-[var(--font-fraunces)] text-2xl font-semibold text-[#f1eee8] mt-2">
-            Lesson Workstation: {initialLesson.title}
+            Instructor Workstation
           </h1>
         </div>
 
