@@ -124,7 +124,7 @@ export function LessonTailorEditor({
               if (event.target.value) updateBlocks(step, [...blocks, createBlock(event.target.value as ContentBlockType)]);
             }}
             aria-label={`Add content block to ${step}`}
-            className="rounded-md border border-amber-500/40 bg-[#171d28] px-3 py-2 text-xs text-amber-300 outline-none focus:border-amber-500"
+            className="rounded-md border border-amber-500 bg-transparent px-3 py-2 text-sm font-medium text-amber-500 outline-none transition hover:bg-amber-500/10 focus:border-amber-500"
           >
             <option value="">+ Add Content Block</option>
             <option value="text">Text Block</option>
