@@ -51,6 +51,7 @@ export default function LessonPage() {
   const instructorLesson = MOCK_INSTRUCTOR_LESSONS[mockLesson.slug] || MOCK_INSTRUCTOR_LESSONS["habits-01"];
   const instructor = mockLesson.instructor || instructorLesson.instructor || { fullName: "AVoss", initials: "AV" };
   const [activeStudent, setActiveStudent] = useState(DEFAULT_STUDENT);
+  const [studentReady, setStudentReady] = useState(false);
   const [currentStep, setCurrentStep] = useState<StudyStepId>("warm_up");
   const [completedSteps, setCompletedSteps] = useState<StudyStepId[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -100,10 +101,11 @@ export default function LessonPage() {
       setActiveStudent(student as FluentiaUser & { profile: NonNullable<FluentiaUser["profile"]>; token: string });
       window.localStorage.setItem("fluentia:active-user", student.token || student.id);
     }
+    setStudentReady(true);
   }, []);
 
   useEffect(() => {
-    if (!lessonReady || lessonNotFound) return;
+    if (!lessonReady || !studentReady || lessonNotFound) return;
     const startStep = new URLSearchParams(window.location.search).get("start");
     void Promise.all([
       fetchLessonState(mockLesson.slug, activeStudent.token),
@@ -114,7 +116,7 @@ export default function LessonPage() {
       setCurrentStep(startStep === "warm_up" ? "warm_up" : progress.currentStep);
       setCompletedSteps(progress.completedSteps);
     });
-  }, [activeStudent.token, lessonReady, lessonNotFound, mockLesson.slug]);
+  }, [activeStudent.token, lessonReady, lessonNotFound, mockLesson.slug, studentReady]);
 
   useEffect(() => {
     void Promise.all([
@@ -200,11 +202,13 @@ export default function LessonPage() {
   async function handleNext() {
     markStepComplete(currentStep);
     const nextCompletedSteps = completedSteps.includes(currentStep) ? completedSteps : [...completedSteps, currentStep];
-    if (submission.status === "in_progress") await persistSubmission({ ...submission, status: "in_progress" }, { completedSteps: nextCompletedSteps, currentStep });
     if (currentIndex < STUDY_STEPS.length - 2) {
       setCurrentStep(STUDY_STEPS[currentIndex + 1].id);
     } else if (currentIndex === STUDY_STEPS.length - 2) {
       setIsModalOpen(true);
+    }
+    if (submission.status === "in_progress") {
+      void persistSubmission({ ...submission, status: "in_progress" }, { completedSteps: nextCompletedSteps, currentStep });
     }
   }
 
@@ -234,7 +238,7 @@ export default function LessonPage() {
 
   const isResultsStep = currentStep === "results";
 
-  if (!lessonReady) {
+  if (!lessonReady || !studentReady) {
     return <div className="fluentia-study-room min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
   }
 
