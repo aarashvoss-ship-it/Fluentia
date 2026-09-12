@@ -111,7 +111,7 @@ function defaultContent(): StrictStepContent {
 type SupabaseRow = Record<string, any>;
 
 async function getStudentId(studentToken?: string) {
-  if (!isSupabaseConfigured || !studentToken) return null;
+  if (!isSupabaseConfigured() || !studentToken) return null;
   try {
     const { data } = await supabase.from("profiles").select("id").eq("token", studentToken).maybeSingle();
     return data?.id || null;
@@ -151,7 +151,7 @@ function mapSubmission(row: SupabaseRow): StudentSubmission {
 }
 
 export async function fetchLesson(slug: string): Promise<LessonContent | null> {
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const { data, error } = await supabase.from("lessons").select("*").eq("slug", slug).maybeSingle();
       if (!error && data) return mapLessonRow(data);
@@ -164,7 +164,7 @@ export async function fetchLesson(slug: string): Promise<LessonContent | null> {
 }
 
 export async function fetchLessons(): Promise<LessonContent[]> {
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const { data, error } = await supabase.from("lessons").select("*").neq("status", "draft").order("created_at", { ascending: false });
       if (!error && data) return data.map(mapLessonRow);
@@ -181,7 +181,7 @@ export async function fetchLessons(): Promise<LessonContent[]> {
 }
 
 export async function saveLesson(lesson: LessonContent): Promise<void> {
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const { error } = await supabase.from("lessons").upsert({
         id: lesson.id,
@@ -213,7 +213,7 @@ export async function updateLessonStatus(slug: string, status: LessonStatus): Pr
 }
 
 export async function fetchLessonState(slug: string, studentToken?: string): Promise<PublishedLessonState | null> {
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const [lesson, studentId] = await Promise.all([fetchLesson(slug), getStudentId(studentToken)]);
       if (lesson && studentId) {
@@ -236,7 +236,7 @@ export async function fetchLessonState(slug: string, studentToken?: string): Pro
 }
 
 export async function fetchStudentProgress(slug: string, studentToken?: string): Promise<StudentProgressRecord> {
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const [lesson, studentId] = await Promise.all([fetchLesson(slug), getStudentId(studentToken)]);
       if (lesson && studentId) {
@@ -261,7 +261,7 @@ export async function saveStudentProgress(
   studentToken?: string
 ): Promise<StudentProgressRecord> {
   const updated = { ...progress, updatedAt: new Date().toISOString() };
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const [lesson, studentId] = await Promise.all([fetchLesson(slug), getStudentId(studentToken)]);
       if (lesson && studentId) {
@@ -300,7 +300,7 @@ export async function submitStudentLesson(
     status: current?.status || "published",
     submission,
   };
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const [lesson, studentId] = await Promise.all([fetchLesson(slug), getStudentId(studentToken)]);
       if (lesson && studentId) {
@@ -343,7 +343,7 @@ export async function saveInstructorFeedback(
     status: current?.status || "published",
     submission,
   };
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const [lesson, studentId] = await Promise.all([fetchLesson(slug), getStudentId(studentToken)]);
       if (lesson && studentId) {
@@ -372,7 +372,7 @@ export async function prepareMediaUrl(
   bucket: StorageMediaAsset["bucket"],
   name = `media-${Date.now()}`
 ): Promise<StorageMediaAsset> {
-  if (typeof input !== "string" && isSupabaseConfigured) {
+  if (typeof input !== "string" && isSupabaseConfigured()) {
     try {
       const path = `${Date.now()}-${name}`;
       const { error } = await supabase.storage.from(bucket).upload(path, input, { upsert: true, contentType: input.type || undefined });
@@ -406,7 +406,7 @@ export async function uploadVoiceFeedback(input: string | Blob, name?: string) {
 }
 
 export async function fetchSavedVocabulary(studentToken?: string): Promise<SavedVocabularyWord[]> {
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const studentId = await getStudentId(studentToken);
       if (studentId) {
@@ -423,7 +423,7 @@ export async function fetchSavedVocabulary(studentToken?: string): Promise<Saved
 export async function saveVocabularyWord(studentToken: string | undefined, word: SavedVocabularyWord): Promise<SavedVocabularyWord[]> {
   const current = await fetchSavedVocabulary(studentToken);
   const next = [word, ...current.filter((item) => item.word.toLowerCase() !== word.word.toLowerCase())];
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const studentId = await getStudentId(studentToken);
       if (studentId) {
@@ -440,7 +440,7 @@ export async function saveVocabularyWord(studentToken: string | undefined, word:
 
 export async function removeVocabularyWord(studentToken: string | undefined, word: string): Promise<SavedVocabularyWord[]> {
   const next = (await fetchSavedVocabulary(studentToken)).filter((item) => item.word.toLowerCase() !== word.toLowerCase());
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const studentId = await getStudentId(studentToken);
       if (studentId) {
@@ -456,7 +456,7 @@ export async function removeVocabularyWord(studentToken: string | undefined, wor
 }
 
 export async function fetchStudentNotes(studentToken?: string): Promise<StudentNote[]> {
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const studentId = await getStudentId(studentToken);
       if (studentId) {
@@ -473,7 +473,7 @@ export async function fetchStudentNotes(studentToken?: string): Promise<StudentN
 export async function saveStudentNote(studentToken: string | undefined, note: StudentNote): Promise<StudentNote[]> {
   const current = await fetchStudentNotes(studentToken);
   const next = [note, ...current.filter((item) => item.id !== note.id)];
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured()) {
     try {
       const studentId = await getStudentId(studentToken);
       if (studentId) {

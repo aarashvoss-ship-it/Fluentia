@@ -46,6 +46,8 @@ export default function LessonPage() {
   const rawSlug = useParams()?.slug;
   const requestedSlug = typeof rawSlug === "string" ? rawSlug : "habits-01";
   const [mockLesson, setMockLesson] = useState<LessonContent>(() => getLesson(requestedSlug));
+  const [lessonReady, setLessonReady] = useState(false);
+  const [lessonNotFound, setLessonNotFound] = useState(false);
   const instructorLesson = MOCK_INSTRUCTOR_LESSONS[mockLesson.slug] || MOCK_INSTRUCTOR_LESSONS["habits-01"];
   const instructor = mockLesson.instructor || instructorLesson.instructor || { fullName: "AVoss", initials: "AV" };
   const [activeStudent, setActiveStudent] = useState(DEFAULT_STUDENT);
@@ -69,9 +71,21 @@ export default function LessonPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
+    let mounted = true;
+    setLessonReady(false);
+    setLessonNotFound(false);
     void fetchLesson(requestedSlug).then((lesson) => {
-      if (lesson) setMockLesson(lesson);
+      if (!mounted) return;
+      if (lesson) {
+        setMockLesson(lesson);
+      } else {
+        setLessonNotFound(true);
+      }
+      setLessonReady(true);
     });
+    return () => {
+      mounted = false;
+    };
   }, [requestedSlug]);
 
   useEffect(() => {
@@ -87,6 +101,7 @@ export default function LessonPage() {
   }, []);
 
   useEffect(() => {
+    if (!lessonReady || lessonNotFound) return;
     const startStep = new URLSearchParams(window.location.search).get("start");
     void Promise.all([
       fetchLessonState(mockLesson.slug, activeStudent.token),
@@ -97,7 +112,7 @@ export default function LessonPage() {
       setCurrentStep(startStep === "warm_up" ? "warm_up" : progress.currentStep);
       setCompletedSteps(progress.completedSteps);
     });
-  }, [activeStudent.token, mockLesson.slug]);
+  }, [activeStudent.token, lessonReady, lessonNotFound, mockLesson.slug]);
 
   useEffect(() => {
     void Promise.all([
@@ -131,10 +146,10 @@ export default function LessonPage() {
   const evaluation = publishedLesson?.evaluation;
   const isEvaluationPublished = evaluation?.published === true;
   const totalScore = evaluation
-    ? Object.values(evaluation.scores).reduce((total, score) => total + score, 0)
+    ? Object.values(evaluation.scores).reduce<number>((total, score) => total + Number(score), 0)
     : 0;
   const resultRows = [
-    ...(lessonContent.listening?.questions || []).map((question) => ({
+    ...(lessonContent.listening?.questions || []).map((question: { id: string; question: string; correct_answer?: string }) => ({
       task: `Listening: ${question.question}`,
       response: submission.listeningAnswers[question.id] || "No answer submitted",
       answer: question.correct_answer || "Model answer pending",
@@ -142,7 +157,7 @@ export default function LessonPage() {
         ? evaluation?.comments || "Reviewed by instructor"
         : "Pending instructor review",
     })),
-    ...(lessonContent.reading?.analytical_questions || []).map((question) => ({
+    ...(lessonContent.reading?.analytical_questions || []).map((question: { id: string; question: string }) => ({
       task: `Reading: ${question.question}`,
       response: submission.readingAnswers[question.id] || "No answer submitted",
       answer: "Explain the author’s distinction using evidence from the article.",
@@ -216,6 +231,20 @@ export default function LessonPage() {
   }
 
   const isResultsStep = currentStep === "results";
+
+  if (!lessonReady) {
+    return <div className="fluentia-study-room min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
+  }
+
+  if (lessonNotFound) {
+    return (
+      <div className="fluentia-study-room min-h-screen bg-[#0c1017] px-5 py-16 text-center text-[#e8e7e4]">
+        <h1 className="font-[var(--font-fraunces)] text-2xl text-[#f1eee8]">Lesson unavailable</h1>
+        <p className="mt-3 text-sm text-[#8f98a8]">This lesson is no longer published.</p>
+        <Link href={`/dashboard?token=${encodeURIComponent(activeStudent.token)}`} className="mt-6 inline-flex rounded-md bg-amber-500 px-4 py-2 text-xs font-semibold text-slate-950">Return to Dashboard</Link>
+      </div>
+    );
+  }
 
   const getVideoEmbedUrl = (url: string) => {
     try {
@@ -313,7 +342,7 @@ export default function LessonPage() {
                 {lessonContent.warm_up?.quote?.text || "Think about one habit that makes your day easier."}
               </h3>
               <div className="space-y-2 text-sm text-[#aeb3bb]">
-                {(lessonContent.warm_up?.quick_prompts || []).map((prompt) => (
+                {(lessonContent.warm_up?.quick_prompts || []).map((prompt: { text: string }) => (
                   <p key={prompt.text}>{prompt.text}</p>
                 ))}
               </div>
@@ -347,7 +376,7 @@ export default function LessonPage() {
                 {lessonContent.lesson?.core_concept?.text || "The Habit Loop Anatomy"}
               </h3>
               <div className="grid sm:grid-cols-3 gap-4">
-                {(lessonContent.lesson?.examples || []).map((item, index) => (
+                {(lessonContent.lesson?.examples || []).map((item: { text: string }, index: number) => (
                   <div
                     key={`${item.text}-${index}`}
                     className="bg-stone-900 border border-stone-800 rounded-xl p-4 space-y-2"
@@ -386,11 +415,11 @@ export default function LessonPage() {
                 </span>
               </div>
               <div className="space-y-3">
-                {(lessonContent.listening?.questions || []).map((question) => (
+                {(lessonContent.listening?.questions || []).map((question: { id: string; question: string; options?: string[] }) => (
                   <div key={question.id} className="rounded-xl border border-[#202631] bg-[#121721] p-4">
                     <p className="text-sm text-stone-300">{question.question}</p>
                     <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                      {(question.options || []).map((option) => (
+                      {(question.options || []).map((option: string) => (
                         <button
                           key={option}
                           type="button"
@@ -431,14 +460,14 @@ export default function LessonPage() {
                 </div>
               )}
               <div className="flex flex-wrap gap-2">
-                {(lessonContent.reading?.vocabulary_drawer || []).map((item) => (
+                {(lessonContent.reading?.vocabulary_drawer || []).map((item: { word: string; definition: string }) => (
                   <span key={item.word} className="rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-xs text-amber-300">
                     {item.word}: {item.definition}
                   </span>
                 ))}
               </div>
               <div className="space-y-3">
-                {(lessonContent.reading?.analytical_questions || []).map((question) => (
+                {(lessonContent.reading?.analytical_questions || []).map((question: { id: string; question: string }) => (
                   <label key={question.id} className="block text-xs text-stone-400">
                     {question.question}
                     <textarea
@@ -499,7 +528,7 @@ export default function LessonPage() {
                 {lessonContent.speaking?.scenario?.text || "Record a 60-second summary of your key takeaways from this lesson."}
               </p>
               <div className="space-y-2 text-left text-sm text-stone-400">
-                {(lessonContent.speaking?.discussion_points || []).map((point) => (
+                {(lessonContent.speaking?.discussion_points || []).map((point: { text: string }) => (
                   <p key={point.text}>{point.text}</p>
                 ))}
               </div>

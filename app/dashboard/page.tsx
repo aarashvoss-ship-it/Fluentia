@@ -43,22 +43,18 @@ export default function DashboardPage() {
       setNotes(studentNotes);
       setChatMessages(messages);
     };
-    const refreshLessons = () => void loadDashboard(activeStudent.token || DEFAULT_STUDENT.token);
-    void loadDashboard(DEFAULT_STUDENT.token);
-    window.addEventListener("storage", refreshLessons);
     const params = new URLSearchParams(window.location.search);
     const requestedUser = findUser(params.get("token") || params.get("student"));
     const storedUser = findUser(window.localStorage.getItem("fluentia:active-user"));
     const student = requestedUser?.role === "student" ? requestedUser : storedUser;
+    const active = student?.role === "student" ? student as StudentUser : DEFAULT_STUDENT;
+    const studentToken = active.token || active.id || DEFAULT_STUDENT.token;
 
-    if (student?.role === "student") {
-      const active = student as StudentUser;
-      setActiveStudent(active);
-      window.localStorage.setItem("fluentia:active-user", active.token || active.id);
-      void loadDashboard(active.token);
-    } else {
-      void loadDashboard(DEFAULT_STUDENT.token);
-    }
+    setActiveStudent(active);
+    window.localStorage.setItem("fluentia:active-user", studentToken);
+    const refreshLessons = () => void loadDashboard(studentToken);
+    void loadDashboard(studentToken);
+    window.addEventListener("storage", refreshLessons);
     return () => window.removeEventListener("storage", refreshLessons);
   }, []);
 

@@ -81,6 +81,7 @@ export type DynamicStepContent = { blocks?: ContentBlock[] };
 
 export interface StepWarmUpContent {
   blocks?: ContentBlock[];
+  prompt?: BlockItem;
   quote?: BlockItem;
   intro_narrative?: BlockItem;
   media_block?: {
@@ -94,6 +95,7 @@ export interface StepWarmUpContent {
 
 export interface StepLessonContent {
   blocks?: ContentBlock[];
+  mainArticle?: BlockItem;
   core_concept?: BlockItem;
   examples?: BlockItem[];
   flexible_exercises?: BlockItem[];
@@ -118,6 +120,7 @@ export interface StepListeningContent {
 
 export interface StepReadingContent {
   blocks?: ContentBlock[];
+  mainArticle?: BlockItem;
   article_markdown?: BlockItem;
   lexicon_notes?: BlockItem;
   vocabulary_drawer?: Array<{
@@ -183,6 +186,15 @@ export interface LessonContent {
   content?: InstructorLessonMock["content"];
 }
 
+export interface PublishedLessonState {
+  content: StrictStepContent;
+  bannerUrl: string;
+  studentProfile: StudentProfile;
+  evaluation: LessonEvaluation;
+  status: "draft" | "published";
+  submission?: StudentSubmission;
+}
+
 export interface InstructorProfile {
   id?: string;
   fullName: string;
@@ -205,9 +217,11 @@ export interface StudentProfile {
 export interface InstructorLessonMock {
   id: string;
   title: string;
-  module_tag: string;
+  module_tag?: string;
   studentName: string;
-  banner_image_url: string;
+  banner_image_url?: string;
+  bannerUrl?: string;
+  moduleNumber?: number;
   instructor?: InstructorProfile;
   studentProfile: StudentProfile;
   content: {

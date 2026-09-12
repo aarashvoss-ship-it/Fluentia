@@ -92,7 +92,14 @@ export default function InstructorLessonWorkstationPage() {
   useEffect(() => {
     void (async () => {
       const manifestLesson = await fetchLesson(lessonId);
-      if (manifestLesson?.status) setLessonStatus(manifestLesson.status);
+      if (manifestLesson) {
+        setLessonStatus(manifestLesson.status || "draft");
+        setWorkstationState((previous) => ({
+          ...previous,
+          content: manifestLesson.content || {},
+          bannerUrl: manifestLesson.coverImage || previous.bannerUrl,
+        }));
+      }
       const params = new URLSearchParams(window.location.search);
       const requestedUser = findUser(params.get("token") || params.get("student"));
       if (requestedUser?.role === "student" && requestedUser.profile && requestedUser.token) {
@@ -149,7 +156,7 @@ export default function InstructorLessonWorkstationPage() {
       slug: manifestLesson?.slug || lessonId,
       title: manifestLesson?.title || initialLesson.title,
       subtitle: manifestLesson?.subtitle || "Seven stages. One connected journey.",
-      moduleNumber: manifestLesson?.moduleNumber || Number(initialLesson.module_tag.replace("module-", "")) || 1,
+      moduleNumber: manifestLesson?.moduleNumber || initialLesson.moduleNumber || Number((initialLesson.module_tag || "module-1").replace("module-", "")) || 1,
       coverImage: workstationState.bannerUrl || initialLesson.banner_image_url,
       status: lessonStatus,
       content: workstationState.content,
