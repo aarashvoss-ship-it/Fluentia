@@ -56,6 +56,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
     submission: undefined,
   });
   const [isPublishing, setIsPublishing] = useState<boolean>(false);
+  const [showPublishConfirmation, setShowPublishConfirmation] = useState(false);
   const [publishStatus, setPublishStatus] = useState<string | null>(null);
   const [newLesson, setNewLesson] = useState({
     title: "",
@@ -167,15 +168,16 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
     window.localStorage.setItem("fluentia:active-user", INSTRUCTOR_TOKEN);
   }
 
-  const handlePublish = async () => {
+  const saveLessonChanges = async (status: "draft" | "published") => {
     setIsPublishing(true);
     setPublishStatus(null);
+    setLessonStatus(status);
     const state: PublishedLessonState = {
       content: workstationState.content,
       bannerUrl: workstationState.bannerUrl,
       studentProfile: workstationState.studentProfile,
       evaluation: workstationState.evaluation,
-      status: lessonStatus,
+      status,
       submission: workstationState.submission,
     };
     await saveLessonState(lessonId, state, selectedStudent.token);
@@ -187,15 +189,24 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
       subtitle: manifestLesson?.subtitle || "Seven stages. One connected journey.",
       moduleNumber: manifestLesson?.moduleNumber || initialLesson.moduleNumber || Number((initialLesson.module_tag || "module-1").replace("module-", "")) || 1,
       coverImage: workstationState.bannerUrl || initialLesson.banner_image_url,
-      status: lessonStatus,
+      status,
       content: workstationState.content,
     });
 
     setTimeout(() => {
       setIsPublishing(false);
-      setPublishStatus(`Lesson saved as ${lessonStatus} and synced with student view.`);
+      setPublishStatus(`Lesson saved as ${status} and synced with student view.`);
       setTimeout(() => setPublishStatus(null), 4000);
     }, 800);
+  };
+
+  const handleSaveDraft = () => {
+    void saveLessonChanges("draft");
+  };
+
+  const handleConfirmPublish = () => {
+    setShowPublishConfirmation(false);
+    void saveLessonChanges("published");
   };
 
   const submissionState = workstationState.submission?.status === "reviewed" || workstationState.evaluation.published
@@ -230,24 +241,21 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
               {publishStatus}
             </span>
           )}
-          <div className="flex items-center gap-2 rounded-lg border border-[#202631] bg-[#171d28] p-1">
-            {(["draft", "published"] as const).map((status) => (
-              <button
-                key={status}
-                type="button"
-                onClick={() => setLessonStatus(status)}
-                className={`rounded-md px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] transition ${lessonStatus === status ? "bg-amber-500 text-[#0c1017]" : "text-stone-400 hover:text-stone-100"}`}
-              >
-                {status}
-              </button>
-            ))}
-          </div>
           <button
-            onClick={handlePublish}
+            type="button"
+            onClick={handleSaveDraft}
             disabled={isPublishing}
-            className="bg-amber-500 hover:bg-amber-400 text-[#0c1017] font-semibold text-xs px-5 py-2.5 rounded-lg transition shadow disabled:opacity-50"
+            className="w-32 rounded-lg border border-[#394252] bg-transparent px-5 py-2.5 text-xs font-semibold text-stone-200 transition hover:border-amber-500 hover:text-amber-300 disabled:opacity-50"
           >
-            {isPublishing ? "Saving..." : lessonStatus === "published" ? "Save & Publish" : "Save Draft"}
+            Save
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowPublishConfirmation(true)}
+            disabled={isPublishing}
+            className="w-32 rounded-lg bg-amber-500 px-5 py-2.5 text-xs font-semibold text-[#0c1017] shadow transition hover:bg-amber-400 disabled:opacity-50"
+          >
+            Publish Lesson
           </button>
         </div>
       </header>
@@ -451,6 +459,18 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
       </section>
       </>}
       </div>
+      {showPublishConfirmation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="publish-confirmation-title">
+          <div className="w-full max-w-md rounded-xl border border-[#394252] bg-[#171d28] p-6 shadow-2xl">
+            <h2 id="publish-confirmation-title" className="font-sans text-lg font-semibold text-stone-100">Publish lesson?</h2>
+            <p className="mt-3 text-sm leading-relaxed text-stone-400">Are you sure you want to publish this lesson? Once published, it will be visible to active students.</p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" onClick={() => setShowPublishConfirmation(false)} className="w-36 rounded-lg border border-[#394252] px-4 py-2.5 text-xs font-semibold text-stone-300 transition hover:border-amber-500 hover:text-amber-300">Cancel</button>
+              <button type="button" onClick={handleConfirmPublish} className="w-36 rounded-lg bg-amber-500 px-4 py-2.5 text-xs font-semibold text-[#0c1017] transition hover:bg-amber-400">Confirm &amp; Publish</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
