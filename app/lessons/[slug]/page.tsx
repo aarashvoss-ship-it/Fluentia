@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { ChatMessage, ContentBlock, SavedVocabularyWord, StudentNote, StudyStepId, STUDY_STEPS, LessonContent, StudentSubmission } from "@/types/lesson";
 import { MOCK_INSTRUCTOR_LESSONS } from "@/lib/mock-instructor-data";
 import { getLesson } from "@/lib/lessons";
-import { persistActiveStudentToken, PublishedLessonState, resolveActiveStudent, writeLastAccessedLesson } from "@/lib/lesson-store";
+import { persistActiveStudentToken, PublishedLessonState, writeLastAccessedLesson } from "@/lib/lesson-store";
 import { fetchChatMessages, fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, saveChatMessage, saveStudentNote, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
 import { DEFAULT_STUDENT } from "@/lib/users";
 import { Stepper } from "@/components/study-room/stepper";
@@ -42,12 +42,6 @@ function getLockedSteps(completedSteps: StudyStepId[]): StudyStepId[] {
   return locked;
 }
 
-function getInitialStudent() {
-  if (typeof window === "undefined") return DEFAULT_STUDENT;
-  const params = new URLSearchParams(window.location.search);
-  return resolveActiveStudent(params.get("student") || params.get("token"));
-}
-
 function getRequestedStep(value: string | null): StudyStepId | null {
   if (!value) return null;
   const byId = STUDY_STEPS.find((step) => step.id === value);
@@ -62,12 +56,13 @@ export default function LessonPage() {
   const rawSlug = useParams()?.slug;
   const requestedSlug = typeof rawSlug === "string" ? rawSlug : "habits-01";
   const [mockLesson, setMockLesson] = useState<LessonContent>(() => getLesson(requestedSlug));
+  const [isMounted, setIsMounted] = useState(false);
   const [lessonReady, setLessonReady] = useState(false);
   const [lessonNotFound, setLessonNotFound] = useState(false);
   const instructorLesson = MOCK_INSTRUCTOR_LESSONS[mockLesson.slug] || MOCK_INSTRUCTOR_LESSONS["habits-01"];
   const instructor = mockLesson.instructor || instructorLesson.instructor || { fullName: "AVoss", initials: "AV" };
-  const [activeStudent, setActiveStudent] = useState(getInitialStudent);
-  const [studentReady] = useState(true);
+  const [activeStudent, setActiveStudent] = useState(DEFAULT_STUDENT);
+  const [studentReady, setStudentReady] = useState(false);
   const [currentStep, setCurrentStep] = useState<StudyStepId>("warm_up");
   const [completedSteps, setCompletedSteps] = useState<StudyStepId[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -89,10 +84,14 @@ export default function LessonPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    persistActiveStudentToken(params.get("student") || params.get("token"));
+    const student = persistActiveStudentToken(params.get("student") || params.get("token"));
+    setActiveStudent(student);
+    setStudentReady(true);
+    setIsMounted(true);
   }, []);
 
   useEffect(() => {
+    if (!isMounted) return;
     let mounted = true;
     setLessonReady(false);
     setLessonNotFound(false);
@@ -109,7 +108,7 @@ export default function LessonPage() {
     return () => {
       mounted = false;
     };
-  }, [requestedSlug]);
+  }, [isMounted, requestedSlug]);
 
   useEffect(() => {
     if (!lessonReady || !studentReady || lessonNotFound) return;
@@ -247,7 +246,7 @@ export default function LessonPage() {
 
   const isResultsStep = currentStep === "results";
 
-  if (!lessonReady || !studentReady) {
+  if (!isMounted || !lessonReady || !studentReady) {
     return <div className="fluentia-study-room min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
   }
 

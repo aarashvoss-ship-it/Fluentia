@@ -22,7 +22,7 @@ export function persistActiveStudentToken(explicitToken?: string | null): Studen
     window.localStorage.setItem(ACTIVE_STUDENT_TOKEN_KEY, student.token);
     window.localStorage.setItem("fluentia:active-user", student.token);
 
-    if (explicitToken?.trim() && !findUser(explicitToken)?.token) {
+    if (!explicitToken?.trim() || !findUser(explicitToken)?.token) {
       const params = new URLSearchParams(window.location.search);
       params.delete("token");
       params.set("student", student.token);

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BookOpen, CheckCircle2, Clock3, Flame, Layers3, MessageSquareText, PanelRight, Settings2, UserRound, X } from "lucide-react";
 import { DEFAULT_STUDENT, STUDENT_USERS, type StudentUser } from "@/lib/users";
-import { persistActiveStudentToken, PublishedLessonState, readLastAccessedLesson, resolveActiveStudent, STANDARD_LESSONS, writeLastAccessedLesson } from "@/lib/lesson-store";
+import { persistActiveStudentToken, PublishedLessonState, readLastAccessedLesson, STANDARD_LESSONS, writeLastAccessedLesson } from "@/lib/lesson-store";
 import { fetchChatMessages, fetchLessonState, fetchLessons, fetchSavedVocabulary, fetchStudentNotes, removeVocabularyWord, saveChatMessage, saveStudentNote, saveVocabularyWord } from "@/services/storage-service";
 import { ChatMessage, SavedVocabularyWord, StudentNote } from "@/types/lesson";
 import { DictionaryModal } from "@/components/study-room/dictionary-modal";
@@ -52,7 +52,8 @@ function isValidImageUrl(value: string) {
 }
 
 export default function DashboardPage() {
-  const [activeStudent, setActiveStudent] = useState(resolveActiveStudent);
+  const [isMounted, setIsMounted] = useState(false);
+  const [activeStudent, setActiveStudent] = useState(DEFAULT_STUDENT);
   const [lessons, setLessons] = useState<Awaited<ReturnType<typeof fetchLessons>>>([]);
   const [lessonStates, setLessonStates] = useState<Record<string, PublishedLessonState | null>>({});
   const [savedWords, setSavedWords] = useState<SavedVocabularyWord[]>([]);
@@ -102,11 +103,16 @@ export default function DashboardPage() {
     setCustomAvatarUrl(preferences.customAvatarUrl || "");
     setBannerPreset(preferences.bannerPreset || "default-dark");
     setCustomBannerUrl(preferences.customBannerUrl || "");
+    setIsMounted(true);
     const refreshLessons = () => void loadDashboard(studentToken);
     void loadDashboard(studentToken);
     window.addEventListener("storage", refreshLessons);
     return () => window.removeEventListener("storage", refreshLessons);
   }, []);
+
+  if (!isMounted) {
+    return <main className="min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
+  }
 
   const token = activeStudent.token || activeStudent.id;
   const displayLessons = lessons.length > 0 ? lessons : STANDARD_LESSONS;

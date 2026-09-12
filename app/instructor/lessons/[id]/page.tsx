@@ -8,7 +8,7 @@ import { LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor
 import { InstructorBannerManager } from "@/components/instructor/banner-manager";
 import { SubmissionEvaluator } from "@/components/instructor/submission-evaluator";
 import { LessonContent, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
-import { PublishedLessonState } from "@/lib/lesson-store";
+import { persistActiveStudentToken, PublishedLessonState } from "@/lib/lesson-store";
 import { FeedbackPayload } from "@/components/instructor/submission-evaluator";
 import { DEFAULT_STUDENT, findUser, STUDENT_USERS, StudentUser } from "@/lib/users";
 import { fetchLesson, fetchLessonState, saveInstructorFeedback, saveLesson, saveLessonState } from "@/services/storage-service";
@@ -19,6 +19,7 @@ export default function InstructorLessonWorkstationPage() {
   const lessonId = typeof rawId === "string" ? rawId : "habits-01";
 
   const initialLesson = MOCK_INSTRUCTOR_LESSONS[lessonId] || MOCK_INSTRUCTOR_LESSONS["habits-01"];
+  const [isMounted, setIsMounted] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(DEFAULT_STUDENT);
   const [lessonStatus, setLessonStatus] = useState<"draft" | "published">("published");
 
@@ -91,6 +92,11 @@ export default function InstructorLessonWorkstationPage() {
 
   useEffect(() => {
     void (async () => {
+      const query = new URLSearchParams(window.location.search);
+      const requestedStudent = persistActiveStudentToken(query.get("student") || query.get("token"));
+      window.localStorage.setItem("fluentia:active-user", "instructor-avoss");
+      setSelectedStudent(requestedStudent);
+      setIsMounted(true);
       const manifestLesson = await fetchLesson(lessonId);
       if (manifestLesson) {
         setLessonStatus(manifestLesson.status || "draft");
@@ -100,13 +106,13 @@ export default function InstructorLessonWorkstationPage() {
           bannerUrl: manifestLesson.coverImage || previous.bannerUrl,
         }));
       }
-      const params = new URLSearchParams(window.location.search);
-      const requestedUser = findUser(params.get("token") || params.get("student"));
-      if (requestedUser?.role === "student" && requestedUser.profile && requestedUser.token) {
-        await handleStudentChange(requestedUser as StudentUser);
-      }
+      await handleStudentChange(requestedStudent);
     })();
   }, []);
+
+  if (!isMounted) {
+    return <main className="min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
+  }
 
   async function handleStudentChange(student: StudentUser) {
     const publishedState = await fetchLessonState(lessonId, student.token);
@@ -135,7 +141,8 @@ export default function InstructorLessonWorkstationPage() {
       submission: publishedState?.submission || (student.token === "arash-1024" ? demoSubmission : undefined),
     });
     if (publishedState?.status) setLessonStatus(publishedState.status);
-    window.localStorage.setItem("fluentia:active-user", student.token);
+    window.localStorage.setItem("fluentia:active-student-token", student.token);
+    window.localStorage.setItem("fluentia:active-user", "instructor-avoss");
   }
 
   const handlePublish = async () => {
