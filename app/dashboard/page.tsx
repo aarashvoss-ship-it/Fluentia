@@ -42,6 +42,15 @@ function getLessonStatus(state?: PublishedLessonState | null): LessonStatus {
   return "not-started";
 }
 
+function isValidImageUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export default function DashboardPage() {
   const [activeStudent, setActiveStudent] = useState(DEFAULT_STUDENT);
   const [lessons, setLessons] = useState<Awaited<ReturnType<typeof fetchLessons>>>([]);
@@ -121,15 +130,18 @@ export default function DashboardPage() {
   const inProgressLessons = displayLessons.filter((lesson) => getLessonStatus(lessonStates[lesson.slug]) === "in-progress").length;
   const progressPercent = displayLessons.length ? Math.round((completedLessons / displayLessons.length) * 100) : 0;
   const lastAccessedSlug = typeof window !== "undefined" ? readLastAccessedLesson(token) : null;
-  const lastAccessedLesson = displayLessons.find((lesson) => lesson.slug === lastAccessedSlug);
+  const lastAccessedLesson = displayLessons.find((lesson) => lesson.slug === lastAccessedSlug && getLessonStatus(lessonStates[lesson.slug]) !== "completed");
   const activeLesson = displayLessons.find((lesson) => getLessonStatus(lessonStates[lesson.slug]) === "in-progress") || lastAccessedLesson;
   const nextLesson = activeLesson || displayLessons.find((lesson) => getLessonStatus(lessonStates[lesson.slug]) !== "completed") || displayLessons[0];
   const displayName = activeStudent.name === "Arash Test" ? "Arash Vossoughi" : activeStudent.name;
   const profileInitials = displayName.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
   const selectedAvatar = AVATAR_PRESETS.find((preset) => preset.id === avatarPreset) || AVATAR_PRESETS[0];
   const selectedBanner = BANNER_PRESETS.find((preset) => preset.id === bannerPreset) || BANNER_PRESETS[0];
-  const avatarImage = customAvatarUrl.trim();
-  const bannerImage = customBannerUrl.trim() || selectedBanner.image;
+  const avatarImage = isValidImageUrl(customAvatarUrl.trim()) ? customAvatarUrl.trim() : "";
+  const bannerImage = isValidImageUrl(customBannerUrl.trim())
+    ? customBannerUrl.trim()
+    : nextLesson?.coverImage || selectedBanner.image;
+  const availableLessons = displayLessons.filter((lesson) => lesson.slug !== nextLesson?.slug);
   const getLessonHref = (slug: string, status: LessonStatus) => {
     const startParam = status === "completed" || status === "pending-review" ? "&start=warm_up" : "";
     return `/lessons/${slug}?token=${encodeURIComponent(token)}${startParam}`;
@@ -155,7 +167,7 @@ export default function DashboardPage() {
               <button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex items-center gap-2 rounded-md border px-3 py-2 text-xs transition ${sidebarOpen ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#171d28] text-stone-300 hover:border-amber-500"}`}><PanelRight className="h-4 w-4" />Learning Hub</button>
               <div className="relative flex items-center gap-2 border-l border-[#29303c] pl-3" aria-label="Student profile">
                 <button type="button" onClick={() => setProfileOpen((open) => !open)} aria-expanded={profileOpen} aria-controls="student-profile-flyout" className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-full text-xs font-bold transition hover:ring-2 hover:ring-amber-400/60 ${avatarImage ? "bg-[#283344]" : selectedAvatar.className}`}>
-                  {avatarImage ? <img src={avatarImage} alt={`${displayName} avatar`} className="h-full w-full object-cover" /> : selectedAvatar.initials || profileInitials}
+                  {avatarImage ? <img src={avatarImage} alt={`${displayName} avatar`} className="h-full w-full object-cover" /> : profileInitials}
                 </button>
                 <div className="hidden text-left sm:block"><p className="text-xs font-semibold text-stone-100">{displayName}</p><p className="text-[10px] text-stone-500">{activeStudent.profile?.level || "B2 Upper Intermediate"}</p></div>
                 <button type="button" onClick={() => { setProfileOpen(true); setProfileTab("profile"); }} aria-label="Profile settings" title="Profile settings" className="text-stone-500 transition hover:text-amber-300"><Settings2 className="h-4 w-4" /></button>
@@ -235,7 +247,7 @@ export default function DashboardPage() {
         )}
 
         <section className="grid gap-5 pt-8 md:grid-cols-2" aria-label="Available lessons">
-          {displayLessons.map((lesson) => {
+          {availableLessons.map((lesson) => {
             const status = getLessonStatus(lessonStates[lesson.slug]);
             const statusCopy = status === "completed"
               ? "COMPLETED"
