@@ -38,13 +38,13 @@ export function InstructorBannerManager({
 
   return (
     <div className="bg-[#171d28]/60 border border-[#202631] rounded-xl p-5 text-[#d9dce0]">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-[var(--font-fraunces)] text-xl font-semibold flex items-center gap-2">
-          <Image className="w-5 h-5 text-amber-400" />
-          Lesson Hero Banner
+      <div className="mb-4 flex flex-nowrap items-center justify-between gap-3">
+        <h3 className="flex min-w-0 shrink items-center gap-2 whitespace-nowrap font-[var(--font-fraunces)] text-xl font-semibold">
+          <Image className="h-5 w-5 shrink-0 text-amber-400" />
+          Hero Banner
         </h3>
-        <span className="text-xs bg-amber-500/10 text-amber-400 px-2.5 py-1 rounded-full border border-amber-500/20">
-          Dynamic Storage Ready
+        <span className="shrink-0 whitespace-nowrap rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-400">
+          Dynamic Storage
         </span>
       </div>
 
@@ -56,7 +56,7 @@ export function InstructorBannerManager({
             className="w-full h-full object-cover"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm">
+          <div className="flex h-full w-full items-center justify-center px-4 text-center text-sm leading-relaxed text-slate-400">
             No banner selected
           </div>
         )}
