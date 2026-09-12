@@ -17,9 +17,10 @@ import { AccessCard } from "@/components/access/access-card";
 interface InstructorWorkstationProps {
   instructorToken: string;
   lessonSlug: string;
+  allowStudentQuery?: boolean;
 }
 
-export default function InstructorLessonWorkstationPage({ instructorToken, lessonSlug }: InstructorWorkstationProps) {
+export default function InstructorLessonWorkstationPage({ instructorToken, lessonSlug, allowStudentQuery = true }: InstructorWorkstationProps) {
   const lessonId = lessonSlug;
 
   const initialLesson = MOCK_INSTRUCTOR_LESSONS[lessonId] || MOCK_INSTRUCTOR_LESSONS["habits-01"];
@@ -108,7 +109,9 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
         return;
       }
       const query = new URLSearchParams(window.location.search);
-      const requestedStudent = persistActiveStudentToken(query.get("student"));
+      const requestedStudent = allowStudentQuery
+        ? persistActiveStudentToken(query.get("student"))
+        : persistActiveStudentToken();
       window.localStorage.setItem("fluentia:active-user", INSTRUCTOR_TOKEN);
       setSelectedStudent(requestedStudent);
       setIsMounted(true);

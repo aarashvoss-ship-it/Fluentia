@@ -22,5 +22,5 @@ export default function InstructorDashboardPage() {
     return <AccessCard title="Access Denied" message="This instructor workstation requires a valid instructor session token." />;
   }
 
-  return <InstructorLessonWorkstationPage instructorToken={params.token} lessonSlug="habits-01" />;
+  return <InstructorLessonWorkstationPage instructorToken={params.token} lessonSlug="habits-01" allowStudentQuery={false} />;
 }
