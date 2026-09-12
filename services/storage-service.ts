@@ -113,11 +113,25 @@ type SupabaseRow = Record<string, any>;
 async function getStudentId(studentToken?: string) {
   if (!isSupabaseConfigured() || !studentToken) return null;
   try {
-    const { data } = await supabase.from("profiles").select("id").eq("token", studentToken).maybeSingle();
-    return data?.id || null;
+    const { data: student } = await supabase.from("students").select("id").or(`id.eq.${studentToken},token.eq.${studentToken}`).maybeSingle();
+    if (student?.id) return student.id;
+    const { data: profile } = await supabase.from("profiles").select("id").eq("token", studentToken).maybeSingle();
+    return profile?.id || null;
   } catch {
     return null;
   }
+}
+
+async function fetchStudentLesson(slug: string, studentId: string) {
+  const { data, error } = await supabase
+    .from("lessons")
+    .select("*")
+    .eq("slug", slug)
+    .eq("student_id", studentId)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return error ? null : data;
 }
 
 function mapLessonRow(row: SupabaseRow): LessonContent {
@@ -217,7 +231,8 @@ export async function updateLessonStatus(slug: string, status: LessonStatus): Pr
 export async function fetchLessonState(slug: string, studentToken?: string): Promise<PublishedLessonState | null> {
   if (isSupabaseConfigured()) {
     try {
-      const [lesson, studentId] = await Promise.all([fetchLesson(slug), getStudentId(studentToken)]);
+      const studentId = await getStudentId(studentToken);
+      const lesson = studentId ? await fetchStudentLesson(slug, studentId) : null;
       if (lesson && studentId) {
         const { data: submission } = await supabase.from("student_submissions").select("*").eq("lesson_id", lesson.id).eq("student_id", studentId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
         const { data: feedback } = await supabase.from("instructor_feedback").select("*").eq("lesson_id", lesson.id).eq("student_id", studentId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
@@ -240,7 +255,8 @@ export async function fetchLessonState(slug: string, studentToken?: string): Pro
 export async function fetchStudentProgress(slug: string, studentToken?: string): Promise<StudentProgressRecord> {
   if (isSupabaseConfigured()) {
     try {
-      const [lesson, studentId] = await Promise.all([fetchLesson(slug), getStudentId(studentToken)]);
+      const studentId = await getStudentId(studentToken);
+      const lesson = studentId ? await fetchStudentLesson(slug, studentId) : null;
       if (lesson && studentId) {
         const { data } = await supabase.from("student_submissions").select("content,status,updated_at").eq("lesson_id", lesson.id).eq("student_id", studentId).eq("step_key", "progress").maybeSingle();
         if (data) return { currentStep: data.content?.currentStep || "warm_up", completedSteps: data.content?.completedSteps || [], status: data.status || "not_started", updatedAt: data.updated_at || new Date(0).toISOString() };
@@ -265,7 +281,8 @@ export async function saveStudentProgress(
   const updated = { ...progress, updatedAt: new Date().toISOString() };
   if (isSupabaseConfigured()) {
     try {
-      const [lesson, studentId] = await Promise.all([fetchLesson(slug), getStudentId(studentToken)]);
+      const studentId = await getStudentId(studentToken);
+      const lesson = studentId ? await fetchStudentLesson(slug, studentId) : null;
       if (lesson && studentId) {
         const { error } = await supabase.from("student_submissions").upsert({ lesson_id: lesson.id, student_id: studentId, step_key: "progress", content: { currentStep: updated.currentStep, completedSteps: updated.completedSteps }, status: updated.status, updated_at: updated.updatedAt }, { onConflict: "lesson_id,student_id,step_key" });
         if (!error) return updated;
@@ -304,7 +321,8 @@ export async function submitStudentLesson(
   };
   if (isSupabaseConfigured()) {
     try {
-      const [lesson, studentId] = await Promise.all([fetchLesson(slug), getStudentId(studentToken)]);
+      const studentId = await getStudentId(studentToken);
+      const lesson = studentId ? await fetchStudentLesson(slug, studentId) : null;
       if (lesson && studentId) {
         const { error } = await supabase.from("student_submissions").upsert({ lesson_id: lesson.id, student_id: studentId, step_key: "lesson", content: submission, status: submission.status, audio_url: submission.speakingAudioUrl, submitted_at: submission.submittedAt, updated_at: new Date().toISOString() }, { onConflict: "lesson_id,student_id,step_key" });
         if (!error) {

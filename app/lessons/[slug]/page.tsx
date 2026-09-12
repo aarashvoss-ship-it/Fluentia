@@ -381,6 +381,8 @@ export default function LessonPage() {
               </div>
               <p className="text-[12px] leading-relaxed text-[#596174]">You don&apos;t need to write a perfect answer. Just start with your own experience.</p>
               <textarea
+                value={submission.blockResponses?.warm_up || ""}
+                onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), warm_up: event.target.value } })}
                 className="mt-2 w-full resize-none rounded-[10px] border border-[#29303c] bg-[#171d28] px-5 py-5 text-[15px] leading-relaxed text-[#d9dce0] placeholder-[#7b8290] shadow-[0_8px_24px_rgba(0,0,0,.12)] transition-colors placeholder:text-[13px] focus:border-[#8d702f] focus:outline-none focus:ring-1 focus:ring-[#8d702f]/30"
                 rows={4}
                 placeholder="For example: Making my bed first thing in the morning..."
