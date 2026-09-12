@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BookOpen, CheckCircle2, Clock3, Flame, Layers3, MessageSquareText, PanelRight, Settings2, UserRound, X } from "lucide-react";
 import { DEFAULT_STUDENT, findUser, StudentUser, STUDENT_USERS } from "@/lib/users";
-import { PublishedLessonState } from "@/lib/lesson-store";
+import { PublishedLessonState, STANDARD_LESSONS } from "@/lib/lesson-store";
 import { fetchChatMessages, fetchLessonState, fetchLessons, fetchSavedVocabulary, fetchStudentNotes, removeVocabularyWord, saveChatMessage, saveStudentNote, saveVocabularyWord } from "@/services/storage-service";
 import { ChatMessage, SavedVocabularyWord, StudentNote } from "@/types/lesson";
 import { DictionaryModal } from "@/components/study-room/dictionary-modal";
@@ -73,22 +73,23 @@ export default function DashboardPage() {
   }, []);
 
   const token = activeStudent.token || activeStudent.id;
-  const completedLessons = lessons.filter(
+  const displayLessons = lessons.length > 0 ? lessons : STANDARD_LESSONS;
+  const completedLessons = displayLessons.filter(
     (lesson) => getLessonStatus(lessonStates[lesson.slug]) === "completed"
   ).length;
-  const hasPendingReview = lessons.some(
+  const hasPendingReview = displayLessons.some(
     (lesson) => getLessonStatus(lessonStates[lesson.slug]) === "pending-review"
   );
   const hasFeedback = completedLessons > 0;
   const instructorNote =
-    lessonStates[lessons[0]?.slug]?.studentProfile.teacherNotes ||
+    lessonStates[displayLessons[0]?.slug]?.studentProfile.teacherNotes ||
     activeStudent.profile?.teacherNotes ||
     "Your instructor will add personalized guidance here.";
-  const latestReport = lessonStates[lessons[0]?.slug]?.evaluation;
+  const latestReport = lessonStates[displayLessons[0]?.slug]?.evaluation;
   const currentCard = savedWords[cardIndex % Math.max(savedWords.length, 1)];
-  const inProgressLessons = lessons.filter((lesson) => getLessonStatus(lessonStates[lesson.slug]) === "in-progress").length;
-  const progressPercent = lessons.length ? Math.round((completedLessons / lessons.length) * 100) : 0;
-  const nextLesson = lessons.find((lesson) => getLessonStatus(lessonStates[lesson.slug]) !== "completed") || lessons[0];
+  const inProgressLessons = displayLessons.filter((lesson) => getLessonStatus(lessonStates[lesson.slug]) === "in-progress").length;
+  const progressPercent = displayLessons.length ? Math.round((completedLessons / displayLessons.length) * 100) : 0;
+  const nextLesson = displayLessons.find((lesson) => getLessonStatus(lessonStates[lesson.slug]) !== "completed") || displayLessons[0];
   const displayName = activeStudent.name === "Arash Test" ? "Arash Vossoughi" : activeStudent.name;
   const profileInitials = displayName.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
   const getLessonHref = (slug: string, status: LessonStatus) => {
@@ -120,7 +121,7 @@ export default function DashboardPage() {
                 {profileOpen && (
                   <div id="student-profile-flyout" className="absolute right-0 top-12 z-30 w-72 rounded-xl border border-[#394252] bg-[#171d28] p-4 text-left shadow-2xl">
                     <div className="flex items-start justify-between gap-4 border-b border-[#29303c] pb-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Student profile</p><p className="mt-1 text-sm font-semibold text-stone-100">{displayName}</p></div><button type="button" onClick={() => setProfileOpen(false)} aria-label="Close profile" className="text-stone-500 hover:text-stone-200"><X className="h-4 w-4" /></button></div>
-                    <div className="grid grid-cols-2 gap-3 py-4 text-xs"><div><p className="text-stone-500">Level</p><p className="mt-1 text-stone-200">{activeStudent.profile?.level}</p></div><div><p className="text-stone-500">Progress</p><p className="mt-1 text-stone-200">{completedLessons} / {lessons.length} lessons</p></div><div className="col-span-2"><p className="text-stone-500">Learning goal</p><p className="mt-1 text-stone-200">{activeStudent.profile?.targetGoal}</p></div></div>
+                    <div className="grid grid-cols-2 gap-3 py-4 text-xs"><div><p className="text-stone-500">Level</p><p className="mt-1 text-stone-200">{activeStudent.profile?.level}</p></div><div><p className="text-stone-500">Progress</p><p className="mt-1 text-stone-200">{completedLessons} / {displayLessons.length} lessons</p></div><div className="col-span-2"><p className="text-stone-500">Learning goal</p><p className="mt-1 text-stone-200">{activeStudent.profile?.targetGoal}</p></div></div>
                     {profileEditing && <div className="space-y-3 border-t border-[#29303c] pt-3"><label className="block text-xs text-stone-400">Level<select value={profileLevel} onChange={(event) => setProfileLevel(event.target.value)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2 text-xs text-stone-200"><option>B1 Intermediate</option><option>B2 Upper Intermediate</option><option>C1 Advanced</option></select></label><label className="block text-xs text-stone-400">Learning goal<input value={profileGoal} onChange={(event) => setProfileGoal(event.target.value)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2 text-xs text-stone-200" /></label><button type="button" onClick={() => { const profile = { ...activeStudent.profile, level: profileLevel, targetGoal: profileGoal }; setActiveStudent({ ...activeStudent, profile }); window.localStorage.setItem(`fluentia:profile:${token}`, JSON.stringify({ level: profileLevel, targetGoal: profileGoal })); setProfileEditing(false); }} className="w-full rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-amber-400">Save settings</button></div>}
                     {!profileEditing && <button type="button" onClick={() => setProfileEditing(true)} className="flex items-center gap-2 text-xs font-semibold text-amber-300 hover:text-amber-200"><Settings2 className="h-3.5 w-3.5" />Edit settings</button>}
                     <label className="mt-4 block border-t border-[#29303c] pt-3 text-xs text-stone-400">Switch student<select value={token} onChange={(event) => { window.location.href = `/dashboard?token=${encodeURIComponent(event.target.value)}`; }} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2 text-xs text-stone-200">{STUDENT_USERS.map((student) => <option key={student.token} value={student.token}>{student.name}</option>)}</select></label>
@@ -129,13 +130,13 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-          <div className="mt-4 flex items-center gap-2 text-xs text-[#667084]"><UserRound className="h-3.5 w-3.5" />{lessons.length} lessons available <span className="text-[#394252]">|</span> B2 Upper Intermediate</div>
+          <div className="mt-4 flex items-center gap-2 text-xs text-[#667084]"><UserRound className="h-3.5 w-3.5" />{displayLessons.length} lessons available <span className="text-[#394252]">|</span> B2 Upper Intermediate</div>
         </header>
 
         <section className="grid gap-3 border-b border-[#202631] py-6 sm:grid-cols-3" aria-label="Student progress overview">
           <div className="rounded-xl border border-[#202631] bg-[#121721] p-4">
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#667084]">Lessons Completed</p>
-            <p className="mt-2 text-xl font-semibold text-stone-100">{completedLessons} <span className="text-sm font-normal text-stone-500">/ {lessons.length}</span></p>
+            <p className="mt-2 text-xl font-semibold text-stone-100">{completedLessons} <span className="text-sm font-normal text-stone-500">/ {displayLessons.length}</span></p>
           </div>
           <div className="rounded-xl border border-[#202631] bg-[#121721] p-4">
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#667084]">Overall Evaluation Status</p>
@@ -149,6 +150,12 @@ export default function DashboardPage() {
             <p className="mt-2 text-sm font-semibold text-stone-100">{activeStudent.profile?.attendanceRate || 0}% <span className="font-normal text-stone-500">|</span> {activeStudent.profile?.level}</p>
           </div>
         </section>
+
+        {nextLesson && <section className="mt-6" aria-label="Continue learning">
+          <Link href={getLessonHref(nextLesson.slug, getLessonStatus(lessonStates[nextLesson.slug]))} className="group block rounded-xl border border-amber-500/30 bg-[#171d28] p-5 transition-colors hover:border-amber-400/70">
+            <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between"><div><div className="flex items-center gap-2 text-amber-400"><Flame className="h-4 w-4" /><span className="text-[10px] font-semibold uppercase tracking-[0.16em]">Continue Learning / Next Up</span></div><h2 className="mt-2 font-[var(--font-fraunces)] text-2xl font-semibold text-stone-100">{nextLesson.title}</h2><p className="mt-2 max-w-2xl text-sm text-stone-400">{nextLesson.subtitle}</p></div><div className="min-w-52 md:text-right"><div className="flex items-center justify-between text-xs text-stone-400 md:justify-end md:gap-3"><span>{progressPercent}% course progress</span><span>{completedLessons}/{displayLessons.length}</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-[#0c1017]"><div className="h-full rounded-full bg-amber-500 transition-all" style={{ width: `${progressPercent}%` }} /></div><p className="mt-3 text-xs font-semibold text-amber-300">{inProgressLessons ? "Pick up where you left off" : "Start Lesson"} <span aria-hidden="true">-&gt;</span></p></div></div>
+          </Link>
+        </section>}
 
         <section className="mt-6 rounded-xl border border-amber-500/20 bg-[#121721] p-5" aria-label="Instructor note">
           <div className="flex items-start gap-3">
@@ -166,7 +173,7 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2 text-amber-400"><Layers3 className="h-4 w-4" /><p className="text-[10px] font-semibold uppercase tracking-[0.14em]">My Vocabulary &amp; Flashcards</p></div>
               <p className="mt-2 text-sm text-stone-400">Review saved words between lessons.</p>
             </div>
-            <Link href={getLessonHref(lessons[0]?.slug || "habits-01", getLessonStatus(lessonStates[lessons[0]?.slug]))} className="text-xs font-semibold text-amber-300 hover:text-amber-200">Open Study Room</Link>
+            <Link href={getLessonHref(displayLessons[0]?.slug || "habits-01", getLessonStatus(lessonStates[displayLessons[0]?.slug]))} className="text-xs font-semibold text-amber-300 hover:text-amber-200">Open Study Room</Link>
           </div>
           {currentCard ? <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center"><button type="button" onClick={() => setShowDefinition((shown) => !shown)} className="flex min-h-24 flex-1 items-center justify-center rounded-lg border border-amber-500/30 bg-[#0c1017] p-4 text-center transition hover:border-amber-400"><span className="font-[var(--font-fraunces)] text-2xl text-stone-100">{showDefinition ? currentCard.definition : currentCard.word}</span></button><div className="flex items-center justify-between gap-4 sm:w-36 sm:flex-col"><span className="text-xs text-stone-500">{cardIndex + 1} / {savedWords.length} cards</span><button type="button" onClick={() => { setCardIndex((index) => (index + 1) % savedWords.length); setShowDefinition(false); }} className="text-xs font-semibold text-amber-300 hover:text-amber-200">Next card</button></div></div> : <p className="mt-4 rounded-lg border border-dashed border-[#394252] p-4 text-sm text-stone-500">Save words in the Study Room dictionary to build your first deck.</p>}
         </section>
@@ -184,10 +191,7 @@ export default function DashboardPage() {
         )}
 
         <section className="grid gap-5 pt-8 md:grid-cols-2" aria-label="Available lessons">
-          {nextLesson && <Link href={getLessonHref(nextLesson.slug, getLessonStatus(lessonStates[nextLesson.slug]))} className="group md:col-span-2 rounded-xl border border-amber-500/30 bg-[#171d28] p-5 transition-colors hover:border-amber-400/70">
-            <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between"><div><div className="flex items-center gap-2 text-amber-400"><Flame className="h-4 w-4" /><span className="text-[10px] font-semibold uppercase tracking-[0.16em]">Continue Learning / Next Up</span></div><h2 className="mt-2 font-[var(--font-fraunces)] text-2xl font-semibold text-stone-100">{nextLesson.title}</h2><p className="mt-2 max-w-2xl text-sm text-stone-400">{nextLesson.subtitle}</p></div><div className="min-w-52 md:text-right"><div className="flex items-center justify-between text-xs text-stone-400 md:justify-end md:gap-3"><span>{progressPercent}% course progress</span><span>{completedLessons}/{lessons.length}</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-[#0c1017]"><div className="h-full rounded-full bg-amber-500 transition-all" style={{ width: `${progressPercent}%` }} /></div><p className="mt-3 text-xs font-semibold text-amber-300">{inProgressLessons ? "Pick up where you left off" : "Start your next lesson"} <span aria-hidden="true">→</span></p></div></div>
-          </Link>}
-          {lessons.map((lesson) => {
+          {displayLessons.map((lesson) => {
             const status = getLessonStatus(lessonStates[lesson.slug]);
             const statusCopy = status === "completed"
               ? "COMPLETED"
