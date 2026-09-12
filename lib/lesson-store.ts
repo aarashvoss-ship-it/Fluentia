@@ -3,6 +3,7 @@ import type { LessonContent, LessonEvaluation, PublishedLessonState, StrictStepC
 export type { PublishedLessonState } from "@/types/lesson";
 
 export const LESSON_STATE_PREFIX = "fluentia:published-lesson:";
+export const LAST_ACCESSED_LESSON_KEY = "fluentia:last-accessed-lesson";
 
 export const STANDARD_LESSONS: LessonContent[] = [
   {
@@ -62,4 +63,14 @@ export function writePublishedLessonState(slug: string, state: PublishedLessonSt
   if (typeof window === "undefined") return;
 
   window.localStorage.setItem(getLessonStateKey(slug, studentToken), JSON.stringify(state));
+}
+
+export function readLastAccessedLesson(studentToken?: string) {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(`${LAST_ACCESSED_LESSON_KEY}:${studentToken || "default"}`);
+}
+
+export function writeLastAccessedLesson(slug: string, studentToken?: string) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(`${LAST_ACCESSED_LESSON_KEY}:${studentToken || "default"}`, slug);
 }

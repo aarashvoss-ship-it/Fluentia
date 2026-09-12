@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { ChatMessage, ContentBlock, SavedVocabularyWord, StudentNote, StudyStepId, STUDY_STEPS, LessonContent, StudentSubmission } from "@/types/lesson";
 import { MOCK_INSTRUCTOR_LESSONS } from "@/lib/mock-instructor-data";
 import { getLesson } from "@/lib/lessons";
-import { PublishedLessonState } from "@/lib/lesson-store";
+import { PublishedLessonState, writeLastAccessedLesson } from "@/lib/lesson-store";
 import { fetchChatMessages, fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, saveChatMessage, saveStudentNote, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
 import { DEFAULT_STUDENT, findUser, FluentiaUser } from "@/lib/users";
 import { Stepper } from "@/components/study-room/stepper";
@@ -78,6 +78,8 @@ export default function LessonPage() {
       if (!mounted) return;
       if (lesson) {
         setMockLesson(lesson);
+        const studentToken = new URLSearchParams(window.location.search).get("token") || "default";
+        writeLastAccessedLesson(lesson.slug, studentToken);
       } else {
         setLessonNotFound(true);
       }
