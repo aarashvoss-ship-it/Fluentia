@@ -11,7 +11,7 @@ import { SubmissionEvaluator } from "@/components/instructor/submission-evaluato
 import { LessonContent, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
 import { INSTRUCTOR_TOKEN, PublishedLessonState } from "@/lib/lesson-store";
 import { FeedbackPayload } from "@/components/instructor/submission-evaluator";
-import { DEFAULT_STUDENT, StudentUser } from "@/lib/users";
+import { DEFAULT_STUDENT, STUDENT_USERS, StudentUser } from "@/lib/users";
 import { saveInstructorFeedback, saveLesson } from "@/services/storage-service";
 import { AccessCard } from "@/components/access/access-card";
 
@@ -30,6 +30,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
   const [selectedStudent, setSelectedStudent] = useState(DEFAULT_STUDENT);
   const [students, setStudents] = useState<StudentUser[]>([]);
   const [databaseLessonId, setDatabaseLessonId] = useState<string | null>(null);
+  const [pendingSubmissionCount, setPendingSubmissionCount] = useState(0);
   const [lessonStatus, setLessonStatus] = useState<"draft" | "published">("published");
   const [activeTab, setActiveTab] = useState<"dashboard" | "builder" | "evaluation">("dashboard");
   const [sidebarBlocks, setSidebarBlocks] = useState([
@@ -122,12 +123,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
         .select("*")
         .eq("is_active", true)
         .order("full_name");
-      if (studentsError) {
-        setPublishStatus("Unable to load active students from Supabase.");
-        setIsMounted(true);
-        return;
-      }
-      const databaseStudents = (studentRows || []).map((row) => ({
+      const databaseStudents = studentsError ? [] : (studentRows || []).map((row) => ({
         id: row.id,
         token: row.token || row.id,
         name: row.full_name || row.name || row.email || row.id,
@@ -144,9 +140,10 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
           completedModulesCount: row.completed_modules_count || 0,
         },
       }));
-      setStudents(databaseStudents);
-      const requestedStudent = databaseStudents.find((student) => student.id === requestedStudentToken || student.token === requestedStudentToken)
-        || databaseStudents[0];
+      const availableStudents = databaseStudents.length > 0 ? databaseStudents : STUDENT_USERS;
+      setStudents(availableStudents);
+      const requestedStudent = availableStudents.find((student) => student.id === requestedStudentToken || student.token === requestedStudentToken)
+        || availableStudents[0];
       if (!requestedStudent) {
         setIsMounted(true);
         return;
@@ -157,6 +154,14 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
       setIsMounted(true);
       await handleStudentChange(requestedStudent);
     })();
+  }, []);
+
+  useEffect(() => {
+    void supabase
+      .from("submissions")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending")
+      .then(({ count }) => setPendingSubmissionCount(count || 0));
   }, []);
 
   if (!isMounted) {
@@ -181,16 +186,13 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
       return;
     }
     const lessonContent = lesson?.content || {};
+    const { data: submissions } = lesson
+      ? await supabase.from("submissions").select("*").eq("lesson_id", lesson.id).eq("student_id", student.id).order("updated_at", { ascending: false })
+      : { data: [] };
+    const submissionRow = submissions?.[0];
     const savedEvaluation = lesson?.evaluation || lessonContent.evaluation;
     const baseContent = lessonContent || initialLesson.content || {};
-    const demoSubmission: StudentSubmission = {
-      status: "submitted",
-      listeningAnswers: Object.fromEntries((initialLesson.content.listening?.questions || []).map((question) => [question.id, question.correct_answer || "Environmental design"])),
-      readingAnswers: Object.fromEntries((initialLesson.content.reading?.analytical_questions || []).map((question) => [question.id, "The environment shapes behavior by changing friction and default choices."])),
-      writingText: "I would make a desired habit easier by preparing the environment in advance. This reduces friction and makes the behavior more sustainable.",
-      speakingAudioUrl: "https://cdn.fluentia.app/submissions/habits-01-arash-speaking.mp3",
-      submittedAt: new Date().toISOString(),
-    };
+    const databaseSubmission = submissionRow?.content as StudentSubmission | undefined;
     setSelectedStudent(student);
     setDatabaseLessonId(lesson?.id || null);
     setNewLesson((previous) => ({ ...previous, studentId: student.id }));
@@ -205,7 +207,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
         criterionFeedback: {},
         published: false,
       },
-      submission: lesson?.submission || (student.token === "arash-1024" ? demoSubmission : undefined),
+      submission: databaseSubmission ? { ...databaseSubmission, status: submissionRow.status || databaseSubmission.status, submittedAt: submissionRow.submitted_at || databaseSubmission.submittedAt } : undefined,
     });
     if (lesson?.status === "draft" || lesson?.status === "published") setLessonStatus(lesson.status);
     window.localStorage.setItem("fluentia:active-student-token", student.token);
@@ -319,12 +321,12 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
       {activeTab === "dashboard" && (
         <section className="space-y-6" aria-label="Instructor dashboard overview">
           <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5"><p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Submission Status</p><p className="mt-2 text-2xl font-semibold text-stone-100">{submissionState}</p><p className="mt-1 text-xs text-stone-500">Current selected student</p></div>
+            <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5"><p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Submission Status</p><p className="mt-2 text-2xl font-semibold text-stone-100">{submissionState}</p><p className="mt-1 text-xs text-stone-500">{pendingSubmissionCount} pending submission{pendingSubmissionCount === 1 ? "" : "s"}</p></div>
             <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5"><p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Lesson State</p><p className="mt-2 text-2xl font-semibold text-stone-100">{lessonStatus}</p><p className="mt-1 text-xs text-stone-500">Content publication status</p></div>
             <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5"><p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Evaluation</p><p className="mt-2 text-2xl font-semibold text-stone-100">{workstationState.evaluation.published ? "Published" : "Pending"}</p><p className="mt-1 text-xs text-stone-500">Feedback availability</p></div>
           </div>
           <div className="grid gap-6 lg:grid-cols-2">
-            <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5"><h2 className="font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Pending Submissions</h2><p className="mt-3 text-sm text-stone-400">{submissionState === "Submitted (Needs Review)" ? `${selectedStudent.name} is awaiting feedback.` : "No submissions are currently awaiting feedback."}</p></div>
+            <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5"><h2 className="font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Pending Submissions</h2><p className="mt-3 text-sm text-stone-400">{pendingSubmissionCount > 0 ? `${pendingSubmissionCount} submission${pendingSubmissionCount === 1 ? "" : "s"} awaiting review.` : "No submissions are currently awaiting feedback."}</p></div>
             <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5"><h2 className="font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Recent Activity</h2><p className="mt-3 text-sm text-stone-400">{selectedStudent.name} is the active student workspace.</p><button type="button" onClick={() => setActiveTab("evaluation")} className="mt-4 text-xs font-semibold text-amber-300 hover:text-amber-200">Review student work</button></div>
           </div>
         </section>
@@ -347,7 +349,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
                 setNewLesson((previous) => ({ ...previous, studentId: nextStudent.id }));
                 void handleStudentChange(nextStudent);
               }}
-              className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+              className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark] outline-none focus:border-amber-500"
               aria-label="Select student for lesson"
             >
               {students.map((student) => (
@@ -378,7 +380,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
               value={newLesson.moduleNumber}
               onChange={(event) => setNewLesson((previous) => ({ ...previous, moduleNumber: event.target.value }))}
               placeholder="3"
-              className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+              className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark] outline-none focus:border-amber-500"
             />
           </label>
           <label className="text-xs text-stone-400">

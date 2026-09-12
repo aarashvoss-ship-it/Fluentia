@@ -234,7 +234,7 @@ export async function fetchLessonState(slug: string, studentToken?: string): Pro
       const studentId = await getStudentId(studentToken);
       const lesson = studentId ? await fetchStudentLesson(slug, studentId) : null;
       if (lesson && studentId) {
-        const { data: submission } = await supabase.from("student_submissions").select("*").eq("lesson_id", lesson.id).eq("student_id", studentId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+        const { data: submission } = await supabase.from("submissions").select("*").eq("lesson_id", lesson.id).eq("student_id", studentId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
         const { data: feedback } = await supabase.from("instructor_feedback").select("*").eq("lesson_id", lesson.id).eq("student_id", studentId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
         return {
           content: lesson.content || defaultContent(),
@@ -324,7 +324,7 @@ export async function submitStudentLesson(
       const studentId = await getStudentId(studentToken);
       const lesson = studentId ? await fetchStudentLesson(slug, studentId) : null;
       if (lesson && studentId) {
-        const { error } = await supabase.from("student_submissions").upsert({ lesson_id: lesson.id, student_id: studentId, step_key: "lesson", content: submission, status: submission.status, audio_url: submission.speakingAudioUrl, submitted_at: submission.submittedAt, updated_at: new Date().toISOString() }, { onConflict: "lesson_id,student_id,step_key" });
+        const { error } = await supabase.from("submissions").upsert({ lesson_id: lesson.id, student_id: studentId, content: submission, status: submission.status, audio_url: submission.speakingAudioUrl, submitted_at: submission.submittedAt, updated_at: new Date().toISOString() }, { onConflict: "lesson_id,student_id" });
         if (!error) {
           if (progress) await saveStudentProgress(slug, { currentStep: progress.currentStep || "warm_up", completedSteps: progress.completedSteps || [], status: progress.status || (submission.status === "submitted" ? "submitted" : "in_progress"), updatedAt: new Date().toISOString() }, studentToken);
           return nextState;
