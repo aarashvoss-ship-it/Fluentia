@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { ChatMessage, ContentBlock, SavedVocabularyWord, StudentNote, StudyStepId, STUDY_STEPS, LessonContent, StudentSubmission } from "@/types/lesson";
 import { MOCK_INSTRUCTOR_LESSONS } from "@/lib/mock-instructor-data";
 import { getLesson } from "@/lib/lessons";
-import { persistActiveStudentToken, PublishedLessonState, writeLastAccessedLesson } from "@/lib/lesson-store";
+import { persistResolvedStudent, PublishedLessonState, resolveStudentAccess, writeLastAccessedLesson } from "@/lib/lesson-store";
 import { fetchChatMessages, fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, saveChatMessage, saveStudentNote, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
 import { DEFAULT_STUDENT } from "@/lib/users";
 import { Stepper } from "@/components/study-room/stepper";
@@ -14,6 +14,7 @@ import { CelebrationModal } from "@/components/study-room/celebration-modal";
 import { DictionaryModal } from "@/components/study-room/dictionary-modal";
 import { LearningSidebar } from "@/components/study-room/learning-sidebar";
 import { ChatWidget } from "@/components/study-room/chat-widget";
+import { AccessCard } from "@/components/access/access-card";
 import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player";
 import {
   ArrowRight,
@@ -57,6 +58,7 @@ export default function LessonPage() {
   const requestedSlug = typeof rawSlug === "string" ? rawSlug : "habits-01";
   const [mockLesson, setMockLesson] = useState<LessonContent>(() => getLesson(requestedSlug));
   const [isMounted, setIsMounted] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [lessonReady, setLessonReady] = useState(false);
   const [lessonNotFound, setLessonNotFound] = useState(false);
   const instructorLesson = MOCK_INSTRUCTOR_LESSONS[mockLesson.slug] || MOCK_INSTRUCTOR_LESSONS["habits-01"];
@@ -84,14 +86,22 @@ export default function LessonPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const student = persistActiveStudentToken(params.get("student") || params.get("token"));
+    const studentParam = params.get("student");
+    const student = studentParam ? resolveStudentAccess(studentParam) : null;
+    if (!student) {
+      setAccessDenied(true);
+      setStudentReady(true);
+      setIsMounted(true);
+      return;
+    }
+    persistResolvedStudent(student);
     setActiveStudent(student);
     setStudentReady(true);
     setIsMounted(true);
   }, []);
 
   useEffect(() => {
-    if (!isMounted) return;
+    if (!isMounted || accessDenied) return;
     let mounted = true;
     setLessonReady(false);
     setLessonNotFound(false);
@@ -108,7 +118,7 @@ export default function LessonPage() {
     return () => {
       mounted = false;
     };
-  }, [isMounted, requestedSlug]);
+  }, [accessDenied, isMounted, requestedSlug]);
 
   useEffect(() => {
     if (!lessonReady || !studentReady || lessonNotFound) return;
@@ -127,6 +137,7 @@ export default function LessonPage() {
   }, [activeStudent.token, lessonReady, lessonNotFound, mockLesson.slug, studentReady]);
 
   useEffect(() => {
+    if (!studentReady || accessDenied) return;
     void Promise.all([
       fetchSavedVocabulary(activeStudent.token),
       fetchStudentNotes(activeStudent.token),
@@ -136,7 +147,7 @@ export default function LessonPage() {
       setNotes(savedNotes);
       setChatMessages(messages);
     });
-  }, [activeStudent.token]);
+  }, [accessDenied, activeStudent.token, studentReady]);
 
   function handleDoubleClick() {
     const selection = window.getSelection()?.toString().trim().split(/\s+/)[0]?.replace(/[^a-zA-Z'-]/g, "");
@@ -248,6 +259,10 @@ export default function LessonPage() {
 
   if (!isMounted || !lessonReady || !studentReady) {
     return <div className="fluentia-study-room min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
+  }
+
+  if (accessDenied) {
+    return <AccessCard title="By Invitation Only" message="This lesson requires a valid student session token." />;
   }
 
   if (lessonNotFound) {

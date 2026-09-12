@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BookOpen, CheckCircle2, Clock3, Flame, Layers3, MessageSquareText, PanelRight, Settings2, UserRound, X } from "lucide-react";
 import { DEFAULT_STUDENT, STUDENT_USERS, type StudentUser } from "@/lib/users";
-import { persistActiveStudentToken, PublishedLessonState, readLastAccessedLesson, STANDARD_LESSONS, writeLastAccessedLesson } from "@/lib/lesson-store";
+import { persistResolvedStudent, PublishedLessonState, readLastAccessedLesson, resolveStudentAccess, STANDARD_LESSONS, writeLastAccessedLesson } from "@/lib/lesson-store";
 import { fetchChatMessages, fetchLessonState, fetchLessons, fetchSavedVocabulary, fetchStudentNotes, removeVocabularyWord, saveChatMessage, saveStudentNote, saveVocabularyWord } from "@/services/storage-service";
 import { ChatMessage, SavedVocabularyWord, StudentNote } from "@/types/lesson";
 import { DictionaryModal } from "@/components/study-room/dictionary-modal";
 import { LearningSidebar } from "@/components/study-room/learning-sidebar";
 import { ChatWidget } from "@/components/study-room/chat-widget";
+import { AccessCard } from "@/components/access/access-card";
 
 type LessonStatus = "not-started" | "in-progress" | "pending-review" | "completed";
 
@@ -53,6 +54,7 @@ function isValidImageUrl(value: string) {
 
 export default function DashboardPage() {
   const [isMounted, setIsMounted] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [activeStudent, setActiveStudent] = useState(DEFAULT_STUDENT);
   const [lessons, setLessons] = useState<Awaited<ReturnType<typeof fetchLessons>>>([]);
   const [lessonStates, setLessonStates] = useState<Record<string, PublishedLessonState | null>>({});
@@ -83,7 +85,13 @@ export default function DashboardPage() {
       setChatMessages(messages);
     };
     const params = new URLSearchParams(window.location.search);
-    const active = persistActiveStudentToken(params.get("student") || params.get("token"));
+    const active = resolveStudentAccess(params.get("student") || params.get("token"));
+    if (!active) {
+      setAccessDenied(true);
+      setIsMounted(true);
+      return;
+    }
+    persistResolvedStudent(active);
     const studentToken = active.token;
     const storedProfile = window.localStorage.getItem(`fluentia:profile:${studentToken}`);
     let profileOverrides: Partial<NonNullable<StudentUser["profile"]>> = {};
@@ -112,6 +120,10 @@ export default function DashboardPage() {
 
   if (!isMounted) {
     return <main className="min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
+  }
+
+  if (accessDenied) {
+    return <AccessCard title="By Invitation Only" message="Access to Fluentia is reserved for private sessions. Please contact your instructor to receive a valid student session token." />;
   }
 
   const token = activeStudent.token || activeStudent.id;

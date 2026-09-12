@@ -8,10 +8,11 @@ import { LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor
 import { InstructorBannerManager } from "@/components/instructor/banner-manager";
 import { SubmissionEvaluator } from "@/components/instructor/submission-evaluator";
 import { LessonContent, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
-import { persistActiveStudentToken, PublishedLessonState } from "@/lib/lesson-store";
+import { INSTRUCTOR_TOKEN, persistActiveStudentToken, PublishedLessonState } from "@/lib/lesson-store";
 import { FeedbackPayload } from "@/components/instructor/submission-evaluator";
 import { DEFAULT_STUDENT, findUser, STUDENT_USERS, StudentUser } from "@/lib/users";
 import { fetchLesson, fetchLessonState, saveInstructorFeedback, saveLesson, saveLessonState } from "@/services/storage-service";
+import { AccessCard } from "@/components/access/access-card";
 
 export default function InstructorLessonWorkstationPage() {
   const params = useParams();
@@ -20,6 +21,7 @@ export default function InstructorLessonWorkstationPage() {
 
   const initialLesson = MOCK_INSTRUCTOR_LESSONS[lessonId] || MOCK_INSTRUCTOR_LESSONS["habits-01"];
   const [isMounted, setIsMounted] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(DEFAULT_STUDENT);
   const [lessonStatus, setLessonStatus] = useState<"draft" | "published">("published");
 
@@ -93,8 +95,14 @@ export default function InstructorLessonWorkstationPage() {
   useEffect(() => {
     void (async () => {
       const query = new URLSearchParams(window.location.search);
-      const requestedStudent = persistActiveStudentToken(query.get("student") || query.get("token"));
-      window.localStorage.setItem("fluentia:active-user", "instructor-avoss");
+      const instructorToken = query.get("instructor") || query.get("token");
+      if (instructorToken !== INSTRUCTOR_TOKEN) {
+        setAccessDenied(true);
+        setIsMounted(true);
+        return;
+      }
+      const requestedStudent = persistActiveStudentToken(query.get("student"));
+      window.localStorage.setItem("fluentia:active-user", INSTRUCTOR_TOKEN);
       setSelectedStudent(requestedStudent);
       setIsMounted(true);
       const manifestLesson = await fetchLesson(lessonId);
@@ -112,6 +120,10 @@ export default function InstructorLessonWorkstationPage() {
 
   if (!isMounted) {
     return <main className="min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
+  }
+
+  if (accessDenied) {
+    return <AccessCard title="Access Denied" message="This instructor workstation requires a valid instructor session token." />;
   }
 
   async function handleStudentChange(student: StudentUser) {
@@ -142,7 +154,7 @@ export default function InstructorLessonWorkstationPage() {
     });
     if (publishedState?.status) setLessonStatus(publishedState.status);
     window.localStorage.setItem("fluentia:active-student-token", student.token);
-    window.localStorage.setItem("fluentia:active-user", "instructor-avoss");
+    window.localStorage.setItem("fluentia:active-user", INSTRUCTOR_TOKEN);
   }
 
   const handlePublish = async () => {

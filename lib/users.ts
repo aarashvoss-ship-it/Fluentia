@@ -44,7 +44,7 @@ export const FLUENTIA_USERS: FluentiaUser[] = [
   student("test-1002", "test-1002", "ST Test02", "B1 Intermediate", "Fluency"),
   student("termeh-5823", "termeh-5823", "Termeh Besharati", "B1 Intermediate", "Fluency"),
   student("ryan-9147", "ryan-9147", "Ryan Rezaie", "B1 Intermediate", "Fluency"),
-  { id: "instructor-avoss", name: "AVoss", role: "instructor" },
+  { id: "instructor-avoss", token: "avoss-9042", name: "AVoss", role: "instructor" },
 ];
 
 export const STUDENT_USERS = FLUENTIA_USERS.filter(
