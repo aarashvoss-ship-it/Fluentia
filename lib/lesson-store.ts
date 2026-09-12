@@ -7,15 +7,24 @@ export const LESSON_STATE_PREFIX = "fluentia:published-lesson:";
 export const LAST_ACCESSED_LESSON_KEY = "fluentia:last-accessed-lesson";
 export const ACTIVE_STUDENT_TOKEN_KEY = "fluentia:active-student-token";
 export const INSTRUCTOR_TOKEN = "avoss-9042";
+const LEGACY_STUDENT_TOKENS: Record<string, string> = {
+  "yasaman-s": "yasaman-5184",
+};
+
+function normalizeStudentToken(value?: string | null) {
+  const token = value?.trim();
+  return token ? LEGACY_STUDENT_TOKENS[token] || token : null;
+}
 
 export function resolveStudentAccess(explicitToken?: string | null): StudentUser | null {
-  const requestedToken = explicitToken?.trim();
+  const requestedToken = normalizeStudentToken(explicitToken);
   const storedToken = typeof window !== "undefined"
     ? window.localStorage.getItem(ACTIVE_STUDENT_TOKEN_KEY) || window.localStorage.getItem("fluentia:active-user")
     : null;
-  const token = requestedToken || storedToken;
-  if (!token) return null;
-  return STUDENT_USERS.find((user) => user.token === token || user.id === token) || null;
+  const candidates = [requestedToken, normalizeStudentToken(storedToken)].filter(Boolean) as string[];
+  return candidates.reduce<StudentUser | null>((student, token) =>
+    student || STUDENT_USERS.find((user) => user.token === token || user.id === token) || null,
+  null);
 }
 
 export function persistResolvedStudent(student: StudentUser) {

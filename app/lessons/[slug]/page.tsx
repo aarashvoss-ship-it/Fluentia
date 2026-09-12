@@ -86,8 +86,8 @@ export default function LessonPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const studentParam = params.get("student");
-    const student = studentParam ? resolveStudentAccess(studentParam) : null;
+    const studentParam = params.get("student") || params.get("token");
+    const student = resolveStudentAccess(studentParam);
     if (!student) {
       setAccessDenied(true);
       setStudentReady(true);
@@ -257,12 +257,16 @@ export default function LessonPage() {
 
   const isResultsStep = currentStep === "results";
 
-  if (!isMounted || !lessonReady || !studentReady) {
+  if (!isMounted) {
     return <div className="fluentia-study-room min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
   }
 
   if (accessDenied) {
     return <AccessCard title="By Invitation Only" message="This lesson requires a valid student session token." />;
+  }
+
+  if (!lessonReady || !studentReady) {
+    return <div className="fluentia-study-room min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
   }
 
   if (lessonNotFound) {
