@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BookOpen, CheckCircle2, Clock3, Flame, Layers3, MessageSquareText, PanelRight, Settings2, UserRound, X } from "lucide-react";
-import { DEFAULT_STUDENT, findUser, StudentUser, STUDENT_USERS } from "@/lib/users";
-import { PublishedLessonState, readLastAccessedLesson, STANDARD_LESSONS, writeLastAccessedLesson } from "@/lib/lesson-store";
+import { DEFAULT_STUDENT, STUDENT_USERS, type StudentUser } from "@/lib/users";
+import { persistActiveStudentToken, PublishedLessonState, readLastAccessedLesson, resolveActiveStudent, STANDARD_LESSONS, writeLastAccessedLesson } from "@/lib/lesson-store";
 import { fetchChatMessages, fetchLessonState, fetchLessons, fetchSavedVocabulary, fetchStudentNotes, removeVocabularyWord, saveChatMessage, saveStudentNote, saveVocabularyWord } from "@/services/storage-service";
 import { ChatMessage, SavedVocabularyWord, StudentNote } from "@/types/lesson";
 import { DictionaryModal } from "@/components/study-room/dictionary-modal";
@@ -52,7 +52,7 @@ function isValidImageUrl(value: string) {
 }
 
 export default function DashboardPage() {
-  const [activeStudent, setActiveStudent] = useState(DEFAULT_STUDENT);
+  const [activeStudent, setActiveStudent] = useState(resolveActiveStudent);
   const [lessons, setLessons] = useState<Awaited<ReturnType<typeof fetchLessons>>>([]);
   const [lessonStates, setLessonStates] = useState<Record<string, PublishedLessonState | null>>({});
   const [savedWords, setSavedWords] = useState<SavedVocabularyWord[]>([]);
@@ -82,11 +82,8 @@ export default function DashboardPage() {
       setChatMessages(messages);
     };
     const params = new URLSearchParams(window.location.search);
-    const requestedUser = findUser(params.get("token") || params.get("student"));
-    const storedUser = findUser(window.localStorage.getItem("fluentia:active-user"));
-    const student = requestedUser?.role === "student" ? requestedUser : storedUser;
-    const active = student?.role === "student" ? student as StudentUser : DEFAULT_STUDENT;
-    const studentToken = active.token || active.id || DEFAULT_STUDENT.token;
+    const active = persistActiveStudentToken(params.get("student") || params.get("token"));
+    const studentToken = active.token;
     const storedProfile = window.localStorage.getItem(`fluentia:profile:${studentToken}`);
     let profileOverrides: Partial<NonNullable<StudentUser["profile"]>> = {};
     let preferences: ProfilePreferences = {};
@@ -105,7 +102,6 @@ export default function DashboardPage() {
     setCustomAvatarUrl(preferences.customAvatarUrl || "");
     setBannerPreset(preferences.bannerPreset || "default-dark");
     setCustomBannerUrl(preferences.customBannerUrl || "");
-    window.localStorage.setItem("fluentia:active-user", studentToken);
     const refreshLessons = () => void loadDashboard(studentToken);
     void loadDashboard(studentToken);
     window.addEventListener("storage", refreshLessons);
@@ -143,8 +139,8 @@ export default function DashboardPage() {
     : nextLesson?.coverImage || selectedBanner.image;
   const availableLessons = displayLessons.filter((lesson) => lesson.slug !== nextLesson?.slug);
   const getLessonHref = (slug: string, status: LessonStatus) => {
-    const startParam = status === "completed" || status === "pending-review" ? "&start=warm_up" : "";
-    return `/lessons/${slug}?token=${encodeURIComponent(token)}${startParam}`;
+    const stepParam = status === "completed" ? "&step=7" : status === "pending-review" ? "&start=warm_up" : "";
+    return `/lessons/${slug}?student=${encodeURIComponent(token)}${stepParam}`;
   };
   const rememberLesson = (slug: string) => writeLastAccessedLesson(slug, token);
 

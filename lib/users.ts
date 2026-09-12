@@ -32,11 +32,18 @@ const student = (
 });
 
 export const FLUENTIA_USERS: FluentiaUser[] = [
-  student("std-01", "fateme-s", "Fateme Soheilikia", "B2 Upper Intermediate", "Advanced fluency"),
-  student("std-02", "navid-k", "Navid Khabazi", "B1 Intermediate", "Confident conversation"),
-  student("std-03", "yasaman-s", "Yasaman Sheybani", "B2 Upper Intermediate", "Professional writing"),
-  student("std-04", "arezo-m", "Arezo Moghaddasi", "B1 Intermediate", "Academic vocabulary"),
-  student("std-05", "arash-test", "Arash Test", "B2 Upper Intermediate", "C1 fluency and presentation"),
+  student("fatemeh-8421", "fatemeh-8421", "Fatemeh Soheilikia", "B2 Upper Intermediate", "Advanced fluency"),
+  student("navid-3912", "navid-3912", "Navid Khabazi", "B1 Intermediate", "Confident conversation"),
+  student("yasaman-5184", "yasaman-5184", "Yasaman Sheybani", "B2 Upper Intermediate", "Professional writing"),
+  student("arezo-7741", "arezo-7741", "Arezo Moghaddasi", "B1 Intermediate", "Academic vocabulary"),
+  student("arash-1024", "arash-1024", "Arash Test", "B2 Upper Intermediate", "C1 fluency and presentation"),
+  student("niki-4932", "niki-4932", "Niki Dahmardeh", "B2 Upper Intermediate", "Advanced fluency"),
+  student("nahal-6184", "nahal-6184", "Nahal Dahmardeh", "B1 Intermediate", "Confident conversation"),
+  student("morad-3529", "morad-3529", "Morad Abdi Varmazan", "B1 Intermediate", "Professional writing"),
+  student("test-1001", "test-1001", "ST Test01", "B1 Intermediate", "Fluency"),
+  student("test-1002", "test-1002", "ST Test02", "B1 Intermediate", "Fluency"),
+  student("termeh-5823", "termeh-5823", "Termeh Besharati", "B1 Intermediate", "Fluency"),
+  student("ryan-9147", "ryan-9147", "Ryan Rezaie", "B1 Intermediate", "Fluency"),
   { id: "instructor-avoss", name: "AVoss", role: "instructor" },
 ];
 
@@ -55,5 +62,5 @@ export function findUser(value?: string | null) {
 }
 
 export const DEFAULT_STUDENT = STUDENT_USERS.find(
-  (user) => user.token === "arash-test"
+  (user) => user.token === "arash-1024"
 ) || STUDENT_USERS[0];

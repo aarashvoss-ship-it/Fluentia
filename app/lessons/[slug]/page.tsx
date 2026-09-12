@@ -6,9 +6,9 @@ import { useParams } from "next/navigation";
 import { ChatMessage, ContentBlock, SavedVocabularyWord, StudentNote, StudyStepId, STUDY_STEPS, LessonContent, StudentSubmission } from "@/types/lesson";
 import { MOCK_INSTRUCTOR_LESSONS } from "@/lib/mock-instructor-data";
 import { getLesson } from "@/lib/lessons";
-import { PublishedLessonState, writeLastAccessedLesson } from "@/lib/lesson-store";
+import { persistActiveStudentToken, PublishedLessonState, resolveActiveStudent, writeLastAccessedLesson } from "@/lib/lesson-store";
 import { fetchChatMessages, fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, saveChatMessage, saveStudentNote, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
-import { DEFAULT_STUDENT, findUser, FluentiaUser } from "@/lib/users";
+import { DEFAULT_STUDENT } from "@/lib/users";
 import { Stepper } from "@/components/study-room/stepper";
 import { CelebrationModal } from "@/components/study-room/celebration-modal";
 import { DictionaryModal } from "@/components/study-room/dictionary-modal";
@@ -42,6 +42,22 @@ function getLockedSteps(completedSteps: StudyStepId[]): StudyStepId[] {
   return locked;
 }
 
+function getInitialStudent() {
+  if (typeof window === "undefined") return DEFAULT_STUDENT;
+  const params = new URLSearchParams(window.location.search);
+  return resolveActiveStudent(params.get("student") || params.get("token"));
+}
+
+function getRequestedStep(value: string | null): StudyStepId | null {
+  if (!value) return null;
+  const byId = STUDY_STEPS.find((step) => step.id === value);
+  if (byId) return byId.id;
+  const stepNumber = Number(value);
+  return Number.isInteger(stepNumber) && stepNumber >= 1 && stepNumber <= STUDY_STEPS.length
+    ? STUDY_STEPS[stepNumber - 1].id
+    : null;
+}
+
 export default function LessonPage() {
   const rawSlug = useParams()?.slug;
   const requestedSlug = typeof rawSlug === "string" ? rawSlug : "habits-01";
@@ -50,8 +66,8 @@ export default function LessonPage() {
   const [lessonNotFound, setLessonNotFound] = useState(false);
   const instructorLesson = MOCK_INSTRUCTOR_LESSONS[mockLesson.slug] || MOCK_INSTRUCTOR_LESSONS["habits-01"];
   const instructor = mockLesson.instructor || instructorLesson.instructor || { fullName: "AVoss", initials: "AV" };
-  const [activeStudent, setActiveStudent] = useState(DEFAULT_STUDENT);
-  const [studentReady, setStudentReady] = useState(false);
+  const [activeStudent, setActiveStudent] = useState(getInitialStudent);
+  const [studentReady] = useState(true);
   const [currentStep, setCurrentStep] = useState<StudyStepId>("warm_up");
   const [completedSteps, setCompletedSteps] = useState<StudyStepId[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -72,6 +88,11 @@ export default function LessonPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    persistActiveStudentToken(params.get("student") || params.get("token"));
+  }, []);
+
+  useEffect(() => {
     let mounted = true;
     setLessonReady(false);
     setLessonNotFound(false);
@@ -79,8 +100,7 @@ export default function LessonPage() {
       if (!mounted) return;
       if (lesson) {
         setMockLesson(lesson);
-        const studentToken = new URLSearchParams(window.location.search).get("token") || "default";
-        writeLastAccessedLesson(lesson.slug, studentToken);
+        writeLastAccessedLesson(lesson.slug, activeStudent.token);
       } else {
         setLessonNotFound(true);
       }
@@ -92,28 +112,17 @@ export default function LessonPage() {
   }, [requestedSlug]);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const requestedUser = findUser(params.get("token") || params.get("student"));
-    const storedUser = findUser(window.localStorage.getItem("fluentia:active-user"));
-    const student = requestedUser?.role === "student" ? requestedUser : storedUser;
-
-    if (student?.role === "student") {
-      setActiveStudent(student as FluentiaUser & { profile: NonNullable<FluentiaUser["profile"]>; token: string });
-      window.localStorage.setItem("fluentia:active-user", student.token || student.id);
-    }
-    setStudentReady(true);
-  }, []);
-
-  useEffect(() => {
     if (!lessonReady || !studentReady || lessonNotFound) return;
-    const startStep = new URLSearchParams(window.location.search).get("start");
+    const params = new URLSearchParams(window.location.search);
+    const requestedStep = getRequestedStep(params.get("step"));
+    const startStep = params.get("start");
     void Promise.all([
       fetchLessonState(mockLesson.slug, activeStudent.token),
       fetchStudentProgress(mockLesson.slug, activeStudent.token),
     ]).then(([state, progress]) => {
       setPublishedLesson(state?.status !== "draft" ? state : null);
       if (state?.submission) setSubmission(state.submission);
-      setCurrentStep(startStep === "warm_up" ? "warm_up" : progress.currentStep);
+      setCurrentStep(requestedStep || (startStep === "warm_up" ? "warm_up" : progress.currentStep));
       setCompletedSteps(progress.completedSteps);
     });
   }, [activeStudent.token, lessonReady, lessonNotFound, mockLesson.slug, studentReady]);
@@ -247,7 +256,7 @@ export default function LessonPage() {
       <div className="fluentia-study-room min-h-screen bg-[#0c1017] px-5 py-16 text-center text-[#e8e7e4]">
         <h1 className="font-[var(--font-fraunces)] text-2xl text-[#f1eee8]">Lesson unavailable</h1>
         <p className="mt-3 text-sm text-[#8f98a8]">This lesson is no longer published.</p>
-        <Link href={`/dashboard?token=${encodeURIComponent(activeStudent.token)}`} className="mt-6 inline-flex rounded-md bg-amber-500 px-4 py-2 text-xs font-semibold text-slate-950">Return to Dashboard</Link>
+        <Link href={`/dashboard?student=${encodeURIComponent(activeStudent.token || activeStudent.id)}`} className="mt-6 inline-flex rounded-md bg-amber-500 px-4 py-2 text-xs font-semibold text-slate-950">Return to Dashboard</Link>
       </div>
     );
   }
@@ -314,7 +323,7 @@ export default function LessonPage() {
       <header className="pt-8">
         <div className="flex items-center justify-between text-[12px]">
               <p className="text-[#aeb2b9]">Welcome back, <span className="text-[#e6e4e0]">{activeStudent.name}</span>.</p>
-          <div className="flex items-center gap-2"><AmbientMusicPlayer src={mockLesson.ambientMusicUrl} /><button type="button" onClick={() => setDictionaryWord("")} aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28] text-stone-400 transition hover:border-amber-500 hover:text-amber-300"><DictionaryIcon className="h-4 w-4" /></button><button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs transition ${sidebarOpen ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#171d28] text-amber-300 hover:border-amber-500"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button><Link href={`/dashboard?token=${encodeURIComponent(activeStudent.token)}`} className="flex items-center gap-1 text-[#646d7b] transition-colors hover:text-[#bdc1c8]"><ChevronRight className="h-3 w-3 rotate-180" />Course overview</Link></div>
+          <div className="flex items-center gap-2"><AmbientMusicPlayer src={mockLesson.ambientMusicUrl} /><button type="button" onClick={() => setDictionaryWord("")} aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28] text-stone-400 transition hover:border-amber-500 hover:text-amber-300"><DictionaryIcon className="h-4 w-4" /></button><button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs transition ${sidebarOpen ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#171d28] text-amber-300 hover:border-amber-500"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button><Link href={`/dashboard?token=${encodeURIComponent(activeStudent.token || activeStudent.id)}`} className="flex items-center gap-1 text-[#646d7b] transition-colors hover:text-[#bdc1c8]"><ChevronRight className="h-3 w-3 rotate-180" />Course overview</Link></div>
         </div>
         <div className="mt-8">
           <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#556078]">Your journey</p>
@@ -629,7 +638,7 @@ export default function LessonPage() {
               </div>
 
               <div className="text-center">
-                <Link href={`/dashboard?token=${encodeURIComponent(activeStudent.token)}`} className="inline-flex items-center gap-2 rounded-full border border-stone-700 bg-stone-800 px-5 py-2.5 text-sm text-stone-200 transition-colors hover:bg-stone-700">
+                <Link href={`/dashboard?student=${encodeURIComponent(activeStudent.token || activeStudent.id)}`} className="inline-flex items-center gap-2 rounded-full border border-stone-700 bg-stone-800 px-5 py-2.5 text-sm text-stone-200 transition-colors hover:bg-stone-700">
                   Return to Dashboard
                 </Link>
               </div>
@@ -678,6 +687,7 @@ export default function LessonPage() {
         onSubmit={handleSubmitFinal}
         onReview={handleReviewAnswers}
         studentName={activeStudent.name || "Arash"}
+        dashboardHref={`/dashboard?student=${encodeURIComponent(activeStudent.token || activeStudent.id)}`}
       />
       <LearningSidebar
         open={sidebarOpen}

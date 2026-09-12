@@ -10,6 +10,7 @@ interface CelebrationModalProps {
   onSubmit: () => void;
   onReview: () => void;
   studentName?: string;
+  dashboardHref?: string;
 }
 
 export function CelebrationModal({
@@ -18,6 +19,7 @@ export function CelebrationModal({
   onSubmit,
   onReview,
   studentName = "Arash",
+  dashboardHref = "/dashboard",
 }: CelebrationModalProps) {
   const router = useRouter();
 
@@ -25,7 +27,7 @@ export function CelebrationModal({
 
   const handleSaveDraftAndExit = () => {
     onClose();
-    router.push("/dashboard");
+    router.push(dashboardHref);
   };
 
   return (

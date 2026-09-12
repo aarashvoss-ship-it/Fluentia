@@ -80,7 +80,7 @@ function writeManifest(lessons: LessonContent[]) {
 
 function getState(slug: string, studentToken?: string): PublishedLessonState | null {
   return readJson<PublishedLessonState>(getLessonStateKey(slug, studentToken))
-    || (studentToken === "arash-test" ? readJson<PublishedLessonState>(`fluentia:published-lesson:${slug}`) : null);
+    || (studentToken === "arash-1024" ? readJson<PublishedLessonState>(`fluentia:published-lesson:${slug}`) : null);
 }
 
 function emptyEvaluation(): LessonEvaluation {

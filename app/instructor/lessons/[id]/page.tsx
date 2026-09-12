@@ -132,7 +132,7 @@ export default function InstructorLessonWorkstationPage() {
         criterionFeedback: {},
         published: false,
       },
-      submission: publishedState?.submission || (student.token === "arash-test" ? demoSubmission : undefined),
+      submission: publishedState?.submission || (student.token === "arash-1024" ? demoSubmission : undefined),
     });
     if (publishedState?.status) setLessonStatus(publishedState.status);
     window.localStorage.setItem("fluentia:active-user", student.token);
