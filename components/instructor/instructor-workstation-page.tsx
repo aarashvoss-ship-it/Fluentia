@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { Plus, Trash2 } from "lucide-react";
 import { MOCK_INSTRUCTOR_LESSONS } from "@/lib/mock-instructor-data";
 import { StudentContextPanel } from "@/components/instructor/student-context-panel";
 import { LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
@@ -26,6 +27,11 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
   const [accessDenied, setAccessDenied] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(DEFAULT_STUDENT);
   const [lessonStatus, setLessonStatus] = useState<"draft" | "published">("published");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "builder" | "evaluation">("dashboard");
+  const [sidebarBlocks, setSidebarBlocks] = useState([
+    { id: "teacher-notes", title: "Teacher Notes", body: "" },
+    { id: "extra-vocabulary", title: "Extra Vocabulary", body: "" },
+  ]);
 
   const [workstationState, setWorkstationState] = useState<{
     content: StrictStepContent;
@@ -243,6 +249,35 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
         </div>
       </header>
 
+      <nav className="sticky top-0 z-20 mb-8 border-b border-[#202631] bg-[#0c1017]/95 backdrop-blur" aria-label="Instructor workstation views">
+        <div className="flex gap-1 overflow-x-auto">
+          {([
+            ["dashboard", "Dashboard"],
+            ["builder", "Lesson Builder"],
+            ["evaluation", "Student Evaluation"],
+          ] as const).map(([tab, label]) => (
+            <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`whitespace-nowrap border-b-2 px-4 py-3 text-xs font-semibold transition ${activeTab === tab ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      {activeTab === "dashboard" && (
+        <section className="space-y-6" aria-label="Instructor dashboard overview">
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5"><p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Submission Status</p><p className="mt-2 text-2xl font-semibold text-stone-100">{submissionState}</p><p className="mt-1 text-xs text-stone-500">Current selected student</p></div>
+            <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5"><p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Lesson State</p><p className="mt-2 text-2xl font-semibold text-stone-100">{lessonStatus}</p><p className="mt-1 text-xs text-stone-500">Content publication status</p></div>
+            <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5"><p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Evaluation</p><p className="mt-2 text-2xl font-semibold text-stone-100">{workstationState.evaluation.published ? "Published" : "Pending"}</p><p className="mt-1 text-xs text-stone-500">Feedback availability</p></div>
+          </div>
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5"><h2 className="font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Pending Submissions</h2><p className="mt-3 text-sm text-stone-400">{submissionState === "Submitted (Needs Review)" ? `${selectedStudent.name} is awaiting feedback.` : "No submissions are currently awaiting feedback."}</p></div>
+            <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5"><h2 className="font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Recent Activity</h2><p className="mt-3 text-sm text-stone-400">{selectedStudent.name} is the active student workspace.</p><button type="button" onClick={() => setActiveTab("evaluation")} className="mt-4 text-xs font-semibold text-amber-300 hover:text-amber-200">Review student work</button></div>
+          </div>
+        </section>
+      )}
+
+      {activeTab === "builder" && <>
       <section className="mb-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
         <div className="mb-4">
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Lesson Library</p>
@@ -303,7 +338,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
 
       <main className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Lesson Tailor Editor */}
-        <div className="lg:col-span-7 space-y-6">
+        <div className="lg:col-span-8 space-y-6">
           <LessonTailorEditor
             content={workstationState.content}
             onChange={(content: StrictStepContent) =>
@@ -312,8 +347,8 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
           />
         </div>
 
-        {/* Right Column: Banner Manager, Student Context & Evaluator */}
-        <div className="lg:col-span-5 space-y-6">
+        {/* Right Column: Banner Manager and custom lesson blocks */}
+        <div className="lg:col-span-4 space-y-6">
           <InstructorBannerManager
             bannerUrl={workstationState.bannerUrl}
             customInput={workstationState.customBannerUrl}
@@ -325,20 +360,17 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
             }
           />
 
-          <StudentContextPanel
-            studentName={selectedStudent.name}
-            profile={workstationState.studentProfile}
-            students={STUDENT_USERS}
-            selectedStudentToken={selectedStudent.token}
-            onSelectStudent={handleStudentChange}
-            onUpdateProfile={(studentProfile: StudentProfile) =>
-              setWorkstationState((previous) => ({ ...previous, studentProfile }))
-            }
-          />
+          <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
+            <div className="flex items-center justify-between"><h3 className="font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Sidebar Blocks</h3><button type="button" onClick={() => setSidebarBlocks((blocks) => [...blocks, { id: `block-${Date.now()}`, title: "References", body: "" }])} className="flex items-center gap-1.5 rounded-md bg-amber-500 px-2.5 py-1.5 text-[10px] font-semibold text-[#0c1017]"><Plus className="h-3.5 w-3.5" />Add block</button></div>
+            <div className="mt-4 space-y-3">{sidebarBlocks.map((block) => <div key={block.id} className="rounded-lg border border-[#202631] bg-[#0c1017] p-3"><div className="flex gap-2"><input value={block.title} onChange={(event) => setSidebarBlocks((blocks) => blocks.map((item) => item.id === block.id ? { ...item, title: event.target.value } : item))} className="min-w-0 flex-1 border-b border-[#394252] bg-transparent pb-1 text-xs font-semibold text-stone-200 outline-none focus:border-amber-500" aria-label="Sidebar block title" /><button type="button" onClick={() => setSidebarBlocks((blocks) => blocks.filter((item) => item.id !== block.id))} className="text-stone-500 hover:text-red-300" aria-label={`Delete ${block.title}`}><Trash2 className="h-3.5 w-3.5" /></button></div><textarea value={block.body} onChange={(event) => setSidebarBlocks((blocks) => blocks.map((item) => item.id === block.id ? { ...item, body: event.target.value } : item))} rows={3} placeholder="Add notes, vocabulary, or references..." className="mt-3 w-full resize-none rounded-md border border-[#202631] bg-[#171d28] p-2.5 text-xs text-stone-300 outline-none focus:border-amber-500" /></div>)}</div>
+          </div>
 
         </div>
       </main>
+      </>}
 
+      {activeTab === "evaluation" && <>
+      <div className="mb-6"><StudentContextPanel studentName={selectedStudent.name} profile={workstationState.studentProfile} students={STUDENT_USERS} selectedStudentToken={selectedStudent.token} onSelectStudent={handleStudentChange} onUpdateProfile={(studentProfile: StudentProfile) => setWorkstationState((previous) => ({ ...previous, studentProfile }))} /></div>
       <section className="mt-8 grid grid-cols-1 items-start gap-6 lg:grid-cols-12" aria-label="Student submission review workspace">
         <div className="space-y-5 lg:col-span-7">
           <div className="flex flex-col justify-between gap-3 border-b border-[#202631] pb-4 sm:flex-row sm:items-end">
@@ -414,6 +446,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
           />
         </div>
       </section>
+      </>}
       </div>
     </div>
   );
