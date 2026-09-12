@@ -59,6 +59,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
   const [showPublishConfirmation, setShowPublishConfirmation] = useState(false);
   const [publishStatus, setPublishStatus] = useState<string | null>(null);
   const [newLesson, setNewLesson] = useState({
+    studentId: DEFAULT_STUDENT.id,
     title: "",
     slug: "",
     subtitle: "",
@@ -71,10 +72,11 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
   });
 
   async function handleCreateLesson() {
+    const student = STUDENT_USERS.find((item) => item.id === newLesson.studentId);
     const slug = newLesson.slug.trim().toLowerCase();
     const moduleNumber = Number(newLesson.moduleNumber);
-    if (!newLesson.title.trim() || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || !Number.isInteger(moduleNumber)) {
-      setPublishStatus("Add a title, valid slug, and module number before creating the lesson.");
+    if (!student || !newLesson.title.trim() || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || !Number.isInteger(moduleNumber)) {
+      setPublishStatus("Select a student and add a title, valid slug, and module number before creating the lesson.");
       return;
     }
 
@@ -82,6 +84,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
       id: `lesson-${slug}`,
       title: newLesson.title.trim(),
       slug,
+      studentId: student.id,
       subtitle: newLesson.subtitle.trim() || "A new Fluentia learning journey.",
       moduleNumber,
       status: newLesson.status,
@@ -98,7 +101,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
       },
     };
     await saveLesson(lesson);
-    setNewLesson({ title: "", slug: "", subtitle: "", moduleNumber: "", warmUp: "", lessonText: "", lexiconNotes: "", prompts: "", status: "draft" });
+    setNewLesson({ studentId: student.id, title: "", slug: "", subtitle: "", moduleNumber: "", warmUp: "", lessonText: "", lexiconNotes: "", prompts: "", status: "draft" });
     setPublishStatus(`Lesson "${lesson.title}" saved as ${lesson.status}.`);
   }
 
@@ -115,6 +118,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
         : resolveActiveStudent();
       window.localStorage.setItem("fluentia:active-user", INSTRUCTOR_TOKEN);
       setSelectedStudent(requestedStudent);
+      setNewLesson((previous) => ({ ...previous, studentId: requestedStudent.id }));
       setIsMounted(true);
       const manifestLesson = await fetchLesson(lessonId);
       if (manifestLesson) {
@@ -150,6 +154,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
       submittedAt: new Date().toISOString(),
     };
     setSelectedStudent(student);
+    setNewLesson((previous) => ({ ...previous, studentId: student.id }));
     setWorkstationState({
       content: publishedState?.content || baseContent,
       bannerUrl: publishedState?.bannerUrl || initialLesson.banner_image_url || "",
@@ -186,6 +191,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
       id: manifestLesson?.id || initialLesson.id,
       slug: manifestLesson?.slug || lessonId,
       title: manifestLesson?.title || initialLesson.title,
+      studentId: manifestLesson?.studentId || selectedStudent.id,
       subtitle: manifestLesson?.subtitle || "Seven stages. One connected journey.",
       moduleNumber: manifestLesson?.moduleNumber || initialLesson.moduleNumber || Number((initialLesson.module_tag || "module-1").replace("module-", "")) || 1,
       coverImage: workstationState.bannerUrl || initialLesson.banner_image_url,
@@ -295,11 +301,28 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
           <h2 className="mt-1 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Create / Add New Lesson</h2>
         </div>
         <div className="grid gap-3 md:grid-cols-4">
+          <label className="text-xs text-stone-400">
+            Select Student
+            <select
+              value={newLesson.studentId}
+              onChange={(event) => {
+                const nextStudent = STUDENT_USERS.find((student) => student.id === event.target.value);
+                if (!nextStudent) return;
+                setNewLesson((previous) => ({ ...previous, studentId: nextStudent.id }));
+                void handleStudentChange(nextStudent);
+              }}
+              className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+              aria-label="Select student for lesson"
+            >
+              {STUDENT_USERS.map((student) => (
+                <option key={student.id} value={student.id}>{student.name}</option>
+              ))}
+            </select>
+          </label>
           {[
             ["title", "Lesson Title", "Business Pitching 101"],
             ["slug", "Slug", "pitch-01"],
             ["subtitle", "Subtitle", "Present ideas with clarity"],
-            ["moduleNumber", "Module Number", "3"],
           ].map(([field, label, placeholder]) => (
             <label key={field} className="text-xs text-stone-400">
               {label}
@@ -311,6 +334,17 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
               />
             </label>
           ))}
+        </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-4">
+          <label className="text-xs text-stone-400">
+            Module Number
+            <input
+              value={newLesson.moduleNumber}
+              onChange={(event) => setNewLesson((previous) => ({ ...previous, moduleNumber: event.target.value }))}
+              placeholder="3"
+              className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+            />
+          </label>
           <label className="text-xs text-stone-400">
             Visibility
             <select

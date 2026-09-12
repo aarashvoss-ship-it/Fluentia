@@ -125,6 +125,7 @@ function mapLessonRow(row: SupabaseRow): LessonContent {
     id: String(row.id),
     slug: row.slug || String(row.id),
     title: row.title || "Untitled lesson",
+    studentId: row.student_id || undefined,
     subtitle: row.subtitle || undefined,
     moduleNumber: row.module_number || row.moduleNumber || 1,
     coverImage: row.banner_url || row.cover_image || undefined,
@@ -186,6 +187,7 @@ export async function saveLesson(lesson: LessonContent): Promise<void> {
       const { error } = await supabase.from("lessons").upsert({
         id: lesson.id,
         slug: lesson.slug,
+        student_id: lesson.studentId,
         title: lesson.title,
         subtitle: lesson.subtitle,
         module_number: lesson.moduleNumber,

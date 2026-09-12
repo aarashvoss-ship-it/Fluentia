@@ -176,6 +176,7 @@ export interface LessonContent {
   id: string;
   slug: string;
   title: string;
+  studentId?: string;
   subtitle?: string;
   moduleNumber: number;
   coverImage?: string;
