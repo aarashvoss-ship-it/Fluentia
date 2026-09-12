@@ -8,7 +8,7 @@ import { MOCK_INSTRUCTOR_LESSONS } from "@/lib/mock-instructor-data";
 import { getLesson } from "@/lib/lessons";
 import { persistResolvedStudent, PublishedLessonState, resolveStudentAccess, writeLastAccessedLesson } from "@/lib/lesson-store";
 import { fetchChatMessages, fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, saveChatMessage, saveStudentNote, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
-import { DEFAULT_STUDENT } from "@/lib/users";
+import { type StudentUser } from "@/lib/users";
 import { Stepper } from "@/components/study-room/stepper";
 import { CelebrationModal } from "@/components/study-room/celebration-modal";
 import { DictionaryModal } from "@/components/study-room/dictionary-modal";
@@ -63,7 +63,7 @@ export default function LessonPage() {
   const [lessonNotFound, setLessonNotFound] = useState(false);
   const instructorLesson = MOCK_INSTRUCTOR_LESSONS[mockLesson.slug] || MOCK_INSTRUCTOR_LESSONS["habits-01"];
   const instructor = mockLesson.instructor || instructorLesson.instructor || { fullName: "AVoss", initials: "AV" };
-  const [activeStudent, setActiveStudent] = useState(DEFAULT_STUDENT);
+  const [activeStudent, setActiveStudent] = useState<StudentUser | null>(null);
   const [studentReady, setStudentReady] = useState(false);
   const [currentStep, setCurrentStep] = useState<StudyStepId>("warm_up");
   const [completedSteps, setCompletedSteps] = useState<StudyStepId[]>([]);
@@ -109,7 +109,7 @@ export default function LessonPage() {
       if (!mounted) return;
       if (lesson) {
         setMockLesson(lesson);
-        writeLastAccessedLesson(lesson.slug, activeStudent.token);
+        writeLastAccessedLesson(lesson.slug, activeStudent!.token);
       } else {
         setLessonNotFound(true);
       }
@@ -126,28 +126,28 @@ export default function LessonPage() {
     const requestedStep = getRequestedStep(params.get("step"));
     const startStep = params.get("start");
     void Promise.all([
-      fetchLessonState(mockLesson.slug, activeStudent.token),
-      fetchStudentProgress(mockLesson.slug, activeStudent.token),
+      fetchLessonState(mockLesson.slug, activeStudent!.token),
+      fetchStudentProgress(mockLesson.slug, activeStudent!.token),
     ]).then(([state, progress]) => {
       setPublishedLesson(state?.status !== "draft" ? state : null);
       if (state?.submission) setSubmission(state.submission);
       setCurrentStep(requestedStep || (startStep === "warm_up" ? "warm_up" : progress.currentStep));
       setCompletedSteps(progress.completedSteps);
     });
-  }, [activeStudent.token, lessonReady, lessonNotFound, mockLesson.slug, studentReady]);
+  }, [activeStudent?.token, lessonReady, lessonNotFound, mockLesson.slug, studentReady]);
 
   useEffect(() => {
     if (!studentReady || accessDenied) return;
     void Promise.all([
-      fetchSavedVocabulary(activeStudent.token),
-      fetchStudentNotes(activeStudent.token),
-      fetchChatMessages(activeStudent.token),
+      fetchSavedVocabulary(activeStudent!.token),
+      fetchStudentNotes(activeStudent!.token),
+      fetchChatMessages(activeStudent!.token),
     ]).then(([words, savedNotes, messages]) => {
       setSavedWords(words);
       setNotes(savedNotes);
       setChatMessages(messages);
     });
-  }, [accessDenied, activeStudent.token, studentReady]);
+  }, [accessDenied, activeStudent?.token, studentReady]);
 
   function handleDoubleClick() {
     const selection = window.getSelection()?.toString().trim().split(/\s+/)[0]?.replace(/[^a-zA-Z'-]/g, "");
@@ -156,7 +156,7 @@ export default function LessonPage() {
 
   async function persistSubmission(nextSubmission: StudentSubmission, nextProgress?: { currentStep?: StudyStepId; completedSteps?: StudyStepId[]; status?: "not_started" | "in_progress" | "submitted" | "reviewed" }) {
     setSubmission(nextSubmission);
-    await submitStudentLesson(mockLesson.slug, activeStudent.token, nextSubmission, {
+    await submitStudentLesson(mockLesson.slug, activeStudent!.token, nextSubmission, {
       currentStep: nextProgress?.currentStep || currentStep,
       completedSteps: nextProgress?.completedSteps || completedSteps,
       status: nextProgress?.status || (nextSubmission.status === "submitted" ? "submitted" : "in_progress"),
@@ -274,7 +274,7 @@ export default function LessonPage() {
       <div className="fluentia-study-room min-h-screen bg-[#0c1017] px-5 py-16 text-center text-[#e8e7e4]">
         <h1 className="font-[var(--font-fraunces)] text-2xl text-[#f1eee8]">Lesson unavailable</h1>
         <p className="mt-3 text-sm text-[#8f98a8]">This lesson is no longer published.</p>
-        <Link href={`/dashboard?student=${encodeURIComponent(activeStudent.token || activeStudent.id)}`} className="mt-6 inline-flex rounded-md bg-amber-500 px-4 py-2 text-xs font-semibold text-slate-950">Return to Dashboard</Link>
+        <Link href={`/dashboard?student=${encodeURIComponent(activeStudent!.token)}`} className="mt-6 inline-flex rounded-md bg-amber-500 px-4 py-2 text-xs font-semibold text-slate-950">Return to Dashboard</Link>
       </div>
     );
   }
@@ -340,8 +340,8 @@ export default function LessonPage() {
 
       <header className="pt-8">
         <div className="flex items-center justify-between text-[12px]">
-              <p className="text-[#aeb2b9]">Welcome back, <span className="text-[#e6e4e0]">{activeStudent.name}</span>.</p>
-          <div className="flex items-center gap-2"><AmbientMusicPlayer src={mockLesson.ambientMusicUrl} /><button type="button" onClick={() => setDictionaryWord("")} aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28] text-stone-400 transition hover:border-amber-500 hover:text-amber-300"><DictionaryIcon className="h-4 w-4" /></button><button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs transition ${sidebarOpen ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#171d28] text-amber-300 hover:border-amber-500"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button><Link href={`/dashboard?token=${encodeURIComponent(activeStudent.token || activeStudent.id)}`} className="flex items-center gap-1 text-[#646d7b] transition-colors hover:text-[#bdc1c8]"><ChevronRight className="h-3 w-3 rotate-180" />Course overview</Link></div>
+                <p className="text-[#aeb2b9]">Welcome back, <span className="text-[#e6e4e0]">{activeStudent!.name}</span>.</p>
+              <div className="flex items-center gap-2"><AmbientMusicPlayer src={mockLesson.ambientMusicUrl} /><button type="button" onClick={() => setDictionaryWord("")} aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28] text-stone-400 transition hover:border-amber-500 hover:text-amber-300"><DictionaryIcon className="h-4 w-4" /></button><button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs transition ${sidebarOpen ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#171d28] text-amber-300 hover:border-amber-500"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button><Link href={`/dashboard?student=${encodeURIComponent(activeStudent!.token)}`} className="flex items-center gap-1 text-[#646d7b] transition-colors hover:text-[#bdc1c8]"><ChevronRight className="h-3 w-3 rotate-180" />Course overview</Link></div>
         </div>
         <div className="mt-8">
           <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#556078]">Your journey</p>
@@ -586,7 +586,7 @@ export default function LessonPage() {
                   Lesson Submitted &amp; Completed!
                 </h3>
                 <p className="text-stone-400 text-sm">
-                  {lessonContent.results?.self_reflection?.text || `Outstanding work, ${activeStudent.name}. Your instructor will review your submission shortly.`}
+                  {lessonContent.results?.self_reflection?.text || `Outstanding work, ${activeStudent!.name}. Your instructor will review your submission shortly.`}
                 </p>
               </div>
               <div className="overflow-hidden rounded-xl border border-[#202631] bg-[#121721] text-left">
@@ -656,7 +656,7 @@ export default function LessonPage() {
               </div>
 
               <div className="text-center">
-                <Link href={`/dashboard?student=${encodeURIComponent(activeStudent.token || activeStudent.id)}`} className="inline-flex items-center gap-2 rounded-full border border-stone-700 bg-stone-800 px-5 py-2.5 text-sm text-stone-200 transition-colors hover:bg-stone-700">
+                <Link href={`/dashboard?student=${encodeURIComponent(activeStudent!.token)}`} className="inline-flex items-center gap-2 rounded-full border border-stone-700 bg-stone-800 px-5 py-2.5 text-sm text-stone-200 transition-colors hover:bg-stone-700">
                   Return to Dashboard
                 </Link>
               </div>
@@ -704,8 +704,8 @@ export default function LessonPage() {
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleSubmitFinal}
         onReview={handleReviewAnswers}
-        studentName={activeStudent.name || "Arash"}
-        dashboardHref={`/dashboard?student=${encodeURIComponent(activeStudent.token || activeStudent.id)}`}
+        studentName={activeStudent!.name}
+        dashboardHref={`/dashboard?student=${encodeURIComponent(activeStudent!.token)}`}
       />
       <LearningSidebar
         open={sidebarOpen}
@@ -715,18 +715,18 @@ export default function LessonPage() {
         resource={evaluation?.studyHubPrescription}
         onSaveNote={(note) => {
           setNotes([note, ...notes.filter((item) => item.id !== note.id)]);
-          void saveStudentNote(activeStudent.token, note);
+          void saveStudentNote(activeStudent!.token, note);
         }}
         onRemoveWord={(word) => {
           setSavedWords(savedWords.filter((item) => item.word.toLowerCase() !== word.toLowerCase()));
-          void removeVocabularyWord(activeStudent.token, word);
+          void removeVocabularyWord(activeStudent!.token, word);
         }}
       />
       <ChatWidget
         messages={chatMessages}
         onSend={(message) => {
           setChatMessages([...chatMessages, message]);
-          void saveChatMessage(activeStudent.token, message);
+          void saveChatMessage(activeStudent!.token, message);
         }}
       />
       {dictionaryWord !== null && (
@@ -736,7 +736,7 @@ export default function LessonPage() {
           onClose={() => setDictionaryWord(null)}
           onSave={(word) => {
             setSavedWords([word, ...savedWords.filter((item) => item.word.toLowerCase() !== word.word.toLowerCase())]);
-            void saveVocabularyWord(activeStudent.token, word);
+            void saveVocabularyWord(activeStudent!.token, word);
           }}
         />
       )}

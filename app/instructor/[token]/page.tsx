@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AccessCard } from "@/components/access/access-card";
 import { INSTRUCTOR_TOKEN } from "@/lib/lesson-store";
-import { MOCK_INSTRUCTOR_LESSONS } from "@/lib/mock-instructor-data";
+import { findUser } from "@/lib/users";
 
 export default function InstructorDashboardPage() {
   const params = useParams<{ token: string }>();
@@ -23,6 +23,8 @@ export default function InstructorDashboardPage() {
     return <AccessCard title="Access Denied" message="This instructor workstation requires a valid instructor session token." />;
   }
 
+  const instructorName = findUser(params.token)?.name || "AVoss";
+
   return (
     <main className="min-h-screen bg-[#0c1017] px-6 py-10 text-[#e8e7e4]">
       <div className="mx-auto max-w-6xl">
@@ -31,16 +33,11 @@ export default function InstructorDashboardPage() {
           <h1 className="mt-3 font-[var(--font-fraunces)] text-3xl font-semibold text-[#f1eee8]">Instructor Dashboard</h1>
           <p className="mt-2 text-sm text-[#8f98a8]">Manage published lessons and student workspaces.</p>
         </header>
-        <section className="grid gap-4 pt-8 md:grid-cols-2 lg:grid-cols-3" aria-label="Instructor lessons">
-          {Object.values(MOCK_INSTRUCTOR_LESSONS).map((lesson) => (
-            <article key={lesson.id} className="rounded-xl border border-[#202631] bg-[#121721] p-5">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Module {lesson.moduleNumber}</p>
-              <h2 className="mt-2 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">{lesson.title}</h2>
-              <Link href={`/instructor/${INSTRUCTOR_TOKEN}/lessons/${lesson.id}?token=${INSTRUCTOR_TOKEN}`} className="mt-5 inline-flex rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-amber-400">
-                Open Workstation
-              </Link>
-            </article>
-          ))}
+        <section className="pt-8 text-left" aria-label="Instructor workstation">
+          <h2 className="font-sans text-2xl font-semibold text-stone-100">Welcome, {instructorName}</h2>
+          <Link href={`/instructor/${INSTRUCTOR_TOKEN}/lessons/habits-01`} className="mt-5 inline-flex rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-amber-400">
+            Open Workstation
+          </Link>
         </section>
       </div>
     </main>
