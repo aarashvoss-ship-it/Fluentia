@@ -68,6 +68,7 @@ export default function InstructorWorkstationPage({
 
   const [isPublishing, setIsPublishing] = useState(false);
   const [showPublishConfirmation, setShowPublishConfirmation] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<Partial<Record<"selectedStudentId" | "title" | "slug" | "moduleNumber", string>>>({});
   const [newLesson, setNewLesson] = useState({
     studentId: DEFAULT_STUDENT.id,
     title: "",
@@ -104,6 +105,7 @@ export default function InstructorWorkstationPage({
       return;
     }
     setSelectedStudentId(id);
+    setNewLesson((previous) => ({ ...previous, studentId: id }));
 
     const { data: lesson } = await supabase
       .from("lessons")
@@ -121,32 +123,45 @@ export default function InstructorWorkstationPage({
     setDatabaseLessonId(loadedLesson?.id || null);
   }
 
-  async function handleCreateLesson() {
-    const student = selectedStudentId ? students.find((item) => item.id === selectedStudentId) : undefined;
-    const slug = newLesson.slug.trim().toLowerCase();
-    const moduleNumber = Number(newLesson.moduleNumber);
+  const createSlug = (title: string) => {
+    const normalizedTitle = title
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+    return normalizedTitle || `lesson-${Date.now()}`;
+  };
 
-    if (!selectedStudentId || !student || !newLesson.title.trim() || !slug || !Number.isInteger(moduleNumber)) {
-      setPublishStatus("Select a student and add a title, valid slug, and module number before creating the lesson.");
+  async function handleCreateLesson() {
+    const draftStudentId = selectedStudentId || newLesson.studentId || selectedStudent.id;
+    const student = students.find((item) => item.id === draftStudentId) || selectedStudent;
+    if (!student) {
+      setValidationErrors({ selectedStudentId: "Select a student before creating the draft." });
+      setPublishStatus("Select a student before creating the draft.");
       return;
     }
+    const title = newLesson.title.trim() || "Untitled Lesson";
+    const slug = newLesson.slug.trim().toLowerCase() || createSlug(title);
+    const moduleNumber = Number(newLesson.moduleNumber) || 1;
 
     const lesson: LessonContent = {
       id: `lesson-${slug}`,
-      title: newLesson.title.trim(),
+      title,
       slug,
-      studentId: selectedStudentId,
+      studentId: draftStudentId,
       subtitle: newLesson.subtitle.trim() || "A new Fluentia learning journey.",
       moduleNumber,
-      status: newLesson.status,
+      status: "draft",
       coverImage: initialLesson.banner_image_url,
       content: {},
     };
 
     try {
       await saveLesson(lesson);
-      resetNewLessonForm(student.id);
-      setPublishStatus(`Lesson "${lesson.title}" saved as ${lesson.status}.`);
+      setSelectedStudentId(student.id);
+      setNewLesson((previous) => ({ ...previous, studentId: student.id, title: lesson.title, slug: lesson.slug, moduleNumber: String(moduleNumber), status: "draft" }));
+      setValidationErrors({});
+      setPublishStatus(`Lesson "${lesson.title}" saved as draft.`);
       await handleStudentChange(student, slug);
     } catch (error) {
       console.error(error);
@@ -174,21 +189,51 @@ export default function InstructorWorkstationPage({
       .then(({ count }) => setPendingSubmissionCount(count || 0));
   }, []);
 
-  const setLessonTitle = (title: string) => setNewLesson((previous) => ({ ...previous, title }));
-  const setSlug = (slug: string) => setNewLesson((previous) => ({ ...previous, slug }));
+  const clearValidationError = (field: keyof typeof validationErrors) => {
+    setValidationErrors((previous) => {
+      if (!previous[field]) return previous;
+      const next = { ...previous };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const setLessonTitle = (title: string) => {
+    clearValidationError("title");
+    setNewLesson((previous) => ({ ...previous, title }));
+  };
+  const setSlug = (slug: string) => {
+    clearValidationError("slug");
+    setNewLesson((previous) => ({ ...previous, slug }));
+  };
 
   const saveLessonChanges = async (status: "draft" | "published") => {
-    const title = newLesson.title.trim() || initialLesson.title;
-    const slug = newLesson.slug.trim().toLowerCase() || lessonId;
-    const moduleNumber = Number(newLesson.moduleNumber || initialLesson.moduleNumber || 1);
-    if (!selectedStudentId || !title || !slug || !Number.isInteger(moduleNumber)) {
-      setPublishStatus("Select a student and add a title, valid slug, and module number before saving the lesson.");
+    const title = newLesson.title.trim() || "Untitled Lesson";
+    const slug = newLesson.slug.trim().toLowerCase() || createSlug(title);
+    const moduleNumber = Number(newLesson.moduleNumber) || 1;
+    if (status === "published") {
+      const errors: typeof validationErrors = {};
+      if (!selectedStudentId) errors.selectedStudentId = "Select a student.";
+      if (!newLesson.title.trim()) errors.title = "Enter a lesson title.";
+      if (!newLesson.slug.trim()) errors.slug = "Enter a lesson slug.";
+      else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(newLesson.slug.trim().toLowerCase())) errors.slug = "Use lowercase letters, numbers, and hyphens only.";
+      if (!newLesson.moduleNumber.trim() || !Number.isInteger(Number(newLesson.moduleNumber)) || Number(newLesson.moduleNumber) < 1) errors.moduleNumber = "Enter a whole module number greater than zero.";
+      if (Object.keys(errors).length > 0) {
+        setValidationErrors(errors);
+        setPublishStatus("Fix the highlighted fields before publishing.");
+        return;
+      }
+    }
+    const studentId = selectedStudentId || newLesson.studentId || selectedStudent.id;
+    if (!studentId) {
+      setPublishStatus("Select a student before saving the lesson.");
       return;
     }
+    setValidationErrors({});
     setIsPublishing(true);
     try {
       const { data, error } = await supabase.from("lessons").upsert({
-        student_id: selectedStudentId,
+        student_id: studentId,
         title,
         slug,
         module_number: moduleNumber,
@@ -260,6 +305,7 @@ export default function InstructorWorkstationPage({
 
         {activeTab === "builder" && <>
           <section className="mb-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
+                {Object.keys(validationErrors).length > 0 && <div className="mb-4 space-y-1 rounded-md border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300" role="alert">{Object.entries(validationErrors).map(([field, message]) => <p key={field}>{message}</p>)}</div>}
             <div className="mb-4"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Lesson Library</p><h2 className="mt-1 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Create / Add New Lesson</h2></div>
             <div className="grid gap-3 md:grid-cols-4"><label className="text-xs text-stone-400">Select Student<select value={selectedStudentId || ""} onChange={(event) => { const nextStudent = students.find((student) => student.id === event.target.value); if (nextStudent) void handleStudentChange(nextStudent); }} className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark]" aria-label="Select student for lesson">{students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}</select></label>{[["title", "Lesson Title", "Business Pitching 101"], ["slug", "Slug", "pitch-01"], ["subtitle", "Subtitle", "Present ideas with clarity"]].map(([field, label, placeholder]) => <label key={field} className="text-xs text-stone-400">{label}<input value={newLesson[field as keyof typeof newLesson]} onChange={(event) => field === "title" ? setLessonTitle(event.target.value) : field === "slug" ? setSlug(event.target.value) : setNewLesson((previous) => ({ ...previous, [field]: event.target.value }))} placeholder={placeholder} className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label>)}</div>
             <div className="mt-3 grid gap-3 md:grid-cols-4"><label className="text-xs text-stone-400">Module Number<input value={newLesson.moduleNumber} onChange={(event) => setNewLesson((previous) => ({ ...previous, moduleNumber: event.target.value }))} placeholder="3" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Visibility<select value={newLesson.status} onChange={(event) => setNewLesson((previous) => ({ ...previous, status: event.target.value as "draft" | "published" }))} className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200"><option value="draft">Draft</option><option value="published">Published</option></select></label></div>
