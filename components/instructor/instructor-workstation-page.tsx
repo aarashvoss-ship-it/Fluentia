@@ -28,6 +28,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
   const [isMounted, setIsMounted] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(DEFAULT_STUDENT);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [students, setStudents] = useState<StudentUser[]>([]);
   const [databaseLessonId, setDatabaseLessonId] = useState<string | null>(null);
   const [pendingSubmissionCount, setPendingSubmissionCount] = useState(0);
@@ -79,10 +80,10 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
   const resetNewLessonForm = (studentId = "") => setNewLesson({ studentId, title: "", slug: "", subtitle: "", moduleNumber: "", warmUp: "", lessonText: "", lexiconNotes: "", prompts: "", status: "draft" });
 
   async function handleCreateLesson() {
-    const student = students.find((item) => item.id === newLesson.studentId);
+    const student = selectedStudentId ? students.find((item) => item.id === selectedStudentId) : undefined;
     const slug = newLesson.slug.trim().toLowerCase();
     const moduleNumber = Number(newLesson.moduleNumber);
-    if (!student || !newLesson.title.trim() || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || !Number.isInteger(moduleNumber)) {
+    if (!selectedStudentId || !student || !newLesson.title.trim() || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || !Number.isInteger(moduleNumber)) {
       setPublishStatus("Select a student and add a title, valid slug, and module number before creating the lesson.");
       return;
     }
@@ -91,7 +92,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
       id: `lesson-${slug}`,
       title: newLesson.title.trim(),
       slug,
-      studentId: student.id,
+      studentId: selectedStudentId,
       subtitle: newLesson.subtitle.trim() || "A new Fluentia learning journey.",
       moduleNumber,
       status: newLesson.status,
@@ -154,6 +155,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
       }
       window.localStorage.setItem("fluentia:active-user", INSTRUCTOR_TOKEN);
       setSelectedStudent(requestedStudent);
+      setSelectedStudentId(requestedStudent.id);
       setNewLesson((previous) => ({ ...previous, studentId: requestedStudent.id }));
       setIsMounted(true);
       await handleStudentChange(requestedStudent);
@@ -180,9 +182,11 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
     setPublishStatus(null);
     const selectedStudentId = student?.id?.trim();
     if (!selectedStudentId) {
+      setSelectedStudentId(null);
       resetNewLessonForm();
       return;
     }
+    setSelectedStudentId(selectedStudentId);
     const { data: lesson, error } = await supabase
       .from("lessons")
       .select("*")
@@ -231,17 +235,24 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
   }
 
   const saveLessonChanges = async (status: "draft" | "published") => {
+    const title = newLesson.title.trim() || initialLesson.title.trim();
+    const slug = newLesson.slug.trim().toLowerCase() || lessonId.trim().toLowerCase();
+    const moduleNumber = Number(newLesson.moduleNumber || initialLesson.moduleNumber);
+    if (!selectedStudentId || !title || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || !Number.isInteger(moduleNumber)) {
+      setPublishStatus("Select a student and add a title, valid slug, and module number before saving the lesson.");
+      return;
+    }
     setIsPublishing(true);
     setPublishStatus(null);
     setLessonStatus(status);
     const content = { ...workstationState.content, evaluation: workstationState.evaluation };
     const { data, error } = await supabase.from("lessons").upsert({
       id: databaseLessonId || initialLesson.id,
-      slug: lessonId,
-      student_id: selectedStudent.id,
-      title: initialLesson.title,
+      slug,
+      student_id: selectedStudentId,
+      title,
       subtitle: "Seven stages. One connected journey.",
-      module_number: initialLesson.moduleNumber || 1,
+      module_number: moduleNumber,
       banner_url: workstationState.bannerUrl || initialLesson.banner_image_url,
       status,
       content,
@@ -358,11 +369,13 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
           <label className="text-xs text-stone-400">
             Select Student
             <select
-              value={newLesson.studentId}
+              value={selectedStudentId || ""}
               onChange={(event) => {
-                const nextStudent = students.find((student) => student.id === event.target.value);
+                const nextStudentId = event.target.value;
+                const nextStudent = students.find((student) => student.id === nextStudentId);
                 if (!nextStudent) return;
-                setNewLesson((previous) => ({ ...previous, studentId: nextStudent.id }));
+                setSelectedStudentId(nextStudentId);
+                setNewLesson((previous) => ({ ...previous, studentId: nextStudentId }));
                 void handleStudentChange(nextStudent);
               }}
               className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark] outline-none focus:border-amber-500"
