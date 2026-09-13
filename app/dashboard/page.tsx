@@ -122,9 +122,11 @@ export default function DashboardPage() {
     void loadDashboard(studentToken);
     window.addEventListener("storage", refreshLessons);
     window.addEventListener(FLUENTIA_DATA_UPDATED_EVENT, refreshLessons);
+    window.addEventListener("fluentia:lesson-updated", refreshLessons);
     return () => {
       window.removeEventListener("storage", refreshLessons);
       window.removeEventListener(FLUENTIA_DATA_UPDATED_EVENT, refreshLessons);
+      window.removeEventListener("fluentia:lesson-updated", refreshLessons);
     };
   }, []);
 

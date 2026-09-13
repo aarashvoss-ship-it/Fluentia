@@ -143,9 +143,11 @@ export default function InstructorWorkstationPage({
       const nextLessons = [...storedLessons.filter((item) => item.slug !== lesson.slug), lesson];
       window.localStorage.setItem("fluentia:instructor-lessons", JSON.stringify(nextLessons));
       setCreatedLessons((previous) => [...previous.filter((item) => item.slug !== lesson.slug), lesson]);
+      window.dispatchEvent(new Event("fluentia:lesson-updated"));
     } catch (error) {
-      console.error("Save error:", error);
+      console.error("Save error details:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
       setCreatedLessons((previous) => [...previous.filter((item) => item.slug !== lesson.slug), lesson]);
+      window.dispatchEvent(new Event("fluentia:lesson-updated"));
     }
   };
 
@@ -198,7 +200,7 @@ export default function InstructorWorkstationPage({
       setLessonStatus("draft");
       setPublishStatus(`Lesson '${lesson.title}' created successfully as draft.`);
     } catch (error) {
-      console.error("Save error:", error);
+      console.error("Save error details:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
       persistInstructorLessonLocally(lesson);
       activateLesson(lesson);
       setPublishStatus(`Lesson '${lesson.title}' created successfully as draft (saved locally).`);
@@ -241,7 +243,11 @@ export default function InstructorWorkstationPage({
     const refreshCounts = () => void loadCounts();
     void loadCounts();
     window.addEventListener(FLUENTIA_DATA_UPDATED_EVENT, refreshCounts);
-    return () => window.removeEventListener(FLUENTIA_DATA_UPDATED_EVENT, refreshCounts);
+    window.addEventListener("fluentia:lesson-updated", refreshCounts);
+    return () => {
+      window.removeEventListener(FLUENTIA_DATA_UPDATED_EVENT, refreshCounts);
+      window.removeEventListener("fluentia:lesson-updated", refreshCounts);
+    };
   }, [createdLessons, students]);
 
   const clearValidationError = (field: keyof typeof validationErrors) => {
@@ -304,7 +310,7 @@ export default function InstructorWorkstationPage({
       setLessonStatus(status);
       setPublishStatus(`Lesson saved as ${status} and synced with student view.`);
     } catch (error) {
-      console.error("Save error:", error);
+      console.error("Save error details:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
       persistInstructorLessonLocally(lesson);
       activateLesson(lesson);
       setPublishStatus(`Lesson saved as ${status} locally after a sync error.`);

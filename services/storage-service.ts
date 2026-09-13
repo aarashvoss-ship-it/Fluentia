@@ -208,9 +208,14 @@ export async function fetchLessons(): Promise<LessonContent[]> {
   const dynamicBySlug = new Map(manifest.map((lesson) => [lesson.slug, lesson]));
   const instructorLessons = readInstructorLessons();
   instructorLessons.forEach((lesson) => dynamicBySlug.set(lesson.slug, lesson));
+  const baseLessons = LESSONS.map((lesson) => dynamicBySlug.get(lesson.slug) || lesson);
+  const additionalLessons = [...manifest, ...instructorLessons].filter(
+    (lesson, index, all) => !LESSONS.some((base) => base.slug === lesson.slug)
+      && all.findIndex((candidate) => candidate.slug === lesson.slug) === index
+  );
   return [
-    ...LESSONS.map((lesson) => dynamicBySlug.get(lesson.slug) || lesson),
-    ...manifest.filter((lesson) => !LESSONS.some((base) => base.slug === lesson.slug)),
+    ...baseLessons,
+    ...additionalLessons,
   ];
 }
 
@@ -218,19 +223,18 @@ export async function saveLesson(lesson: LessonContent): Promise<void> {
   let persistenceError: unknown;
   if (isSupabaseConfigured()) {
     try {
-      const { error } = await supabase.from("lessons").upsert({
-        id: lesson.id,
-        slug: lesson.slug,
-        student_id: lesson.studentId,
-        title: lesson.title,
-        subtitle: lesson.subtitle,
-        module_number: lesson.moduleNumber,
-        banner_url: lesson.coverImage,
-        status: lesson.status || "draft",
-        content: lesson.content || {},
-        ambient_music_url: lesson.ambientMusicUrl,
-        instructor: lesson.instructor,
-      });
+      const payload = {
+        id: String(lesson.id),
+        slug: String(lesson.slug),
+        student_id: lesson.studentId ? String(lesson.studentId) : null,
+        title: String(lesson.title || "Untitled Lesson"),
+        subtitle: lesson.subtitle?.trim() || null,
+        module_number: Number.isFinite(lesson.moduleNumber) ? lesson.moduleNumber : 1,
+        banner_url: lesson.coverImage || null,
+        status: lesson.status === "published" ? "published" : "draft",
+        content: lesson.content && typeof lesson.content === "object" ? lesson.content : {},
+      };
+      const { error } = await supabase.from("lessons").upsert(payload);
       if (!error) {
         notifyDataUpdated({ type: "lesson", slug: lesson.slug, studentToken: lesson.studentId });
         return;
