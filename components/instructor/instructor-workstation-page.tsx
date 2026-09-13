@@ -202,6 +202,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
     const loadedLesson = Array.isArray(lesson) ? lesson[0] : lesson;
     if (error?.code === "PGRST116" || !loadedLesson) {
       setPublishStatus(null);
+      resetNewLessonForm(selectedStudentId);
     }
     const lessonContent = loadedLesson?.content || {};
     const { data: submissions } = loadedLesson
@@ -246,23 +247,31 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
     setPublishStatus(null);
     setLessonStatus(status);
     const content = { ...workstationState.content, evaluation: workstationState.evaluation };
-    const { data, error } = await supabase.from("lessons").upsert({
-      id: databaseLessonId || initialLesson.id,
-      slug,
-      student_id: selectedStudentId,
-      title,
-      subtitle: "Seven stages. One connected journey.",
-      module_number: moduleNumber,
-      banner_url: workstationState.bannerUrl || initialLesson.banner_image_url,
-      status,
-      content,
-    }).select("id").single();
-    if (error) {
+    const formContentObject = content;
+    try {
+      const { data, error } = await supabase.from("lessons").upsert({
+        id: databaseLessonId || initialLesson.id,
+        student_id: selectedStudentId,
+        title: title || "Untitled Lesson",
+        slug: slug || `lesson-${Date.now()}`,
+        module_number: Number(moduleNumber) || 1,
+        status: status === "published" ? "published" : "draft",
+        content: formContentObject,
+        subtitle: "Seven stages. One connected journey.",
+        banner_url: workstationState.bannerUrl || initialLesson.banner_image_url,
+      }).select("id").single();
+      if (error) {
+        setIsPublishing(false);
+        setPublishStatus("Unable to save this lesson to Supabase.");
+        return;
+      }
+      setDatabaseLessonId(data.id);
+    } catch (error) {
+      console.error(error);
       setIsPublishing(false);
       setPublishStatus("Unable to save this lesson to Supabase.");
       return;
     }
-    setDatabaseLessonId(data.id);
 
     setTimeout(() => {
       setIsPublishing(false);
