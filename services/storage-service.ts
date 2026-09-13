@@ -38,6 +38,13 @@ const VOCAB_PREFIX = "fluentia:vocab:";
 const NOTES_PREFIX = "fluentia:notes:";
 const CHAT_PREFIX = "fluentia:chat:";
 const THEME_PREFIX = "fluentia:theme:";
+export const FLUENTIA_DATA_UPDATED_EVENT = "fluentia:data-updated";
+
+function notifyDataUpdated(detail: { type: string; slug?: string; studentToken?: string }) {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(FLUENTIA_DATA_UPDATED_EVENT, { detail }));
+  }
+}
 
 function canUseStorage() {
   return typeof window !== "undefined" && Boolean(window.localStorage);
@@ -76,6 +83,10 @@ function readManifest() {
 
 function writeManifest(lessons: LessonContent[]) {
   writeJson(LESSONS_MANIFEST_KEY, lessons);
+}
+
+function readInstructorLessons() {
+  return readJson<LessonContent[]>("fluentia:instructor-lessons") || [];
 }
 
 function getState(slug: string, studentToken?: string): PublishedLessonState | null {
@@ -175,20 +186,28 @@ export async function fetchLesson(slug: string): Promise<LessonContent | null> {
     }
   }
   const manifestLesson = readManifest().find((lesson) => lesson.slug === slug);
-  return manifestLesson || LESSONS.find((lesson) => lesson.slug === slug) || null;
+  const instructorLesson = readInstructorLessons().find((lesson) => lesson.slug === slug && lesson.status !== "draft");
+  return manifestLesson || instructorLesson || LESSONS.find((lesson) => lesson.slug === slug) || null;
 }
 
 export async function fetchLessons(): Promise<LessonContent[]> {
   if (isSupabaseConfigured()) {
     try {
       const { data, error } = await supabase.from("lessons").select("*").neq("status", "draft").order("created_at", { ascending: false });
-      if (!error && data) return data.map(mapLessonRow);
+      if (!error && data) {
+        const databaseLessons = data.map(mapLessonRow);
+        const databaseSlugs = new Set(databaseLessons.map((lesson) => lesson.slug));
+        const localLessons = readInstructorLessons().filter((lesson) => lesson.status !== "draft" && !databaseSlugs.has(lesson.slug));
+        return [...databaseLessons, ...localLessons];
+      }
     } catch {
       // Use the local manifest when Supabase is unavailable.
     }
   }
   const manifest = readManifest();
   const dynamicBySlug = new Map(manifest.map((lesson) => [lesson.slug, lesson]));
+  const instructorLessons = readInstructorLessons();
+  instructorLessons.forEach((lesson) => dynamicBySlug.set(lesson.slug, lesson));
   return [
     ...LESSONS.map((lesson) => dynamicBySlug.get(lesson.slug) || lesson),
     ...manifest.filter((lesson) => !LESSONS.some((base) => base.slug === lesson.slug)),
@@ -196,6 +215,7 @@ export async function fetchLessons(): Promise<LessonContent[]> {
 }
 
 export async function saveLesson(lesson: LessonContent): Promise<void> {
+  let persistenceError: unknown;
   if (isSupabaseConfigured()) {
     try {
       const { error } = await supabase.from("lessons").upsert({
@@ -211,13 +231,19 @@ export async function saveLesson(lesson: LessonContent): Promise<void> {
         ambient_music_url: lesson.ambientMusicUrl,
         instructor: lesson.instructor,
       });
-      if (!error) return;
-    } catch {
-      // Keep the local manifest as an offline fallback.
+      if (!error) {
+        notifyDataUpdated({ type: "lesson", slug: lesson.slug, studentToken: lesson.studentId });
+        return;
+      }
+      persistenceError = error;
+    } catch (error) {
+      persistenceError = error;
     }
   }
   const lessons = readManifest().filter((item) => item.slug !== lesson.slug);
   writeManifest([...lessons, lesson]);
+  notifyDataUpdated({ type: "lesson", slug: lesson.slug, studentToken: lesson.studentId });
+  if (persistenceError) throw persistenceError;
 }
 
 export async function updateLessonStatus(slug: string, status: LessonStatus): Promise<LessonContent | null> {
@@ -285,13 +311,17 @@ export async function saveStudentProgress(
       const lesson = studentId ? await fetchStudentLesson(slug, studentId) : null;
       if (lesson && studentId) {
         const { error } = await supabase.from("student_submissions").upsert({ lesson_id: lesson.id, student_id: studentId, step_key: "progress", content: { currentStep: updated.currentStep, completedSteps: updated.completedSteps }, status: updated.status, updated_at: updated.updatedAt }, { onConflict: "lesson_id,student_id,step_key" });
-        if (!error) return updated;
+        if (!error) {
+          notifyDataUpdated({ type: "progress", slug, studentToken });
+          return updated;
+        }
       }
     } catch {
       // Keep local progress as an offline fallback.
     }
   }
   writeJson(progressKey(slug, studentToken), updated);
+  notifyDataUpdated({ type: "progress", slug, studentToken });
   return updated;
 }
 
@@ -301,6 +331,7 @@ export async function saveLessonState(
   studentToken?: string
 ): Promise<PublishedLessonState> {
   writeJson(getLessonStateKey(slug, studentToken), state);
+  notifyDataUpdated({ type: "lesson-state", slug, studentToken });
   return state;
 }
 
@@ -327,6 +358,7 @@ export async function submitStudentLesson(
         const { error } = await supabase.from("submissions").upsert({ lesson_id: lesson.id, student_id: studentId, content: submission, status: submission.status, audio_url: submission.speakingAudioUrl, submitted_at: submission.submittedAt, updated_at: new Date().toISOString() }, { onConflict: "lesson_id,student_id" });
         if (!error) {
           if (progress) await saveStudentProgress(slug, { currentStep: progress.currentStep || "warm_up", completedSteps: progress.completedSteps || [], status: progress.status || (submission.status === "submitted" ? "submitted" : "in_progress"), updatedAt: new Date().toISOString() }, studentToken);
+          notifyDataUpdated({ type: "submission", slug, studentToken });
           return nextState;
         }
       }
@@ -343,6 +375,7 @@ export async function submitStudentLesson(
       updatedAt: new Date().toISOString(),
     }, studentToken);
   }
+  notifyDataUpdated({ type: "submission", slug, studentToken });
   return nextState;
 }
 
@@ -370,6 +403,7 @@ export async function saveInstructorFeedback(
         const { error } = await supabase.from("instructor_feedback").upsert({ lesson_id: lesson.id, student_id: studentId, scores: evaluation.scores, comments: evaluation.comments, strengths: evaluation.strengths, areas_to_improve: evaluation.areasToImprove, study_hub_prescription: evaluation.studyHubPrescription, voice_feedback_url: evaluation.voiceFeedbackUrl, is_published: true, updated_at: new Date().toISOString() }, { onConflict: "lesson_id,student_id" });
         if (!error) {
           await saveStudentProgress(slug, { currentStep: "results", completedSteps: ["warm_up", "lesson", "listening", "reading", "writing", "speaking", "results"], status: "reviewed", updatedAt: new Date().toISOString() }, studentToken);
+          notifyDataUpdated({ type: "feedback", slug, studentToken });
           return nextState;
         }
       }
@@ -384,6 +418,7 @@ export async function saveInstructorFeedback(
     status: "reviewed",
     updatedAt: new Date().toISOString(),
   }, studentToken);
+  notifyDataUpdated({ type: "feedback", slug, studentToken });
   return nextState;
 }
 

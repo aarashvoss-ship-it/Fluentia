@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { BookOpen, CheckCircle2, Clock3, Flame, Layers3, MessageSquareText, PanelRight, Settings2, UserRound, X } from "lucide-react";
 import { DEFAULT_STUDENT, STUDENT_USERS, type StudentUser } from "@/lib/users";
 import { persistResolvedStudent, PublishedLessonState, readLastAccessedLesson, resolveStudentAccess, STANDARD_LESSONS, writeLastAccessedLesson } from "@/lib/lesson-store";
-import { fetchChatMessages, fetchLessonState, fetchLessons, fetchSavedVocabulary, fetchStudentNotes, removeVocabularyWord, saveChatMessage, saveStudentNote, saveVocabularyWord } from "@/services/storage-service";
+import { FLUENTIA_DATA_UPDATED_EVENT, fetchChatMessages, fetchLessonState, fetchLessons, fetchSavedVocabulary, fetchStudentNotes, removeVocabularyWord, saveChatMessage, saveStudentNote, saveVocabularyWord } from "@/services/storage-service";
 import { ChatMessage, SavedVocabularyWord, StudentNote } from "@/types/lesson";
 import { DictionaryModal } from "@/components/study-room/dictionary-modal";
 import { LearningSidebar } from "@/components/study-room/learning-sidebar";
@@ -78,7 +78,13 @@ export default function DashboardPage() {
     const loadDashboard = async (studentToken: string) => {
       const availableLessons = (await fetchLessons()).filter((lesson) => lesson.status !== "draft");
       setLessons(availableLessons);
-      setLessonStates(Object.fromEntries(await Promise.all(availableLessons.map(async (lesson) => [lesson.slug, await fetchLessonState(lesson.slug, studentToken)]))));
+      const nextLessonStates = Object.fromEntries(await Promise.all(availableLessons.map(async (lesson) => [lesson.slug, await fetchLessonState(lesson.slug, studentToken)])));
+      setLessonStates(nextLessonStates);
+      const completedModulesCount = availableLessons.filter((lesson) => getLessonStatus(nextLessonStates[lesson.slug]) === "completed").length;
+      setActiveStudent((previous) => ({
+        ...previous,
+        profile: previous.profile ? { ...previous.profile, completedModulesCount } : previous.profile,
+      }));
       setSavedWords(await fetchSavedVocabulary(studentToken));
       const [studentNotes, messages] = await Promise.all([fetchStudentNotes(studentToken), fetchChatMessages(studentToken)]);
       setNotes(studentNotes);
@@ -115,7 +121,11 @@ export default function DashboardPage() {
     const refreshLessons = () => void loadDashboard(studentToken);
     void loadDashboard(studentToken);
     window.addEventListener("storage", refreshLessons);
-    return () => window.removeEventListener("storage", refreshLessons);
+    window.addEventListener(FLUENTIA_DATA_UPDATED_EVENT, refreshLessons);
+    return () => {
+      window.removeEventListener("storage", refreshLessons);
+      window.removeEventListener(FLUENTIA_DATA_UPDATED_EVENT, refreshLessons);
+    };
   }, []);
 
   if (!isMounted) {

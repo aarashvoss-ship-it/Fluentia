@@ -11,7 +11,7 @@ import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/su
 import { LessonContent, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
 import { INSTRUCTOR_TOKEN, PublishedLessonState } from "@/lib/lesson-store";
 import { DEFAULT_STUDENT, STUDENT_USERS, StudentUser } from "@/lib/users";
-import { saveInstructorFeedback, saveLesson } from "@/services/storage-service";
+import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback, saveLesson } from "@/services/storage-service";
 import { AccessCard } from "@/components/access/access-card";
 
 interface InstructorWorkstationProps {
@@ -38,6 +38,8 @@ export default function InstructorWorkstationPage({
 
   const [databaseLessonId, setDatabaseLessonId] = useState<string | null>(null);
   const [pendingSubmissionCount, setPendingSubmissionCount] = useState(0);
+  const [publishedLessonCount, setPublishedLessonCount] = useState(0);
+  const [studentCount, setStudentCount] = useState(0);
   const [lessonStatus, setLessonStatus] = useState<"draft" | "published">("published");
   const [activeTab, setActiveTab] = useState<"dashboard" | "builder" | "evaluation">("dashboard");
   const [sidebarBlocks, setSidebarBlocks] = useState([
@@ -121,6 +123,7 @@ export default function InstructorWorkstationPage({
     }
 
     setSelectedStudent(student);
+    setWorkstationState((previous) => ({ ...previous, studentProfile: student.profile }));
     setDatabaseLessonId(loadedLesson?.id || null);
   }
 
@@ -225,12 +228,21 @@ export default function InstructorWorkstationPage({
   }, []);
 
   useEffect(() => {
-    void supabase
-      .from("submissions")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "pending")
-      .then(({ count }) => setPendingSubmissionCount(count || 0));
-  }, []);
+    const loadCounts = async () => {
+      const [{ count: pendingCount }, { count: publishedCount }, { count: studentsCount }] = await Promise.all([
+        supabase.from("submissions").select("id", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("lessons").select("id", { count: "exact", head: true }).eq("status", "published"),
+        supabase.from("students").select("id", { count: "exact", head: true }).eq("is_active", true),
+      ]);
+      setPendingSubmissionCount(pendingCount || 0);
+      setPublishedLessonCount(publishedCount || createdLessons.filter((lesson) => lesson.status === "published").length);
+      setStudentCount(studentsCount || students.length);
+    };
+    const refreshCounts = () => void loadCounts();
+    void loadCounts();
+    window.addEventListener(FLUENTIA_DATA_UPDATED_EVENT, refreshCounts);
+    return () => window.removeEventListener(FLUENTIA_DATA_UPDATED_EVENT, refreshCounts);
+  }, [createdLessons, students]);
 
   const clearValidationError = (field: keyof typeof validationErrors) => {
     setValidationErrors((previous) => {
@@ -346,9 +358,9 @@ export default function InstructorWorkstationPage({
 
         {activeTab === "dashboard" && <section className="space-y-6" aria-label="Instructor dashboard overview">
           <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5"><p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Submission Status</p><p className="mt-2 text-2xl font-semibold text-stone-100">{submissionState}</p><p className="mt-1 text-xs text-stone-500">{pendingSubmissionCount} pending submissions</p></div>
-            <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5"><p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Lesson State</p><p className="mt-2 text-2xl font-semibold text-stone-100">{lessonStatus}</p><p className="mt-1 text-xs text-stone-500">Content publication status</p></div>
-            <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5"><p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Evaluation</p><p className="mt-2 text-2xl font-semibold text-stone-100">{workstationState.evaluation.published ? "Published" : "Pending"}</p><p className="mt-1 text-xs text-stone-500">Feedback availability</p></div>
+            <button type="button" onClick={() => setActiveTab("evaluation")} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-left transition hover:border-amber-500/60"><p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Submission Status</p><p className="mt-2 text-2xl font-semibold text-stone-100">{submissionState}</p><p className="mt-1 text-xs text-stone-500">{pendingSubmissionCount} pending submissions</p></button>
+            <button type="button" onClick={() => setActiveTab("builder")} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-left transition hover:border-amber-500/60"><p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Published Lessons</p><p className="mt-2 text-2xl font-semibold text-stone-100">{publishedLessonCount}</p><p className="mt-1 text-xs text-stone-500">Open the lesson builder</p></button>
+            <button type="button" onClick={() => setActiveTab("evaluation")} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-left transition hover:border-amber-500/60"><p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Active Students</p><p className="mt-2 text-2xl font-semibold text-stone-100">{studentCount}</p><p className="mt-1 text-xs text-stone-500">Review {selectedStudent?.name || "Selected Student"}</p></button>
           </div>
           <div className="grid gap-6 lg:grid-cols-2"><div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5"><h2 className="font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Pending Submissions</h2><p className="mt-3 text-sm text-stone-400">{pendingSubmissionCount > 0 ? "Submissions are awaiting review." : "No submissions are currently awaiting feedback."}</p></div><div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5"><h2 className="font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Recent Activity</h2><p className="mt-3 text-sm text-stone-400">{selectedStudent.name} is the active student workspace.</p><button type="button" onClick={() => setActiveTab("evaluation")} className="mt-4 text-xs font-semibold text-amber-300 hover:text-amber-200">Review student work</button></div></div>
         </section>}
@@ -369,7 +381,7 @@ export default function InstructorWorkstationPage({
           <main className="grid grid-cols-1 gap-6 lg:grid-cols-12"><div className="space-y-6 lg:col-span-8"><LessonTailorEditor content={workstationState.content} onChange={(content: StrictStepContent) => setWorkstationState((previous) => ({ ...previous, content }))} /></div><div className="space-y-6 lg:col-span-4"><InstructorBannerManager bannerUrl={workstationState.bannerUrl} customInput={workstationState.customBannerUrl} onUpdateBanner={(bannerUrl: string) => setWorkstationState((previous) => ({ ...previous, bannerUrl }))} onUpdateCustomInput={(customBannerUrl: string) => setWorkstationState((previous) => ({ ...previous, customBannerUrl }))} /><div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5"><div className="flex items-center justify-between"><h3 className="font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Sidebar Blocks</h3><button type="button" onClick={() => setSidebarBlocks((blocks) => [...blocks, { id: `block-${Date.now()}`, title: "References", body: "" }])} className="flex items-center gap-1.5 rounded-md border border-amber-500 px-3 py-2 text-sm text-amber-500"><Plus className="h-3.5 w-3.5" />Add Block</button></div><div className="mt-4 space-y-3">{sidebarBlocks.map((block) => <div key={block.id} className="rounded-lg border border-[#202631] bg-[#0c1017] p-3"><div className="flex gap-2"><input value={block.title} onChange={(event) => setSidebarBlocks((blocks) => blocks.map((item) => item.id === block.id ? { ...item, title: event.target.value } : item))} className="min-w-0 flex-1 border-b border-[#394252] bg-transparent pb-1 text-xs font-semibold text-stone-200" aria-label="Sidebar block title" /><button type="button" onClick={() => setSidebarBlocks((blocks) => blocks.filter((item) => item.id !== block.id))} aria-label={`Delete ${block.title}`}><Trash2 className="h-3.5 w-3.5" /></button></div><textarea value={block.body} onChange={(event) => setSidebarBlocks((blocks) => blocks.map((item) => item.id === block.id ? { ...item, body: event.target.value } : item))} rows={3} className="mt-3 w-full resize-none rounded-md border border-[#202631] bg-[#171d28] p-2.5 text-xs text-stone-300" /></div>)}</div></div></div></main>
         </>}
 
-        {activeTab === "evaluation" && <><div className="mb-6"><StudentContextPanel studentName={selectedStudent.name} profile={workstationState.studentProfile} students={students} selectedStudentToken={selectedStudent.token} onSelectStudent={handleStudentChange} onUpdateProfile={(studentProfile: StudentProfile) => setWorkstationState((previous) => ({ ...previous, studentProfile }))} /></div><section className="mt-8 grid grid-cols-1 items-start gap-6 lg:grid-cols-12" aria-label="Student submission review workspace"><div className="space-y-5 lg:col-span-7"><div className="flex justify-between border-b border-[#202631] pb-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Submission Review Workspace</p><h2 className="mt-1 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">{selectedStudent.name}&apos;s answers</h2></div><span className={`w-fit rounded-sm border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${submissionStateClass}`}>{submissionState}</span></div><div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5"><p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Written response</p><p className="rounded-lg border border-[#202631] bg-[#0c1017] p-4 text-sm leading-relaxed text-stone-300">{workstationState.submission?.writingText || "No written response submitted."}</p></div></div><div className="lg:col-span-5 lg:sticky lg:top-6"><SubmissionEvaluator lessonId={lessonId} studentName={selectedStudent.name} evaluation={workstationState.evaluation} onUpdateEvaluation={(evaluation: LessonEvaluation) => setWorkstationState((previous) => ({ ...previous, evaluation }))} onSubmitFeedback={async (feedback: FeedbackPayload) => { const evaluation = { ...workstationState.evaluation, scores: feedback.scores, comments: feedback.comments, criterionFeedback: feedback.criterionFeedback, published: true }; setWorkstationState((previous) => ({ ...previous, evaluation })); await saveInstructorFeedback(lessonId, selectedStudent.token, evaluation); setPublishStatus("Strengths, study plan, and evaluation synced with student view!"); }} /></div></section></>}
+        {activeTab === "evaluation" && <><div className="mb-6"><StudentContextPanel studentName={selectedStudent?.name || "Selected Student"} profile={workstationState.studentProfile} students={students} selectedStudentToken={selectedStudent.token} onSelectStudent={handleStudentChange} onUpdateProfile={(studentProfile: StudentProfile) => setWorkstationState((previous) => ({ ...previous, studentProfile }))} /></div><section className="mt-8 grid grid-cols-1 items-start gap-6 lg:grid-cols-12" aria-label="Student submission review workspace"><div className="space-y-5 lg:col-span-7"><div className="flex justify-between border-b border-[#202631] pb-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Submission Review Workspace</p><h2 className="mt-1 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">{selectedStudent?.name || "Selected Student"}&apos;s answers</h2><p className="mt-1 text-xs text-amber-300">{workstationState.studentProfile.level}</p></div><span className={`w-fit rounded-sm border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${submissionStateClass}`}>{submissionState}</span></div><div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5"><p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Written response</p><p className="rounded-lg border border-[#202631] bg-[#0c1017] p-4 text-sm leading-relaxed text-stone-300">{workstationState.submission?.writingText || "No written response submitted."}</p></div></div><div className="lg:col-span-5 lg:sticky lg:top-6"><SubmissionEvaluator lessonId={newLesson.slug || lessonId} studentName={selectedStudent?.name || "Selected Student"} evaluation={workstationState.evaluation} onUpdateEvaluation={(evaluation: LessonEvaluation) => setWorkstationState((previous) => ({ ...previous, evaluation }))} onSubmitFeedback={async (feedback: FeedbackPayload) => { const evaluation = { ...workstationState.evaluation, scores: feedback.scores, comments: feedback.comments, criterionFeedback: feedback.criterionFeedback, published: true }; setWorkstationState((previous) => ({ ...previous, evaluation })); await saveInstructorFeedback(newLesson.slug || lessonId, selectedStudent.token, evaluation); setPublishStatus("Strengths, study plan, and evaluation synced with student view!"); }} /></div></section></>}
       </div>
       {showPublishConfirmation && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6" role="dialog" aria-modal="true" aria-labelledby="publish-confirmation-title"><div className="w-full max-w-md rounded-xl border border-[#394252] bg-[#171d28] p-6"><h2 id="publish-confirmation-title" className="text-lg font-semibold text-stone-100">Publish lesson?</h2><p className="mt-3 text-sm text-stone-400">Are you sure you want to publish this lesson?</p><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setShowPublishConfirmation(false)} className="rounded-lg border border-[#394252] px-4 py-2.5 text-xs text-stone-300">Cancel</button><button type="button" onClick={handleConfirmPublish} className="rounded-lg bg-amber-500 px-4 py-2.5 text-xs font-semibold text-[#0c1017]">Confirm &amp; Publish</button></div></div></div>}
     </div>
