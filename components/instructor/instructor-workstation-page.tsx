@@ -250,14 +250,10 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
     const contentBlocks = Object.values(workstationState.content).flatMap((stepContent) =>
       Array.isArray(stepContent?.blocks) ? stepContent.blocks : []
     );
-    const formContentObject = {
-      ...workstationState.content,
-      warmUp: newLesson.warmUp,
-      lessonText: newLesson.lessonText,
-      quote: newLesson.prompts,
-      blocks: contentBlocks,
-      evaluation: workstationState.evaluation,
-    };
+    const warmUp = newLesson.warmUp || "";
+    const lessonText = newLesson.lessonText || "";
+    const quote = newLesson.prompts || "";
+    const blocks = contentBlocks || [];
     try {
       const { data, error } = await supabase.from("lessons").upsert({
         student_id: selectedStudentId,
@@ -265,7 +261,10 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
         slug: lessonSlug,
         module_number: Number(moduleNumber) || 1,
         status: isPublish ? "published" : "draft",
-        content: formContentObject,
+        warm_up: warmUp,
+        lesson_text: lessonText,
+        quote,
+        blocks,
       }).select("id").single();
       if (error) {
         console.log(error.message);
