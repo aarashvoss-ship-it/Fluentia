@@ -178,7 +178,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
     return <AccessCard title="Access Denied" message="This instructor workstation requires a valid instructor session token." />;
   }
 
-  async function handleStudentChange(student: StudentUser) {
+  async function handleStudentChange(student: StudentUser, requestedLessonSlug = lessonId) {
     setPublishStatus(null);
     const selectedStudentId = student?.id?.trim();
     if (!selectedStudentId) {
@@ -191,7 +191,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
       .from("lessons")
       .select("*")
       .eq("student_id", selectedStudentId)
-      .eq("slug", lessonId)
+      .eq("slug", requestedLessonSlug)
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -260,15 +260,12 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
     };
     try {
       const { data, error } = await supabase.from("lessons").upsert({
-        id: databaseLessonId || initialLesson.id,
         student_id: selectedStudentId,
         title: lessonTitle,
         slug: lessonSlug,
         module_number: Number(moduleNumber) || 1,
         status: isPublish ? "published" : "draft",
         content: formContentObject,
-        subtitle: "Seven stages. One connected journey.",
-        banner_url: workstationState.bannerUrl || initialLesson.banner_image_url,
       }).select("id").single();
       if (error) {
         console.log(error.message);
@@ -286,6 +283,8 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
         moduleNumber: String(moduleNumber),
         status: isPublish ? "published" : "draft",
       }));
+      const savedStudent = students.find((student) => student.id === selectedStudentId);
+      if (savedStudent) await handleStudentChange(savedStudent, lessonSlug);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.log(message);
