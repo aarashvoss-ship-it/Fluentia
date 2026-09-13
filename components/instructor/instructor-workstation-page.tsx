@@ -76,6 +76,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
   });
   const setLessonTitle = (title: string) => setNewLesson((previous) => ({ ...previous, title }));
   const setSlug = (slug: string) => setNewLesson((previous) => ({ ...previous, slug }));
+  const resetNewLessonForm = (studentId = "") => setNewLesson({ studentId, title: "", slug: "", subtitle: "", moduleNumber: "", warmUp: "", lessonText: "", lexiconNotes: "", prompts: "", status: "draft" });
 
   async function handleCreateLesson() {
     const student = students.find((item) => item.id === newLesson.studentId);
@@ -113,6 +114,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
 
   useEffect(() => {
     void (async () => {
+      setPublishStatus(null);
       if (instructorToken !== INSTRUCTOR_TOKEN) {
         setAccessDenied(true);
         setIsMounted(true);
@@ -176,10 +178,15 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
 
   async function handleStudentChange(student: StudentUser) {
     setPublishStatus(null);
+    const selectedStudentId = student?.id?.trim();
+    if (!selectedStudentId) {
+      resetNewLessonForm();
+      return;
+    }
     const { data: lesson, error } = await supabase
       .from("lessons")
       .select("*")
-      .eq("student_id", student.id)
+      .eq("student_id", selectedStudentId)
       .eq("slug", lessonId)
       .order("updated_at", { ascending: false })
       .limit(1)
@@ -188,35 +195,28 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
       setPublishStatus("Unable to load this student's lesson from Supabase.");
       return;
     }
-    const lessonContent = lesson?.content || {};
-    const { data: submissions } = lesson
-      ? await supabase.from("submissions").select("*").eq("lesson_id", lesson.id).eq("student_id", student.id).order("updated_at", { ascending: false })
+    const loadedLesson = Array.isArray(lesson) ? lesson[0] : lesson;
+    if (error?.code === "PGRST116" || !loadedLesson) {
+      setPublishStatus(null);
+    }
+    const lessonContent = loadedLesson?.content || {};
+    const { data: submissions } = loadedLesson
+      ? await supabase.from("submissions").select("*").eq("lesson_id", loadedLesson.id).eq("student_id", selectedStudentId).order("updated_at", { ascending: false })
       : { data: [] };
     const submissionRow = submissions?.[0];
-    const savedEvaluation = lesson?.evaluation || lessonContent.evaluation;
+    const savedEvaluation = loadedLesson?.evaluation || lessonContent.evaluation;
     const baseContent = lessonContent || initialLesson.content || {};
     const databaseSubmission = submissionRow?.content as StudentSubmission | undefined;
     setSelectedStudent(student);
-    setDatabaseLessonId(lesson?.id || null);
-    setNewLesson(lesson
+    setDatabaseLessonId(loadedLesson?.id || null);
+    setNewLesson(loadedLesson
       ? (previous) => ({ ...previous, studentId: student.id })
-      : {
-        studentId: student.id,
-        title: "",
-        slug: "",
-        subtitle: "",
-        moduleNumber: "",
-        warmUp: "",
-        lessonText: "",
-        lexiconNotes: "",
-        prompts: "",
-        status: "draft",
-      });
+      : () => ({ studentId: selectedStudentId, title: "", slug: "", subtitle: "", moduleNumber: "", warmUp: "", lessonText: "", lexiconNotes: "", prompts: "", status: "draft" }));
     setWorkstationState({
       content: baseContent,
-      bannerUrl: lesson?.banner_url || initialLesson.banner_image_url || "",
+      bannerUrl: loadedLesson?.banner_url || initialLesson.banner_image_url || "",
       customBannerUrl: "",
-      studentProfile: lesson?.student_profile || student.profile,
+      studentProfile: loadedLesson?.student_profile || student.profile,
       evaluation: savedEvaluation || {
         scores: { task: 4, coherence: 4, lexical: 3, grammar: 4 },
         comments: "Great work on incorporating specific behavioral terms. Focus a bit more on hedging phrases in your introduction.",
@@ -225,7 +225,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
       },
       submission: databaseSubmission ? { ...databaseSubmission, status: submissionRow.status || databaseSubmission.status, submittedAt: submissionRow.submitted_at || databaseSubmission.submittedAt } : undefined,
     });
-    if (lesson?.status === "draft" || lesson?.status === "published") setLessonStatus(lesson.status);
+    if (loadedLesson?.status === "draft" || loadedLesson?.status === "published") setLessonStatus(loadedLesson.status);
     window.localStorage.setItem("fluentia:active-student-token", student.token);
     window.localStorage.setItem("fluentia:active-user", INSTRUCTOR_TOKEN);
   }
@@ -296,7 +296,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
         </div>
 
         <div className="flex items-center gap-3">
-          {publishStatus && (
+          {publishStatus !== null && publishStatus.trim().length > 0 && (
             <span className="text-xs text-amber-400 font-medium bg-[#171d28] px-3 py-1.5 rounded-lg border border-[#202631]">
               {publishStatus}
             </span>
