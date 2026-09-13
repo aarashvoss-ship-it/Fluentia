@@ -126,12 +126,12 @@ export function LessonTailorEditor({
             aria-label={`Add content block to ${step}`}
             className="rounded-md border border-amber-500 bg-[#0c1017] px-3 py-2 text-sm font-medium text-amber-500 [color-scheme:dark] outline-none transition hover:bg-amber-500/10 focus:border-amber-500"
           >
-            <option value="">+ Add Content Block</option>
-            <option value="text">Text Block</option>
-            <option value="audio">Audio Block</option>
-            <option value="video">Video Block</option>
-            <option value="image">Image Block</option>
-            <option value="quiz">Quiz / MCQ Block</option>
+            <option value="" className="bg-slate-900 text-slate-100">+ Add Content Block</option>
+            <option value="text" className="bg-slate-900 text-slate-100">Text Block</option>
+            <option value="audio" className="bg-slate-900 text-slate-100">Audio Block</option>
+            <option value="video" className="bg-slate-900 text-slate-100">Video Block</option>
+            <option value="image" className="bg-slate-900 text-slate-100">Image Block</option>
+            <option value="quiz" className="bg-slate-900 text-slate-100">Quiz / MCQ Block</option>
           </select>
         </div>
 

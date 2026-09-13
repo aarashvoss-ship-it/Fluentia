@@ -74,6 +74,8 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
     prompts: "",
     status: "draft" as "draft" | "published",
   });
+  const setLessonTitle = (title: string) => setNewLesson((previous) => ({ ...previous, title }));
+  const setSlug = (slug: string) => setNewLesson((previous) => ({ ...previous, slug }));
 
   async function handleCreateLesson() {
     const student = students.find((item) => item.id === newLesson.studentId);
@@ -366,7 +368,11 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
               {label}
               <input
                 value={newLesson[field as keyof typeof newLesson]}
-                onChange={(event) => setNewLesson((previous) => ({ ...previous, [field]: event.target.value }))}
+                onChange={(event) => {
+                  if (field === "title") setLessonTitle(event.target.value);
+                  else if (field === "slug") setSlug(event.target.value);
+                  else setNewLesson((previous) => ({ ...previous, [field]: event.target.value }));
+                }}
                 placeholder={placeholder}
                 className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
               />
