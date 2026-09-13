@@ -236,40 +236,61 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
   }
 
   const saveLessonChanges = async (status: "draft" | "published") => {
-    const title = newLesson.title.trim() || initialLesson.title.trim();
-    const slug = newLesson.slug.trim().toLowerCase() || lessonId.trim().toLowerCase();
-    const moduleNumber = Number(newLesson.moduleNumber || initialLesson.moduleNumber);
-    if (!selectedStudentId || !title || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || !Number.isInteger(moduleNumber)) {
+    const lessonTitle = newLesson.title.trim() || initialLesson.title.trim() || "Untitled Lesson";
+    const lessonSlug = newLesson.slug.trim().toLowerCase() || lessonId.trim().toLowerCase() || `lesson-${Date.now()}`;
+    const moduleNumber = Number(newLesson.moduleNumber || initialLesson.moduleNumber) || 1;
+    const isPublish = status === "published";
+    if (!selectedStudentId || !lessonTitle || !lessonSlug || !Number.isInteger(moduleNumber)) {
       setPublishStatus("Select a student and add a title, valid slug, and module number before saving the lesson.");
       return;
     }
     setIsPublishing(true);
     setPublishStatus(null);
     setLessonStatus(status);
-    const content = { ...workstationState.content, evaluation: workstationState.evaluation };
-    const formContentObject = content;
+    const contentBlocks = Object.values(workstationState.content).flatMap((stepContent) =>
+      Array.isArray(stepContent?.blocks) ? stepContent.blocks : []
+    );
+    const formContentObject = {
+      ...workstationState.content,
+      warmUp: newLesson.warmUp,
+      lessonText: newLesson.lessonText,
+      quote: newLesson.prompts,
+      blocks: contentBlocks,
+      evaluation: workstationState.evaluation,
+    };
     try {
       const { data, error } = await supabase.from("lessons").upsert({
         id: databaseLessonId || initialLesson.id,
         student_id: selectedStudentId,
-        title: title || "Untitled Lesson",
-        slug: slug || `lesson-${Date.now()}`,
+        title: lessonTitle,
+        slug: lessonSlug,
         module_number: Number(moduleNumber) || 1,
-        status: status === "published" ? "published" : "draft",
+        status: isPublish ? "published" : "draft",
         content: formContentObject,
         subtitle: "Seven stages. One connected journey.",
         banner_url: workstationState.bannerUrl || initialLesson.banner_image_url,
       }).select("id").single();
       if (error) {
+        console.log(error.message);
         setIsPublishing(false);
-        setPublishStatus("Unable to save this lesson to Supabase.");
+        setPublishStatus(error.message || null);
         return;
       }
       setDatabaseLessonId(data.id);
+      setLessonStatus(isPublish ? "published" : "draft");
+      setNewLesson((previous) => ({
+        ...previous,
+        studentId: selectedStudentId,
+        title: lessonTitle,
+        slug: lessonSlug,
+        moduleNumber: String(moduleNumber),
+        status: isPublish ? "published" : "draft",
+      }));
     } catch (error) {
-      console.error(error);
+      const message = error instanceof Error ? error.message : String(error);
+      console.log(message);
       setIsPublishing(false);
-      setPublishStatus("Unable to save this lesson to Supabase.");
+      setPublishStatus(message || null);
       return;
     }
 
