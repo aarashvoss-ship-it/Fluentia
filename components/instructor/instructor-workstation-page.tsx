@@ -69,6 +69,7 @@ export default function InstructorWorkstationPage({
   const [isPublishing, setIsPublishing] = useState(false);
   const [showPublishConfirmation, setShowPublishConfirmation] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Partial<Record<"selectedStudentId" | "title" | "slug" | "moduleNumber", string>>>({});
+  const [createdLessons, setCreatedLessons] = useState<LessonContent[]>([]);
   const [newLesson, setNewLesson] = useState({
     studentId: DEFAULT_STUDENT.id,
     title: "",
@@ -132,6 +133,34 @@ export default function InstructorWorkstationPage({
     return normalizedTitle || `lesson-${Date.now()}`;
   };
 
+  const persistInstructorLessonLocally = (lesson: LessonContent) => {
+    if (typeof window === "undefined") return;
+    try {
+      const storedLessons = JSON.parse(window.localStorage.getItem("fluentia:instructor-lessons") || "[]") as LessonContent[];
+      const nextLessons = [...storedLessons.filter((item) => item.slug !== lesson.slug), lesson];
+      window.localStorage.setItem("fluentia:instructor-lessons", JSON.stringify(nextLessons));
+      setCreatedLessons((previous) => [...previous.filter((item) => item.slug !== lesson.slug), lesson]);
+    } catch (error) {
+      console.error("Save error:", error);
+      setCreatedLessons((previous) => [...previous.filter((item) => item.slug !== lesson.slug), lesson]);
+    }
+  };
+
+  const activateLesson = (lesson: LessonContent) => {
+    setSelectedStudentId(lesson.studentId || null);
+    setNewLesson((previous) => ({
+      ...previous,
+      studentId: lesson.studentId || previous.studentId,
+      title: lesson.title,
+      slug: lesson.slug,
+      subtitle: lesson.subtitle || "",
+      moduleNumber: String(lesson.moduleNumber),
+      status: lesson.status || "draft",
+    }));
+    setWorkstationState((previous) => ({ ...previous, content: lesson.content || previous.content }));
+    setLessonStatus(lesson.status || "draft");
+  };
+
   async function handleCreateLesson() {
     const draftStudentId = selectedStudentId || newLesson.studentId || selectedStudent.id;
     const student = students.find((item) => item.id === draftStudentId) || selectedStudent;
@@ -160,12 +189,16 @@ export default function InstructorWorkstationPage({
       await saveLesson(lesson);
       setSelectedStudentId(student.id);
       setNewLesson((previous) => ({ ...previous, studentId: student.id, title: lesson.title, slug: lesson.slug, moduleNumber: String(moduleNumber), status: "draft" }));
+      setWorkstationState((previous) => ({ ...previous, content: lesson.content || previous.content }));
+      persistInstructorLessonLocally(lesson);
       setValidationErrors({});
-      setPublishStatus(`Lesson "${lesson.title}" saved as draft.`);
-      await handleStudentChange(student, slug);
+      setLessonStatus("draft");
+      setPublishStatus(`Lesson '${lesson.title}' created successfully as draft.`);
     } catch (error) {
-      console.error(error);
-      setPublishStatus("Error saving lesson via storage service.");
+      console.error("Save error:", error);
+      persistInstructorLessonLocally(lesson);
+      activateLesson(lesson);
+      setPublishStatus(`Lesson '${lesson.title}' created successfully as draft (saved locally).`);
     }
   }
 
@@ -180,6 +213,16 @@ export default function InstructorWorkstationPage({
       setIsMounted(true);
     })();
   }, [instructorToken]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const storedLessons = JSON.parse(window.localStorage.getItem("fluentia:instructor-lessons") || "[]") as LessonContent[];
+      setCreatedLessons(storedLessons);
+    } catch (error) {
+      console.error("Load error:", error);
+    }
+  }, []);
 
   useEffect(() => {
     void supabase
@@ -231,21 +274,28 @@ export default function InstructorWorkstationPage({
     }
     setValidationErrors({});
     setIsPublishing(true);
+    const lesson: LessonContent = {
+      id: databaseLessonId || `lesson-${slug}`,
+      title,
+      slug,
+      studentId,
+      subtitle: newLesson.subtitle.trim() || "A new Fluentia learning journey.",
+      moduleNumber,
+      status,
+      coverImage: workstationState.bannerUrl || initialLesson.banner_image_url,
+      content: workstationState.content,
+    };
     try {
-      const { data, error } = await supabase.from("lessons").upsert({
-        student_id: studentId,
-        title,
-        slug,
-        module_number: moduleNumber,
-        status,
-        content: workstationState.content,
-      }).select("id").single();
-      if (error) throw error;
-      setDatabaseLessonId(data.id);
+      await saveLesson(lesson);
+      persistInstructorLessonLocally(lesson);
+      setDatabaseLessonId(lesson.id);
       setLessonStatus(status);
       setPublishStatus(`Lesson saved as ${status} and synced with student view.`);
     } catch (error) {
-      setPublishStatus(error instanceof Error ? error.message : "Unable to save the lesson.");
+      console.error("Save error:", error);
+      persistInstructorLessonLocally(lesson);
+      activateLesson(lesson);
+      setPublishStatus(`Lesson saved as ${status} locally after a sync error.`);
     } finally {
       setIsPublishing(false);
     }
@@ -312,6 +362,10 @@ export default function InstructorWorkstationPage({
             <div className="mt-3 grid gap-3 md:grid-cols-2">{[["warmUp", "Warm-up"], ["lessonText", "Lesson Text"], ["lexiconNotes", "Lexicon Notes"], ["prompts", "Prompts"]].map(([field, label]) => <label key={field} className="text-xs text-stone-400">{label}<textarea value={newLesson[field as keyof typeof newLesson]} onChange={(event) => setNewLesson((previous) => ({ ...previous, [field]: event.target.value }))} rows={2} className="mt-1 w-full resize-none rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label>)}</div>
             <button type="button" onClick={handleCreateLesson} className="mt-4 rounded-md bg-amber-500 px-4 py-2.5 text-xs font-semibold text-[#0c1017] transition hover:bg-amber-400">Create Lesson</button>
           </section>
+          {createdLessons.length > 0 && <section className="mb-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" aria-label="Created lessons">
+            <div className="mb-3"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Created Lessons</p><h2 className="mt-1 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Continue editing</h2></div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{createdLessons.map((lesson) => <button key={lesson.slug} type="button" onClick={() => activateLesson(lesson)} className={`rounded-lg border p-3 text-left transition ${newLesson.slug === lesson.slug ? "border-amber-500 bg-amber-500/10" : "border-[#394252] bg-[#0c1017] hover:border-amber-500/60"}`}><span className="block text-sm font-semibold text-stone-100">{lesson.title}</span><span className="mt-1 block text-xs text-stone-500">{lesson.slug} · {lesson.status || "draft"}</span></button>)}</div>
+          </section>}
           <main className="grid grid-cols-1 gap-6 lg:grid-cols-12"><div className="space-y-6 lg:col-span-8"><LessonTailorEditor content={workstationState.content} onChange={(content: StrictStepContent) => setWorkstationState((previous) => ({ ...previous, content }))} /></div><div className="space-y-6 lg:col-span-4"><InstructorBannerManager bannerUrl={workstationState.bannerUrl} customInput={workstationState.customBannerUrl} onUpdateBanner={(bannerUrl: string) => setWorkstationState((previous) => ({ ...previous, bannerUrl }))} onUpdateCustomInput={(customBannerUrl: string) => setWorkstationState((previous) => ({ ...previous, customBannerUrl }))} /><div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5"><div className="flex items-center justify-between"><h3 className="font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Sidebar Blocks</h3><button type="button" onClick={() => setSidebarBlocks((blocks) => [...blocks, { id: `block-${Date.now()}`, title: "References", body: "" }])} className="flex items-center gap-1.5 rounded-md border border-amber-500 px-3 py-2 text-sm text-amber-500"><Plus className="h-3.5 w-3.5" />Add Block</button></div><div className="mt-4 space-y-3">{sidebarBlocks.map((block) => <div key={block.id} className="rounded-lg border border-[#202631] bg-[#0c1017] p-3"><div className="flex gap-2"><input value={block.title} onChange={(event) => setSidebarBlocks((blocks) => blocks.map((item) => item.id === block.id ? { ...item, title: event.target.value } : item))} className="min-w-0 flex-1 border-b border-[#394252] bg-transparent pb-1 text-xs font-semibold text-stone-200" aria-label="Sidebar block title" /><button type="button" onClick={() => setSidebarBlocks((blocks) => blocks.filter((item) => item.id !== block.id))} aria-label={`Delete ${block.title}`}><Trash2 className="h-3.5 w-3.5" /></button></div><textarea value={block.body} onChange={(event) => setSidebarBlocks((blocks) => blocks.map((item) => item.id === block.id ? { ...item, body: event.target.value } : item))} rows={3} className="mt-3 w-full resize-none rounded-md border border-[#202631] bg-[#171d28] p-2.5 text-xs text-stone-300" /></div>)}</div></div></div></main>
         </>}
 
