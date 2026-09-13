@@ -175,6 +175,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
   }
 
   async function handleStudentChange(student: StudentUser) {
+    setPublishStatus(null);
     const { data: lesson, error } = await supabase
       .from("lessons")
       .select("*")
@@ -183,7 +184,7 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (error) {
+    if (error && error.code !== "PGRST116") {
       setPublishStatus("Unable to load this student's lesson from Supabase.");
       return;
     }
@@ -197,7 +198,20 @@ export default function InstructorLessonWorkstationPage({ instructorToken, lesso
     const databaseSubmission = submissionRow?.content as StudentSubmission | undefined;
     setSelectedStudent(student);
     setDatabaseLessonId(lesson?.id || null);
-    setNewLesson((previous) => ({ ...previous, studentId: student.id }));
+    setNewLesson(lesson
+      ? (previous) => ({ ...previous, studentId: student.id })
+      : {
+        studentId: student.id,
+        title: "",
+        slug: "",
+        subtitle: "",
+        moduleNumber: "",
+        warmUp: "",
+        lessonText: "",
+        lexiconNotes: "",
+        prompts: "",
+        status: "draft",
+      });
     setWorkstationState({
       content: baseContent,
       bannerUrl: lesson?.banner_url || initialLesson.banner_image_url || "",
