@@ -299,6 +299,9 @@ export default function InstructorWorkstationPage({
       title,
       subtitle: newLesson.subtitle.trim() || "A new Fluentia learning journey.",
       moduleNumber,
+      notes: sidebarBlocks.find((block) => block.id === "teacher-notes")?.body || "",
+      vocabulary: sidebarBlocks.find((block) => block.id === "extra-vocabulary")?.body || "",
+      sidebarBlocks,
     };
     try {
       if (!databaseLessonId) {
@@ -314,6 +317,7 @@ export default function InstructorWorkstationPage({
       await refreshCreatedLessons();
       setLessonStatus(status);
       setSaveIndicator("saved");
+      console.log("Lesson saved successfully", { lessonId: lesson.id, status });
       if (!isAutoSave) setPublishStatus(`Lesson saved as ${status} and synced with student view.`);
     } catch (error) {
       console.error("Lesson save failed:", error);
@@ -330,6 +334,7 @@ export default function InstructorWorkstationPage({
   };
 
   const handlePreviewPublish = () => {
+    void saveLessonChanges("draft");
     setShowPreview(true);
   };
 
