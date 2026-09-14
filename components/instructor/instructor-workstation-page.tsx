@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { StudentContextPanel } from "@/components/instructor/student-context-panel";
@@ -70,7 +70,10 @@ export default function InstructorWorkstationPage({
   });
 
   const [isPublishing, setIsPublishing] = useState(false);
-  const [showPublishConfirmation, setShowPublishConfirmation] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewStep, setPreviewStep] = useState<"warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking">("warm_up");
+  const [saveIndicator, setSaveIndicator] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const hasLoadedLesson = useRef(false);
   const [validationErrors, setValidationErrors] = useState<Partial<Record<"selectedStudentId" | "title" | "slug" | "moduleNumber", string>>>({});
   const [createdLessons, setCreatedLessons] = useState<LessonWithVersion[]>([]);
   const [newLesson, setNewLesson] = useState({
@@ -138,6 +141,7 @@ export default function InstructorWorkstationPage({
   const activateLesson = (lesson: LessonWithVersion) => {
     const content = lesson.content || {};
     const lessonSlug = typeof content.slug === "string" ? content.slug : lesson.id;
+    hasLoadedLesson.current = false;
     setSelectedStudentId(lesson.student_id || null);
     setNewLesson((previous) => ({
       ...previous,
@@ -151,6 +155,9 @@ export default function InstructorWorkstationPage({
     setWorkstationState((previous) => ({ ...previous, content }));
     setDatabaseLessonId(lesson.id);
     setLessonStatus(lesson.status === "published" ? "published" : "draft");
+    window.setTimeout(() => {
+      hasLoadedLesson.current = true;
+    }, 0);
   };
 
   async function handleCreateLesson() {
@@ -185,6 +192,8 @@ export default function InstructorWorkstationPage({
       setNewLesson((previous) => ({ ...previous, studentId: student.id, title: lesson.title, slug, moduleNumber: String(moduleNumber), status: newLesson.status }));
       setWorkstationState((previous) => ({ ...previous, content: created.content || previous.content }));
       setDatabaseLessonId(created.id);
+      hasLoadedLesson.current = true;
+      setSaveIndicator("saved");
       await refreshCreatedLessons();
       setValidationErrors({});
       setLessonStatus(newLesson.status);
@@ -210,6 +219,15 @@ export default function InstructorWorkstationPage({
   useEffect(() => {
     void refreshCreatedLessons();
   }, []);
+
+  useEffect(() => {
+    if (!databaseLessonId || !hasLoadedLesson.current) return;
+    setSaveIndicator("saving");
+    const timer = window.setTimeout(() => {
+      void saveLessonChanges("draft", true);
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [workstationState.content, newLesson.title, newLesson.subtitle, newLesson.moduleNumber, databaseLessonId]);
 
   useEffect(() => {
     const loadCounts = async () => {
@@ -252,11 +270,11 @@ export default function InstructorWorkstationPage({
     setNewLesson((previous) => ({ ...previous, slug }));
   };
 
-  const saveLessonChanges = async (status: "draft" | "published") => {
+  const saveLessonChanges = async (status: "draft" | "published", isAutoSave = false) => {
     const title = newLesson.title.trim() || "Untitled Lesson";
     const slug = newLesson.slug.trim().toLowerCase() || createSlug(title);
     const moduleNumber = Number(newLesson.moduleNumber) || 1;
-    if (status === "published") {
+    if (status === "published" && !isAutoSave) {
       const errors: typeof validationErrors = {};
       if (!selectedStudentId) errors.selectedStudentId = "Select a student.";
       if (!newLesson.title.trim()) errors.title = "Enter a lesson title.";
@@ -274,7 +292,8 @@ export default function InstructorWorkstationPage({
       return;
     }
     setValidationErrors({});
-    setIsPublishing(true);
+    setSaveIndicator("saving");
+    if (!isAutoSave) setIsPublishing(true);
     const content = {
       ...workstationState.content,
       slug,
@@ -295,12 +314,14 @@ export default function InstructorWorkstationPage({
       setDatabaseLessonId(lesson.id);
       await refreshCreatedLessons();
       setLessonStatus(status);
-      setPublishStatus(`Lesson saved as ${status} and synced with student view.`);
+      setSaveIndicator("saved");
+      if (!isAutoSave) setPublishStatus(`Lesson saved as ${status} and synced with student view.`);
     } catch (error) {
       console.error("Lesson save failed:", error);
-      setPublishStatus("Lesson save failed. Check the Supabase connection and try again.");
+      setSaveIndicator("error");
+      if (!isAutoSave) setPublishStatus("Lesson save failed. Check the Supabase connection and try again.");
     } finally {
-      setIsPublishing(false);
+      if (!isAutoSave) setIsPublishing(false);
     }
   };
 
@@ -309,7 +330,7 @@ export default function InstructorWorkstationPage({
   };
 
   const handleConfirmPublish = () => {
-    setShowPublishConfirmation(false);
+    setShowPreview(false);
     void saveLessonChanges("published");
   };
 
@@ -321,10 +342,37 @@ export default function InstructorWorkstationPage({
         ? "In Progress"
         : "Not Started";
   const submissionStateClass = submissionState === "Reviewed"
-    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+    ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
     : submissionState === "Submitted (Needs Review)"
       ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
       : "border-[#394252] bg-[#171d28] text-stone-400";
+
+  const previewSteps = [
+    ["warm_up", "Warm-up"],
+    ["lesson", "Lesson"],
+    ["listening", "Listening"],
+    ["reading", "Reading"],
+    ["writing", "Writing"],
+    ["speaking", "Speaking"],
+  ] as const;
+  const previewContent = workstationState.content[previewStep] as Record<string, any> | undefined;
+  const previewBlocks = Array.isArray(previewContent?.blocks) ? previewContent.blocks : [];
+
+  const renderPreviewStep = () => (
+    <div className="space-y-4">
+      {previewBlocks.map((block: { id: string; title?: string; type: string; body?: string; caption?: string; imageUrl?: string; audioUrl?: string; videoUrl?: string; questions?: Array<{ prompt: string; options: string[] }> }) => (
+        <article key={block.id} className="rounded-lg border border-[#293343] bg-[#0c1017] p-4">
+          {block.title && <h4 className="mb-2 text-sm font-semibold text-stone-100">{block.title}</h4>}
+          {block.type === "text" && <p className="whitespace-pre-wrap text-sm leading-relaxed text-stone-300">{block.body || "No text added yet."}</p>}
+          {block.type === "image" && <>{block.imageUrl ? <img src={block.imageUrl} alt={block.caption || block.title || "Lesson image"} className="max-h-72 w-full rounded-md object-cover" /> : <p className="text-xs text-stone-500">Image not configured.</p>}{block.caption && <p className="mt-2 text-xs text-stone-500">{block.caption}</p>}</>}
+          {block.type === "audio" && <audio controls src={block.audioUrl} className="w-full" />}
+          {block.type === "video" && <div className="rounded-md border border-dashed border-[#394252] p-4 text-xs text-stone-500">Video preview: {block.videoUrl || "URL not configured"}</div>}
+          {block.type === "quiz" && <div className="space-y-3">{(block.questions || []).map((question, index) => <div key={`${block.id}-${index}`}><p className="text-sm text-stone-300">{question.prompt || "Question not configured."}</p><div className="mt-2 flex flex-wrap gap-2">{question.options.map((option) => <span key={option} className="rounded border border-[#394252] px-2 py-1 text-xs text-stone-400">{option || "Option"}</span>)}</div></div>)}</div>}
+        </article>
+      ))}
+      {previewBlocks.length === 0 && <p className="rounded-lg border border-dashed border-[#394252] p-6 text-sm text-stone-500">This step has no content blocks yet.</p>}
+    </div>
+  );
 
   if (!isMounted) return null;
   if (accessDenied) return <AccessCard title="Access Denied" message="This instructor workstation requires a valid instructor session token." />;
@@ -339,7 +387,10 @@ export default function InstructorWorkstationPage({
 </div>
           <div className="flex items-center gap-3">
             {publishStatus !== null && publishStatus.trim().length > 0 && <span className="rounded-lg border border-[#202631] bg-[#171d28] px-3 py-1.5 text-xs font-medium text-amber-400">{publishStatus}</span>}
-            <button type="button" onClick={() => setActiveTab("builder")} className="rounded-lg bg-amber-500 px-5 py-2.5 text-xs font-semibold text-[#0c1017] shadow transition hover:bg-amber-400">+ Create New Lesson</button>
+            <select value={databaseLessonId && createdLessons.some((lesson) => lesson.id === databaseLessonId && lesson.status === "draft") ? databaseLessonId : ""} onChange={(event) => { const draft = createdLessons.find((lesson) => lesson.id === event.target.value); if (draft) activateLesson(draft); }} aria-label="Recent Drafts" className="max-w-44 rounded-lg border border-amber-500/50 bg-[#171d28] px-3 py-2.5 text-xs font-semibold text-amber-300 outline-none transition-colors hover:bg-amber-500 hover:text-black [color-scheme:dark]"><option value="">Recent Drafts</option>{createdLessons.filter((lesson) => lesson.status === "draft").slice(0, 8).map((lesson) => <option key={lesson.id} value={lesson.id}>{lesson.title}</option>)}</select>
+            {databaseLessonId && <span className={`text-xs ${saveIndicator === "error" ? "text-red-300" : "text-stone-400"}`}>{saveIndicator === "saving" ? "● Saving" : saveIndicator === "saved" ? "● Auto-saved" : saveIndicator === "error" ? "● Save failed" : "● Saved"}</span>}
+            <button type="button" onClick={() => void saveLessonChanges("draft")} disabled={isPublishing || !databaseLessonId} className="rounded-lg border border-amber-500/50 px-4 py-2.5 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black disabled:opacity-50">Save</button>
+            <button type="button" onClick={() => setShowPreview(true)} disabled={!databaseLessonId} className="rounded-lg border border-amber-500/50 px-4 py-2.5 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black disabled:opacity-50">Preview &amp; Publish</button>
           </div>
         </header>
 
@@ -434,7 +485,6 @@ export default function InstructorWorkstationPage({
               </section>
             </aside>
           </main>
-          <div className="sticky bottom-4 z-10 mt-6 flex items-center justify-end gap-3 rounded-xl border border-[#202631] bg-[#171d28] p-4 shadow-2xl"><button type="button" onClick={handleCreateLesson} className="rounded-md border border-[#394252] px-4 py-2.5 text-xs font-semibold text-stone-200 transition hover:border-amber-500 hover:text-amber-300">Create New Lesson</button><button type="button" onClick={handleSaveDraft} disabled={isPublishing} className="rounded-md bg-amber-500 px-4 py-2.5 text-xs font-semibold text-[#0c1017] transition hover:bg-amber-400 disabled:opacity-50">Save Draft</button><button type="button" onClick={() => setShowPublishConfirmation(true)} disabled={isPublishing} className="rounded-md bg-emerald-500 px-4 py-2.5 text-xs font-semibold text-[#07110b] transition hover:bg-emerald-400 disabled:opacity-50">Publish Lesson</button></div>
         </>}
 
         {activeTab === "evaluation" && <>
@@ -462,16 +512,18 @@ export default function InstructorWorkstationPage({
 </section>
 </>}
       </div>
-      {showPublishConfirmation && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6" role="dialog" aria-modal="true" aria-labelledby="publish-confirmation-title">
-<div className="w-full max-w-md rounded-xl border border-[#394252] bg-[#171d28] p-6">
-<h2 id="publish-confirmation-title" className="text-lg font-semibold text-stone-100">Publish lesson?</h2>
-<p className="mt-3 text-sm text-stone-400">Are you sure you want to publish this lesson?</p>
-<div className="mt-6 flex justify-end gap-3">
-<button type="button" onClick={() => setShowPublishConfirmation(false)} className="rounded-lg border border-[#394252] px-4 py-2.5 text-xs text-stone-300">Cancel</button>
-<button type="button" onClick={handleConfirmPublish} className="rounded-lg bg-amber-500 px-4 py-2.5 text-xs font-semibold text-[#0c1017]">Confirm &amp; Publish</button>
-</div>
-</div>
-</div>}
+      {showPreview && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="lesson-preview-title">
+        <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-[#394252] bg-[#171d28] shadow-2xl">
+          <div className="flex flex-col gap-4 border-b border-[#293343] p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Student View Preview</p><h2 id="lesson-preview-title" className="mt-1 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">{newLesson.title || "Untitled Lesson"}</h2></div>
+            <div className="flex items-center gap-2"><button type="button" onClick={() => setShowPreview(false)} className="rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black">Back to Editing</button><button type="button" onClick={handleConfirmPublish} disabled={isPublishing} className="rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-black transition-colors hover:bg-amber-400 disabled:opacity-50">Publish Lesson</button></div>
+          </div>
+          <div className="grid min-h-0 flex-1 overflow-hidden md:grid-cols-[180px_1fr]">
+            <nav className="flex gap-2 overflow-x-auto border-b border-[#293343] p-3 md:block md:space-y-1 md:border-b-0 md:border-r" aria-label="Preview lesson steps">{previewSteps.map(([step, label]) => <button key={step} type="button" onClick={() => setPreviewStep(step)} className={`block shrink-0 rounded-md px-3 py-2 text-left text-xs transition-colors md:w-full ${previewStep === step ? "bg-amber-500 text-black" : "text-stone-400 hover:bg-amber-500/10 hover:text-amber-300"}`}>{label}</button>)}</nav>
+            <div className="min-h-0 overflow-y-auto p-5"><div className="mb-5 border-b border-[#293343] pb-4"><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">{previewSteps.find(([step]) => step === previewStep)?.[1]}</p><p className="mt-2 text-sm text-stone-400">{newLesson.subtitle || "Your instructor has prepared this lesson for you."}</p></div>{renderPreviewStep()}</div>
+          </div>
+        </div>
+      </div>}
     </div>
   );
 }
