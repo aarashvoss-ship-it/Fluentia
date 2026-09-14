@@ -39,7 +39,6 @@ export default function InstructorWorkstationPage({
   const [pendingSubmissionCount, setPendingSubmissionCount] = useState(0);
   const [publishedLessonCount, setPublishedLessonCount] = useState(0);
   const [draftLessonCount, setDraftLessonCount] = useState(0);
-  const [studentCount, setStudentCount] = useState(0);
   const [lessonStatus, setLessonStatus] = useState<"draft" | "published">("published");
   const [activeTab, setActiveTab] = useState<"dashboard" | "builder" | "evaluation">("dashboard");
   const [heroBannerOpen, setHeroBannerOpen] = useState(false);
@@ -231,40 +230,54 @@ export default function InstructorWorkstationPage({
 
   useEffect(() => {
     const loadCounts = async () => {
-      const [{ count: pendingCount }, { count: publishedCount }, { count: draftsCount }, { data: activeStudentRows, count: studentsCount, error: activeStudentsError }] = await Promise.all([
+      const [{ count: pendingCount }, { count: publishedCount }, { count: draftsCount }] = await Promise.all([
         supabase.from("submissions").select("id", { count: "exact", head: true }).eq("status", "submitted"),
         supabase.from("lessons").select("id", { count: "exact", head: true }).eq("status", "published"),
         supabase.from("lessons").select("id", { count: "exact", head: true }).eq("status", "draft"),
-        supabase.from("students").select("*", { count: "exact" }).eq("is_active", true).order("full_name", { ascending: true }),
       ]);
       setPendingSubmissionCount(pendingCount ?? 0);
       setPublishedLessonCount(publishedCount ?? 0);
       setDraftLessonCount(draftsCount ?? 0);
-      setStudentCount(studentsCount ?? 0);
-      if (!activeStudentsError) {
-        setStudents((activeStudentRows || []).map((row) => {
-          const profile = (row.profile || {}) as Partial<StudentProfile>;
-          const name = row.full_name || row.name || profile.fullName || "Unnamed Student";
-          const id = String(row.id);
-          return {
+
+      const mapStudentRows = (rows: Array<Record<string, any>>): StudentUser[] => rows.map((row) => {
+        const profile = (row.profile || {}) as Partial<StudentProfile>;
+        const name = row.full_name || row.name || profile.fullName || "Unnamed Student";
+        const id = String(row.id);
+        return {
+          id,
+          token: String(row.token || row.access_token || id),
+          name,
+          role: "student" as const,
+          profile: {
             id,
-            token: String(row.token || row.access_token || id),
-            name,
-            role: "student" as const,
-            profile: {
-              id,
-              fullName: name,
-              level: row.level || profile.level || "Not set",
-              targetGoal: row.target_goal || profile.targetGoal || "Not set",
-              weaknesses: profile.weaknesses || [],
-              teacherNotes: profile.teacherNotes || "",
-              attendanceRate: profile.attendanceRate || 0,
-              completedModulesCount: profile.completedModulesCount || 0,
-              avatarUrl: row.avatar_url || profile.avatarUrl,
-            },
-          } as StudentUser;
-        }));
+            fullName: name,
+            level: row.level || profile.level || "Not set",
+            targetGoal: row.target_goal || profile.targetGoal || "Not set",
+            weaknesses: profile.weaknesses || [],
+            teacherNotes: profile.teacherNotes || "",
+            attendanceRate: profile.attendanceRate || 0,
+            completedModulesCount: profile.completedModulesCount || 0,
+            avatarUrl: row.avatar_url || profile.avatarUrl,
+          },
+        } as StudentUser;
+      });
+
+      const profileResult = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("role", "student")
+        .order("full_name", { ascending: true });
+      let loadedStudents = profileResult.error ? [] : mapStudentRows(profileResult.data || []);
+
+      if (profileResult.error) {
+        const studentResult = await supabase
+          .from("students")
+          .select("*")
+          .order("full_name", { ascending: true });
+        loadedStudents = studentResult.error ? [] : mapStudentRows(studentResult.data || []);
       }
+
+      setStudents(loadedStudents);
     };
     const refreshCounts = () => void loadCounts();
     void loadCounts();
@@ -446,7 +459,7 @@ export default function InstructorWorkstationPage({
               <summary className="flex cursor-pointer list-none items-start justify-between p-5 [&::-webkit-details-marker]:hidden">
                 <span>
                   <span className="block text-[10px] uppercase tracking-[0.14em] text-amber-400">Active Students</span>
-                  <span className="mt-2 block text-2xl font-semibold text-stone-100">{studentCount}</span>
+                  <span className="mt-2 block text-2xl font-semibold text-stone-100">{students.length}</span>
                   <span className="mt-1 block text-xs text-stone-500">Select an active student</span>
                 </span>
                 <ChevronDown className={`mt-0.5 h-4 w-4 text-amber-400 transition-transform ${activeStudentsOpen ? "rotate-180" : ""}`} aria-hidden="true" />
