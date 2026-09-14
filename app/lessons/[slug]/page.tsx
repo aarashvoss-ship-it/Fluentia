@@ -9,7 +9,7 @@ import { persistResolvedStudent, PublishedLessonState, resolveStudentAccess, wri
 import { fetchChatMessages, fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, saveChatMessage, saveStudentNote, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
 import { type StudentUser } from "@/lib/users";
 import { Stepper } from "@/components/study-room/stepper";
-import { AnswerComparison, CelebrationModal } from "@/components/study-room/celebration-modal";
+import { CelebrationModal, StepResult } from "@/components/study-room/celebration-modal";
 import { DictionaryModal } from "@/components/study-room/dictionary-modal";
 import { LearningSidebar } from "@/components/study-room/learning-sidebar";
 import { ChatWidget } from "@/components/study-room/chat-widget";
@@ -217,39 +217,40 @@ export default function LessonPage() {
   const totalScore = evaluation
     ? Object.values(evaluation.scores).reduce<number>((total, score) => total + Number(score), 0)
     : 0;
-  const resultRows = [
-    ...(lessonContent.listening?.questions || []).map((question: { id: string; question: string }) => ({
-      task: `Listening: ${question.question}`,
-      response: submission.listeningAnswers[question.id],
-    })),
-    ...(lessonContent.reading?.analytical_questions || []).map((question: { id: string; question: string }) => ({
-      task: `Reading: ${question.question}`,
-      response: submission.readingAnswers[question.id],
-    })),
-    {
-      task: lessonContent.writing?.prompt?.text ? "Writing: " + lessonContent.writing.prompt.text : "",
-      response: submission.writingText,
-    },
-    {
-      task: lessonContent.speaking?.scenario?.text ? "Speaking: " + lessonContent.speaking.scenario.text : "",
-      response: submission.speakingAudioUrl,
-    },
-  ].filter((row) => row.task && row.response);
-  const answerComparisons: AnswerComparison[] = [
-    ...(lessonContent.listening?.questions || []).map((question: { id: string; question: string; correct_answer?: string }) => ({
-      id: `listening-${question.id}`,
-      step: "Listening" as const,
-      task: question.question,
-      answer: submission.listeningAnswers[question.id] || "",
-      correctAnswer: question.correct_answer || lessonContent.results?.answer_keys?.listening?.[question.id] || "",
-    })),
-    ...(lessonContent.reading?.analytical_questions || []).map((question: { id: string; question: string; correct_answer?: string }) => ({
-      id: `reading-${question.id}`,
-      step: "Reading" as const,
-      task: question.question,
-      answer: submission.readingAnswers[question.id] || "",
-      correctAnswer: question.correct_answer || lessonContent.results?.answer_keys?.reading?.[question.id] || "",
-    })),
+  const getStepResponse = (step: "warm_up" | "lesson") => {
+    const stepContent = lessonContent[step] as { blocks?: ContentBlock[] } | undefined;
+    const responses = stepContent?.blocks?.map((block) => {
+      if (block.type === "text") return submission.blockResponses?.[block.id];
+      if (block.type === "question") return submission.quizSelections?.[block.id];
+      if (block.type === "quiz") return block.questions.map((question) => `${question.prompt}: ${submission.quizSelections?.[question.id] || ""}`).filter(Boolean).join("\n");
+      return "";
+    }).filter(Boolean) || [];
+    return submission.blockResponses?.[step] || responses.join("\n") || "";
+  };
+
+  const getBlockAnswerKeys = (step: "warm_up" | "lesson" | "listening" | "reading") => {
+    const blocks = ((lessonContent[step] as { blocks?: ContentBlock[] } | undefined)?.blocks || []);
+    return blocks.flatMap((block) => {
+      if (block.type === "question") return block.correct_answer.trim();
+      if (block.type === "quiz") return block.questions.map((question) => (question.correct_answer || question.correctAnswer || "").trim());
+      return [];
+    }).filter(Boolean).join("\n");
+  };
+
+  const getAnswerKeys = (step: "listening" | "reading") => {
+    const keys = step === "listening"
+      ? (lessonContent.listening?.questions || []).map((question: { id: string; correct_answer?: string }) => question.correct_answer || lessonContent.results?.answer_keys?.listening?.[question.id] || "")
+      : (lessonContent.reading?.analytical_questions || []).map((question: { id: string; correct_answer?: string }) => question.correct_answer || lessonContent.results?.answer_keys?.reading?.[question.id] || "");
+    return [...keys, getBlockAnswerKeys(step)].filter(Boolean).join("\n");
+  };
+
+  const stepResults: StepResult[] = [
+    { id: "warm-up", step: "Warm-up", prompt: lessonContent.warm_up?.quote?.text || lessonContent.warm_up?.intro_narrative?.text, answer: getStepResponse("warm_up"), referenceAnswer: getBlockAnswerKeys("warm_up") || undefined },
+    { id: "lesson", step: "Lesson", prompt: lessonContent.lesson?.core_concept?.text, answer: getStepResponse("lesson"), referenceAnswer: getBlockAnswerKeys("lesson") || undefined },
+    { id: "listening", step: "Listening", prompt: (lessonContent.listening?.questions || []).map((question: { question: string }) => question.question).join("\n"), answer: Object.values(submission.listeningAnswers).join("\n"), referenceAnswer: getAnswerKeys("listening") || undefined },
+    { id: "reading", step: "Reading", prompt: (lessonContent.reading?.analytical_questions || []).map((question: { question: string }) => question.question).join("\n"), answer: Object.values(submission.readingAnswers).join("\n"), referenceAnswer: getAnswerKeys("reading") || undefined },
+    { id: "writing", step: "Writing", prompt: lessonContent.writing?.prompt?.text, answer: submission.writingText },
+    { id: "speaking", step: "Speaking", prompt: lessonContent.speaking?.scenario?.text, answer: submission.speakingAudioUrl || "" },
   ];
 
   const currentIndex = STUDY_STEPS.findIndex((s) => s.id === currentStep);
@@ -586,25 +587,25 @@ export default function LessonPage() {
                 </h3>
                 {lessonContent.results?.self_reflection?.text && <p className="text-stone-400 text-sm">{lessonContent.results.self_reflection.text}</p>}
               </div>
-              <div className="overflow-hidden rounded-xl border border-[#202631] bg-[#121721] text-left">
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[760px] text-left text-xs text-stone-300">
-                    <thead className="border-b border-[#202631] text-[10px] uppercase tracking-[0.14em] text-stone-500">
-                      <tr>
-                        <th className="px-4 py-3 font-semibold">Task / Step</th>
-                        <th className="px-4 py-3 font-semibold">Your Response</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#202631]">
-                      {resultRows.map((row) => (
-                        <tr key={row.task} className="align-top">
-                          <td className="px-4 py-4 font-medium text-stone-200">{row.task}</td>
-                          <td className="px-4 py-4 text-stone-400">{row.response}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+              <div className="space-y-3 text-left">
+                {stepResults.map((result) => (
+                  <div key={result.id} className="grid gap-3 rounded-xl border border-[#202631] bg-[#121721] p-4 md:grid-cols-[150px_1fr]">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">{result.step}</p>
+                      {result.prompt && <p className="mt-2 whitespace-pre-wrap text-xs text-stone-500">{result.prompt}</p>}
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">Your response</p>
+                        <p className="mt-1 whitespace-pre-wrap text-sm text-stone-300">{result.answer || "No response submitted"}</p>
+                      </div>
+                      {result.referenceAnswer && <div>
+                        <p className="text-[10px] uppercase tracking-[0.1em] text-amber-500/80">Reference / Correct Answer</p>
+                        <p className="mt-1 whitespace-pre-wrap text-sm text-amber-200">{result.referenceAnswer}</p>
+                      </div>}
+                    </div>
+                  </div>
+                ))}
               </div>
 
               <div className="rounded-xl border border-[#202631] bg-[#121721] p-5 text-left">
@@ -699,7 +700,7 @@ export default function LessonPage() {
         onReview={handleReviewAnswers}
         studentName={activeStudent!.name}
         dashboardHref={`/dashboard?student=${encodeURIComponent(activeStudent!.token)}`}
-        answerComparisons={answerComparisons}
+        stepResults={stepResults}
       />
       <LearningSidebar
         open={sidebarOpen}

@@ -4,12 +4,12 @@ import React from "react";
 import { CheckCircle2, ArrowRight, ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-export interface AnswerComparison {
+export interface StepResult {
   id: string;
-  step: "Listening" | "Reading";
-  task: string;
+  step: string;
+  prompt?: string;
   answer: string;
-  correctAnswer: string;
+  referenceAnswer?: string;
 }
 
 interface CelebrationModalProps {
@@ -19,7 +19,7 @@ interface CelebrationModalProps {
   onReview: () => void;
   studentName?: string;
   dashboardHref?: string;
-  answerComparisons?: AnswerComparison[];
+  stepResults?: StepResult[];
 }
 
 export function CelebrationModal({
@@ -29,7 +29,7 @@ export function CelebrationModal({
   onReview,
   studentName = "Arash",
   dashboardHref = "/dashboard",
-  answerComparisons = [],
+  stepResults = [],
 }: CelebrationModalProps) {
   const router = useRouter();
 
@@ -61,26 +61,29 @@ export function CelebrationModal({
           </p>
         </div>
 
-        {answerComparisons.length > 0 && (
+        {stepResults.length > 0 && (
           <div className="space-y-3 border-y border-stone-800 py-4 text-left">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Answer Key Review</p>
-              <p className="mt-1 text-xs text-stone-500">Compare your Listening and Reading responses before submitting.</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Six-Step Review</p>
+              <p className="mt-1 text-xs text-stone-500">Review each submitted response before finalizing the lesson.</p>
             </div>
-            <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
-              {answerComparisons.map((comparison) => (
-                <div key={comparison.id} className="rounded-lg border border-stone-800 bg-stone-950/50 p-3 text-xs">
-                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">{comparison.step}</p>
-                  <p className="mb-3 text-stone-300">{comparison.task}</p>
-                  <div className="grid gap-2 sm:grid-cols-2">
+            <div className="max-h-[26rem] space-y-2 overflow-y-auto pr-1">
+              {stepResults.map((result) => (
+                <div key={result.id} className="rounded-lg border border-stone-800 bg-stone-950/50 p-3 text-xs">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="font-semibold uppercase tracking-[0.12em] text-amber-400">{result.step}</p>
+                    <span className="text-[10px] uppercase tracking-[0.1em] text-stone-600">Submitted</span>
+                  </div>
+                  {result.prompt && <p className="mt-2 text-stone-400">{result.prompt}</p>}
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <div>
-                      <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">Your answer</p>
-                      <p className="mt-1 whitespace-pre-wrap text-stone-200">{comparison.answer || "No answer submitted"}</p>
+                      <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">Your response</p>
+                      <p className="mt-1 whitespace-pre-wrap text-stone-200">{result.answer || "No response submitted"}</p>
                     </div>
-                    <div>
-                      <p className="text-[10px] uppercase tracking-[0.1em] text-amber-500/80">Correct Answer / Key</p>
-                      <p className="mt-1 whitespace-pre-wrap text-amber-200">{comparison.correctAnswer || "No key provided"}</p>
-                    </div>
+                    {result.referenceAnswer && <div>
+                      <p className="text-[10px] uppercase tracking-[0.1em] text-amber-500/80">Reference / Correct Answer</p>
+                      <p className="mt-1 whitespace-pre-wrap text-amber-200">{result.referenceAnswer}</p>
+                    </div>}
                   </div>
                 </div>
               ))}
