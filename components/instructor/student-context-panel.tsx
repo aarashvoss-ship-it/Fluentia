@@ -3,16 +3,12 @@
 import React, { useEffect, useState } from "react";
 import { Target, AlertCircle, History, Sparkles, Loader } from "lucide-react";
 import { StudentProfile } from "@/types/lesson";
-import { FluentiaUser } from "@/lib/users";
 import { getSubmissionByLessonAndStudent, getEvaluationBySubmissionId } from "@/lib/evaluations";
 
 interface StudentContextPanelProps {
   studentName?: string;
   profile?: StudentProfile;
   onUpdateProfile?: (profile: StudentProfile) => void;
-  students?: Array<FluentiaUser & { profile: StudentProfile; token: string }>;
-  selectedStudentToken?: string;
-  onSelectStudent?: (student: FluentiaUser & { profile: StudentProfile; token: string }) => void;
   lessonId?: string;
   studentId?: string;
   useSupabase?: boolean;
@@ -22,9 +18,6 @@ export function StudentContextPanel({
   studentName = "Arash",
   profile,
   onUpdateProfile,
-  students = [],
-  selectedStudentToken,
-  onSelectStudent,
   lessonId,
   studentId,
   useSupabase = true,
@@ -106,25 +99,6 @@ export function StudentContextPanel({
           <div className="text-sm font-semibold text-amber-400">{displayProfile.attendanceRate}%</div>
         </div>
       </div>
-
-      {students.length > 0 && (
-        <label className="mt-4 block text-xs text-slate-400">
-          Active student
-          <select
-            value={selectedStudentToken}
-            onChange={(event) => {
-              const nextStudent = students.find((student) => student.token === event.target.value);
-              if (nextStudent) onSelectStudent?.(nextStudent);
-            }}
-            className="mt-1 w-full rounded-lg border border-[#202631] bg-[#0c1017] px-3 py-2 text-xs text-stone-200 outline-none focus:border-amber-500"
-            aria-label="Select active student"
-          >
-            {students.map((student) => (
-              <option key={student.token} value={student.token}>{student.name}</option>
-            ))}
-          </select>
-        </label>
-      )}
 
       <div className="mt-4 space-y-4 text-xs">
         <div>
