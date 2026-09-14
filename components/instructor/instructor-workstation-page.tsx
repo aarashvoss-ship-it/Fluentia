@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { StudentContextPanel } from "@/components/instructor/student-context-panel";
 import { LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
@@ -42,7 +42,7 @@ export default function InstructorWorkstationPage({
   const [studentCount, setStudentCount] = useState(0);
   const [lessonStatus, setLessonStatus] = useState<"draft" | "published">("published");
   const [activeTab, setActiveTab] = useState<"dashboard" | "builder" | "evaluation">("dashboard");
-  const [createdLessonsOpen, setCreatedLessonsOpen] = useState(false);
+  const [heroBannerOpen, setHeroBannerOpen] = useState(false);
   const [sidebarBlocks, setSidebarBlocks] = useState([
     { id: "teacher-notes", title: "Teacher Notes", body: "" },
     { id: "extra-vocabulary", title: "Extra Vocabulary", body: "" },
@@ -459,24 +459,13 @@ export default function InstructorWorkstationPage({
             <label className="mt-3 block text-xs text-stone-400">Subtitle<input value={newLesson.subtitle} onChange={(event) => setNewLesson((previous) => ({ ...previous, subtitle: event.target.value }))} placeholder="Lesson summary" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" />
 </label>
           </section>
-          {createdLessons.length > 0 && <details className="mb-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" open={createdLessonsOpen} onToggle={(event) => setCreatedLessonsOpen(event.currentTarget.open)} aria-label="Created lessons">
-            <summary className="cursor-pointer list-none">
-<p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Created Lessons</p>
-<h2 className="mt-1 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Continue editing</h2>
-<p className="mt-1 text-xs text-stone-500">{createdLessons.length} lessons in Supabase</p>
-</summary>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{createdLessons.map((lesson) => { const lessonSlug = typeof lesson.content?.slug === "string" ? lesson.content.slug : lesson.id; return <button key={lesson.id} type="button" onClick={() => activateLesson(lesson)} className={`rounded-lg border p-3 text-left transition ${databaseLessonId === lesson.id ? "border-amber-500 bg-amber-500/10" : "border-[#394252] bg-[#0c1017] hover:border-amber-500/60"}`}>
-<span className="block text-sm font-semibold text-stone-100">{lesson.title}</span>
-<span className="mt-1 block text-xs text-stone-500">{lessonSlug} · {lesson.status}</span>
-</button>; })}</div>
-          </details>}
           <main className="grid grid-cols-1 gap-6 lg:grid-cols-12">
             <div className="min-w-0 lg:col-span-8">
               <LessonTailorEditor content={workstationState.content} onChange={(content: StrictStepContent) => setWorkstationState((previous) => ({ ...previous, content }))} />
             </div>
             <aside className="space-y-6 lg:col-span-4">
-              <details className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
-                <summary className="cursor-pointer list-none text-sm font-semibold text-stone-200">Hero Banner</summary>
+              <details className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" open={heroBannerOpen} onToggle={(event) => setHeroBannerOpen(event.currentTarget.open)}>
+                <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-semibold text-stone-200"><span>Hero Banner</span><ChevronDown className={`h-4 w-4 text-amber-400 transition-transform ${heroBannerOpen ? "rotate-180" : ""}`} aria-hidden="true" /></summary>
                 <div className="mt-4"><InstructorBannerManager bannerUrl={workstationState.bannerUrl} customInput={workstationState.customBannerUrl} onUpdateBanner={(bannerUrl: string) => setWorkstationState((previous) => ({ ...previous, bannerUrl }))} onUpdateCustomInput={(customBannerUrl: string) => setWorkstationState((previous) => ({ ...previous, customBannerUrl }))} /></div>
               </details>
               <section className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
