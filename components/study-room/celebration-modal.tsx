@@ -63,13 +63,12 @@ export function CelebrationModal({
         </div>
 
         <div className="min-h-0 flex-1 px-8">
-          {stepResults.length > 0 && (
-            <div className="space-y-3 py-4 text-left">
+          <div className="space-y-3 py-4 text-left">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Six-Step Review</p>
               <p className="mt-1 text-xs text-stone-500">Review each submitted response before finalizing the lesson.</p>
             </div>
-            <div className="min-h-0 max-h-[26rem] space-y-2 overflow-y-auto pr-1">
+            <div className="min-h-0 max-h-[calc(90vh-23rem)] space-y-2 overflow-y-auto overscroll-contain pr-1 scroll-smooth">
               {stepResults.map((result) => (
                 <div key={result.id} className="rounded-lg border border-stone-800 bg-stone-950/50 p-3 text-xs">
                   <div className="flex items-start justify-between gap-3">
@@ -91,7 +90,6 @@ export function CelebrationModal({
               ))}
             </div>
           </div>
-          )}
         </div>
 
         {/* Action Buttons */}
