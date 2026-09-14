@@ -110,7 +110,7 @@ export function StudentContextPanel({
               className="mt-1 w-full bg-transparent text-xs text-amber-400 focus:outline-none"
               aria-label="Student level"
             >
-              {(["A1", "A2", "B1", "B2", "C1", "C2"] as const).map((level) => <option key={level} value={level}>{level}</option>)}
+              {(["A1", "A2", "B1", "B2", "C1", "C2"] as const).map((level) => <option key={level} value={level} className="text-slate-900 bg-white">{level}</option>)}
             </select>
           </div>
         </div>
