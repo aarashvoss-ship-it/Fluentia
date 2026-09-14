@@ -15,7 +15,6 @@ export interface CreateLessonInput {
   subject?: string;
   grade?: string;
   status?: "draft" | "published" | "evaluated";
-  student_token?: string;
   instructor_id?: string;
   content: Record<string, any>;
   changes_summary?: string;

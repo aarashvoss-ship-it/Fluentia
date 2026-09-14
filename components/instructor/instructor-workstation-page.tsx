@@ -184,7 +184,6 @@ export default function InstructorWorkstationPage({
       const created = await createLesson({
         title,
         status: newLesson.status,
-        student_token: draftStudentId || undefined,
         content,
         changes_summary: "Initial lesson created in Lesson Builder",
       });
@@ -314,7 +313,6 @@ export default function InstructorWorkstationPage({
         : await createLesson({
             title,
             status,
-            student_token: studentId || undefined,
             content,
             changes_summary: `Initial lesson created as ${status}`,
           });
