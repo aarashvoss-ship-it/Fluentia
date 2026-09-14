@@ -304,16 +304,31 @@ export default function InstructorWorkstationPage({
       sidebarBlocks,
     };
     try {
-      if (!databaseLessonId) {
-        throw new Error("Select or create a lesson before saving changes.");
-      }
-      const lesson = await updateLesson(databaseLessonId, {
-        title,
-        status,
-        content,
-        changes_summary: `Lesson updated as ${status}`,
-      });
+      const lesson = databaseLessonId
+        ? await updateLesson(databaseLessonId, {
+            title,
+            status,
+            content,
+            changes_summary: `Lesson updated as ${status}`,
+          })
+        : await createLesson({
+            title,
+            status,
+            student_id: /^[0-9a-f-]{36}$/i.test(studentId) ? studentId : undefined,
+            content,
+            changes_summary: `Initial lesson created as ${status}`,
+          });
       setDatabaseLessonId(lesson.id);
+      setNewLesson((previous) => ({
+        ...previous,
+        studentId,
+        title,
+        slug,
+        moduleNumber: String(moduleNumber),
+        status,
+      }));
+      setWorkstationState((previous) => ({ ...previous, content: lesson.content || content }));
+      hasLoadedLesson.current = true;
       await refreshCreatedLessons();
       setLessonStatus(status);
       setSaveIndicator("saved");
@@ -334,8 +349,7 @@ export default function InstructorWorkstationPage({
   };
 
   const handlePreviewPublish = () => {
-    void saveLessonChanges("draft");
-    setShowPreview(true);
+    void saveLessonChanges("draft").then(() => setShowPreview(true));
   };
 
   const handleConfirmPublish = () => {
