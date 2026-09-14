@@ -64,6 +64,7 @@ export default function LessonPage() {
   const [activeStudent, setActiveStudent] = useState<StudentUser | null>(null);
   const [studentReady, setStudentReady] = useState(false);
   const [currentStep, setCurrentStep] = useState<StudyStepId>("warm_up");
+  const [lessonStateHydrated, setLessonStateHydrated] = useState(false);
   const [completedSteps, setCompletedSteps] = useState<StudyStepId[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [publishedLesson, setPublishedLesson] = useState<PublishedLessonState | null>(null);
@@ -107,6 +108,7 @@ export default function LessonPage() {
     setLessonReady(false);
     setLessonNotFound(false);
     setLoading(true);
+    setLessonStateHydrated(false);
 
     const loadLesson = async () => {
       try {
@@ -141,6 +143,8 @@ export default function LessonPage() {
 
   useEffect(() => {
     if (!lessonReady || !studentReady || lessonNotFound || !lesson) return;
+    setLessonStateHydrated(false);
+    setCurrentStep("warm_up");
     const params = new URLSearchParams(window.location.search);
     const requestedStep = getRequestedStep(params.get("step"));
     const startStep = params.get("start");
@@ -148,10 +152,22 @@ export default function LessonPage() {
       fetchLessonState(lesson.id, activeStudent!.token),
       fetchStudentProgress(lesson.id, activeStudent!.token),
     ]).then(([state, progress]) => {
+      const hydratedSubmission = state?.submission;
+      const canShowResults = hydratedSubmission?.status === "submitted" || hydratedSubmission?.status === "reviewed";
+      const requestedNonResultsStep = requestedStep && requestedStep !== "results" ? requestedStep : null;
+      const persistedStep = progress.currentStep !== "results" || canShowResults ? progress.currentStep : "warm_up";
       setPublishedLesson(state?.status !== "draft" ? state : null);
-      if (state?.submission) setSubmission(state.submission);
-      setCurrentStep(requestedStep || (startStep === "warm_up" ? "warm_up" : progress.currentStep));
+      if (hydratedSubmission) setSubmission(hydratedSubmission);
+      setCurrentStep(canShowResults && requestedStep === "results"
+        ? "results"
+        : requestedNonResultsStep || (startStep === "warm_up" ? "warm_up" : persistedStep));
       setCompletedSteps(progress.completedSteps);
+      setLessonStateHydrated(true);
+    }).catch((error) => {
+      console.error("Failed to hydrate lesson state:", error);
+      setCurrentStep("warm_up");
+      setCompletedSteps([]);
+      setLessonStateHydrated(true);
     });
   }, [activeStudent?.token, lessonReady, lessonNotFound, lesson?.id, studentReady]);
 
@@ -192,6 +208,8 @@ export default function LessonPage() {
 
   const lessonContent = lesson?.content || {};
   const lessonMetadata = lessonContent as LessonContent;
+  const lessonSubtitle = typeof lessonContent.subtitle === "string" ? lessonContent.subtitle : "";
+  const lessonModuleNumber = typeof lessonContent.moduleNumber === "number" ? lessonContent.moduleNumber : null;
   const instructor = lessonMetadata.instructor;
   const heroBanner = typeof lessonContent.coverImage === "string" ? lessonContent.coverImage : undefined;
   const evaluation = publishedLesson?.evaluation;
@@ -277,7 +295,7 @@ export default function LessonPage() {
     return <AccessCard title="By Invitation Only" message="This lesson requires a valid student session token." />;
   }
 
-  if (loading || !lessonReady || !studentReady || !lesson) {
+  if (loading || !lessonReady || !studentReady || !lesson || !lessonStateHydrated) {
     return <div className="fluentia-study-room min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
   }
 
@@ -328,11 +346,11 @@ export default function LessonPage() {
           {heroBanner && <><img src={heroBanner} alt="" className="absolute inset-0 h-full w-full object-cover opacity-55" /><div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,11,17,.72),rgba(7,11,17,.08)_55%,rgba(7,11,17,.72)),linear-gradient(0deg,#0c1017_0%,transparent_58%)]" /></>}
           <div className="relative flex h-full flex-col justify-end pb-14">
             {(lesson.grade || lesson.subject) && <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#aeb3b9]">{lesson.grade || lesson.subject}</p>}
-            {typeof lessonContent.moduleNumber === "number" && <span className="mb-3 w-fit rounded-sm border border-[#a77b25] bg-[#332713]/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#dca42f]">Module {lessonContent.moduleNumber}</span>}
+            <span className="mb-3 w-fit rounded-sm border border-[#a77b25] bg-[#332713]/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#dca42f]">{lessonSubtitle || (lessonModuleNumber !== null ? `#${lessonModuleNumber}` : "#1")}</span>
             <h1 className="font-[var(--font-fraunces)] text-[38px] leading-[0.98] tracking-[-0.02em] text-[#f1eee8] sm:text-[42px]">
               {lesson.title}
             </h1>
-            {lessonContent.subtitle && <p className="mt-4 text-xs text-[#b5bac2]">{lessonContent.subtitle}</p>}
+            {lessonSubtitle && <p className="mt-4 text-xs text-[#b5bac2]">{lessonSubtitle}</p>}
             {instructor && <div className="mt-7 flex items-center gap-2 text-[11px] text-[#9ba1aa]">{instructor.avatarUrl ? <img src={instructor.avatarUrl} alt="" className="h-6 w-6 rounded-full object-cover" /> : <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#283344] text-[9px] font-semibold text-[#d9a63b]">{instructor.initials}</span>}Guided by {instructor.fullName}</div>}
           </div>
         </section>
