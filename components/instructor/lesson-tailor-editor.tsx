@@ -383,7 +383,10 @@ export function LessonTailorEditor({
             <label className="block text-xs text-stone-400">Audio URL<input value={content.listening?.audio_url || ""} onChange={(e) => updateStepValue("listening", "audio_url", e.target.value)} className="mt-1 w-full bg-[#171d28] border border-[#202631] rounded-md p-2.5 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500" /></label>
             {renderBlockEditor("listening", "transcript", "Transcript", "Edit the transcript...", true)}
             {(content.listening?.questions || []).map((item, index) => (
-              <label key={item.id} className="block text-xs text-stone-400">Question {index + 1}<input value={item.question} onChange={(e) => updateArrayValue("listening", "questions", index, "question", e.target.value)} className="mt-1 w-full bg-[#171d28] border border-[#202631] rounded-md p-2.5 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500" /></label>
+              <div key={item.id} className="space-y-2">
+                <label className="block text-xs text-stone-400">Question {index + 1}<input value={item.question} onChange={(e) => updateArrayValue("listening", "questions", index, "question", e.target.value)} className="mt-1 w-full bg-[#171d28] border border-[#202631] rounded-md p-2.5 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500" /></label>
+                <label className="block text-xs text-stone-400">Correct Answer / Key<input value={item.correct_answer || ""} onChange={(e) => updateArrayValue("listening", "questions", index, "correct_answer", e.target.value)} placeholder="Enter the expected answer" className="mt-1 w-full rounded-md border border-amber-500/30 bg-[#171d28] p-2.5 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500" /></label>
+              </div>
             ))}
           </div>
         )}
@@ -410,6 +413,14 @@ export function LessonTailorEditor({
                 <input value={item.definition} onChange={(e) => updateArrayValue("reading", "vocabulary_drawer", index, "definition", e.target.value)} className="bg-[#171d28] border border-[#202631] rounded-md p-2.5 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500" aria-label={`Vocabulary definition ${index + 1}`} />
               </div>
             ))}
+            </div>
+            <div className="space-y-3">
+              {(content.reading?.analytical_questions || []).map((item, index) => (
+                <div key={item.id} className="space-y-2">
+                  <label className="block text-xs text-stone-400">Reading Task {index + 1}<input value={item.question} onChange={(e) => updateArrayValue("reading", "analytical_questions", index, "question", e.target.value)} className="mt-1 w-full rounded-md border border-[#202631] bg-[#171d28] p-2.5 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500" /></label>
+                  <label className="block text-xs text-stone-400">Correct Answer / Key<input value={item.correct_answer || ""} onChange={(e) => updateArrayValue("reading", "analytical_questions", index, "correct_answer", e.target.value)} placeholder="Enter the expected answer" className="mt-1 w-full rounded-md border border-amber-500/30 bg-[#171d28] p-2.5 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500" /></label>
+                </div>
+              ))}
             </div>
           </div>
         )}

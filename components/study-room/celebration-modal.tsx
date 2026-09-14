@@ -4,6 +4,14 @@ import React from "react";
 import { CheckCircle2, ArrowRight, ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+export interface AnswerComparison {
+  id: string;
+  step: "Listening" | "Reading";
+  task: string;
+  answer: string;
+  correctAnswer: string;
+}
+
 interface CelebrationModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -11,6 +19,7 @@ interface CelebrationModalProps {
   onReview: () => void;
   studentName?: string;
   dashboardHref?: string;
+  answerComparisons?: AnswerComparison[];
 }
 
 export function CelebrationModal({
@@ -20,6 +29,7 @@ export function CelebrationModal({
   onReview,
   studentName = "Arash",
   dashboardHref = "/dashboard",
+  answerComparisons = [],
 }: CelebrationModalProps) {
   const router = useRouter();
 
@@ -50,6 +60,33 @@ export function CelebrationModal({
             You&apos;ve completed all interactive steps. Take a moment to review your answers, or submit to finalize.
           </p>
         </div>
+
+        {answerComparisons.length > 0 && (
+          <div className="space-y-3 border-y border-stone-800 py-4 text-left">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Answer Key Review</p>
+              <p className="mt-1 text-xs text-stone-500">Compare your Listening and Reading responses before submitting.</p>
+            </div>
+            <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+              {answerComparisons.map((comparison) => (
+                <div key={comparison.id} className="rounded-lg border border-stone-800 bg-stone-950/50 p-3 text-xs">
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">{comparison.step}</p>
+                  <p className="mb-3 text-stone-300">{comparison.task}</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">Your answer</p>
+                      <p className="mt-1 whitespace-pre-wrap text-stone-200">{comparison.answer || "No answer submitted"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.1em] text-amber-500/80">Correct Answer / Key</p>
+                      <p className="mt-1 whitespace-pre-wrap text-amber-200">{comparison.correctAnswer || "No key provided"}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Action Buttons */}
         <div className="space-y-3 pt-2">

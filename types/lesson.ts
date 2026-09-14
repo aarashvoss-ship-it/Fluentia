@@ -131,6 +131,7 @@ export interface StepReadingContent {
   analytical_questions?: Array<{
     id: string;
     question: string;
+    correct_answer?: string;
     enabled: boolean;
   }>;
 }

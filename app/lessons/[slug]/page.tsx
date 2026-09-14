@@ -9,7 +9,7 @@ import { persistResolvedStudent, PublishedLessonState, resolveStudentAccess, wri
 import { fetchChatMessages, fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, saveChatMessage, saveStudentNote, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
 import { type StudentUser } from "@/lib/users";
 import { Stepper } from "@/components/study-room/stepper";
-import { CelebrationModal } from "@/components/study-room/celebration-modal";
+import { AnswerComparison, CelebrationModal } from "@/components/study-room/celebration-modal";
 import { DictionaryModal } from "@/components/study-room/dictionary-modal";
 import { LearningSidebar } from "@/components/study-room/learning-sidebar";
 import { ChatWidget } from "@/components/study-room/chat-widget";
@@ -235,6 +235,22 @@ export default function LessonPage() {
       response: submission.speakingAudioUrl,
     },
   ].filter((row) => row.task && row.response);
+  const answerComparisons: AnswerComparison[] = [
+    ...(lessonContent.listening?.questions || []).map((question: { id: string; question: string; correct_answer?: string }) => ({
+      id: `listening-${question.id}`,
+      step: "Listening" as const,
+      task: question.question,
+      answer: submission.listeningAnswers[question.id] || "",
+      correctAnswer: question.correct_answer || lessonContent.results?.answer_keys?.listening?.[question.id] || "",
+    })),
+    ...(lessonContent.reading?.analytical_questions || []).map((question: { id: string; question: string; correct_answer?: string }) => ({
+      id: `reading-${question.id}`,
+      step: "Reading" as const,
+      task: question.question,
+      answer: submission.readingAnswers[question.id] || "",
+      correctAnswer: question.correct_answer || lessonContent.results?.answer_keys?.reading?.[question.id] || "",
+    })),
+  ];
 
   const currentIndex = STUDY_STEPS.findIndex((s) => s.id === currentStep);
   const lockedSteps = getLockedSteps(completedSteps);
@@ -682,6 +698,7 @@ export default function LessonPage() {
         onReview={handleReviewAnswers}
         studentName={activeStudent!.name}
         dashboardHref={`/dashboard?student=${encodeURIComponent(activeStudent!.token)}`}
+        answerComparisons={answerComparisons}
       />
       <LearningSidebar
         open={sidebarOpen}

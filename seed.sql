@@ -58,8 +58,8 @@ VALUES (
         { "id": "reading-image", "type": "image", "title": "Map the environment", "enabled": true, "imageUrl": "https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=1200&q=80", "caption": "Notice which parts of a space invite or interrupt focus." }
       ],
       "analytical_questions": [
-        { "id": "reading-q1", "question": "How does the environment reduce the need for willpower?", "enabled": true },
-        { "id": "reading-q2", "question": "Which change would make the routine more obvious?", "enabled": true }
+        { "id": "reading-q1", "question": "How does the environment reduce the need for willpower?", "correct_answer": "It reduces friction and makes the desired behavior easier to start.", "enabled": true },
+        { "id": "reading-q2", "question": "Which change would make the routine more obvious?", "correct_answer": "Place the cue where it is visible at the moment the routine should begin.", "enabled": true }
       ]
     },
     "writing": {
