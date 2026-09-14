@@ -206,7 +206,7 @@ export function LessonTailorEditor({
           </select>
         </div>
 
-        {blocks.length === 0 && <p className="py-3 text-xs text-stone-500">No dynamic blocks yet. Static lesson fields below remain available for older lessons.</p>}
+        {blocks.length === 0 && <p className="py-3 text-xs text-stone-500">No content blocks yet. Add a block to begin building this step.</p>}
         {blocks.map((block, index) => (
           <div key={block.id} className="rounded-md border border-[#202631] bg-[#171d28] p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
@@ -311,7 +311,7 @@ export function LessonTailorEditor({
       {/* Stepper Tabs */}
       <nav aria-label="Lesson content steps" className="w-full mb-6">
       <div className="flex w-full items-center justify-between gap-2 overflow-x-auto scrollbar-none sm:gap-3">
-        {STUDY_STEPS.map((step) => {
+        {STUDY_STEPS.filter((step) => step.id !== "results").map((step) => {
           const isActive = activeStep === step.id;
           return (
             <button

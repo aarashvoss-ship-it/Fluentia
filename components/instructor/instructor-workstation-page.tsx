@@ -38,9 +38,11 @@ export default function InstructorWorkstationPage({
   const [databaseLessonId, setDatabaseLessonId] = useState<string | null>(null);
   const [pendingSubmissionCount, setPendingSubmissionCount] = useState(0);
   const [publishedLessonCount, setPublishedLessonCount] = useState(0);
+  const [draftLessonCount, setDraftLessonCount] = useState(0);
   const [studentCount, setStudentCount] = useState(0);
   const [lessonStatus, setLessonStatus] = useState<"draft" | "published">("published");
   const [activeTab, setActiveTab] = useState<"dashboard" | "builder" | "evaluation">("dashboard");
+  const [createdLessonsOpen, setCreatedLessonsOpen] = useState(false);
   const [sidebarBlocks, setSidebarBlocks] = useState([
     { id: "teacher-notes", title: "Teacher Notes", body: "" },
     { id: "extra-vocabulary", title: "Extra Vocabulary", body: "" },
@@ -77,10 +79,6 @@ export default function InstructorWorkstationPage({
     slug: "",
     subtitle: "",
     moduleNumber: "",
-    warmUp: "",
-    lessonText: "",
-    lexiconNotes: "",
-    prompts: "",
     status: "draft" as "draft" | "published",
   });
 
@@ -91,10 +89,6 @@ export default function InstructorWorkstationPage({
       slug: "",
       subtitle: "",
       moduleNumber: "",
-      warmUp: "",
-      lessonText: "",
-      lexiconNotes: "",
-      prompts: "",
       status: "draft",
     });
 
@@ -178,10 +172,6 @@ export default function InstructorWorkstationPage({
         title,
         subtitle: newLesson.subtitle.trim() || "A new Fluentia learning journey.",
         moduleNumber,
-        warm_up: { ...(workstationState.content.warm_up || {}), blocks: [{ id: "warm-up-prompt", type: "text", title: "Warm-up", enabled: true, body: newLesson.warmUp }] },
-        lesson: { ...(workstationState.content.lesson || {}), blocks: [{ id: "lesson-text", type: "text", title: "Lesson Text", enabled: true, body: newLesson.lessonText }] },
-        reading: { ...(workstationState.content.reading || {}), lexicon_notes: { text: newLesson.lexiconNotes, enabled: true } },
-        speaking: { ...(workstationState.content.speaking || {}), discussion_points: newLesson.prompts.split("\n").filter(Boolean).map((text) => ({ text, enabled: true })) },
       };
       const created = await createLesson({
         title,
@@ -223,14 +213,16 @@ export default function InstructorWorkstationPage({
 
   useEffect(() => {
     const loadCounts = async () => {
-      const [{ count: pendingCount }, { count: publishedCount }, { count: studentsCount }] = await Promise.all([
-        supabase.from("submissions").select("id", { count: "exact", head: true }).eq("status", "pending"),
+      const [{ count: pendingCount }, { count: publishedCount }, { count: draftsCount }, { count: studentsCount }] = await Promise.all([
+        supabase.from("submissions").select("id", { count: "exact", head: true }).eq("status", "submitted"),
         supabase.from("lessons").select("id", { count: "exact", head: true }).eq("status", "published"),
+        supabase.from("lessons").select("id", { count: "exact", head: true }).eq("status", "draft"),
         supabase.from("students").select("id", { count: "exact", head: true }).eq("is_active", true),
       ]);
-      setPendingSubmissionCount(pendingCount || 0);
-      setPublishedLessonCount(publishedCount || createdLessons.filter((lesson) => lesson.status === "published").length);
-      setStudentCount(studentsCount || students.length);
+      setPendingSubmissionCount(pendingCount ?? 0);
+      setPublishedLessonCount(publishedCount ?? 0);
+      setDraftLessonCount(draftsCount ?? 0);
+      setStudentCount(studentsCount ?? 0);
     };
     const refreshCounts = () => void loadCounts();
     void loadCounts();
@@ -289,10 +281,6 @@ export default function InstructorWorkstationPage({
       title,
       subtitle: newLesson.subtitle.trim() || "A new Fluentia learning journey.",
       moduleNumber,
-      warm_up: { ...(workstationState.content.warm_up || {}), blocks: [{ id: "warm-up-prompt", type: "text", title: "Warm-up", enabled: true, body: newLesson.warmUp }] },
-      lesson: { ...(workstationState.content.lesson || {}), blocks: [{ id: "lesson-text", type: "text", title: "Lesson Text", enabled: true, body: newLesson.lessonText }] },
-      reading: { ...(workstationState.content.reading || {}), lexicon_notes: { text: newLesson.lexiconNotes, enabled: true } },
-      speaking: { ...(workstationState.content.speaking || {}), discussion_points: newLesson.prompts.split("\n").filter(Boolean).map((text) => ({ text, enabled: true })) },
     };
     try {
       if (!databaseLessonId) {
@@ -348,8 +336,7 @@ export default function InstructorWorkstationPage({
           <div><span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-400">Fluentia Instructor Studio</span><h1 className="mt-2 font-[var(--font-fraunces)] text-2xl font-semibold text-[#f1eee8]">Instructor Workstation</h1></div>
           <div className="flex items-center gap-3">
             {publishStatus !== null && publishStatus.trim().length > 0 && <span className="rounded-lg border border-[#202631] bg-[#171d28] px-3 py-1.5 text-xs font-medium text-amber-400">{publishStatus}</span>}
-            <button type="button" onClick={handleSaveDraft} disabled={isPublishing} className="w-32 rounded-lg border border-[#394252] px-5 py-2.5 text-xs font-semibold text-stone-200 transition hover:border-amber-500 hover:text-amber-300 disabled:opacity-50">Save</button>
-            <button type="button" onClick={() => setShowPublishConfirmation(true)} disabled={isPublishing} className="w-32 rounded-lg bg-amber-500 px-5 py-2.5 text-xs font-semibold text-[#0c1017] shadow transition hover:bg-amber-400 disabled:opacity-50">Publish Lesson</button>
+            <button type="button" onClick={() => setActiveTab("builder")} className="rounded-lg bg-amber-500 px-5 py-2.5 text-xs font-semibold text-[#0c1017] shadow transition hover:bg-amber-400">+ Create New Lesson</button>
           </div>
         </header>
 
@@ -360,8 +347,9 @@ export default function InstructorWorkstationPage({
         </nav>
 
         {activeTab === "dashboard" && <section className="space-y-6" aria-label="Instructor dashboard overview">
-          <div className="grid gap-4 md:grid-cols-3">
-            <button type="button" onClick={() => setActiveTab("evaluation")} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-left transition hover:border-amber-500/60"><p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Submission Status</p><p className="mt-2 text-2xl font-semibold text-stone-100">{submissionState}</p><p className="mt-1 text-xs text-stone-500">{pendingSubmissionCount} pending submissions</p></button>
+          <div className="grid gap-4 md:grid-cols-4">
+            <button type="button" onClick={() => setActiveTab("evaluation")} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-left transition hover:border-amber-500/60"><p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Pending Evaluations</p><p className="mt-2 text-2xl font-semibold text-stone-100">{pendingSubmissionCount}</p><p className="mt-1 text-xs text-stone-500">Student submissions awaiting review</p></button>
+            <button type="button" onClick={() => setActiveTab("builder")} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-left transition hover:border-amber-500/60"><p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Drafts</p><p className="mt-2 text-2xl font-semibold text-stone-100">{draftLessonCount}</p><p className="mt-1 text-xs text-stone-500">Open the lesson builder</p></button>
             <button type="button" onClick={() => setActiveTab("builder")} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-left transition hover:border-amber-500/60"><p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Published Lessons</p><p className="mt-2 text-2xl font-semibold text-stone-100">{publishedLessonCount}</p><p className="mt-1 text-xs text-stone-500">Open the lesson builder</p></button>
             <button type="button" onClick={() => setActiveTab("evaluation")} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-left transition hover:border-amber-500/60"><p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Active Students</p><p className="mt-2 text-2xl font-semibold text-stone-100">{studentCount}</p><p className="mt-1 text-xs text-stone-500">Review {selectedStudent?.name || "Selected Student"}</p></button>
           </div>
@@ -369,18 +357,17 @@ export default function InstructorWorkstationPage({
         </section>}
 
         {activeTab === "builder" && <>
-          <section className="mb-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
+          <section className="mb-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" aria-labelledby="lesson-details-title">
                 {Object.keys(validationErrors).length > 0 && <div className="mb-4 space-y-1 rounded-md border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300" role="alert">{Object.entries(validationErrors).map(([field, message]) => <p key={field}>{message}</p>)}</div>}
-            <div className="mb-4"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Lesson Library</p><h2 className="mt-1 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Create / Add New Lesson</h2></div>
-            <div className="grid gap-3 md:grid-cols-4"><label className="text-xs text-stone-400">Select Student<select value={selectedStudentId || ""} onChange={(event) => { const nextStudent = students.find((student) => student.id === event.target.value); if (nextStudent) void handleStudentChange(nextStudent); }} className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark]" aria-label="Select student for lesson">{students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}</select></label>{[["title", "Lesson Title", "A new lesson"], ["slug", "Slug", "Optional: generated from title"], ["subtitle", "Subtitle", "Lesson summary"]].map(([field, label, placeholder]) => <label key={field} className="text-xs text-stone-400">{label}<input value={newLesson[field as keyof typeof newLesson]} onChange={(event) => field === "title" ? setLessonTitle(event.target.value) : field === "slug" ? setSlug(event.target.value) : setNewLesson((previous) => ({ ...previous, [field]: event.target.value }))} placeholder={placeholder} className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label>)}</div>
-            <div className="mt-3 grid gap-3 md:grid-cols-4"><label className="text-xs text-stone-400">Module Number<input value={newLesson.moduleNumber} onChange={(event) => setNewLesson((previous) => ({ ...previous, moduleNumber: event.target.value }))} placeholder="3" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Visibility<select value={newLesson.status} onChange={(event) => setNewLesson((previous) => ({ ...previous, status: event.target.value as "draft" | "published" }))} className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200"><option value="draft">Draft</option><option value="published">Published</option></select></label></div>
-            <div className="mt-3 grid gap-3 md:grid-cols-2">{[["warmUp", "Warm-up"], ["lessonText", "Lesson Text"], ["lexiconNotes", "Lexicon Notes"], ["prompts", "Prompts"]].map(([field, label]) => <label key={field} className="text-xs text-stone-400">{label}<textarea value={newLesson[field as keyof typeof newLesson]} onChange={(event) => setNewLesson((previous) => ({ ...previous, [field]: event.target.value }))} rows={2} className="mt-1 w-full resize-none rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label>)}</div>
-            <button type="button" onClick={handleCreateLesson} className="mt-4 rounded-md bg-amber-500 px-4 py-2.5 text-xs font-semibold text-[#0c1017] transition hover:bg-amber-400">Create Lesson</button>
+            <div className="mb-4"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Lesson Builder</p><h2 id="lesson-details-title" className="mt-1 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Lesson Details</h2></div>
+            <div className="grid gap-3 md:grid-cols-4"><label className="text-xs text-stone-400">Lesson Title<input value={newLesson.title} onChange={(event) => setLessonTitle(event.target.value)} placeholder="A new lesson" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Select Student<select value={selectedStudentId || ""} onChange={(event) => { const nextStudent = students.find((student) => student.id === event.target.value); if (nextStudent) void handleStudentChange(nextStudent); }} className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark]" aria-label="Select student for lesson">{students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}</select></label><label className="text-xs text-stone-400">Module Number<input value={newLesson.moduleNumber} onChange={(event) => setNewLesson((previous) => ({ ...previous, moduleNumber: event.target.value }))} placeholder="1" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Visibility<select value={newLesson.status} onChange={(event) => setNewLesson((previous) => ({ ...previous, status: event.target.value as "draft" | "published" }))} className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200"><option value="draft">Draft</option><option value="published">Published</option></select></label></div>
+            <label className="mt-3 block text-xs text-stone-400">Subtitle<input value={newLesson.subtitle} onChange={(event) => setNewLesson((previous) => ({ ...previous, subtitle: event.target.value }))} placeholder="Lesson summary" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label>
           </section>
-          {createdLessons.length > 0 && <section className="mb-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" aria-label="Created lessons">
-            <div className="mb-3"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Created Lessons</p><h2 className="mt-1 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Continue editing</h2></div>
+          {createdLessons.length > 0 && <details className="mb-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" open={createdLessonsOpen} onToggle={(event) => setCreatedLessonsOpen(event.currentTarget.open)} aria-label="Created lessons">
+            <summary className="cursor-pointer list-none"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Created Lessons</p><h2 className="mt-1 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Continue editing</h2><p className="mt-1 text-xs text-stone-500">{createdLessons.length} lessons in Supabase</p></summary>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{createdLessons.map((lesson) => { const lessonSlug = typeof lesson.content?.slug === "string" ? lesson.content.slug : lesson.id; return <button key={lesson.id} type="button" onClick={() => activateLesson(lesson)} className={`rounded-lg border p-3 text-left transition ${databaseLessonId === lesson.id ? "border-amber-500 bg-amber-500/10" : "border-[#394252] bg-[#0c1017] hover:border-amber-500/60"}`}><span className="block text-sm font-semibold text-stone-100">{lesson.title}</span><span className="mt-1 block text-xs text-stone-500">{lessonSlug} · {lesson.status}</span></button>; })}</div>
-          </section>}
+          </details>}
+          <main className="space-y-6"><LessonTailorEditor content={workstationState.content} onChange={(content: StrictStepContent) => setWorkstationState((previous) => ({ ...previous, content }))} /><details className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5"><summary className="cursor-pointer list-none text-sm font-semibold text-stone-200">Hero Banner</summary><div className="mt-4"><InstructorBannerManager bannerUrl={workstationState.bannerUrl} customInput={workstationState.customBannerUrl} onUpdateBanner={(bannerUrl: string) => setWorkstationState((previous) => ({ ...previous, bannerUrl }))} onUpdateCustomInput={(customBannerUrl: string) => setWorkstationState((previous) => ({ ...previous, customBannerUrl }))} /></div></details><div className="flex items-center justify-end gap-3 rounded-xl border border-[#202631] bg-[#171d28] p-4"><button type="button" onClick={handleCreateLesson} className="rounded-md border border-[#394252] px-4 py-2.5 text-xs font-semibold text-stone-200 transition hover:border-amber-500 hover:text-amber-300">Create New Lesson</button><button type="button" onClick={handleSaveDraft} disabled={isPublishing} className="rounded-md bg-amber-500 px-4 py-2.5 text-xs font-semibold text-[#0c1017] transition hover:bg-amber-400 disabled:opacity-50">Save Draft</button><button type="button" onClick={() => setShowPublishConfirmation(true)} disabled={isPublishing} className="rounded-md bg-emerald-500 px-4 py-2.5 text-xs font-semibold text-[#07110b] transition hover:bg-emerald-400 disabled:opacity-50">Publish Lesson</button></div></main>
           <main className="grid grid-cols-1 gap-6 lg:grid-cols-12"><div className="space-y-6 lg:col-span-8"><LessonTailorEditor content={workstationState.content} onChange={(content: StrictStepContent) => setWorkstationState((previous) => ({ ...previous, content }))} /></div><div className="space-y-6 lg:col-span-4"><InstructorBannerManager bannerUrl={workstationState.bannerUrl} customInput={workstationState.customBannerUrl} onUpdateBanner={(bannerUrl: string) => setWorkstationState((previous) => ({ ...previous, bannerUrl }))} onUpdateCustomInput={(customBannerUrl: string) => setWorkstationState((previous) => ({ ...previous, customBannerUrl }))} /><div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5"><div className="flex items-center justify-between"><h3 className="font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Sidebar Blocks</h3><button type="button" onClick={() => setSidebarBlocks((blocks) => [...blocks, { id: `block-${Date.now()}`, title: "References", body: "" }])} className="flex items-center gap-1.5 rounded-md border border-amber-500 px-3 py-2 text-sm text-amber-500"><Plus className="h-3.5 w-3.5" />Add Block</button></div><div className="mt-4 space-y-3">{sidebarBlocks.map((block) => <div key={block.id} className="rounded-lg border border-[#202631] bg-[#0c1017] p-3"><div className="flex gap-2"><input value={block.title} onChange={(event) => setSidebarBlocks((blocks) => blocks.map((item) => item.id === block.id ? { ...item, title: event.target.value } : item))} className="min-w-0 flex-1 border-b border-[#394252] bg-transparent pb-1 text-xs font-semibold text-stone-200" aria-label="Sidebar block title" /><button type="button" onClick={() => setSidebarBlocks((blocks) => blocks.filter((item) => item.id !== block.id))} aria-label={`Delete ${block.title}`}><Trash2 className="h-3.5 w-3.5" /></button></div><textarea value={block.body} onChange={(event) => setSidebarBlocks((blocks) => blocks.map((item) => item.id === block.id ? { ...item, body: event.target.value } : item))} rows={3} className="mt-3 w-full resize-none rounded-md border border-[#202631] bg-[#171d28] p-2.5 text-xs text-stone-300" /></div>)}</div></div></div></main>
         </>}
 
