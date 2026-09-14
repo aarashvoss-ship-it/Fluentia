@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ChatMessage, ContentBlock, SavedVocabularyWord, StudentNote, StudyStepId, STUDY_STEPS, LessonContent, StudentSubmission } from "@/types/lesson";
-import { MOCK_INSTRUCTOR_LESSONS } from "@/lib/mock-instructor-data";
+import { MOCK_INSTRUCTOR_LESSONS, type InstructorLessonMock } from "@/lib/mock-instructor-data";
 import { getLessonById } from "@/lib/lessons";
 import { persistResolvedStudent, PublishedLessonState, resolveStudentAccess, writeLastAccessedLesson } from "@/lib/lesson-store";
 import { fetchChatMessages, fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, saveChatMessage, saveStudentNote, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
@@ -114,13 +114,37 @@ export default function LessonPage() {
       try {
         const lesson = await getLessonById(requestedSlug);
         if (!mounted) return;
+        
         if (lesson) {
           // Convert LessonWithVersion to LessonContent if needed
           const lessonContent = lesson as unknown as LessonContent;
           setMockLesson(lessonContent);
-          writeLastAccessedLesson(lessonContent.slug, activeStudent!.token);
+          if (activeStudent?.token) {
+            writeLastAccessedLesson(lessonContent.slug, activeStudent.token);
+          }
         } else {
-          setLessonNotFound(true);
+          // Lesson not found in database, try to use mock data as fallback
+          const mockLesson = MOCK_INSTRUCTOR_LESSONS[requestedSlug];
+          if (mockLesson) {
+            // Fall back to mock data if available
+            const mockContent: LessonContent = {
+              id: mockLesson.id || requestedSlug,
+              slug: requestedSlug,
+              title: mockLesson.title,
+              subtitle: mockLesson.subtitle,
+              moduleNumber: mockLesson.moduleNumber,
+              studentId: activeStudent?.id,
+              status: "published",
+              content: mockLesson.content,
+              coverImage: mockLesson.cover_image_url,
+              ambientMusicUrl: mockLesson.ambient_music_url,
+              instructor: mockLesson.instructor,
+            };
+            setMockLesson(mockContent);
+          } else {
+            // No mock data available either, mark as not found
+            setLessonNotFound(true);
+          }
         }
       } catch (error) {
         if (!mounted) return;
@@ -141,7 +165,7 @@ export default function LessonPage() {
   }, [accessDenied, isMounted, requestedSlug, activeStudent?.token]);
 
   useEffect(() => {
-    if (!lessonReady || !studentReady || lessonNotFound) return;
+    if (!lessonReady || !studentReady || lessonNotFound || !mockLesson) return;
     const params = new URLSearchParams(window.location.search);
     const requestedStep = getRequestedStep(params.get("step"));
     const startStep = params.get("start");
@@ -154,7 +178,7 @@ export default function LessonPage() {
       setCurrentStep(requestedStep || (startStep === "warm_up" ? "warm_up" : progress.currentStep));
       setCompletedSteps(progress.completedSteps);
     });
-  }, [activeStudent?.token, lessonReady, lessonNotFound, mockLesson.slug, studentReady]);
+  }, [activeStudent?.token, lessonReady, lessonNotFound, mockLesson?.slug, studentReady]);
 
   useEffect(() => {
     if (!studentReady || accessDenied) return;
@@ -175,6 +199,7 @@ export default function LessonPage() {
   }
 
   async function persistSubmission(nextSubmission: StudentSubmission, nextProgress?: { currentStep?: StudyStepId; completedSteps?: StudyStepId[]; status?: "not_started" | "in_progress" | "submitted" | "reviewed" }) {
+    if (!mockLesson) return;
     setSubmission(nextSubmission);
     await submitStudentLesson(mockLesson.slug, activeStudent!.token, nextSubmission, {
       currentStep: nextProgress?.currentStep || currentStep,
@@ -184,7 +209,7 @@ export default function LessonPage() {
     });
   }
 
-  const lessonContent = publishedLesson?.content || mockLesson.content || instructorLesson.content;
+  const lessonContent = publishedLesson?.content || mockLesson?.content || instructorLesson.content;
   const heroBanner = publishedLesson?.bannerUrl || instructorLesson.banner_image_url;
   const evaluation = publishedLesson?.evaluation;
   const isEvaluationPublished = evaluation?.published === true;

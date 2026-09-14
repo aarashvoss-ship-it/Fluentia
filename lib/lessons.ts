@@ -130,37 +130,71 @@ export async function getLessons(): Promise<LessonWithVersion[]> {
 }
 
 /**
- * Fetches a single lesson by ID with its latest version content
+ * Fetches a single lesson by ID or slug/title with its latest version content
+ * Tries to find by ID first (UUID format), then by title as a slug-like match
+ * Returns null gracefully if lesson not found or error occurs (instead of throwing)
  */
-export async function getLessonById(id: string): Promise<LessonWithVersion | null> {
+export async function getLessonById(idOrSlug: string): Promise<LessonWithVersion | null> {
   if (!isSupabaseConfigured()) {
     console.warn("Supabase not configured");
     return null;
   }
 
   try {
+    // First try: search by ID (assuming UUID format)
     const { data: lesson, error } = await supabase
       .from("lessons")
       .select("*")
-      .eq("id", id)
+      .eq("id", idOrSlug)
       .single();
 
-    if (error && error.code !== "PGRST116") {
-      throw error;
+    // If found by ID, return it
+    if (lesson) {
+      const version = await getLatestVersion(lesson.id);
+      return {
+        ...lesson,
+        current_version: version || undefined,
+        content: version?.content,
+      };
     }
 
-    if (!lesson) return null;
+    // If not found by ID (PGRST116 = no rows found), try searching by title
+    // This handles slug-like patterns such as "habits-01"
+    if (error?.code === "PGRST116" || !lesson) {
+      const { data: lessonByTitle, error: titleError } = await supabase
+        .from("lessons")
+        .select("*")
+        .ilike("title", `%${idOrSlug}%`)
+        .limit(1)
+        .single();
 
-    const version = await getLatestVersion(lesson.id);
+      if (lessonByTitle) {
+        const version = await getLatestVersion(lessonByTitle.id);
+        return {
+          ...lessonByTitle,
+          current_version: version || undefined,
+          content: version?.content,
+        };
+      }
 
-    return {
-      ...lesson,
-      current_version: version || undefined,
-      content: version?.content,
-    };
+      // If still not found or error, return null gracefully
+      if (titleError?.code === "PGRST116") {
+        console.warn(`Lesson not found: ${idOrSlug}`);
+        return null;
+      }
+
+      if (titleError) {
+        console.warn(`Error searching for lesson ${idOrSlug}:`, titleError);
+        return null;
+      }
+    }
+
+    // If we get here, lesson was not found
+    return null;
   } catch (error) {
-    console.error(`Error fetching lesson ${id}:`, error);
-    throw error;
+    // Catch all unexpected errors and return null gracefully
+    console.error(`Error fetching lesson ${idOrSlug}:`, error);
+    return null;
   }
 }
 
