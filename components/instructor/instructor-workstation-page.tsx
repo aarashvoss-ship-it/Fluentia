@@ -325,6 +325,7 @@ export default function InstructorWorkstationPage({
   };
 
   const handleSaveDraft = () => {
+    console.log("Saving lesson...", { ...newLesson, content: workstationState.content });
     void saveLessonChanges("draft");
   };
 
