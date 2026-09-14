@@ -42,32 +42,34 @@ export function CelebrationModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg rounded-2xl bg-[#141413] border border-stone-800 p-8 shadow-2xl space-y-6">
-        
-        {/* Checkmark Icon centered at top */}
-        <div className="flex justify-center">
-          <div className="w-14 h-14 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 shadow-inner">
-            <CheckCircle2 className="w-8 h-8" />
+      <div className="relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-stone-800 bg-[#141413] shadow-2xl">
+        <div className="sticky top-0 z-10 shrink-0 space-y-6 border-b border-stone-800 bg-[#141413] p-8">
+          {/* Checkmark Icon centered at top */}
+          <div className="flex justify-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-500 shadow-inner">
+              <CheckCircle2 className="h-8 w-8" />
+            </div>
+          </div>
+
+          {/* Left-aligned Content */}
+          <div className="space-y-2 text-left">
+            <h2 className="font-sans text-2xl tracking-tight text-stone-100">
+              Outstanding work, {studentName}.
+            </h2>
+            <p className="text-sm leading-relaxed text-stone-400">
+              You&apos;ve completed all interactive steps. Take a moment to review your answers, or submit to finalize.
+            </p>
           </div>
         </div>
 
-        {/* Left-aligned Content */}
-        <div className="space-y-2 text-left">
-          <h2 className="text-2xl font-sans text-stone-100 tracking-tight">
-            Outstanding work, {studentName}.
-          </h2>
-          <p className="text-sm leading-relaxed text-stone-400">
-            You&apos;ve completed all interactive steps. Take a moment to review your answers, or submit to finalize.
-          </p>
-        </div>
-
-        {stepResults.length > 0 && (
-          <div className="space-y-3 border-y border-stone-800 py-4 text-left">
+        <div className="min-h-0 flex-1 px-8">
+          {stepResults.length > 0 && (
+            <div className="space-y-3 py-4 text-left">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Six-Step Review</p>
               <p className="mt-1 text-xs text-stone-500">Review each submitted response before finalizing the lesson.</p>
             </div>
-            <div className="max-h-[26rem] space-y-2 overflow-y-auto pr-1">
+            <div className="min-h-0 max-h-[26rem] space-y-2 overflow-y-auto pr-1">
               {stepResults.map((result) => (
                 <div key={result.id} className="rounded-lg border border-stone-800 bg-stone-950/50 p-3 text-xs">
                   <div className="flex items-start justify-between gap-3">
@@ -89,10 +91,11 @@ export function CelebrationModal({
               ))}
             </div>
           </div>
-        )}
+          )}
+        </div>
 
         {/* Action Buttons */}
-        <div className="space-y-3 pt-2">
+        <div className="sticky bottom-0 z-10 shrink-0 space-y-3 border-t border-stone-800 bg-[#141413] p-8 pt-4">
           {/* Primary CTA */}
           <button
             onClick={onSubmit}
@@ -117,7 +120,7 @@ export function CelebrationModal({
               className="w-full flex items-center gap-2 py-2.5 px-2 text-stone-400 hover:text-stone-200 hover:bg-stone-800/40 rounded-lg text-sm transition-colors text-left font-normal"
             >
               <ArrowLeft className="w-4 h-4 text-stone-500 shrink-0" />
-              <span>Save Draft &amp; Exit to Dashboard</span>
+              <span>Exit to Dashboard</span>
             </button>
           </div>
         </div>
