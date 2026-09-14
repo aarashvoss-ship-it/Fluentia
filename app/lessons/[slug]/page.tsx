@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ChatMessage, ContentBlock, SavedVocabularyWord, StudentNote, StudyStepId, STUDY_STEPS, LessonContent, StudentSubmission } from "@/types/lesson";
-import { getLessonById } from "@/lib/lessons";
+import { getLessonById, type LessonWithVersion } from "@/lib/lessons";
 import { persistResolvedStudent, PublishedLessonState, resolveStudentAccess, writeLastAccessedLesson } from "@/lib/lesson-store";
 import { fetchChatMessages, fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, saveChatMessage, saveStudentNote, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
 import { type StudentUser } from "@/lib/users";
@@ -55,13 +55,12 @@ function getRequestedStep(value: string | null): StudyStepId | null {
 export default function LessonPage() {
   const rawSlug = useParams()?.slug;
   const requestedSlug = typeof rawSlug === "string" ? rawSlug : "";
-  const [mockLesson, setMockLesson] = useState<LessonContent | null>(null);
+  const [lesson, setLesson] = useState<LessonWithVersion | null>(null);
   const [loading, setLoading] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
   const [lessonReady, setLessonReady] = useState(false);
   const [lessonNotFound, setLessonNotFound] = useState(false);
-  const instructor = mockLesson?.instructor || { fullName: "Your instructor", initials: "IN" };
   const [activeStudent, setActiveStudent] = useState<StudentUser | null>(null);
   const [studentReady, setStudentReady] = useState(false);
   const [currentStep, setCurrentStep] = useState<StudyStepId>("warm_up");
@@ -115,17 +114,9 @@ export default function LessonPage() {
         if (!mounted) return;
         
         if (lesson) {
-          const lessonContent = {
-            ...lesson,
-            slug: typeof lesson.content?.slug === "string" ? lesson.content.slug : lesson.id,
-            subtitle: typeof lesson.content?.subtitle === "string" ? lesson.content.subtitle : undefined,
-            moduleNumber: typeof lesson.content?.moduleNumber === "number" ? lesson.content.moduleNumber : 1,
-            coverImage: typeof lesson.content?.coverImage === "string" ? lesson.content.coverImage : undefined,
-            instructor: lesson.content?.instructor,
-          } as unknown as LessonContent;
-          setMockLesson(lessonContent);
+          setLesson(lesson);
           if (activeStudent?.token) {
-            writeLastAccessedLesson(lessonContent.slug, activeStudent.token);
+            writeLastAccessedLesson(lesson.id, activeStudent.token);
           }
         } else {
           setLessonNotFound(true);
@@ -149,20 +140,20 @@ export default function LessonPage() {
   }, [accessDenied, isMounted, requestedSlug, activeStudent?.token]);
 
   useEffect(() => {
-    if (!lessonReady || !studentReady || lessonNotFound || !mockLesson) return;
+    if (!lessonReady || !studentReady || lessonNotFound || !lesson) return;
     const params = new URLSearchParams(window.location.search);
     const requestedStep = getRequestedStep(params.get("step"));
     const startStep = params.get("start");
     void Promise.all([
-      fetchLessonState(mockLesson.slug, activeStudent!.token),
-      fetchStudentProgress(mockLesson.slug, activeStudent!.token),
+      fetchLessonState(lesson.id, activeStudent!.token),
+      fetchStudentProgress(lesson.id, activeStudent!.token),
     ]).then(([state, progress]) => {
       setPublishedLesson(state?.status !== "draft" ? state : null);
       if (state?.submission) setSubmission(state.submission);
       setCurrentStep(requestedStep || (startStep === "warm_up" ? "warm_up" : progress.currentStep));
       setCompletedSteps(progress.completedSteps);
     });
-  }, [activeStudent?.token, lessonReady, lessonNotFound, mockLesson?.slug, studentReady]);
+  }, [activeStudent?.token, lessonReady, lessonNotFound, lesson?.id, studentReady]);
 
   useEffect(() => {
     if (!studentReady || accessDenied) return;
@@ -183,11 +174,11 @@ export default function LessonPage() {
   }
 
   async function persistSubmission(nextSubmission: StudentSubmission, nextProgress?: { currentStep?: StudyStepId; completedSteps?: StudyStepId[]; status?: "not_started" | "in_progress" | "submitted" | "reviewed" }) {
-    if (!mockLesson) return;
+    if (!lesson) return;
     setSubmission(nextSubmission);
     setSubmissionSaveError(null);
     try {
-      await submitStudentLesson(mockLesson.slug || mockLesson.id, activeStudent!.token, nextSubmission, {
+      await submitStudentLesson(lesson.id, activeStudent!.token, nextSubmission, {
         currentStep: nextProgress?.currentStep || currentStep,
         completedSteps: nextProgress?.completedSteps || completedSteps,
         status: nextProgress?.status || (nextSubmission.status === "submitted" ? "submitted" : "in_progress"),
@@ -199,47 +190,33 @@ export default function LessonPage() {
     }
   }
 
-  const lessonContent = publishedLesson?.content || mockLesson?.content || {};
-  const heroBanner = publishedLesson?.bannerUrl || mockLesson?.coverImage;
+  const lessonContent = lesson?.content || {};
+  const lessonMetadata = lessonContent as LessonContent;
+  const instructor = lessonMetadata.instructor;
+  const heroBanner = typeof lessonContent.coverImage === "string" ? lessonContent.coverImage : undefined;
   const evaluation = publishedLesson?.evaluation;
   const isEvaluationPublished = evaluation?.published === true;
   const totalScore = evaluation
     ? Object.values(evaluation.scores).reduce<number>((total, score) => total + Number(score), 0)
     : 0;
   const resultRows = [
-    ...(lessonContent.listening?.questions || []).map((question: { id: string; question: string; correct_answer?: string }) => ({
+    ...(lessonContent.listening?.questions || []).map((question: { id: string; question: string }) => ({
       task: `Listening: ${question.question}`,
-      response: submission.listeningAnswers[question.id] || "No answer submitted",
-      answer: question.correct_answer || "Model answer pending",
-      feedback: isEvaluationPublished
-        ? evaluation?.comments || "Reviewed by instructor"
-        : "Pending instructor review",
+      response: submission.listeningAnswers[question.id],
     })),
     ...(lessonContent.reading?.analytical_questions || []).map((question: { id: string; question: string }) => ({
       task: `Reading: ${question.question}`,
-      response: submission.readingAnswers[question.id] || "No answer submitted",
-      answer: "Explain the author’s distinction using evidence from the article.",
-      feedback: isEvaluationPublished
-        ? evaluation?.comments || "Reviewed by instructor"
-        : "Pending instructor review",
+      response: submission.readingAnswers[question.id],
     })),
     {
-      task: "Writing: Habit architecture response",
-      response: submission.writingText || "No written response submitted",
-      answer: lessonContent.writing?.prompt?.text || "Use cue, routine, reward, and friction in your response.",
-      feedback: isEvaluationPublished
-        ? evaluation?.comments || "Reviewed by instructor"
-        : "Pending instructor review",
+      task: lessonContent.writing?.prompt?.text ? "Writing: " + lessonContent.writing.prompt.text : "",
+      response: submission.writingText,
     },
     {
-      task: "Speaking: Oral summary",
-      response: submission.speakingAudioUrl || "No recording submitted",
-      answer: lessonContent.speaking?.scenario?.text || "Give a clear summary with two concrete suggestions.",
-      feedback: isEvaluationPublished
-        ? evaluation?.comments || "Reviewed by instructor"
-        : "Pending instructor review",
+      task: lessonContent.speaking?.scenario?.text ? "Speaking: " + lessonContent.speaking.scenario.text : "",
+      response: submission.speakingAudioUrl,
     },
-  ];
+  ].filter((row) => row.task && row.response);
 
   const currentIndex = STUDY_STEPS.findIndex((s) => s.id === currentStep);
   const lockedSteps = getLockedSteps(completedSteps);
@@ -300,7 +277,7 @@ export default function LessonPage() {
     return <AccessCard title="By Invitation Only" message="This lesson requires a valid student session token." />;
   }
 
-  if (loading || !lessonReady || !studentReady || !mockLesson) {
+  if (loading || !lessonReady || !studentReady || !lesson) {
     return <div className="fluentia-study-room min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
   }
 
@@ -348,27 +325,15 @@ export default function LessonPage() {
       <div className="mx-auto max-w-[920px] px-5 sm:px-0">
       {!isResultsStep && (
         <section className="relative h-[295px] overflow-hidden border-b border-[#202631]">
-          <img
-            src={heroBanner || mockLesson.coverImage}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover opacity-55"
-          />
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,11,17,.72),rgba(7,11,17,.08)_55%,rgba(7,11,17,.72)),linear-gradient(0deg,#0c1017_0%,transparent_58%)]" />
+          {heroBanner && <><img src={heroBanner} alt="" className="absolute inset-0 h-full w-full object-cover opacity-55" /><div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,11,17,.72),rgba(7,11,17,.08)_55%,rgba(7,11,17,.72)),linear-gradient(0deg,#0c1017_0%,transparent_58%)]" /></>}
           <div className="relative flex h-full flex-col justify-end pb-14">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#aeb3b9]">
-              English B1
-            </p>
-            <span className="mb-3 w-fit rounded-sm border border-[#a77b25] bg-[#332713]/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#dca42f]">
-              Module {mockLesson.moduleNumber}
-            </span>
+            {(lesson.grade || lesson.subject) && <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#aeb3b9]">{lesson.grade || lesson.subject}</p>}
+            {typeof lessonContent.moduleNumber === "number" && <span className="mb-3 w-fit rounded-sm border border-[#a77b25] bg-[#332713]/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#dca42f]">Module {lessonContent.moduleNumber}</span>}
             <h1 className="font-[var(--font-fraunces)] text-[38px] leading-[0.98] tracking-[-0.02em] text-[#f1eee8] sm:text-[42px]">
-              {mockLesson.title}
+              {lesson.title}
             </h1>
-            <p className="mt-4 text-xs text-[#b5bac2]">{mockLesson.subtitle || "Seven stages. One connected journey."}</p>
-            <div className="mt-7 flex items-center gap-2 text-[11px] text-[#9ba1aa]">
-              {instructor.avatarUrl ? <img src={instructor.avatarUrl} alt="" className="h-6 w-6 rounded-full object-cover" /> : <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#283344] text-[9px] font-semibold text-[#d9a63b]">{instructor.initials}</span>}
-              Guided by {instructor.fullName}
-            </div>
+            {lessonContent.subtitle && <p className="mt-4 text-xs text-[#b5bac2]">{lessonContent.subtitle}</p>}
+            {instructor && <div className="mt-7 flex items-center gap-2 text-[11px] text-[#9ba1aa]">{instructor.avatarUrl ? <img src={instructor.avatarUrl} alt="" className="h-6 w-6 rounded-full object-cover" /> : <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#283344] text-[9px] font-semibold text-[#d9a63b]">{instructor.initials}</span>}Guided by {instructor.fullName}</div>}
           </div>
         </section>
       )}
@@ -376,7 +341,7 @@ export default function LessonPage() {
       <header className="pt-8">
         <div className="flex items-center justify-between text-[12px]">
                 <p className="text-[#aeb2b9]">Welcome back, <span className="text-[#e6e4e0]">{activeStudent!.name}</span>.</p>
-              <div className="flex items-center gap-2"><AmbientMusicPlayer src={mockLesson.ambientMusicUrl} /><button type="button" onClick={() => setDictionaryWord("")} aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28] text-stone-400 transition hover:border-amber-500 hover:text-amber-300"><DictionaryIcon className="h-4 w-4" /></button><button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs transition ${sidebarOpen ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#171d28] text-amber-300 hover:border-amber-500"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button><Link href={`/dashboard?student=${encodeURIComponent(activeStudent!.token)}`} className="flex items-center gap-1 text-[#646d7b] transition-colors hover:text-[#bdc1c8]"><ChevronRight className="h-3 w-3 rotate-180" />Course overview</Link></div>
+              <div className="flex items-center gap-2">{lessonContent.ambientMusicUrl && <AmbientMusicPlayer src={lessonContent.ambientMusicUrl} />}<button type="button" onClick={() => setDictionaryWord("")} aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28] text-stone-400 transition hover:border-amber-500 hover:text-amber-300"><DictionaryIcon className="h-4 w-4" /></button><button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs transition ${sidebarOpen ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#171d28] text-amber-300 hover:border-amber-500"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button><Link href={`/dashboard?student=${encodeURIComponent(activeStudent!.token)}`} className="flex items-center gap-1 text-[#646d7b] transition-colors hover:text-[#bdc1c8]"><ChevronRight className="h-3 w-3 rotate-180" />Course overview</Link></div>
         </div>
         <div className="mt-8">
           <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#556078]">Your journey</p>
@@ -399,35 +364,29 @@ export default function LessonPage() {
           {currentStep === "warm_up" && (
             <section className="space-y-5">
               {lessonContent.warm_up?.blocks?.length ? renderDynamicBlocks(lessonContent.warm_up.blocks) : <>
-              <div id="lesson-content" className="flex items-center gap-2 text-[#d99d22]">
+              {(lessonContent.warm_up?.intro_narrative?.text || lessonContent.warm_up?.quote?.text || lessonContent.warm_up?.quick_prompts?.length) && <div id="lesson-content" className="flex items-center gap-2 text-[#d99d22]">
                 <Sparkles className="h-3.5 w-3.5 fill-current" />
                 <span className="text-[11px] font-semibold uppercase tracking-[0.14em]">Warm-up</span>
-              </div>
-              <p className="max-w-[570px] text-[16px] leading-[1.65] text-[#aeb3bb]">
-                {lessonContent.warm_up?.intro_narrative?.text || "Small habits shape our days, often without us noticing."}
-              </p>
-              <h3 className="pt-4 font-[var(--font-fraunces)] text-[27px] font-semibold leading-[1.18] text-[#eeeae3]">
-                {lessonContent.warm_up?.quote?.text || "Think about one habit that makes your day easier."}
-              </h3>
+              </div>}
+              {lessonContent.warm_up?.intro_narrative?.text && <p className="max-w-[570px] text-[16px] leading-[1.65] text-[#aeb3bb]">{lessonContent.warm_up.intro_narrative.text}</p>}
+              {lessonContent.warm_up?.quote?.text && <h3 className="pt-4 font-[var(--font-fraunces)] text-[27px] font-semibold leading-[1.18] text-[#eeeae3]">{lessonContent.warm_up.quote.text}</h3>}
               <div className="space-y-2 text-sm text-[#aeb3bb]">
                 {(lessonContent.warm_up?.quick_prompts || []).map((prompt: { text: string }) => (
                   <p key={prompt.text}>{prompt.text}</p>
                 ))}
               </div>
-              <p className="text-[12px] leading-relaxed text-[#596174]">You don&apos;t need to write a perfect answer. Just start with your own experience.</p>
               <textarea
                 value={submission.blockResponses?.warm_up || ""}
                 onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), warm_up: event.target.value } })}
                 className="mt-2 w-full resize-none rounded-[10px] border border-[#29303c] bg-[#171d28] px-5 py-5 text-[15px] leading-relaxed text-[#d9dce0] placeholder-[#7b8290] shadow-[0_8px_24px_rgba(0,0,0,.12)] transition-colors placeholder:text-[13px] focus:border-[#8d702f] focus:outline-none focus:ring-1 focus:ring-[#8d702f]/30"
                 rows={4}
-                placeholder="For example: Making my bed first thing in the morning..."
+                placeholder=""
               />
               {lessonContent.warm_up?.lexicon_notes?.text && (
                 <p id="lexicon-notes" className="text-[12px] leading-relaxed text-amber-400">
                   {lessonContent.warm_up.lexicon_notes.text}
                 </p>
               )}
-              <p className="-mt-2 text-[11px] leading-relaxed text-[#4f586d]">Your response is private and helps you connect with the topic.</p>
               </>}
             </section>
           )}
@@ -436,15 +395,13 @@ export default function LessonPage() {
           {currentStep === "lesson" && (
             <section className="space-y-4">
               {lessonContent.lesson?.blocks?.length ? renderDynamicBlocks(lessonContent.lesson.blocks) : <>
-              <div className="flex items-center gap-2 text-amber-400">
+              {lessonContent.lesson?.core_concept?.text && <div className="flex items-center gap-2 text-amber-400">
                 <BookOpen className="w-5 h-5" />
                 <span className="text-xs font-semibold uppercase tracking-wider">
                   Core Lesson
                 </span>
-              </div>
-              <h3 className="text-xl font-semibold text-stone-100">
-                {lessonContent.lesson?.core_concept?.text || "The Habit Loop Anatomy"}
-              </h3>
+              </div>}
+              {lessonContent.lesson?.core_concept?.text && <h3 className="text-xl font-semibold text-stone-100">{lessonContent.lesson.core_concept.text}</h3>}
               <div className="grid sm:grid-cols-3 gap-4">
                 {(lessonContent.lesson?.examples || []).map((item: { text: string }, index: number) => (
                   <div
@@ -466,24 +423,14 @@ export default function LessonPage() {
           {currentStep === "listening" && (
             <section className="space-y-4">
               {lessonContent.listening?.blocks?.length ? renderDynamicBlocks(lessonContent.listening.blocks) : <>
-              <div className="flex items-center gap-2 text-amber-400">
+              {(lessonContent.listening?.audio_url || lessonContent.listening?.transcript?.text || lessonContent.listening?.questions?.length) && <div className="flex items-center gap-2 text-amber-400">
                 <Headphones className="w-5 h-5" />
                 <span className="text-xs font-semibold uppercase tracking-wider">
                   Audio Immersion
                 </span>
-              </div>
-              <h3 className="text-xl font-semibold text-stone-100">
-                {lessonContent.listening?.transcript?.text || "Friction as Architecture"}
-              </h3>
-              <div className="bg-stone-900 border border-stone-800 rounded-xl p-5 flex items-center gap-4">
-                <button className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 hover:bg-amber-500/20 transition-colors">
-                  ▶
-                </button>
-                <div className="flex-1 h-1.5 bg-stone-800 rounded-full" />
-                <span className="text-xs text-stone-500 tabular-nums">
-                  {lessonContent.listening?.audio_meta?.speaker || "Audio lesson"}
-                </span>
-              </div>
+              </div>}
+              {lessonContent.listening?.transcript?.text && <h3 className="text-xl font-semibold text-stone-100">{lessonContent.listening.transcript.text}</h3>}
+              {lessonContent.listening?.audio_url && <audio controls src={lessonContent.listening.audio_url} className="w-full" />}
               <div className="space-y-3">
                 {(lessonContent.listening?.questions || []).map((question: { id: string; question: string; options?: string[] }) => (
                   <div key={question.id} className="rounded-xl border border-[#202631] bg-[#121721] p-4">
@@ -511,18 +458,13 @@ export default function LessonPage() {
           {currentStep === "reading" && (
             <section className="space-y-4">
               {lessonContent.reading?.blocks?.length ? renderDynamicBlocks(lessonContent.reading.blocks) : <>
-              <div className="flex items-center gap-2 text-amber-400">
+              {(lessonContent.reading?.article_markdown?.text || lessonContent.reading?.lexicon_notes?.text || lessonContent.reading?.vocabulary_drawer?.length || lessonContent.reading?.analytical_questions?.length) && <div className="flex items-center gap-2 text-amber-400">
                 <FileText className="w-5 h-5" />
                 <span className="text-xs font-semibold uppercase tracking-wider">
                   Reading
                 </span>
-              </div>
-              <h3 className="text-xl font-semibold text-stone-100">
-                Architectural Cue Management
-              </h3>
-              <blockquote className="border-l-2 border-amber-500/40 pl-4 text-stone-400 text-sm leading-relaxed italic">
-                {lessonContent.reading?.article_markdown?.text || "Architectural Cue Management"}
-              </blockquote>
+              </div>}
+              {lessonContent.reading?.article_markdown?.text && <blockquote className="border-l-2 border-amber-500/40 pl-4 text-stone-400 text-sm leading-relaxed italic">{lessonContent.reading.article_markdown.text}</blockquote>}
               {lessonContent.reading?.lexicon_notes?.text && (
                 <div className="rounded-lg border border-[#202631] bg-[#121721] p-4 text-sm leading-relaxed text-stone-300">
                   <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-amber-400">Reading Lexicon</p>
@@ -558,18 +500,13 @@ export default function LessonPage() {
           {currentStep === "writing" && (
             <section className="space-y-4">
               {lessonContent.writing?.blocks?.length ? renderDynamicBlocks(lessonContent.writing.blocks) : <>
-              <div className="flex items-center gap-2 text-amber-400">
+              {(lessonContent.writing?.prompt?.text || lessonContent.writing?.draft_editor?.enabled) && <div className="flex items-center gap-2 text-amber-400">
                 <PenTool className="w-5 h-5" />
                 <span className="text-xs font-semibold uppercase tracking-wider">
                   Writing Task
                 </span>
-              </div>
-              <h3 className="text-xl font-semibold text-stone-100">
-                Deliberate Writing Task
-              </h3>
-              <p className="text-stone-400 text-sm leading-relaxed">
-                {lessonContent.writing?.prompt?.text || "Describe one habit you want to build."}
-              </p>
+              </div>}
+              {lessonContent.writing?.prompt?.text && <p className="text-stone-400 text-sm leading-relaxed">{lessonContent.writing.prompt.text}</p>}
               <textarea
                 value={submission.writingText}
                 onChange={(event) => persistSubmission({ ...submission, writingText: event.target.value })}
@@ -585,29 +522,19 @@ export default function LessonPage() {
           {currentStep === "speaking" && (
             <section className="space-y-4">
               {lessonContent.speaking?.blocks?.length ? renderDynamicBlocks(lessonContent.speaking.blocks) : <>
-              <div className="flex items-center gap-2 text-amber-400">
+              {(lessonContent.speaking?.scenario?.text || lessonContent.speaking?.discussion_points?.length || lessonContent.speaking?.audio_capture?.enabled) && <div className="flex items-center gap-2 text-amber-400">
                 <Mic className="w-5 h-5" />
                 <span className="text-xs font-semibold uppercase tracking-wider">
                   Speaking
                 </span>
-              </div>
-              <h3 className="text-xl font-semibold text-stone-100">
-                Oral Summary Submission
-              </h3>
-              <p className="text-stone-400 text-sm leading-relaxed">
-                {lessonContent.speaking?.scenario?.text || "Record a 60-second summary of your key takeaways from this lesson."}
-              </p>
+              </div>}
+              {lessonContent.speaking?.scenario?.text && <p className="text-stone-400 text-sm leading-relaxed">{lessonContent.speaking.scenario.text}</p>}
               <div className="space-y-2 text-left text-sm text-stone-400">
                 {(lessonContent.speaking?.discussion_points || []).map((point: { text: string }) => (
                   <p key={point.text}>{point.text}</p>
                 ))}
               </div>
-              <div className="bg-stone-900 border border-stone-800 rounded-xl p-5 flex items-center justify-center h-28">
-                <button className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm hover:bg-amber-500/20 transition-colors">
-                  <Mic className="w-4 h-4" />
-                  Start Recording
-                </button>
-              </div>
+              {lessonContent.speaking?.audio_capture?.enabled && <div className="bg-stone-900 border border-stone-800 rounded-xl p-5 flex items-center justify-center h-28"><button type="button" className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm hover:bg-amber-500/20 transition-colors"><Mic className="w-4 h-4" />Start Recording</button></div>}
               </>}
             </section>
           )}
@@ -622,9 +549,7 @@ export default function LessonPage() {
                 <h3 className="text-2xl font-sans font-semibold text-stone-100">
                   Lesson Submitted &amp; Completed!
                 </h3>
-                <p className="text-stone-400 text-sm">
-                  {lessonContent.results?.self_reflection?.text || `Outstanding work, ${activeStudent!.name}. Your instructor will review your submission shortly.`}
-                </p>
+                {lessonContent.results?.self_reflection?.text && <p className="text-stone-400 text-sm">{lessonContent.results.self_reflection.text}</p>}
               </div>
               <div className="overflow-hidden rounded-xl border border-[#202631] bg-[#121721] text-left">
                 <div className="overflow-x-auto">
@@ -633,8 +558,6 @@ export default function LessonPage() {
                       <tr>
                         <th className="px-4 py-3 font-semibold">Task / Step</th>
                         <th className="px-4 py-3 font-semibold">Your Response</th>
-                        <th className="px-4 py-3 font-semibold">Correct Answer / Model Answer</th>
-                        <th className="px-4 py-3 font-semibold">Instructor Feedback</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#202631]">
@@ -642,8 +565,6 @@ export default function LessonPage() {
                         <tr key={row.task} className="align-top">
                           <td className="px-4 py-4 font-medium text-stone-200">{row.task}</td>
                           <td className="px-4 py-4 text-stone-400">{row.response}</td>
-                          <td className="px-4 py-4 text-stone-400">{row.answer}</td>
-                          <td className="px-4 py-4 text-amber-300">{row.feedback}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -672,22 +593,22 @@ export default function LessonPage() {
                     <p className="mt-1 text-xs text-stone-500">Rubric score</p>
                   </div>
                   <div className="space-y-4 text-sm text-stone-400">
-                    <p>{isEvaluationPublished ? evaluation?.comments : "Your instructor has not published feedback yet. Check back after your work has been reviewed."}</p>
+                    {isEvaluationPublished && evaluation?.comments && <p>{evaluation.comments}</p>}
                     {isEvaluationPublished && (
                       <div className="grid gap-4 border-t border-[#202631] pt-4 sm:grid-cols-2">
-                        <div><p className="text-xs font-semibold text-stone-300">Strengths</p><p className="mt-1 whitespace-pre-wrap">{evaluation?.strengths || "No strengths recorded."}</p></div>
-                        <div><p className="text-xs font-semibold text-stone-300">Areas to Improve</p><p className="mt-1 whitespace-pre-wrap">{evaluation?.areasToImprove || "No improvement areas recorded."}</p></div>
-                        <div><p className="text-xs font-semibold text-stone-300">Study Hub Prescription</p><p className="mt-1 whitespace-pre-wrap text-amber-300">{evaluation?.studyHubPrescription || "No prescription recorded."}</p></div>
+                        {evaluation?.strengths && <div><p className="text-xs font-semibold text-stone-300">Strengths</p><p className="mt-1 whitespace-pre-wrap">{evaluation.strengths}</p></div>}
+                        {evaluation?.areasToImprove && <div><p className="text-xs font-semibold text-stone-300">Areas to Improve</p><p className="mt-1 whitespace-pre-wrap">{evaluation.areasToImprove}</p></div>}
+                        {evaluation?.studyHubPrescription && <div><p className="text-xs font-semibold text-stone-300">Study Hub Prescription</p><p className="mt-1 whitespace-pre-wrap text-amber-300">{evaluation.studyHubPrescription}</p></div>}
                         {evaluation?.voiceFeedbackUrl && <div><p className="text-xs font-semibold text-stone-300">Voice Feedback</p><a href={evaluation.voiceFeedbackUrl} className="mt-1 block truncate text-amber-300">{evaluation.voiceFeedbackUrl}</a></div>}
                       </div>
                     )}
-                    <div>
+                    {(lessonContent.warm_up?.lexicon_notes?.text || lessonContent.lesson || lessonContent.reading || lessonContent.writing || lessonContent.speaking) && <div>
                       <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">Recommended review</p>
                       <div className="flex flex-wrap gap-2">
                         <a href="#lexicon-notes" className="rounded-md border border-amber-500/20 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-300 hover:bg-amber-500/20">Review lexicon notes</a>
                         <a href="#lesson-content" className="rounded-md border border-[#394252] bg-[#171d28] px-2.5 py-1.5 text-xs text-stone-300 hover:border-amber-500/40">Revisit lesson content</a>
                       </div>
-                    </div>
+                    </div>}
                   </div>
                 </div>
               </div>
