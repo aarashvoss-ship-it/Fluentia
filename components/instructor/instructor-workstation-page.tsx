@@ -332,12 +332,13 @@ export default function InstructorWorkstationPage({
             content,
             changes_summary: `Initial lesson created as ${status}`,
           });
+      const savedSlug = typeof lesson.content?.slug === "string" ? lesson.content.slug : slug;
       setDatabaseLessonId(lesson.id);
       setNewLesson((previous) => ({
         ...previous,
         studentId,
         title,
-        slug,
+        slug: savedSlug,
         moduleNumber: String(moduleNumber),
         status,
       }));
