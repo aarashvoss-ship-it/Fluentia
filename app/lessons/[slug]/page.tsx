@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ChatMessage, ContentBlock, SavedVocabularyWord, StudentNote, StudyStepId, STUDY_STEPS, LessonContent, StudentSubmission } from "@/types/lesson";
 import { MOCK_INSTRUCTOR_LESSONS } from "@/lib/mock-instructor-data";
-import { getLesson } from "@/lib/lessons";
+import { getLessonById } from "@/lib/lessons";
 import { persistResolvedStudent, PublishedLessonState, resolveStudentAccess, writeLastAccessedLesson } from "@/lib/lesson-store";
 import { fetchChatMessages, fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, saveChatMessage, saveStudentNote, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
 import { type StudentUser } from "@/lib/users";
@@ -56,13 +56,14 @@ function getRequestedStep(value: string | null): StudyStepId | null {
 export default function LessonPage() {
   const rawSlug = useParams()?.slug;
   const requestedSlug = typeof rawSlug === "string" ? rawSlug : "habits-01";
-  const [mockLesson, setMockLesson] = useState<LessonContent>(() => getLesson(requestedSlug));
+  const [mockLesson, setMockLesson] = useState<LessonContent | null>(null);
+  const [loading, setLoading] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
   const [lessonReady, setLessonReady] = useState(false);
   const [lessonNotFound, setLessonNotFound] = useState(false);
-  const instructorLesson = MOCK_INSTRUCTOR_LESSONS[mockLesson.slug] || MOCK_INSTRUCTOR_LESSONS["habits-01"];
-  const instructor = mockLesson.instructor || instructorLesson.instructor || { fullName: "AVoss", initials: "AV" };
+  const instructorLesson = MOCK_INSTRUCTOR_LESSONS[mockLesson?.slug || "habits-01"] || MOCK_INSTRUCTOR_LESSONS["habits-01"];
+  const instructor = mockLesson?.instructor || instructorLesson.instructor || { fullName: "AVoss", initials: "AV" };
   const [activeStudent, setActiveStudent] = useState<StudentUser | null>(null);
   const [studentReady, setStudentReady] = useState(false);
   const [currentStep, setCurrentStep] = useState<StudyStepId>("warm_up");
@@ -84,6 +85,7 @@ export default function LessonPage() {
   const [dictionaryWord, setDictionaryWord] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Initialize student access on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const studentParam = params.get("student") || params.get("token");
@@ -100,25 +102,43 @@ export default function LessonPage() {
     setIsMounted(true);
   }, []);
 
+  // Fetch lesson data asynchronously
   useEffect(() => {
     if (!isMounted || accessDenied) return;
     let mounted = true;
     setLessonReady(false);
     setLessonNotFound(false);
-    void fetchLesson(requestedSlug).then((lesson) => {
-      if (!mounted) return;
-      if (lesson) {
-        setMockLesson(lesson);
-        writeLastAccessedLesson(lesson.slug, activeStudent!.token);
-      } else {
+    setLoading(true);
+
+    const loadLesson = async () => {
+      try {
+        const lesson = await getLessonById(requestedSlug);
+        if (!mounted) return;
+        if (lesson) {
+          // Convert LessonWithVersion to LessonContent if needed
+          const lessonContent = lesson as unknown as LessonContent;
+          setMockLesson(lessonContent);
+          writeLastAccessedLesson(lessonContent.slug, activeStudent!.token);
+        } else {
+          setLessonNotFound(true);
+        }
+      } catch (error) {
+        if (!mounted) return;
+        console.error("Failed to load lesson:", error);
         setLessonNotFound(true);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+          setLessonReady(true);
+        }
       }
-      setLessonReady(true);
-    });
+    };
+
+    loadLesson();
     return () => {
       mounted = false;
     };
-  }, [accessDenied, isMounted, requestedSlug]);
+  }, [accessDenied, isMounted, requestedSlug, activeStudent?.token]);
 
   useEffect(() => {
     if (!lessonReady || !studentReady || lessonNotFound) return;
@@ -265,7 +285,7 @@ export default function LessonPage() {
     return <AccessCard title="By Invitation Only" message="This lesson requires a valid student session token." />;
   }
 
-  if (!lessonReady || !studentReady) {
+  if (loading || !lessonReady || !studentReady || !mockLesson) {
     return <div className="fluentia-study-room min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
   }
 
