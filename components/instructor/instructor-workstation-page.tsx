@@ -287,7 +287,7 @@ export default function InstructorWorkstationPage({
       window.removeEventListener(FLUENTIA_DATA_UPDATED_EVENT, refreshCounts);
       window.removeEventListener("fluentia:lesson-updated", refreshCounts);
     };
-  }, [createdLessons, students]);
+  }, [createdLessons]);
 
   const clearValidationError = (field: keyof typeof validationErrors) => {
     setValidationErrors((previous) => {
@@ -439,7 +439,7 @@ export default function InstructorWorkstationPage({
         </nav>
 
         {activeTab === "dashboard" && <section className="space-y-6" aria-label="Instructor dashboard overview">
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid items-start gap-4 md:grid-cols-4">
             <button type="button" onClick={() => setActiveTab("evaluation")} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-left transition hover:border-amber-500/60">
 <p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Pending Evaluations</p>
 <p className="mt-2 text-2xl font-semibold text-stone-100">{pendingSubmissionCount}</p>
@@ -455,7 +455,7 @@ export default function InstructorWorkstationPage({
 <p className="mt-2 text-2xl font-semibold text-stone-100">{publishedLessonCount}</p>
 <p className="mt-1 text-xs text-stone-500">Open the lesson builder</p>
 </button>
-            <details open={activeStudentsOpen} onToggle={(event) => setActiveStudentsOpen(event.currentTarget.open)} className="relative rounded-xl border border-[#202631] bg-[#171d28]/60 text-left transition hover:border-amber-500/60">
+            <details open={activeStudentsOpen} onToggle={(event) => setActiveStudentsOpen(event.currentTarget.open)} className="relative self-start rounded-xl border border-[#202631] bg-[#171d28]/60 text-left transition hover:border-amber-500/60">
               <summary className="flex cursor-pointer list-none items-start justify-between p-5 [&::-webkit-details-marker]:hidden">
                 <span>
                   <span className="block text-[10px] uppercase tracking-[0.14em] text-amber-400">Active Students</span>
