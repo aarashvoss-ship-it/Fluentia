@@ -80,14 +80,12 @@ export default function DashboardPage() {
       setLessons(availableLessons);
       try {
         const savedProfile = await getStudentProfile(studentToken);
-        if (savedProfile) {
+        if (savedProfile && Object.keys(savedProfile).length > 0) {
           setActiveStudent((previous) => previous.profile
             ? { ...previous, profile: { ...previous.profile, ...savedProfile } }
             : previous);
         }
-      } catch (error) {
-        console.error("Error loading student profile:", error);
-      }
+      } catch { }
       const nextLessonStates = Object.fromEntries(await Promise.all(availableLessons.map(async (lesson) => [lesson.id, await fetchLessonState(lesson.id, studentToken)])));
       setLessonStates(nextLessonStates);
       const completedModulesCount = availableLessons.filter((lesson) => getLessonStatus(nextLessonStates[lesson.id]) === "completed").length;
