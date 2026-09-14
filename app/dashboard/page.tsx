@@ -34,6 +34,7 @@ type ProfilePreferences = {
   customAvatarUrl?: string;
   bannerPreset?: (typeof BANNER_PRESETS)[number]["id"];
   customBannerUrl?: string;
+  dashboardBanner?: string;
 };
 
 function getLessonStatus(state?: PublishedLessonState | null): LessonStatus {
@@ -72,6 +73,12 @@ export default function DashboardPage() {
   const [customAvatarUrl, setCustomAvatarUrl] = useState("");
   const [bannerPreset, setBannerPreset] = useState<ProfilePreferences["bannerPreset"]>("default-dark");
   const [customBannerUrl, setCustomBannerUrl] = useState("");
+  const [selectedDashboardBanner, setSelectedDashboardBanner] = useState(BANNER_PRESETS[0].image);
+
+  useEffect(() => {
+    const selectedPreset = BANNER_PRESETS.find((preset) => preset.id === bannerPreset) || BANNER_PRESETS[0];
+    setSelectedDashboardBanner(isValidImageUrl(customBannerUrl.trim()) ? customBannerUrl.trim() : selectedPreset.image);
+  }, [bannerPreset, customBannerUrl]);
 
   useEffect(() => {
     const loadDashboard = async (studentToken: string) => {
@@ -111,7 +118,13 @@ export default function DashboardPage() {
     setAvatarPreset(preferences.avatarPreset || "amber");
     setCustomAvatarUrl(preferences.customAvatarUrl || "");
     setBannerPreset(preferences.bannerPreset || "default-dark");
-    setCustomBannerUrl(preferences.customBannerUrl || "");
+    setCustomBannerUrl(preferences.dashboardBanner || preferences.customBannerUrl || "");
+    const preferenceBanner = isValidImageUrl(preferences.dashboardBanner || "")
+      ? preferences.dashboardBanner
+      : isValidImageUrl(preferences.customBannerUrl || "")
+      ? preferences.customBannerUrl
+      : BANNER_PRESETS.find((preset) => preset.id === (preferences.bannerPreset || "default-dark"))?.image || BANNER_PRESETS[0].image;
+    setSelectedDashboardBanner(preferenceBanner || BANNER_PRESETS[0].image);
     setIsMounted(true);
     const refreshLessons = () => void loadDashboard(studentToken);
     void loadDashboard(studentToken);
@@ -154,11 +167,7 @@ export default function DashboardPage() {
   const displayName = activeStudent.name === "Arash Test" ? "Arash Vossoughi" : activeStudent.name;
   const profileInitials = displayName.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
   const selectedAvatar = AVATAR_PRESETS.find((preset) => preset.id === avatarPreset) || AVATAR_PRESETS[0];
-  const selectedBanner = BANNER_PRESETS.find((preset) => preset.id === bannerPreset) || BANNER_PRESETS[0];
   const avatarImage = isValidImageUrl(customAvatarUrl.trim()) ? customAvatarUrl.trim() : "";
-  const dashboardBanner = isValidImageUrl(customBannerUrl.trim())
-    ? customBannerUrl.trim()
-    : selectedBanner.image;
   const availableLessons = displayLessons.filter((lesson) => lesson.id !== nextLesson?.id);
   const getLessonHref = (lessonId: string, status: LessonStatus) => {
     const stepParam = status === "completed" ? "&step=7" : status === "pending-review" ? "&start=warm_up" : "";
@@ -196,7 +205,7 @@ export default function DashboardPage() {
                     <div className="min-h-0 flex-1 overflow-y-auto p-4">
                       {profileTab === "profile" ? <div className="space-y-4 text-xs"><div className="grid grid-cols-2 gap-3"><div><p className="text-stone-500">Name</p><p className="mt-1 text-stone-200">{displayName}</p></div><div><p className="text-stone-500">Progress</p><p className="mt-1 text-stone-200">{completedLessons} / {displayLessons.length} lessons</p></div></div><div className="grid grid-cols-2 gap-3"><div><p className="text-stone-500">Level</p><p className="mt-1 rounded-md border border-[#394252] bg-[#0c1017] p-2 text-stone-200">{activeStudent.profile?.level || "Not set"}</p></div><div><p className="text-stone-500">Learning goal</p><p className="mt-1 rounded-md border border-[#394252] bg-[#0c1017] p-2 text-stone-200">{activeStudent.profile?.targetGoal || "Not set"}</p></div></div><div className="border-t border-[#29303c] pt-3"><p className="text-stone-500">Assigned instructor</p><p className="mt-1 rounded-md border border-[#394252] bg-[#0c1017] p-2 text-stone-200">Fluentia Instructor: AVoss</p></div></div> : <div className="space-y-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Student Avatar</p><div className="mt-2 grid grid-cols-3 gap-2">{AVATAR_PRESETS.map((preset) => <button key={preset.id} type="button" onClick={() => { setAvatarPreset(preset.id); setCustomAvatarUrl(""); }} aria-label={`Use ${preset.label} avatar`} className={`flex flex-col items-center gap-1 rounded-md border p-2 text-[10px] text-stone-400 transition ${avatarPreset === preset.id && !avatarImage ? "border-amber-500 bg-amber-500/10 text-amber-300" : "border-[#394252] hover:border-amber-500/50"}`}><span style={{ backgroundColor: preset.backgroundColor }} className={`flex h-8 w-8 items-center justify-center rounded-full text-[10px] font-bold ${preset.className}`}>{profileInitials}</span>{preset.label}</button>)}</div><div className="mt-3 flex items-center gap-2 rounded-md border border-[#29303c] bg-[#0c1017] p-2"><span style={!avatarImage ? { backgroundColor: selectedAvatar.backgroundColor } : undefined} className={`flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-bold ${avatarImage ? "bg-[#283344]" : selectedAvatar.className}`}>{avatarImage ? <img src={avatarImage} alt="Custom avatar preview" className="h-full w-full object-cover" /> : profileInitials}</span><span className="text-xs text-stone-400">Live avatar preview</span></div><label className="mt-2 block text-xs text-stone-400">Custom Avatar URL<input value={customAvatarUrl} onChange={(event) => setCustomAvatarUrl(event.target.value)} placeholder="https://..." className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2 text-xs text-stone-200" /></label></div><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Dashboard Hero Banner</p><div className="mt-2 grid grid-cols-3 gap-2">{BANNER_PRESETS.map((preset) => <button key={preset.id} type="button" onClick={() => { setBannerPreset(preset.id); setCustomBannerUrl(""); }} className={`overflow-hidden rounded-md border text-left transition ${bannerPreset === preset.id && !customBannerUrl ? "border-amber-500" : "border-[#394252] hover:border-amber-500/50"}`}><img src={preset.image} alt="" className="h-10 w-full object-cover opacity-75" /><span className="block truncate px-1.5 py-1 text-[9px] text-stone-400">{preset.label}</span></button>)}</div><label className="mt-2 block text-xs text-stone-400">Custom Banner URL<input value={customBannerUrl} onChange={(event) => setCustomBannerUrl(event.target.value)} placeholder="https://..." className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2 text-xs text-stone-200" /></label></div></div>}
                     </div>
-                    <div className="border-t border-[#29303c] bg-[#171d28] p-4"><button type="button" onClick={() => { window.localStorage.setItem(`fluentia:profile:${token}`, JSON.stringify({ avatarPreset, customAvatarUrl, bannerPreset, customBannerUrl })); setProfileOpen(false); }} className="w-full rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-amber-400">Save settings</button></div>
+                    <div className="border-t border-[#29303c] bg-[#171d28] p-4"><button type="button" onClick={() => { window.localStorage.setItem(`fluentia:profile:${token}`, JSON.stringify({ avatarPreset, customAvatarUrl, bannerPreset, customBannerUrl, dashboardBanner: selectedDashboardBanner })); setProfileOpen(false); }} className="w-full rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-amber-400">Save settings</button></div>
                   </div>
                 )}
               </div>
@@ -245,8 +254,7 @@ export default function DashboardPage() {
         </section>
 
         {nextLesson && <section className="mt-6" aria-label="Continue learning">
-          <Link href={getLessonHref(nextLesson.id, getLessonStatus(lessonStates[nextLesson.id]))} onClick={() => rememberLesson(nextLesson.id)} className="group relative block h-64 overflow-hidden rounded-xl border border-amber-500/30 bg-[#171d28] transition-colors hover:border-amber-400/70">
-            <img src={dashboardBanner} alt="" className="absolute inset-0 h-full w-full object-cover opacity-55 transition duration-700 group-hover:scale-105 group-hover:opacity-65" />
+          <Link href={getLessonHref(nextLesson.id, getLessonStatus(lessonStates[nextLesson.id]))} onClick={() => rememberLesson(nextLesson.id)} style={{ backgroundImage: `url(${selectedDashboardBanner})` }} className="group relative block h-64 overflow-hidden rounded-xl border border-amber-500/30 bg-cover bg-center bg-no-repeat transition-colors hover:border-amber-400/70">
             <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,11,17,.95),rgba(7,11,17,.6)_52%,rgba(7,11,17,.82)),linear-gradient(0deg,rgba(7,11,17,.92),transparent_65%)]" />
             <div className="relative flex h-full flex-col justify-between p-5 md:p-7"><div><div className="flex items-center gap-2 text-amber-400"><Flame className="h-4 w-4" /><span className="text-[10px] font-semibold uppercase tracking-[0.16em]">Continue Learning / Next Up</span></div><h2 className="mt-2 font-[var(--font-fraunces)] text-2xl font-semibold text-stone-100 md:text-3xl">{nextLesson.title}</h2><p className="mt-2 max-w-2xl text-sm text-stone-300">{nextLesson.content?.subtitle || "Continue your personalized language practice."}</p></div><div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div className="w-full max-w-xs"><div className="flex items-center justify-between text-xs text-stone-300"><span>{progressPercent}% course progress</span><span>{completedLessons}/{displayLessons.length}</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-[#0c1017]/80"><div className="h-full rounded-full bg-amber-500 transition-all" style={{ width: `${progressPercent}%` }} /></div></div><span className="inline-flex w-fit items-center rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 transition group-hover:bg-amber-400">Start Lesson <span className="ml-2" aria-hidden="true">-&gt;</span></span></div></div>
           </Link>
@@ -289,7 +297,7 @@ export default function DashboardPage() {
               className="group overflow-hidden rounded-xl border border-[#202631] bg-[#121721] transition-colors hover:border-amber-500/50"
             >
               <div className="relative h-44 overflow-hidden border-b border-[#202631]">
-                <img src={lesson.content?.coverImage || selectedBanner.image} alt="" className="h-full w-full object-cover opacity-70 transition duration-500 group-hover:scale-105 group-hover:opacity-85" />
+                <img src={lesson.content?.coverImage || BANNER_PRESETS[0].image} alt="" className="h-full w-full object-cover opacity-70 transition duration-500 group-hover:scale-105 group-hover:opacity-85" />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#121721] via-transparent to-transparent" />
                   <span className="absolute bottom-4 left-5 rounded-sm border border-[#a77b25] bg-[#332713]/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#dca42f]">
                   Module {lesson.content?.moduleNumber || 1}
