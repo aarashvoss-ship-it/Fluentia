@@ -7,7 +7,7 @@ import { StudentContextPanel } from "@/components/instructor/student-context-pan
 import { LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
 import { InstructorBannerManager } from "@/components/instructor/banner-manager";
 import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/submission-evaluator";
-import { LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
+import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
 import { createLesson, getLessons, updateLesson, type LessonWithVersion } from "@/lib/lessons";
 import { INSTRUCTOR_TOKEN, PublishedLessonState } from "@/lib/lesson-store";
 import { DEFAULT_STUDENT, STUDENT_USERS, StudentUser } from "@/lib/users";
@@ -360,13 +360,14 @@ export default function InstructorWorkstationPage({
 
   const renderPreviewStep = () => (
     <div className="space-y-4">
-      {previewBlocks.map((block: { id: string; title?: string; type: string; body?: string; caption?: string; imageUrl?: string; audioUrl?: string; videoUrl?: string; questions?: Array<{ prompt: string; options: string[] }> }) => (
+      {previewBlocks.map((block: ContentBlock) => (
         <article key={block.id} className="rounded-lg border border-[#293343] bg-[#0c1017] p-4">
           {block.title && <h4 className="mb-2 text-sm font-semibold text-stone-100">{block.title}</h4>}
           {block.type === "text" && <p className="whitespace-pre-wrap text-sm leading-relaxed text-stone-300">{block.body || "No text added yet."}</p>}
           {block.type === "image" && <>{block.imageUrl ? <img src={block.imageUrl} alt={block.caption || block.title || "Lesson image"} className="max-h-72 w-full rounded-md object-cover" /> : <p className="text-xs text-stone-500">Image not configured.</p>}{block.caption && <p className="mt-2 text-xs text-stone-500">{block.caption}</p>}</>}
           {block.type === "audio" && <audio controls src={block.audioUrl} className="w-full" />}
           {block.type === "video" && <div className="rounded-md border border-dashed border-[#394252] p-4 text-xs text-stone-500">Video preview: {block.videoUrl || "URL not configured"}</div>}
+          {block.type === "question" && <div className="space-y-2"><p className="text-sm text-stone-300">{block.prompt || "Question not configured."}</p><div className="flex flex-wrap gap-2">{block.options.filter(Boolean).map((option) => <span key={option} className="rounded border border-[#394252] px-2 py-1 text-xs text-stone-400">{option}</span>)}</div></div>}
           {block.type === "quiz" && <div className="space-y-3">{(block.questions || []).map((question, index) => <div key={`${block.id}-${index}`}><p className="text-sm text-stone-300">{question.prompt || "Question not configured."}</p><div className="mt-2 flex flex-wrap gap-2">{question.options.map((option) => <span key={option} className="rounded border border-[#394252] px-2 py-1 text-xs text-stone-400">{option || "Option"}</span>)}</div></div>)}</div>}
         </article>
       ))}

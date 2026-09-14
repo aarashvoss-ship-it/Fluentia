@@ -28,7 +28,7 @@ export interface BlockItem {
   enabled: boolean;
 }
 
-export type ContentBlockType = "text" | "audio" | "video" | "image" | "quiz";
+export type ContentBlockType = "text" | "audio" | "video" | "image" | "question" | "quiz";
 
 export interface QuizQuestion {
   id: string;
@@ -70,11 +70,19 @@ export interface QuizContentBlock extends ContentBlockBase {
   questions: QuizQuestion[];
 }
 
+export interface QuestionContentBlock extends ContentBlockBase {
+  type: "question";
+  prompt: string;
+  options: string[];
+  correct_answer: string;
+}
+
 export type ContentBlock =
   | TextContentBlock
   | AudioContentBlock
   | VideoContentBlock
   | ImageContentBlock
+  | QuestionContentBlock
   | QuizContentBlock;
 
 export type DynamicStepContent = { blocks?: ContentBlock[] };
