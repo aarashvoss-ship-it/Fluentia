@@ -7,10 +7,11 @@ import { StudentContextPanel } from "@/components/instructor/student-context-pan
 import { LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
 import { InstructorBannerManager } from "@/components/instructor/banner-manager";
 import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/submission-evaluator";
-import { LessonContent, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
+import { LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
+import { createLesson, getLessons, updateLesson, type LessonWithVersion } from "@/lib/lessons";
 import { INSTRUCTOR_TOKEN, PublishedLessonState } from "@/lib/lesson-store";
 import { DEFAULT_STUDENT, STUDENT_USERS, StudentUser } from "@/lib/users";
-import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback, saveLesson } from "@/services/storage-service";
+import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/storage-service";
 import { AccessCard } from "@/components/access/access-card";
 
 interface InstructorWorkstationProps {
@@ -25,7 +26,6 @@ export default function InstructorWorkstationPage({
   allowStudentQuery = true,
 }: InstructorWorkstationProps) {
   const lessonId = lessonSlug;
-  const initialLesson = { content: {}, banner_image_url: "" };
 
   const [isMounted, setIsMounted] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
@@ -54,8 +54,8 @@ export default function InstructorWorkstationPage({
     evaluation: LessonEvaluation;
     submission?: StudentSubmission;
   }>({
-    content: initialLesson.content || {},
-    bannerUrl: initialLesson.banner_image_url || "",
+    content: {},
+    bannerUrl: "",
     customBannerUrl: "",
     studentProfile: DEFAULT_STUDENT.profile,
     evaluation: {
@@ -70,7 +70,7 @@ export default function InstructorWorkstationPage({
   const [isPublishing, setIsPublishing] = useState(false);
   const [showPublishConfirmation, setShowPublishConfirmation] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Partial<Record<"selectedStudentId" | "title" | "slug" | "moduleNumber", string>>>({});
-  const [createdLessons, setCreatedLessons] = useState<LessonContent[]>([]);
+  const [createdLessons, setCreatedLessons] = useState<LessonWithVersion[]>([]);
   const [newLesson, setNewLesson] = useState({
     studentId: DEFAULT_STUDENT.id,
     title: "",
@@ -109,14 +109,11 @@ export default function InstructorWorkstationPage({
     setSelectedStudentId(id);
     setNewLesson((previous) => ({ ...previous, studentId: id }));
 
-    const { data: lesson } = await supabase
-      .from("lessons")
-      .select("*")
-      .eq("student_id", id)
-      .eq("slug", requestedLessonSlug)
-      .maybeSingle();
-
-    const loadedLesson = Array.isArray(lesson) ? lesson[0] : lesson;
+    const lessons = await getLessons();
+    const loadedLesson = lessons.find((lesson) => {
+      const lessonSlug = typeof lesson.content?.slug === "string" ? lesson.content.slug : lesson.id;
+      return lesson.student_id === id && (!requestedLessonSlug || lessonSlug === requestedLessonSlug || lesson.id === requestedLessonSlug);
+    });
     if (!loadedLesson) {
       resetNewLessonForm(id);
     }
@@ -135,34 +132,31 @@ export default function InstructorWorkstationPage({
     return normalizedTitle || `lesson-${Date.now()}`;
   };
 
-  const persistInstructorLessonLocally = (lesson: LessonContent) => {
-    if (typeof window === "undefined") return;
+  const refreshCreatedLessons = async () => {
     try {
-      const storedLessons = JSON.parse(window.localStorage.getItem("fluentia:instructor-lessons") || "[]") as LessonContent[];
-      const nextLessons = [...storedLessons.filter((item) => item.slug !== lesson.slug), lesson];
-      window.localStorage.setItem("fluentia:instructor-lessons", JSON.stringify(nextLessons));
-      setCreatedLessons((previous) => [...previous.filter((item) => item.slug !== lesson.slug), lesson]);
-      window.dispatchEvent(new Event("fluentia:lesson-updated"));
+      setCreatedLessons(await getLessons());
     } catch (error) {
-      console.error("Save error details:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
-      setCreatedLessons((previous) => [...previous.filter((item) => item.slug !== lesson.slug), lesson]);
-      window.dispatchEvent(new Event("fluentia:lesson-updated"));
+      console.error("Failed to load lessons from Supabase:", error);
+      setPublishStatus("Unable to load lessons from Supabase.");
     }
   };
 
-  const activateLesson = (lesson: LessonContent) => {
-    setSelectedStudentId(lesson.studentId || null);
+  const activateLesson = (lesson: LessonWithVersion) => {
+    const content = lesson.content || {};
+    const lessonSlug = typeof content.slug === "string" ? content.slug : lesson.id;
+    setSelectedStudentId(lesson.student_id || null);
     setNewLesson((previous) => ({
       ...previous,
-      studentId: lesson.studentId || previous.studentId,
+      studentId: lesson.student_id || previous.studentId,
       title: lesson.title,
-      slug: lesson.slug,
-      subtitle: lesson.subtitle || "",
-      moduleNumber: String(lesson.moduleNumber),
-      status: lesson.status || "draft",
+      slug: lessonSlug,
+      subtitle: typeof content.subtitle === "string" ? content.subtitle : "",
+      moduleNumber: String(content.moduleNumber || 1),
+      status: lesson.status === "published" ? "published" : "draft",
     }));
-    setWorkstationState((previous) => ({ ...previous, content: lesson.content || previous.content }));
-    setLessonStatus(lesson.status || "draft");
+    setWorkstationState((previous) => ({ ...previous, content }));
+    setDatabaseLessonId(lesson.id);
+    setLessonStatus(lesson.status === "published" ? "published" : "draft");
   };
 
   async function handleCreateLesson() {
@@ -177,32 +171,37 @@ export default function InstructorWorkstationPage({
     const slug = newLesson.slug.trim().toLowerCase() || createSlug(title);
     const moduleNumber = Number(newLesson.moduleNumber) || 1;
 
-    const lesson: LessonContent = {
-      id: `lesson-${slug}`,
-      title,
-      slug,
-      studentId: draftStudentId,
-      subtitle: newLesson.subtitle.trim() || "A new Fluentia learning journey.",
-      moduleNumber,
-      status: "draft",
-      coverImage: initialLesson.banner_image_url || undefined,
-      content: {},
-    };
-
     try {
-      await saveLesson(lesson);
+      const content = {
+        ...workstationState.content,
+        slug,
+        title,
+        subtitle: newLesson.subtitle.trim() || "A new Fluentia learning journey.",
+        moduleNumber,
+        warm_up: { ...(workstationState.content.warm_up || {}), blocks: [{ id: "warm-up-prompt", type: "text", title: "Warm-up", enabled: true, body: newLesson.warmUp }] },
+        lesson: { ...(workstationState.content.lesson || {}), blocks: [{ id: "lesson-text", type: "text", title: "Lesson Text", enabled: true, body: newLesson.lessonText }] },
+        reading: { ...(workstationState.content.reading || {}), lexicon_notes: { text: newLesson.lexiconNotes, enabled: true } },
+        speaking: { ...(workstationState.content.speaking || {}), discussion_points: newLesson.prompts.split("\n").filter(Boolean).map((text) => ({ text, enabled: true })) },
+      };
+      const created = await createLesson({
+        title,
+        status: newLesson.status,
+        student_id: /^[0-9a-f-]{36}$/i.test(draftStudentId) ? draftStudentId : undefined,
+        content,
+        changes_summary: "Initial lesson created in Lesson Builder",
+      });
+      const lesson = created;
       setSelectedStudentId(student.id);
-      setNewLesson((previous) => ({ ...previous, studentId: student.id, title: lesson.title, slug: lesson.slug, moduleNumber: String(moduleNumber), status: "draft" }));
-      setWorkstationState((previous) => ({ ...previous, content: lesson.content || previous.content }));
-      persistInstructorLessonLocally(lesson);
+      setNewLesson((previous) => ({ ...previous, studentId: student.id, title: lesson.title, slug, moduleNumber: String(moduleNumber), status: newLesson.status }));
+      setWorkstationState((previous) => ({ ...previous, content: created.content || previous.content }));
+      setDatabaseLessonId(created.id);
+      await refreshCreatedLessons();
       setValidationErrors({});
-      setLessonStatus("draft");
-      setPublishStatus(`Lesson '${lesson.title}' created successfully as draft.`);
+      setLessonStatus(newLesson.status);
+      setPublishStatus(`Lesson '${lesson.title}' created successfully as ${newLesson.status}.`);
     } catch (error) {
-      console.error("Save error details:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
-      persistInstructorLessonLocally(lesson);
-      activateLesson(lesson);
-      setPublishStatus(`Lesson '${lesson.title}' created successfully as draft (saved locally).`);
+      console.error("Lesson creation failed:", error);
+      setPublishStatus("Lesson creation failed. Check the Supabase connection and try again.");
     }
   }
 
@@ -219,13 +218,7 @@ export default function InstructorWorkstationPage({
   }, [instructorToken]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const storedLessons = JSON.parse(window.localStorage.getItem("fluentia:instructor-lessons") || "[]") as LessonContent[];
-      setCreatedLessons(storedLessons);
-    } catch (error) {
-      console.error("Load error:", error);
-    }
+    void refreshCreatedLessons();
   }, []);
 
   useEffect(() => {
@@ -275,8 +268,7 @@ export default function InstructorWorkstationPage({
       const errors: typeof validationErrors = {};
       if (!selectedStudentId) errors.selectedStudentId = "Select a student.";
       if (!newLesson.title.trim()) errors.title = "Enter a lesson title.";
-      if (!newLesson.slug.trim()) errors.slug = "Enter a lesson slug.";
-      else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(newLesson.slug.trim().toLowerCase())) errors.slug = "Use lowercase letters, numbers, and hyphens only.";
+      else if (newLesson.slug.trim() && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(newLesson.slug.trim().toLowerCase())) errors.slug = "Use lowercase letters, numbers, and hyphens only.";
       if (!newLesson.moduleNumber.trim() || !Number.isInteger(Number(newLesson.moduleNumber)) || Number(newLesson.moduleNumber) < 1) errors.moduleNumber = "Enter a whole module number greater than zero.";
       if (Object.keys(errors).length > 0) {
         setValidationErrors(errors);
@@ -291,28 +283,34 @@ export default function InstructorWorkstationPage({
     }
     setValidationErrors({});
     setIsPublishing(true);
-    const lesson: LessonContent = {
-      id: databaseLessonId || `lesson-${slug}`,
-      title,
+    const content = {
+      ...workstationState.content,
       slug,
-      studentId,
+      title,
       subtitle: newLesson.subtitle.trim() || "A new Fluentia learning journey.",
       moduleNumber,
-      status,
-      coverImage: workstationState.bannerUrl || undefined,
-      content: workstationState.content,
+      warm_up: { ...(workstationState.content.warm_up || {}), blocks: [{ id: "warm-up-prompt", type: "text", title: "Warm-up", enabled: true, body: newLesson.warmUp }] },
+      lesson: { ...(workstationState.content.lesson || {}), blocks: [{ id: "lesson-text", type: "text", title: "Lesson Text", enabled: true, body: newLesson.lessonText }] },
+      reading: { ...(workstationState.content.reading || {}), lexicon_notes: { text: newLesson.lexiconNotes, enabled: true } },
+      speaking: { ...(workstationState.content.speaking || {}), discussion_points: newLesson.prompts.split("\n").filter(Boolean).map((text) => ({ text, enabled: true })) },
     };
     try {
-      await saveLesson(lesson);
-      persistInstructorLessonLocally(lesson);
+      if (!databaseLessonId) {
+        throw new Error("Select or create a lesson before saving changes.");
+      }
+      const lesson = await updateLesson(databaseLessonId, {
+        title,
+        status,
+        content,
+        changes_summary: `Lesson updated as ${status}`,
+      });
       setDatabaseLessonId(lesson.id);
+      await refreshCreatedLessons();
       setLessonStatus(status);
       setPublishStatus(`Lesson saved as ${status} and synced with student view.`);
     } catch (error) {
-      console.error("Save error details:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
-      persistInstructorLessonLocally(lesson);
-      activateLesson(lesson);
-      setPublishStatus(`Lesson saved as ${status} locally after a sync error.`);
+      console.error("Lesson save failed:", error);
+      setPublishStatus("Lesson save failed. Check the Supabase connection and try again.");
     } finally {
       setIsPublishing(false);
     }
@@ -374,14 +372,14 @@ export default function InstructorWorkstationPage({
           <section className="mb-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
                 {Object.keys(validationErrors).length > 0 && <div className="mb-4 space-y-1 rounded-md border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300" role="alert">{Object.entries(validationErrors).map(([field, message]) => <p key={field}>{message}</p>)}</div>}
             <div className="mb-4"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Lesson Library</p><h2 className="mt-1 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Create / Add New Lesson</h2></div>
-            <div className="grid gap-3 md:grid-cols-4"><label className="text-xs text-stone-400">Select Student<select value={selectedStudentId || ""} onChange={(event) => { const nextStudent = students.find((student) => student.id === event.target.value); if (nextStudent) void handleStudentChange(nextStudent); }} className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark]" aria-label="Select student for lesson">{students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}</select></label>{[["title", "Lesson Title", "Business Pitching 101"], ["slug", "Slug", "pitch-01"], ["subtitle", "Subtitle", "Present ideas with clarity"]].map(([field, label, placeholder]) => <label key={field} className="text-xs text-stone-400">{label}<input value={newLesson[field as keyof typeof newLesson]} onChange={(event) => field === "title" ? setLessonTitle(event.target.value) : field === "slug" ? setSlug(event.target.value) : setNewLesson((previous) => ({ ...previous, [field]: event.target.value }))} placeholder={placeholder} className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label>)}</div>
+            <div className="grid gap-3 md:grid-cols-4"><label className="text-xs text-stone-400">Select Student<select value={selectedStudentId || ""} onChange={(event) => { const nextStudent = students.find((student) => student.id === event.target.value); if (nextStudent) void handleStudentChange(nextStudent); }} className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark]" aria-label="Select student for lesson">{students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}</select></label>{[["title", "Lesson Title", "A new lesson"], ["slug", "Slug", "Optional: generated from title"], ["subtitle", "Subtitle", "Lesson summary"]].map(([field, label, placeholder]) => <label key={field} className="text-xs text-stone-400">{label}<input value={newLesson[field as keyof typeof newLesson]} onChange={(event) => field === "title" ? setLessonTitle(event.target.value) : field === "slug" ? setSlug(event.target.value) : setNewLesson((previous) => ({ ...previous, [field]: event.target.value }))} placeholder={placeholder} className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label>)}</div>
             <div className="mt-3 grid gap-3 md:grid-cols-4"><label className="text-xs text-stone-400">Module Number<input value={newLesson.moduleNumber} onChange={(event) => setNewLesson((previous) => ({ ...previous, moduleNumber: event.target.value }))} placeholder="3" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Visibility<select value={newLesson.status} onChange={(event) => setNewLesson((previous) => ({ ...previous, status: event.target.value as "draft" | "published" }))} className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200"><option value="draft">Draft</option><option value="published">Published</option></select></label></div>
             <div className="mt-3 grid gap-3 md:grid-cols-2">{[["warmUp", "Warm-up"], ["lessonText", "Lesson Text"], ["lexiconNotes", "Lexicon Notes"], ["prompts", "Prompts"]].map(([field, label]) => <label key={field} className="text-xs text-stone-400">{label}<textarea value={newLesson[field as keyof typeof newLesson]} onChange={(event) => setNewLesson((previous) => ({ ...previous, [field]: event.target.value }))} rows={2} className="mt-1 w-full resize-none rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label>)}</div>
             <button type="button" onClick={handleCreateLesson} className="mt-4 rounded-md bg-amber-500 px-4 py-2.5 text-xs font-semibold text-[#0c1017] transition hover:bg-amber-400">Create Lesson</button>
           </section>
           {createdLessons.length > 0 && <section className="mb-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" aria-label="Created lessons">
             <div className="mb-3"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Created Lessons</p><h2 className="mt-1 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Continue editing</h2></div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{createdLessons.map((lesson) => <button key={lesson.slug} type="button" onClick={() => activateLesson(lesson)} className={`rounded-lg border p-3 text-left transition ${newLesson.slug === lesson.slug ? "border-amber-500 bg-amber-500/10" : "border-[#394252] bg-[#0c1017] hover:border-amber-500/60"}`}><span className="block text-sm font-semibold text-stone-100">{lesson.title}</span><span className="mt-1 block text-xs text-stone-500">{lesson.slug} · {lesson.status || "draft"}</span></button>)}</div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{createdLessons.map((lesson) => { const lessonSlug = typeof lesson.content?.slug === "string" ? lesson.content.slug : lesson.id; return <button key={lesson.id} type="button" onClick={() => activateLesson(lesson)} className={`rounded-lg border p-3 text-left transition ${databaseLessonId === lesson.id ? "border-amber-500 bg-amber-500/10" : "border-[#394252] bg-[#0c1017] hover:border-amber-500/60"}`}><span className="block text-sm font-semibold text-stone-100">{lesson.title}</span><span className="mt-1 block text-xs text-stone-500">{lessonSlug} · {lesson.status}</span></button>; })}</div>
           </section>}
           <main className="grid grid-cols-1 gap-6 lg:grid-cols-12"><div className="space-y-6 lg:col-span-8"><LessonTailorEditor content={workstationState.content} onChange={(content: StrictStepContent) => setWorkstationState((previous) => ({ ...previous, content }))} /></div><div className="space-y-6 lg:col-span-4"><InstructorBannerManager bannerUrl={workstationState.bannerUrl} customInput={workstationState.customBannerUrl} onUpdateBanner={(bannerUrl: string) => setWorkstationState((previous) => ({ ...previous, bannerUrl }))} onUpdateCustomInput={(customBannerUrl: string) => setWorkstationState((previous) => ({ ...previous, customBannerUrl }))} /><div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5"><div className="flex items-center justify-between"><h3 className="font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Sidebar Blocks</h3><button type="button" onClick={() => setSidebarBlocks((blocks) => [...blocks, { id: `block-${Date.now()}`, title: "References", body: "" }])} className="flex items-center gap-1.5 rounded-md border border-amber-500 px-3 py-2 text-sm text-amber-500"><Plus className="h-3.5 w-3.5" />Add Block</button></div><div className="mt-4 space-y-3">{sidebarBlocks.map((block) => <div key={block.id} className="rounded-lg border border-[#202631] bg-[#0c1017] p-3"><div className="flex gap-2"><input value={block.title} onChange={(event) => setSidebarBlocks((blocks) => blocks.map((item) => item.id === block.id ? { ...item, title: event.target.value } : item))} className="min-w-0 flex-1 border-b border-[#394252] bg-transparent pb-1 text-xs font-semibold text-stone-200" aria-label="Sidebar block title" /><button type="button" onClick={() => setSidebarBlocks((blocks) => blocks.filter((item) => item.id !== block.id))} aria-label={`Delete ${block.title}`}><Trash2 className="h-3.5 w-3.5" /></button></div><textarea value={block.body} onChange={(event) => setSidebarBlocks((blocks) => blocks.map((item) => item.id === block.id ? { ...item, body: event.target.value } : item))} rows={3} className="mt-3 w-full resize-none rounded-md border border-[#202631] bg-[#171d28] p-2.5 text-xs text-stone-300" /></div>)}</div></div></div></main>
         </>}
