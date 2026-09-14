@@ -1,8 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
-import { CheckCircle, Award } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { CheckCircle, Award, AlertCircle } from "lucide-react";
 import { LessonEvaluation } from "@/types/lesson";
+import {
+  getSubmissionByLessonAndStudent,
+  createEvaluation,
+  updateEvaluation,
+} from "@/lib/evaluations";
 
 export interface FeedbackPayload {
   scores: Record<string, number>;
@@ -14,9 +19,12 @@ export interface FeedbackPayload {
 interface SubmissionEvaluatorProps {
   lessonId?: string;
   studentName?: string;
+  studentId?: string;
+  instructorId?: string;
   onSubmitFeedback?: (data: FeedbackPayload) => void;
   evaluation?: LessonEvaluation;
   onUpdateEvaluation?: (evaluation: LessonEvaluation) => void;
+  useSupabase?: boolean; // When true, submits to Supabase instead of callback
 }
 
 const RUBRIC_CRITERIA = [
@@ -29,9 +37,12 @@ const RUBRIC_CRITERIA = [
 export function SubmissionEvaluator({
   lessonId = "habits-01",
   studentName = "Arash",
+  studentId,
+  instructorId,
   onSubmitFeedback,
   evaluation,
   onUpdateEvaluation,
+  useSupabase = true,
 }: SubmissionEvaluatorProps) {
   const defaultScores: Record<string, number> = {
     task: 4,
@@ -39,10 +50,37 @@ export function SubmissionEvaluator({
     lexical: 3,
     grammar: 4,
   };
+
   const scores = evaluation?.scores || defaultScores;
   const comments = evaluation?.comments || "";
   const criterionFeedback = evaluation?.criterionFeedback || {};
+  
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submissionId, setSubmissionId] = useState<string | null>(null);
+  const [evaluationId, setEvaluationId] = useState<string | null>(null);
+
+  // Load existing submission and evaluation if useSupabase is enabled
+  useEffect(() => {
+    if (useSupabase && lessonId && studentId) {
+      loadSubmissionData();
+    }
+  }, [lessonId, studentId, useSupabase]);
+
+  const loadSubmissionData = async () => {
+    try {
+      const submission = await getSubmissionByLessonAndStudent(lessonId, studentId!);
+      if (submission) {
+        setSubmissionId(submission.id);
+        if (submission.evaluation) {
+          setEvaluationId(submission.evaluation.id);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading submission:", error);
+    }
+  };
 
   const handleScoreChange = (id: string, val: number) => {
     onUpdateEvaluation?.({ scores: { ...scores, [id]: val }, comments, criterionFeedback });
@@ -50,12 +88,72 @@ export function SubmissionEvaluator({
 
   const totalScore = Object.values(scores).reduce((acc, curr) => acc + curr, 0);
 
-  const handleSubmit = () => {
-    if (onSubmitFeedback) {
-      onSubmitFeedback({ scores, totalScore, comments, criterionFeedback });
+  const handleSubmit = async () => {
+    // Legacy callback-based submission
+    if (!useSupabase) {
+      if (onSubmitFeedback) {
+        onSubmitFeedback({ scores, totalScore, comments, criterionFeedback });
+      }
+      setIsSubmitted(true);
+      setTimeout(() => setIsSubmitted(false), 3000);
+      return;
     }
-    setIsSubmitted(true);
-    setTimeout(() => setIsSubmitted(false), 3000);
+
+    // Supabase-based submission
+    if (!lessonId || !studentId || !instructorId || !submissionId) {
+      setSubmitError("Missing required data for submission");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const feedbackText = `
+Scores:
+- Task Achievement & Depth: ${scores.task}/5
+- Coherence & Flow: ${scores.coherence}/5
+- Lexical Precision & Range: ${scores.lexical}/5
+- Grammatical Accuracy: ${scores.grammar}/5
+
+${Object.entries(criterionFeedback)
+  .filter(([, value]) => value)
+  .map(([criterion, feedback]) => `${criterion}: ${feedback}`)
+  .join("\n\n")}
+
+General Feedback:
+${comments}
+      `.trim();
+
+      const totalScoreNumeric = Object.values(scores).reduce((a, b) => a + b, 0);
+
+      if (evaluationId) {
+        // Update existing evaluation
+        await updateEvaluation(evaluationId, {
+          feedback: feedbackText,
+          score: totalScoreNumeric,
+        });
+      } else {
+        // Create new evaluation
+        const result = await createEvaluation({
+          submission_id: submissionId,
+          instructor_id: instructorId,
+          feedback: feedbackText,
+          score: totalScoreNumeric,
+        });
+        setEvaluationId(result.id);
+      }
+
+      setIsSubmitted(true);
+      setTimeout(() => setIsSubmitted(false), 3000);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to submit evaluation";
+      setSubmitError(errorMessage);
+      console.error("Error submitting evaluation:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -69,6 +167,13 @@ export function SubmissionEvaluator({
           Total: {totalScore}/20
         </span>
       </div>
+
+      {submitError && (
+        <div className="p-3 bg-red-900/30 border border-red-700 rounded-lg text-red-200 text-xs flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <span>{submitError}</span>
+        </div>
+      )}
 
       <div className="space-y-3">
         {RUBRIC_CRITERIA.map((criterion) => {
@@ -148,9 +253,15 @@ export function SubmissionEvaluator({
 
       <button
         onClick={handleSubmit}
-        className="w-full bg-amber-500 hover:bg-amber-400 text-[#0c1017] font-semibold text-xs py-2.5 rounded-lg transition flex items-center justify-center gap-1.5 shadow"
+        disabled={isSubmitting || isSubmitted}
+        className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-[#0c1017] font-semibold text-xs py-2.5 rounded-lg transition flex items-center justify-center gap-1.5 shadow"
       >
-        {isSubmitted ? (
+        {isSubmitting ? (
+          <>
+            <div className="h-4 w-4 border-2 border-[#0c1017] border-t-transparent rounded-full animate-spin" />
+            Saving...
+          </>
+        ) : isSubmitted ? (
           <>
             <CheckCircle className="w-4 h-4 text-[#0c1017]" /> Evaluation Saved & Sent
           </>

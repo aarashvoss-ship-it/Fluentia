@@ -1,9 +1,10 @@
 "use client";
 
-import React from "react";
-import { Target, AlertCircle, History, Sparkles } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Target, AlertCircle, History, Sparkles, Loader } from "lucide-react";
 import { StudentProfile } from "@/types/lesson";
 import { FluentiaUser } from "@/lib/users";
+import { getSubmissionByLessonAndStudent, getEvaluationBySubmissionId } from "@/lib/evaluations";
 
 interface StudentContextPanelProps {
   studentName?: string;
@@ -12,6 +13,9 @@ interface StudentContextPanelProps {
   students?: Array<FluentiaUser & { profile: StudentProfile; token: string }>;
   selectedStudentToken?: string;
   onSelectStudent?: (student: FluentiaUser & { profile: StudentProfile; token: string }) => void;
+  lessonId?: string;
+  studentId?: string;
+  useSupabase?: boolean;
 }
 
 export function StudentContextPanel({
@@ -21,6 +25,9 @@ export function StudentContextPanel({
   students = [],
   selectedStudentToken,
   onSelectStudent,
+  lessonId,
+  studentId,
+  useSupabase = true,
 }: StudentContextPanelProps) {
   const displayProfile: StudentProfile = profile || {
     id: "demo",
@@ -32,6 +39,37 @@ export function StudentContextPanel({
     teacherNotes: "Responds very well to reflective prompts. Needs more practice with natural transitional phrases.",
     attendanceRate: 94,
     completedModulesCount: 12,
+  };
+
+  const [submissionData, setSubmissionData] = useState<any>(null);
+  const [evaluationData, setEvaluationData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Load submission and evaluation data if useSupabase is enabled
+  useEffect(() => {
+    if (useSupabase && lessonId && studentId) {
+      loadSubmissionAndEvaluation();
+    }
+  }, [lessonId, studentId, useSupabase]);
+
+  const loadSubmissionAndEvaluation = async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const submission = await getSubmissionByLessonAndStudent(lessonId!, studentId!);
+      if (submission) {
+        setSubmissionData(submission);
+        if (submission.evaluation) {
+          setEvaluationData(submission.evaluation);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading submission data:", error);
+      setLoadError("Failed to load submission data");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const updateProfile = <K extends keyof StudentProfile>(
@@ -136,6 +174,75 @@ export function StudentContextPanel({
           </span>
           <span>{displayProfile.completedModulesCount} Modules Done</span>
         </div>
+
+        {/* Submission & Evaluation Status (Supabase) */}
+        {useSupabase && lessonId && studentId && (
+          <div className="pt-4 border-t border-[#202631]">
+            <div className="flex items-center gap-2 mb-3">
+              <History className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-slate-400 font-medium text-xs">Submission Status</span>
+            </div>
+
+            {isLoading && (
+              <div className="flex items-center gap-2 text-xs text-stone-400">
+                <Loader className="w-3 h-3 animate-spin" />
+                Loading submission data...
+              </div>
+            )}
+
+            {loadError && (
+              <div className="text-xs text-red-400 flex items-start gap-2">
+                <AlertCircle className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                {loadError}
+              </div>
+            )}
+
+            {!isLoading && submissionData && (
+              <div className="space-y-2 bg-[#0c1017] p-2 rounded-lg border border-[#202631]">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-stone-400">Submission Status:</span>
+                  <span
+                    className={`px-2 py-0.5 rounded text-[11px] font-medium ${
+                      submissionData.status === "reviewed"
+                        ? "bg-green-900/40 text-green-300"
+                        : submissionData.status === "submitted"
+                        ? "bg-blue-900/40 text-blue-300"
+                        : "bg-yellow-900/40 text-yellow-300"
+                    }`}
+                  >
+                    {submissionData.status}
+                  </span>
+                </div>
+
+                {submissionData.submitted_at && (
+                  <div className="text-xs text-stone-400">
+                    <span className="text-stone-500">Submitted:</span> {new Date(submissionData.submitted_at).toLocaleDateString()}
+                  </div>
+                )}
+
+                {evaluationData && (
+                  <div className="pt-2 border-t border-[#202631]">
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="text-stone-400">Score:</span>
+                      <span className="text-amber-400 font-semibold">{evaluationData.score || "N/A"}</span>
+                    </div>
+                    {evaluationData.feedback && (
+                      <div className="text-xs text-stone-300 bg-[#171d28] p-2 rounded mt-2 max-h-24 overflow-y-auto">
+                        {evaluationData.feedback}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!isLoading && !submissionData && !loadError && (
+              <div className="text-xs text-stone-500 italic">
+                No submission yet for this lesson.
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

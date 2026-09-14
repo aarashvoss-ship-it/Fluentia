@@ -2,11 +2,12 @@
 
 import React, { useState } from "react";
 import { ContentBlock, ContentBlockType, STUDY_STEPS, StudyStepId, StrictStepContent } from "@/types/lesson";
+import { useLessonEditorStore } from "@/lib/lesson-editor-store";
 import { ToggleLeft, ToggleRight, Eye, Layers, MoveDown, MoveUp, Plus, Trash2 } from "lucide-react";
 
 interface LessonTailorEditorProps {
   content: StrictStepContent;
-  onChange: (updatedContent: StrictStepContent) => void;
+  onChange?: (updatedContent: StrictStepContent) => void;
   onPreview?: () => void;
 }
 
@@ -35,6 +36,22 @@ export function LessonTailorEditor({
   onPreview,
 }: LessonTailorEditorProps) {
   const [activeStep, setActiveStep] = useState<StudyStepId>("warm_up");
+  
+  // Zustand store integration
+  const {
+    addBlock,
+    updateBlock,
+    deleteBlock,
+    toggleBlock: storeToggleBlock,
+    reorderBlocks,
+  } = useLessonEditorStore();
+
+  // Wrapper to handle both local state and Supabase sync
+  const handleChange = async (updatedContent: StrictStepContent) => {
+    if (onChange) {
+      onChange(updatedContent);
+    }
+  };
 
   const toggleBlock = (step: StudyStepId, blockKey: string) => {
     const stepObj = (content[step] as Record<string, any>) || {};
@@ -49,7 +66,7 @@ export function LessonTailorEditor({
         },
       },
     };
-    onChange(updated);
+    handleChange(updated);
   };
 
   const updateTextValue = (
@@ -70,11 +87,11 @@ export function LessonTailorEditor({
         },
       },
     };
-    onChange(updated);
+    handleChange(updated);
   };
 
   const updateStepValue = (step: StudyStepId, field: string, value: unknown) => {
-    onChange({
+    handleChange({
       ...content,
       [step]: {
         ...(content[step] || {}),
@@ -118,6 +135,14 @@ export function LessonTailorEditor({
   const updateDynamicBlock = (step: StudyStepId, index: number, patch: Partial<ContentBlock>) => {
     const blocks = getBlocks(step).map((block, blockIndex) => blockIndex === index ? { ...block, ...patch } as ContentBlock : block);
     updateBlocks(step, blocks);
+    
+    // Sync to Supabase
+    const block = blocks[index];
+    if (block) {
+      updateBlock(step, block.id, patch).catch((error: any) => {
+        console.error("Failed to update block:", error);
+      });
+    }
   };
 
   const renderDynamicBuilder = (step: StudyStepId) => {
@@ -127,7 +152,34 @@ export function LessonTailorEditor({
       if (nextIndex < 0 || nextIndex >= blocks.length) return;
       const nextBlocks = [...blocks];
       [nextBlocks[index], nextBlocks[nextIndex]] = [nextBlocks[nextIndex], nextBlocks[index]];
+      
+      // Update local state
       updateBlocks(step, nextBlocks);
+      
+      // Sync to Supabase
+      reorderBlocks(step, index, nextIndex).catch((error: any) => {
+        console.error("Failed to reorder blocks:", error);
+      });
+    };
+
+    const handleAddBlock = (type: ContentBlockType) => {
+      if (!type) return;
+      const newBlock = createBlock(type);
+      updateBlocks(step, [...blocks, newBlock]);
+      
+      // Sync to Supabase
+      addBlock(step, newBlock).catch((error: any) => {
+        console.error("Failed to add block:", error);
+      });
+    };
+
+    const handleDeleteBlock = (index: number, blockId: string) => {
+      updateBlocks(step, blocks.filter((_, blockIndex) => blockIndex !== index));
+      
+      // Sync to Supabase
+      deleteBlock(step, blockId).catch((error: any) => {
+        console.error("Failed to delete block:", error);
+      });
     };
 
     return (
@@ -140,7 +192,7 @@ export function LessonTailorEditor({
           <select
             value=""
             onChange={(event) => {
-              if (event.target.value) updateBlocks(step, [...blocks, createBlock(event.target.value as ContentBlockType)]);
+              handleAddBlock(event.target.value as ContentBlockType);
             }}
             aria-label={`Add content block to ${step}`}
             className="rounded-md border border-amber-500 bg-[#0c1017] px-3 py-2 text-sm font-medium text-amber-500 [color-scheme:dark] outline-none transition hover:bg-amber-500/10 focus:border-amber-500"
@@ -162,7 +214,7 @@ export function LessonTailorEditor({
               <div className="flex items-center gap-1">
                 <button type="button" onClick={() => moveBlock(index, -1)} disabled={index === 0} className="rounded p-1 text-stone-400 hover:bg-[#0c1017] hover:text-amber-300 disabled:opacity-30" aria-label="Move block up"><MoveUp className="h-3.5 w-3.5" /></button>
                 <button type="button" onClick={() => moveBlock(index, 1)} disabled={index === blocks.length - 1} className="rounded p-1 text-stone-400 hover:bg-[#0c1017] hover:text-amber-300 disabled:opacity-30" aria-label="Move block down"><MoveDown className="h-3.5 w-3.5" /></button>
-                <button type="button" onClick={() => updateBlocks(step, blocks.filter((_, blockIndex) => blockIndex !== index))} className="rounded p-1 text-stone-400 hover:bg-[#0c1017] hover:text-red-300" aria-label="Delete block"><Trash2 className="h-3.5 w-3.5" /></button>
+                <button type="button" onClick={() => handleDeleteBlock(index, block.id)} className="rounded p-1 text-stone-400 hover:bg-[#0c1017] hover:text-red-300" aria-label="Delete block"><Trash2 className="h-3.5 w-3.5" /></button>
               </div>
             </div>
             <input value={block.title} onChange={(event) => updateDynamicBlock(step, index, { title: event.target.value })} placeholder="Block title" className="mb-2 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.type} block title`} />
