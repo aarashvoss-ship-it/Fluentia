@@ -75,6 +75,7 @@ export default function InstructorWorkstationPage({
   const [previewStep, setPreviewStep] = useState<"warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking">("warm_up");
   const [saveIndicator, setSaveIndicator] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const hasLoadedLesson = useRef(false);
+  const lastSavedDraftSignature = useRef<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Partial<Record<"selectedStudentId" | "title" | "slug" | "moduleNumber", string>>>({});
   const [createdLessons, setCreatedLessons] = useState<LessonWithVersion[]>([]);
   const [newLesson, setNewLesson] = useState({
@@ -94,6 +95,15 @@ export default function InstructorWorkstationPage({
       subtitle: "",
       moduleNumber: "",
       status: "draft",
+    });
+
+  const getDraftSignature = (content: StrictStepContent, title: string, subtitle: string, moduleNumber: string) =>
+    JSON.stringify({
+      content,
+      title: title.trim() || "Untitled Lesson",
+      subtitle: subtitle.trim() || "A new Fluentia learning journey.",
+      moduleNumber: Number(moduleNumber) || 1,
+      sidebarBlocks,
     });
 
   async function handleStudentChange(student: StudentUser, requestedLessonSlug = lessonId) {
@@ -221,12 +231,18 @@ export default function InstructorWorkstationPage({
 
   useEffect(() => {
     if (!databaseLessonId || !hasLoadedLesson.current) return;
+    const draftSignature = getDraftSignature(workstationState.content, newLesson.title, newLesson.subtitle, newLesson.moduleNumber);
+    if (lastSavedDraftSignature.current === null) {
+      lastSavedDraftSignature.current = draftSignature;
+      return;
+    }
+    if (lastSavedDraftSignature.current === draftSignature) return;
     setSaveIndicator("saving");
     const timer = window.setTimeout(() => {
       void saveLessonChanges("draft", true);
     }, 900);
     return () => window.clearTimeout(timer);
-  }, [workstationState.content, newLesson.title, newLesson.subtitle, newLesson.moduleNumber, databaseLessonId]);
+  }, [workstationState.content, newLesson.title, newLesson.subtitle, newLesson.moduleNumber, sidebarBlocks, databaseLessonId]);
 
   useEffect(() => {
     const loadCounts = async () => {
@@ -330,6 +346,7 @@ export default function InstructorWorkstationPage({
       await refreshCreatedLessons();
       setLessonStatus(status);
       setSaveIndicator("saved");
+      lastSavedDraftSignature.current = getDraftSignature(workstationState.content, title, newLesson.subtitle, String(moduleNumber));
       console.log("Lesson saved successfully", { lessonId: lesson.id, status });
       if (!isAutoSave) setPublishStatus(`Lesson saved as ${status} and synced with student view.`);
     } catch (error) {
@@ -410,7 +427,7 @@ export default function InstructorWorkstationPage({
           {activeTab === "builder" && <div className="flex items-center gap-3">
             {publishStatus !== null && publishStatus.trim().length > 0 && <span className="rounded-lg border border-[#202631] bg-[#171d28] px-3 py-1.5 text-xs font-medium text-amber-400">{publishStatus}</span>}
             <select value={databaseLessonId && createdLessons.some((lesson) => lesson.id === databaseLessonId && lesson.status === "draft") ? databaseLessonId : ""} onChange={(event) => { const draft = createdLessons.find((lesson) => lesson.id === event.target.value); if (draft) activateLesson(draft); }} aria-label="Drafts" className="min-w-[280px] max-w-[320px] truncate rounded-lg border border-amber-500/50 bg-[#171d28] px-3 py-2.5 text-xs font-semibold text-amber-300 outline-none transition-colors hover:bg-amber-500 hover:text-black [color-scheme:dark]"><option value="">Drafts</option>{createdLessons.filter((lesson) => lesson.status === "draft").slice(0, 8).map((lesson) => <option key={lesson.id} value={lesson.id}>{lesson.title}</option>)}</select>
-            {databaseLessonId && <span className={`text-xs ${saveIndicator === "error" ? "text-red-300" : "text-stone-400"}`}>{saveIndicator === "saving" ? "● Saving" : saveIndicator === "saved" ? "● Auto-saved" : saveIndicator === "error" ? "● Save failed" : "● Saved"}</span>}
+            {databaseLessonId && <span className={`inline-block min-w-[90px] text-right text-xs ${saveIndicator === "error" ? "text-red-300" : "text-stone-400"}`}>{saveIndicator === "saving" ? "● Saving" : saveIndicator === "saved" ? "● Auto-saved" : saveIndicator === "error" ? "● Save failed" : "● Saved"}</span>}
             <button type="button" onClick={handleSaveDraft} className="rounded-lg border border-amber-500/50 px-4 py-2.5 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black">Save</button>
             <button type="button" onClick={handlePreviewPublish} className="rounded-lg border border-amber-500/50 px-4 py-2.5 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black">Preview &amp; Publish</button>
           </div>}
