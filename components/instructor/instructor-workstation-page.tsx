@@ -328,6 +328,10 @@ export default function InstructorWorkstationPage({
     void saveLessonChanges("draft");
   };
 
+  const handlePreviewPublish = () => {
+    setShowPreview(true);
+  };
+
   const handleConfirmPublish = () => {
     setShowPreview(false);
     void saveLessonChanges("published");
@@ -389,8 +393,8 @@ export default function InstructorWorkstationPage({
             {publishStatus !== null && publishStatus.trim().length > 0 && <span className="rounded-lg border border-[#202631] bg-[#171d28] px-3 py-1.5 text-xs font-medium text-amber-400">{publishStatus}</span>}
             <select value={databaseLessonId && createdLessons.some((lesson) => lesson.id === databaseLessonId && lesson.status === "draft") ? databaseLessonId : ""} onChange={(event) => { const draft = createdLessons.find((lesson) => lesson.id === event.target.value); if (draft) activateLesson(draft); }} aria-label="Drafts" className="min-w-[280px] max-w-[320px] truncate rounded-lg border border-amber-500/50 bg-[#171d28] px-3 py-2.5 text-xs font-semibold text-amber-300 outline-none transition-colors hover:bg-amber-500 hover:text-black [color-scheme:dark]"><option value="">Drafts</option>{createdLessons.filter((lesson) => lesson.status === "draft").slice(0, 8).map((lesson) => <option key={lesson.id} value={lesson.id}>{lesson.title}</option>)}</select>
             {databaseLessonId && <span className={`text-xs ${saveIndicator === "error" ? "text-red-300" : "text-stone-400"}`}>{saveIndicator === "saving" ? "● Saving" : saveIndicator === "saved" ? "● Auto-saved" : saveIndicator === "error" ? "● Save failed" : "● Saved"}</span>}
-            <button type="button" onClick={() => void saveLessonChanges("draft")} disabled={isPublishing || !databaseLessonId} className="rounded-lg border border-amber-500/50 px-4 py-2.5 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black disabled:opacity-50">Save</button>
-            <button type="button" onClick={() => setShowPreview(true)} disabled={!databaseLessonId} className="rounded-lg border border-amber-500/50 px-4 py-2.5 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black disabled:opacity-50">Preview &amp; Publish</button>
+            <button type="button" onClick={handleSaveDraft} disabled={isPublishing || !databaseLessonId} className="rounded-lg border border-amber-500/50 px-4 py-2.5 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black disabled:opacity-50">Save</button>
+            <button type="button" onClick={handlePreviewPublish} disabled={!databaseLessonId} className="rounded-lg border border-amber-500/50 px-4 py-2.5 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black disabled:opacity-50">Preview &amp; Publish</button>
           </div>}
         </header>
 
