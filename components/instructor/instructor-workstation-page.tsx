@@ -13,6 +13,7 @@ import { INSTRUCTOR_TOKEN, PublishedLessonState } from "@/lib/lesson-store";
 import { DEFAULT_STUDENT, STUDENT_USERS, StudentUser } from "@/lib/users";
 import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/storage-service";
 import { AccessCard } from "@/components/access/access-card";
+import { saveStudentProfile } from "@/lib/student-profiles";
 
 interface InstructorWorkstationProps {
   instructorToken: string;
@@ -498,7 +499,7 @@ export default function InstructorWorkstationPage({
 
         {activeTab === "evaluation" && <>
 <div className="mb-6">
-<StudentContextPanel studentName={selectedStudent?.name || "Selected Student"} profile={workstationState.studentProfile} onUpdateProfile={(studentProfile: StudentProfile) => setWorkstationState((previous) => ({ ...previous, studentProfile }))} />
+<StudentContextPanel studentName={selectedStudent?.name || "Selected Student"} profile={workstationState.studentProfile} onUpdateProfile={(studentProfile: StudentProfile) => setWorkstationState((previous) => ({ ...previous, studentProfile }))} onSaveProfile={async (studentProfile: StudentProfile) => { const studentToken = selectedStudent.token || selectedStudent.id; await saveStudentProfile(studentToken, studentProfile); window.localStorage.setItem(`fluentia:student-profile-sync:${studentToken}`, new Date().toISOString()); window.dispatchEvent(new CustomEvent(FLUENTIA_DATA_UPDATED_EVENT, { detail: { type: "student-profile", studentToken } })); }} />
 </div>
 <section className="mt-8 grid grid-cols-1 items-start gap-6 lg:grid-cols-12" aria-label="Student submission review workspace">
 <div className="space-y-5 lg:col-span-7">

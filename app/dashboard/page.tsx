@@ -12,6 +12,7 @@ import { DictionaryModal } from "@/components/study-room/dictionary-modal";
 import { LearningSidebar } from "@/components/study-room/learning-sidebar";
 import { ChatWidget } from "@/components/study-room/chat-widget";
 import { AccessCard } from "@/components/access/access-card";
+import { getStudentProfile } from "@/lib/student-profiles";
 
 type LessonStatus = "not-started" | "in-progress" | "pending-review" | "completed";
 
@@ -77,6 +78,16 @@ export default function DashboardPage() {
     const loadDashboard = async (studentToken: string) => {
       const availableLessons = (await getLessons()).filter((lesson) => lesson.status === "published");
       setLessons(availableLessons);
+      try {
+        const savedProfile = await getStudentProfile(studentToken);
+        if (savedProfile) {
+          setActiveStudent((previous) => previous.profile
+            ? { ...previous, profile: { ...previous.profile, ...savedProfile } }
+            : previous);
+        }
+      } catch (error) {
+        console.error("Error loading student profile:", error);
+      }
       const nextLessonStates = Object.fromEntries(await Promise.all(availableLessons.map(async (lesson) => [lesson.id, await fetchLessonState(lesson.id, studentToken)])));
       setLessonStates(nextLessonStates);
       const completedModulesCount = availableLessons.filter((lesson) => getLessonStatus(nextLessonStates[lesson.id]) === "completed").length;
@@ -105,9 +116,7 @@ export default function DashboardPage() {
     } catch {
       window.localStorage.removeItem(`fluentia:profile:${studentToken}`);
     }
-    const activeWithProfile = active;
-
-    setActiveStudent(activeWithProfile);
+    setActiveStudent(active);
     setAvatarPreset(preferences.avatarPreset || "amber");
     setCustomAvatarUrl(preferences.customAvatarUrl || "");
     setBannerPreset(preferences.bannerPreset || "default-dark");

@@ -9,6 +9,7 @@ interface StudentContextPanelProps {
   studentName?: string;
   profile?: StudentProfile;
   onUpdateProfile?: (profile: StudentProfile) => void;
+  onSaveProfile?: (profile: StudentProfile) => Promise<void> | void;
   lessonId?: string;
   studentId?: string;
   useSupabase?: boolean;
@@ -18,6 +19,7 @@ export function StudentContextPanel({
   studentName = "Arash",
   profile,
   onUpdateProfile,
+  onSaveProfile,
   lessonId,
   studentId,
   useSupabase = true,
@@ -38,6 +40,8 @@ export function StudentContextPanel({
   const [evaluationData, setEvaluationData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileSaveMessage, setProfileSaveMessage] = useState<string | null>(null);
 
   // Load submission and evaluation data if useSupabase is enabled
   useEffect(() => {
@@ -72,6 +76,20 @@ export function StudentContextPanel({
     onUpdateProfile?.({ ...displayProfile, [field]: value });
   };
 
+  const saveProfile = async () => {
+    setIsSavingProfile(true);
+    setProfileSaveMessage(null);
+    try {
+      await onSaveProfile?.(displayProfile);
+      setProfileSaveMessage("Profile saved");
+    } catch (error) {
+      console.error("Error saving student profile:", error);
+      setProfileSaveMessage("Profile save failed");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
   return (
     <div className="bg-[#171d28]/60 border border-[#202631] rounded-xl p-5 text-[#d9dce0]">
       <div className="flex items-start justify-between pb-4 border-b border-[#202631]">
@@ -86,12 +104,14 @@ export function StudentContextPanel({
               className="w-full bg-transparent font-[var(--font-fraunces)] font-semibold text-xl text-white focus:outline-none"
               aria-label="Student name"
             />
-            <input
-              value={displayProfile.level}
+            <select
+              value={displayProfile.level.match(/^(A1|A2|B1|B2|C1|C2)/)?.[1] || "B1"}
               onChange={(e) => updateProfile("level", e.target.value)}
               className="mt-1 w-full bg-transparent text-xs text-amber-400 focus:outline-none"
               aria-label="Student level"
-            />
+            >
+              {(["A1", "A2", "B1", "B2", "C1", "C2"] as const).map((level) => <option key={level} value={level}>{level}</option>)}
+            </select>
           </div>
         </div>
         <div className="text-right">
@@ -147,6 +167,13 @@ export function StudentContextPanel({
             <Sparkles className="w-3 h-3" /> Personalized Mode Active
           </span>
           <span>{displayProfile.completedModulesCount} Modules Done</span>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 border-t border-[#202631] pt-3">
+          <span className={profileSaveMessage === "Profile save failed" ? "text-red-300" : "text-stone-500"}>{profileSaveMessage || "Instructor profile settings"}</span>
+          <button type="button" onClick={() => void saveProfile()} disabled={isSavingProfile || !onSaveProfile} className="rounded-md bg-amber-500 px-3 py-2 text-[11px] font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50">
+            {isSavingProfile ? "Saving..." : "Save profile"}
+          </button>
         </div>
 
         {/* Submission & Evaluation Status (Supabase) */}
