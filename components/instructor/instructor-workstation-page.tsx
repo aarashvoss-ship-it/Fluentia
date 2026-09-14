@@ -385,13 +385,13 @@ export default function InstructorWorkstationPage({
 <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-400">Fluentia Instructor Studio</span>
 <h1 className="mt-2 font-[var(--font-fraunces)] text-2xl font-semibold text-[#f1eee8]">Instructor Workstation</h1>
 </div>
-          <div className="flex items-center gap-3">
+          {activeTab === "builder" && <div className="flex items-center gap-3">
             {publishStatus !== null && publishStatus.trim().length > 0 && <span className="rounded-lg border border-[#202631] bg-[#171d28] px-3 py-1.5 text-xs font-medium text-amber-400">{publishStatus}</span>}
-            <select value={databaseLessonId && createdLessons.some((lesson) => lesson.id === databaseLessonId && lesson.status === "draft") ? databaseLessonId : ""} onChange={(event) => { const draft = createdLessons.find((lesson) => lesson.id === event.target.value); if (draft) activateLesson(draft); }} aria-label="Recent Drafts" className="max-w-44 rounded-lg border border-amber-500/50 bg-[#171d28] px-3 py-2.5 text-xs font-semibold text-amber-300 outline-none transition-colors hover:bg-amber-500 hover:text-black [color-scheme:dark]"><option value="">Recent Drafts</option>{createdLessons.filter((lesson) => lesson.status === "draft").slice(0, 8).map((lesson) => <option key={lesson.id} value={lesson.id}>{lesson.title}</option>)}</select>
+            <select value={databaseLessonId && createdLessons.some((lesson) => lesson.id === databaseLessonId && lesson.status === "draft") ? databaseLessonId : ""} onChange={(event) => { const draft = createdLessons.find((lesson) => lesson.id === event.target.value); if (draft) activateLesson(draft); }} aria-label="Drafts" className="min-w-[280px] max-w-[320px] truncate rounded-lg border border-amber-500/50 bg-[#171d28] px-3 py-2.5 text-xs font-semibold text-amber-300 outline-none transition-colors hover:bg-amber-500 hover:text-black [color-scheme:dark]"><option value="">Drafts</option>{createdLessons.filter((lesson) => lesson.status === "draft").slice(0, 8).map((lesson) => <option key={lesson.id} value={lesson.id}>{lesson.title}</option>)}</select>
             {databaseLessonId && <span className={`text-xs ${saveIndicator === "error" ? "text-red-300" : "text-stone-400"}`}>{saveIndicator === "saving" ? "● Saving" : saveIndicator === "saved" ? "● Auto-saved" : saveIndicator === "error" ? "● Save failed" : "● Saved"}</span>}
             <button type="button" onClick={() => void saveLessonChanges("draft")} disabled={isPublishing || !databaseLessonId} className="rounded-lg border border-amber-500/50 px-4 py-2.5 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black disabled:opacity-50">Save</button>
             <button type="button" onClick={() => setShowPreview(true)} disabled={!databaseLessonId} className="rounded-lg border border-amber-500/50 px-4 py-2.5 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black disabled:opacity-50">Preview &amp; Publish</button>
-          </div>
+          </div>}
         </header>
 
         <nav className="sticky top-0 z-20 mb-8 border-b border-[#202631] bg-[#0c1017]/95 backdrop-blur" aria-label="Instructor workstation views">
