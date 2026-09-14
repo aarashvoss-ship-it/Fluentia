@@ -10,7 +10,7 @@ import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/su
 import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
 import { createLesson, getLessons, updateLesson, type LessonWithVersion } from "@/lib/lessons";
 import { INSTRUCTOR_TOKEN, PublishedLessonState } from "@/lib/lesson-store";
-import { DEFAULT_STUDENT, StudentUser } from "@/lib/users";
+import { DEFAULT_STUDENT, STUDENT_USERS, StudentUser } from "@/lib/users";
 import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/storage-service";
 import { AccessCard } from "@/components/access/access-card";
 
@@ -244,7 +244,13 @@ export default function InstructorWorkstationPage({
         .select("*")
         .eq("role", "student");
       if (studentProfilesError) {
-        console.error("Failed to load student profiles:", studentProfilesError);
+        console.error("Failed to load student profiles:", studentProfilesError.message);
+        setStudents(STUDENT_USERS);
+        return;
+      }
+      if (!studentProfiles) {
+        console.error("Failed to load student profiles: No student profiles were returned.");
+        setStudents(STUDENT_USERS);
         return;
       }
 
@@ -463,7 +469,7 @@ export default function InstructorWorkstationPage({
                 <label className="sr-only" htmlFor="active-student-selector">Select active student</label>
                 <select id="active-student-selector" value={selectedStudentId || ""} onChange={(event) => { const nextStudent = students.find((student) => student.id === event.target.value); if (nextStudent) { void handleStudentChange(nextStudent); setActiveStudentsOpen(false); } }} className="w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark]" aria-label="Select active student">
                   <option value="">Choose a student</option>
-                  {students.map((student) => <option key={student.id} value={student.id}>{student.full_name || student.email}</option>)}
+                  {students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}
                 </select>
               </div>
             </details>
