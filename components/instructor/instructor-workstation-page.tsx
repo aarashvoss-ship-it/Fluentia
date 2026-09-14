@@ -238,47 +238,7 @@ export default function InstructorWorkstationPage({
       setPendingSubmissionCount(pendingCount ?? 0);
       setPublishedLessonCount(publishedCount ?? 0);
       setDraftLessonCount(draftsCount ?? 0);
-
-      const { data: studentProfiles, error: studentProfilesError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("role", "student");
-      if (studentProfilesError) {
-        console.error("Failed to load student profiles:", studentProfilesError.message);
-        setStudents(STUDENT_USERS);
-        return;
-      }
-      if (!studentProfiles) {
-        console.error("Failed to load student profiles: No student profiles were returned.");
-        setStudents(STUDENT_USERS);
-        return;
-      }
-
-      const mappedStudents = studentProfiles.map((row) => {
-        const profile = (row.profile || {}) as Partial<StudentProfile>;
-        const name = row.full_name || row.email || row.name || profile.fullName || "Unnamed Student";
-        const id = String(row.id);
-        return {
-          id,
-          full_name: row.full_name,
-          email: row.email,
-          token: String(row.token || row.access_token || id),
-          name,
-          role: "student" as const,
-          profile: {
-            id,
-            fullName: name,
-            level: row.level || profile.level || "Not set",
-            targetGoal: row.target_goal || profile.targetGoal || "Not set",
-            weaknesses: profile.weaknesses || [],
-            teacherNotes: profile.teacherNotes || "",
-            attendanceRate: profile.attendanceRate || 0,
-            completedModulesCount: profile.completedModulesCount || 0,
-            avatarUrl: row.avatar_url || profile.avatarUrl,
-          },
-        } as StudentUser;
-      });
-      setStudents(mappedStudents);
+      setStudents(STUDENT_USERS);
     };
     const refreshCounts = () => void loadCounts();
     void loadCounts();
