@@ -430,12 +430,6 @@ export function LessonTailorEditor({
           </div>
         )}
 
-        {activeStep === "results" && (
-          <div className="space-y-5">
-            {renderBlockEditor("results", "self_reflection", "Self Reflection", "Edit the reflection prompt...", true)}
-            <label className="block text-xs text-stone-400">Instructor Review Prompt<input value={content.results?.instructor_review_card?.prompt || ""} onChange={(e) => updateStepValue("results", "instructor_review_card", { ...(content.results?.instructor_review_card || { enabled: true }), prompt: e.target.value })} className="mt-1 w-full bg-[#171d28] border border-[#202631] rounded-md p-2.5 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500" /></label>
-          </div>
-        )}
       </div>
     </div>
   );
