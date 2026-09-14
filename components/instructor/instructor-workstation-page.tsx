@@ -239,12 +239,23 @@ export default function InstructorWorkstationPage({
       setPublishedLessonCount(publishedCount ?? 0);
       setDraftLessonCount(draftsCount ?? 0);
 
-      const mapStudentRows = (rows: Array<Record<string, any>>): StudentUser[] => rows.map((row) => {
+      const { data: studentProfiles, error: studentProfilesError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("role", "student");
+      if (studentProfilesError) {
+        console.error("Failed to load student profiles:", studentProfilesError);
+        return;
+      }
+
+      const mappedStudents = studentProfiles.map((row) => {
         const profile = (row.profile || {}) as Partial<StudentProfile>;
-        const name = row.full_name || row.name || profile.fullName || "Unnamed Student";
+        const name = row.full_name || row.email || row.name || profile.fullName || "Unnamed Student";
         const id = String(row.id);
         return {
           id,
+          full_name: row.full_name,
+          email: row.email,
           token: String(row.token || row.access_token || id),
           name,
           role: "student" as const,
@@ -261,23 +272,7 @@ export default function InstructorWorkstationPage({
           },
         } as StudentUser;
       });
-
-      const profileResult = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("role", "student")
-        .order("full_name", { ascending: true });
-      let loadedStudents = profileResult.error ? [] : mapStudentRows(profileResult.data || []);
-
-      if (profileResult.error) {
-        const studentResult = await supabase
-          .from("students")
-          .select("*")
-          .order("full_name", { ascending: true });
-        loadedStudents = studentResult.error ? [] : mapStudentRows(studentResult.data || []);
-      }
-
-      setStudents(loadedStudents);
+      setStudents(mappedStudents);
     };
     const refreshCounts = () => void loadCounts();
     void loadCounts();
@@ -468,7 +463,7 @@ export default function InstructorWorkstationPage({
                 <label className="sr-only" htmlFor="active-student-selector">Select active student</label>
                 <select id="active-student-selector" value={selectedStudentId || ""} onChange={(event) => { const nextStudent = students.find((student) => student.id === event.target.value); if (nextStudent) { void handleStudentChange(nextStudent); setActiveStudentsOpen(false); } }} className="w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark]" aria-label="Select active student">
                   <option value="">Choose a student</option>
-                  {students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}
+                  {students.map((student) => <option key={student.id} value={student.id}>{student.full_name || student.email}</option>)}
                 </select>
               </div>
             </details>
