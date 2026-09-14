@@ -1,4 +1,3 @@
-import { LESSONS } from "@/lib/lessons";
 import {
   LessonContent,
   LessonEvaluation,
@@ -134,6 +133,14 @@ async function getStudentId(studentToken?: string) {
 }
 
 async function fetchStudentLesson(slug: string, studentId: string) {
+  const { data: lessonById, error: idError } = await supabase
+    .from("lessons")
+    .select("*")
+    .eq("id", slug)
+    .eq("student_id", studentId)
+    .maybeSingle();
+  if (!idError && lessonById) return lessonById;
+
   const { data, error } = await supabase
     .from("lessons")
     .select("*")
@@ -162,7 +169,7 @@ function mapLessonRow(row: SupabaseRow): LessonContent {
 }
 
 function mapSubmission(row: SupabaseRow): StudentSubmission {
-  const content = row.content || {};
+  const content = row.answers || row.content || {};
   return {
     status: row.status || content.status || "in_progress",
     listeningAnswers: content.listeningAnswers || {},
@@ -185,9 +192,7 @@ export async function fetchLesson(slug: string): Promise<LessonContent | null> {
       // Use the local manifest when Supabase is unavailable.
     }
   }
-  const manifestLesson = readManifest().find((lesson) => lesson.slug === slug);
-  const instructorLesson = readInstructorLessons().find((lesson) => lesson.slug === slug && lesson.status !== "draft");
-  return manifestLesson || instructorLesson || LESSONS.find((lesson) => lesson.slug === slug) || null;
+  return null;
 }
 
 export async function fetchLessons(): Promise<LessonContent[]> {
@@ -196,27 +201,13 @@ export async function fetchLessons(): Promise<LessonContent[]> {
       const { data, error } = await supabase.from("lessons").select("*").neq("status", "draft").order("created_at", { ascending: false });
       if (!error && data) {
         const databaseLessons = data.map(mapLessonRow);
-        const databaseSlugs = new Set(databaseLessons.map((lesson) => lesson.slug));
-        const localLessons = readInstructorLessons().filter((lesson) => lesson.status !== "draft" && !databaseSlugs.has(lesson.slug));
-        return [...databaseLessons, ...localLessons];
+        return databaseLessons;
       }
     } catch {
       // Use the local manifest when Supabase is unavailable.
     }
   }
-  const manifest = readManifest();
-  const dynamicBySlug = new Map(manifest.map((lesson) => [lesson.slug, lesson]));
-  const instructorLessons = readInstructorLessons();
-  instructorLessons.forEach((lesson) => dynamicBySlug.set(lesson.slug, lesson));
-  const baseLessons = LESSONS.map((lesson) => dynamicBySlug.get(lesson.slug) || lesson);
-  const additionalLessons = [...manifest, ...instructorLessons].filter(
-    (lesson, index, all) => !LESSONS.some((base) => base.slug === lesson.slug)
-      && all.findIndex((candidate) => candidate.slug === lesson.slug) === index
-  );
-  return [
-    ...baseLessons,
-    ...additionalLessons,
-  ];
+  return [];
 }
 
 export async function saveLesson(lesson: LessonContent): Promise<void> {
@@ -288,8 +279,9 @@ export async function fetchStudentProgress(slug: string, studentToken?: string):
       const studentId = await getStudentId(studentToken);
       const lesson = studentId ? await fetchStudentLesson(slug, studentId) : null;
       if (lesson && studentId) {
-        const { data } = await supabase.from("student_submissions").select("content,status,updated_at").eq("lesson_id", lesson.id).eq("student_id", studentId).eq("step_key", "progress").maybeSingle();
-        if (data) return { currentStep: data.content?.currentStep || "warm_up", completedSteps: data.content?.completedSteps || [], status: data.status || "not_started", updatedAt: data.updated_at || new Date(0).toISOString() };
+        const { data } = await supabase.from("submissions").select("answers,status,submitted_at").eq("lesson_id", lesson.id).eq("student_id", studentId).maybeSingle();
+        const progress = data?.answers?.progress;
+        if (progress) return { currentStep: progress.currentStep || "warm_up", completedSteps: progress.completedSteps || [], status: data.status || progress.status || "not_started", updatedAt: data.submitted_at || new Date(0).toISOString() };
       }
     } catch {
       // Use local progress when Supabase is unavailable.
@@ -314,7 +306,11 @@ export async function saveStudentProgress(
       const studentId = await getStudentId(studentToken);
       const lesson = studentId ? await fetchStudentLesson(slug, studentId) : null;
       if (lesson && studentId) {
-        const { error } = await supabase.from("student_submissions").upsert({ lesson_id: lesson.id, student_id: studentId, step_key: "progress", content: { currentStep: updated.currentStep, completedSteps: updated.completedSteps }, status: updated.status, updated_at: updated.updatedAt }, { onConflict: "lesson_id,student_id,step_key" });
+        const { data: existingSubmission } = await supabase.from("submissions").select("id,answers").eq("lesson_id", lesson.id).eq("student_id", studentId).maybeSingle();
+        const answers = { ...(existingSubmission?.answers || {}), progress: { currentStep: updated.currentStep, completedSteps: updated.completedSteps, status: updated.status } };
+        const { error } = existingSubmission
+          ? await supabase.from("submissions").update({ answers, status: updated.status, submitted_at: updated.updatedAt }).eq("id", existingSubmission.id)
+          : await supabase.from("submissions").insert({ lesson_id: lesson.id, student_id: studentId, answers, status: updated.status, submitted_at: updated.updatedAt });
         if (!error) {
           notifyDataUpdated({ type: "progress", slug, studentToken });
           return updated;
@@ -359,9 +355,17 @@ export async function submitStudentLesson(
       const studentId = await getStudentId(studentToken);
       const lesson = studentId ? await fetchStudentLesson(slug, studentId) : null;
       if (lesson && studentId) {
-        const { error } = await supabase.from("submissions").upsert({ lesson_id: lesson.id, student_id: studentId, content: submission, status: submission.status, audio_url: submission.speakingAudioUrl, submitted_at: submission.submittedAt, updated_at: new Date().toISOString() }, { onConflict: "lesson_id,student_id" });
+        const { data: existingSubmission } = await supabase.from("submissions").select("id").eq("lesson_id", lesson.id).eq("student_id", studentId).maybeSingle();
+        const submissionPayload = { answers: submission, status: submission.status, submitted_at: submission.submittedAt || new Date().toISOString() };
+        const { error } = existingSubmission
+          ? await supabase.from("submissions").update(submissionPayload).eq("id", existingSubmission.id)
+          : await supabase.from("submissions").insert({ lesson_id: lesson.id, student_id: studentId, ...submissionPayload });
         if (!error) {
-          if (progress) await saveStudentProgress(slug, { currentStep: progress.currentStep || "warm_up", completedSteps: progress.completedSteps || [], status: progress.status || (submission.status === "submitted" ? "submitted" : "in_progress"), updatedAt: new Date().toISOString() }, studentToken);
+          if (progress) {
+            void saveStudentProgress(slug, { currentStep: progress.currentStep || "warm_up", completedSteps: progress.completedSteps || [], status: progress.status || (submission.status === "submitted" ? "submitted" : "in_progress"), updatedAt: new Date().toISOString() }, studentToken).catch((progressError) => {
+              console.error("Failed to save lesson progress:", progressError);
+            });
+          }
           notifyDataUpdated({ type: "submission", slug, studentToken });
           return nextState;
         }

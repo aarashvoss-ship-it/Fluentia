@@ -1,16 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { MOCK_INSTRUCTOR_LESSONS } from "@/lib/mock-instructor-data";
 import { StudentContextPanel } from "@/components/instructor/student-context-panel";
 import { LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
 import { InstructorBannerManager } from "@/components/instructor/banner-manager";
 import { SubmissionEvaluator } from "@/components/instructor/submission-evaluator";
-import { StrictStepContent } from "@/types/lesson";
+import { StrictStepContent, StudentProfile } from "@/types/lesson";
 
 export function LessonWorkstationPage({ lessonId }: { lessonId: string }) {
-  const initialLesson =
-    MOCK_INSTRUCTOR_LESSONS[lessonId] ?? MOCK_INSTRUCTOR_LESSONS["habits-01"];
+  const initialLesson = {
+    studentName: "Student",
+    studentProfile: {} as StudentProfile,
+    content: {} as StrictStepContent,
+    bannerUrl: "",
+  };
 
   const [lessonContent, setLessonContent] = useState<StrictStepContent>(
     initialLesson.content ?? ({} as StrictStepContent)

@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
-import { MOCK_INSTRUCTOR_LESSONS } from "@/lib/mock-instructor-data";
 import { StudentContextPanel } from "@/components/instructor/student-context-panel";
 import { LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
 import { InstructorBannerManager } from "@/components/instructor/banner-manager";
@@ -26,7 +25,7 @@ export default function InstructorWorkstationPage({
   allowStudentQuery = true,
 }: InstructorWorkstationProps) {
   const lessonId = lessonSlug;
-  const initialLesson = MOCK_INSTRUCTOR_LESSONS[lessonId] || MOCK_INSTRUCTOR_LESSONS["habits-01"];
+  const initialLesson = { content: {}, banner_image_url: "" };
 
   const [isMounted, setIsMounted] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
@@ -186,7 +185,7 @@ export default function InstructorWorkstationPage({
       subtitle: newLesson.subtitle.trim() || "A new Fluentia learning journey.",
       moduleNumber,
       status: "draft",
-      coverImage: initialLesson.banner_image_url,
+      coverImage: initialLesson.banner_image_url || undefined,
       content: {},
     };
 
@@ -300,7 +299,7 @@ export default function InstructorWorkstationPage({
       subtitle: newLesson.subtitle.trim() || "A new Fluentia learning journey.",
       moduleNumber,
       status,
-      coverImage: workstationState.bannerUrl || initialLesson.banner_image_url,
+      coverImage: workstationState.bannerUrl || undefined,
       content: workstationState.content,
     };
     try {

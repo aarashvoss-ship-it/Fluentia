@@ -158,8 +158,7 @@ export async function getLessonById(idOrSlug: string): Promise<LessonWithVersion
       };
     }
 
-    // If not found by ID (PGRST116 = no rows found), try searching by title
-    // This handles slug-like patterns such as "habits-01"
+    // If not found by ID, try a title match for deployments that predate UUID routing.
     if (error?.code === "PGRST116" || !lesson) {
       const { data: lessonByTitle, error: titleError } = await supabase
         .from("lessons")

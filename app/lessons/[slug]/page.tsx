@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ChatMessage, ContentBlock, SavedVocabularyWord, StudentNote, StudyStepId, STUDY_STEPS, LessonContent, StudentSubmission } from "@/types/lesson";
-import { MOCK_INSTRUCTOR_LESSONS, type InstructorLessonMock } from "@/lib/mock-instructor-data";
 import { getLessonById } from "@/lib/lessons";
 import { persistResolvedStudent, PublishedLessonState, resolveStudentAccess, writeLastAccessedLesson } from "@/lib/lesson-store";
 import { fetchChatMessages, fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, saveChatMessage, saveStudentNote, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
@@ -55,15 +54,14 @@ function getRequestedStep(value: string | null): StudyStepId | null {
 
 export default function LessonPage() {
   const rawSlug = useParams()?.slug;
-  const requestedSlug = typeof rawSlug === "string" ? rawSlug : "habits-01";
+  const requestedSlug = typeof rawSlug === "string" ? rawSlug : "";
   const [mockLesson, setMockLesson] = useState<LessonContent | null>(null);
   const [loading, setLoading] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
   const [lessonReady, setLessonReady] = useState(false);
   const [lessonNotFound, setLessonNotFound] = useState(false);
-  const instructorLesson = MOCK_INSTRUCTOR_LESSONS[mockLesson?.slug || "habits-01"] || MOCK_INSTRUCTOR_LESSONS["habits-01"];
-  const instructor = mockLesson?.instructor || instructorLesson.instructor || { fullName: "AVoss", initials: "AV" };
+  const instructor = mockLesson?.instructor || { fullName: "Your instructor", initials: "IN" };
   const [activeStudent, setActiveStudent] = useState<StudentUser | null>(null);
   const [studentReady, setStudentReady] = useState(false);
   const [currentStep, setCurrentStep] = useState<StudyStepId>("warm_up");
@@ -84,6 +82,7 @@ export default function LessonPage() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [dictionaryWord, setDictionaryWord] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [submissionSaveError, setSubmissionSaveError] = useState<string | null>(null);
 
   // Initialize student access on mount
   useEffect(() => {
@@ -116,35 +115,20 @@ export default function LessonPage() {
         if (!mounted) return;
         
         if (lesson) {
-          // Convert LessonWithVersion to LessonContent if needed
-          const lessonContent = lesson as unknown as LessonContent;
+          const lessonContent = {
+            ...lesson,
+            slug: typeof lesson.content?.slug === "string" ? lesson.content.slug : lesson.id,
+            subtitle: typeof lesson.content?.subtitle === "string" ? lesson.content.subtitle : undefined,
+            moduleNumber: typeof lesson.content?.moduleNumber === "number" ? lesson.content.moduleNumber : 1,
+            coverImage: typeof lesson.content?.coverImage === "string" ? lesson.content.coverImage : undefined,
+            instructor: lesson.content?.instructor,
+          } as unknown as LessonContent;
           setMockLesson(lessonContent);
           if (activeStudent?.token) {
             writeLastAccessedLesson(lessonContent.slug, activeStudent.token);
           }
         } else {
-          // Lesson not found in database, try to use mock data as fallback
-          const mockLesson = MOCK_INSTRUCTOR_LESSONS[requestedSlug];
-          if (mockLesson) {
-            // Fall back to mock data if available
-            const mockContent: LessonContent = {
-              id: mockLesson.id || requestedSlug,
-              slug: requestedSlug,
-              title: mockLesson.title,
-              subtitle: mockLesson.subtitle,
-              moduleNumber: mockLesson.moduleNumber,
-              studentId: activeStudent?.id,
-              status: "published",
-              content: mockLesson.content,
-              coverImage: mockLesson.cover_image_url,
-              ambientMusicUrl: mockLesson.ambient_music_url,
-              instructor: mockLesson.instructor,
-            };
-            setMockLesson(mockContent);
-          } else {
-            // No mock data available either, mark as not found
-            setLessonNotFound(true);
-          }
+          setLessonNotFound(true);
         }
       } catch (error) {
         if (!mounted) return;
@@ -201,16 +185,22 @@ export default function LessonPage() {
   async function persistSubmission(nextSubmission: StudentSubmission, nextProgress?: { currentStep?: StudyStepId; completedSteps?: StudyStepId[]; status?: "not_started" | "in_progress" | "submitted" | "reviewed" }) {
     if (!mockLesson) return;
     setSubmission(nextSubmission);
-    await submitStudentLesson(mockLesson.slug, activeStudent!.token, nextSubmission, {
-      currentStep: nextProgress?.currentStep || currentStep,
-      completedSteps: nextProgress?.completedSteps || completedSteps,
-      status: nextProgress?.status || (nextSubmission.status === "submitted" ? "submitted" : "in_progress"),
-      updatedAt: new Date().toISOString(),
-    });
+    setSubmissionSaveError(null);
+    try {
+      await submitStudentLesson(mockLesson.slug || mockLesson.id, activeStudent!.token, nextSubmission, {
+        currentStep: nextProgress?.currentStep || currentStep,
+        completedSteps: nextProgress?.completedSteps || completedSteps,
+        status: nextProgress?.status || (nextSubmission.status === "submitted" ? "submitted" : "in_progress"),
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Failed to save lesson progress:", error);
+      setSubmissionSaveError(error instanceof Error ? error.message : "Failed to save lesson progress");
+    }
   }
 
-  const lessonContent = publishedLesson?.content || mockLesson?.content || instructorLesson.content;
-  const heroBanner = publishedLesson?.bannerUrl || instructorLesson.banner_image_url;
+  const lessonContent = publishedLesson?.content || mockLesson?.content || {};
+  const heroBanner = publishedLesson?.bannerUrl || mockLesson?.coverImage;
   const evaluation = publishedLesson?.evaluation;
   const isEvaluationPublished = evaluation?.published === true;
   const totalScore = evaluation
@@ -296,8 +286,8 @@ export default function LessonPage() {
     setIsModalOpen(false);
     markStepComplete("speaking");
     markStepComplete("results");
-    await persistSubmission({ ...submission, status: "submitted", submittedAt: new Date().toISOString() }, { currentStep: "results", completedSteps: [...STUDY_STEPS.map((step) => step.id)], status: "submitted" });
     setCurrentStep("results");
+    void persistSubmission({ ...submission, status: "submitted", submittedAt: new Date().toISOString() }, { currentStep: "results", completedSteps: [...STUDY_STEPS.map((step) => step.id)], status: "submitted" });
   }
 
   const isResultsStep = currentStep === "results";

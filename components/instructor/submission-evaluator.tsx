@@ -35,7 +35,7 @@ const RUBRIC_CRITERIA = [
 ];
 
 export function SubmissionEvaluator({
-  lessonId = "habits-01",
+  lessonId,
   studentName = "Arash",
   studentId,
   instructorId,
@@ -69,8 +69,9 @@ export function SubmissionEvaluator({
   }, [lessonId, studentId, useSupabase]);
 
   const loadSubmissionData = async () => {
+    if (!lessonId || !studentId) return;
     try {
-      const submission = await getSubmissionByLessonAndStudent(lessonId, studentId!);
+      const submission = await getSubmissionByLessonAndStudent(lessonId, studentId);
       if (submission) {
         setSubmissionId(submission.id);
         if (submission.evaluation) {
