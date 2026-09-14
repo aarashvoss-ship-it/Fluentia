@@ -278,6 +278,10 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
 
   try {
     const { content, changes_summary, ...lessonData } = input;
+    const hasTitle = typeof lessonData.title === "string" && lessonData.title.trim().length > 0;
+    const title = hasTitle ? lessonData.title.trim() : "Untitled Lesson";
+    const normalizedSlug = title.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const slug = hasTitle && normalizedSlug ? normalizedSlug : `untitled-lesson-${Date.now()}`;
 
     // Insert the lesson
     const { data: lesson, error: lessonError } = await supabase
@@ -285,6 +289,8 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
       .insert([
         {
           ...lessonData,
+          title,
+          slug,
           status: lessonData.status || "draft",
         },
       ])
