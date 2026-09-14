@@ -10,7 +10,7 @@ import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/su
 import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
 import { createLesson, getLessons, updateLesson, type LessonWithVersion } from "@/lib/lessons";
 import { INSTRUCTOR_TOKEN, PublishedLessonState } from "@/lib/lesson-store";
-import { DEFAULT_STUDENT, STUDENT_USERS, StudentUser } from "@/lib/users";
+import { DEFAULT_STUDENT, StudentUser } from "@/lib/users";
 import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/storage-service";
 import { AccessCard } from "@/components/access/access-card";
 
@@ -43,6 +43,7 @@ export default function InstructorWorkstationPage({
   const [lessonStatus, setLessonStatus] = useState<"draft" | "published">("published");
   const [activeTab, setActiveTab] = useState<"dashboard" | "builder" | "evaluation">("dashboard");
   const [heroBannerOpen, setHeroBannerOpen] = useState(false);
+  const [activeStudentsOpen, setActiveStudentsOpen] = useState(false);
   const [sidebarBlocks, setSidebarBlocks] = useState([
     { id: "teacher-notes", title: "Teacher Notes", body: "" },
     { id: "extra-vocabulary", title: "Extra Vocabulary", body: "" },
@@ -211,7 +212,6 @@ export default function InstructorWorkstationPage({
         setIsMounted(true);
         return;
       }
-      setStudents(STUDENT_USERS);
       setIsMounted(true);
     })();
   }, [instructorToken]);
@@ -231,16 +231,40 @@ export default function InstructorWorkstationPage({
 
   useEffect(() => {
     const loadCounts = async () => {
-      const [{ count: pendingCount }, { count: publishedCount }, { count: draftsCount }, { count: studentsCount }] = await Promise.all([
+      const [{ count: pendingCount }, { count: publishedCount }, { count: draftsCount }, { data: activeStudentRows, count: studentsCount, error: activeStudentsError }] = await Promise.all([
         supabase.from("submissions").select("id", { count: "exact", head: true }).eq("status", "submitted"),
         supabase.from("lessons").select("id", { count: "exact", head: true }).eq("status", "published"),
         supabase.from("lessons").select("id", { count: "exact", head: true }).eq("status", "draft"),
-        supabase.from("students").select("id", { count: "exact", head: true }).eq("is_active", true),
+        supabase.from("students").select("*", { count: "exact" }).eq("is_active", true).order("full_name", { ascending: true }),
       ]);
       setPendingSubmissionCount(pendingCount ?? 0);
       setPublishedLessonCount(publishedCount ?? 0);
       setDraftLessonCount(draftsCount ?? 0);
       setStudentCount(studentsCount ?? 0);
+      if (!activeStudentsError) {
+        setStudents((activeStudentRows || []).map((row) => {
+          const profile = (row.profile || {}) as Partial<StudentProfile>;
+          const name = row.full_name || row.name || profile.fullName || "Unnamed Student";
+          const id = String(row.id);
+          return {
+            id,
+            token: String(row.token || row.access_token || id),
+            name,
+            role: "student" as const,
+            profile: {
+              id,
+              fullName: name,
+              level: row.level || profile.level || "Not set",
+              targetGoal: row.target_goal || profile.targetGoal || "Not set",
+              weaknesses: profile.weaknesses || [],
+              teacherNotes: profile.teacherNotes || "",
+              attendanceRate: profile.attendanceRate || 0,
+              completedModulesCount: profile.completedModulesCount || 0,
+              avatarUrl: row.avatar_url || profile.avatarUrl,
+            },
+          } as StudentUser;
+        }));
+      }
     };
     const refreshCounts = () => void loadCounts();
     void loadCounts();
@@ -418,11 +442,23 @@ export default function InstructorWorkstationPage({
 <p className="mt-2 text-2xl font-semibold text-stone-100">{publishedLessonCount}</p>
 <p className="mt-1 text-xs text-stone-500">Open the lesson builder</p>
 </button>
-            <button type="button" onClick={() => setActiveTab("evaluation")} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-left transition hover:border-amber-500/60">
-<p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Active Students</p>
-<p className="mt-2 text-2xl font-semibold text-stone-100">{studentCount}</p>
-<p className="mt-1 text-xs text-stone-500">Review {selectedStudent?.name || "Selected Student"}</p>
-</button>
+            <details open={activeStudentsOpen} onToggle={(event) => setActiveStudentsOpen(event.currentTarget.open)} className="relative rounded-xl border border-[#202631] bg-[#171d28]/60 text-left transition hover:border-amber-500/60">
+              <summary className="flex cursor-pointer list-none items-start justify-between p-5 [&::-webkit-details-marker]:hidden">
+                <span>
+                  <span className="block text-[10px] uppercase tracking-[0.14em] text-amber-400">Active Students</span>
+                  <span className="mt-2 block text-2xl font-semibold text-stone-100">{studentCount}</span>
+                  <span className="mt-1 block text-xs text-stone-500">Select an active student</span>
+                </span>
+                <ChevronDown className={`mt-0.5 h-4 w-4 text-amber-400 transition-transform ${activeStudentsOpen ? "rotate-180" : ""}`} aria-hidden="true" />
+              </summary>
+              <div className="border-t border-[#202631] p-3">
+                <label className="sr-only" htmlFor="active-student-selector">Select active student</label>
+                <select id="active-student-selector" value={selectedStudentId || ""} onChange={(event) => { const nextStudent = students.find((student) => student.id === event.target.value); if (nextStudent) { void handleStudentChange(nextStudent); setActiveStudentsOpen(false); } }} className="w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark]" aria-label="Select active student">
+                  <option value="">Choose a student</option>
+                  {students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}
+                </select>
+              </div>
+            </details>
           </div>
           <div className="grid gap-6 lg:grid-cols-2">
 <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
