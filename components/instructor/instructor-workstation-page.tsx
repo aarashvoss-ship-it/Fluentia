@@ -110,7 +110,7 @@ export default function InstructorWorkstationPage({
     const lessons = await getLessons();
     const loadedLesson = lessons.find((lesson) => {
       const lessonSlug = typeof lesson.content?.slug === "string" ? lesson.content.slug : lesson.id;
-      return lesson.student_id === id && (!requestedLessonSlug || lessonSlug === requestedLessonSlug || lesson.id === requestedLessonSlug);
+      return lesson.student_token === id && (!requestedLessonSlug || lessonSlug === requestedLessonSlug || lesson.id === requestedLessonSlug);
     });
     if (!loadedLesson) {
       resetNewLessonForm(id);
@@ -143,10 +143,10 @@ export default function InstructorWorkstationPage({
     const content = lesson.content || {};
     const lessonSlug = typeof content.slug === "string" ? content.slug : lesson.id;
     hasLoadedLesson.current = false;
-    setSelectedStudentId(lesson.student_id || null);
+    setSelectedStudentId(lesson.student_token || null);
     setNewLesson((previous) => ({
       ...previous,
-      studentId: lesson.student_id || previous.studentId,
+      studentId: lesson.student_token || previous.studentId,
       title: lesson.title,
       slug: lessonSlug,
       subtitle: typeof content.subtitle === "string" ? content.subtitle : "",
@@ -184,7 +184,7 @@ export default function InstructorWorkstationPage({
       const created = await createLesson({
         title,
         status: newLesson.status,
-        student_id: /^[0-9a-f-]{36}$/i.test(draftStudentId) ? draftStudentId : undefined,
+        student_token: draftStudentId || undefined,
         content,
         changes_summary: "Initial lesson created in Lesson Builder",
       });
@@ -314,7 +314,7 @@ export default function InstructorWorkstationPage({
         : await createLesson({
             title,
             status,
-            student_id: /^[0-9a-f-]{36}$/i.test(studentId) ? studentId : undefined,
+            student_token: studentId || undefined,
             content,
             changes_summary: `Initial lesson created as ${status}`,
           });

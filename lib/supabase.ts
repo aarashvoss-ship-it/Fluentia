@@ -20,7 +20,7 @@ export interface LessonRow {
 	subject: string | null;
 	grade: string | null;
 	status: "draft" | "published" | "evaluated";
-	student_id: string | null;
+	student_token: string | null;
 	instructor_id: string | null;
 	created_at: string;
 	updated_at: string;

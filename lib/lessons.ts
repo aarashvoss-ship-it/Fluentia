@@ -15,7 +15,7 @@ export interface CreateLessonInput {
   subject?: string;
   grade?: string;
   status?: "draft" | "published" | "evaluated";
-  student_id?: string;
+  student_token?: string;
   instructor_id?: string;
   content: Record<string, any>;
   changes_summary?: string;
@@ -210,7 +210,7 @@ export async function getLessonsByStudentId(studentId: string): Promise<LessonWi
     const { data: lessons, error } = await supabase
       .from("lessons")
       .select("*")
-      .eq("student_id", studentId)
+      .eq("student_token", studentId)
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -483,7 +483,7 @@ export function toLessonContent(
     title: lesson.title,
     subtitle: undefined,
     moduleNumber: 0,
-    studentId: lesson.student_id || undefined,
+    studentId: lesson.student_token || undefined,
     status: lesson.status,
     content: lesson.content,
     ...overrides,
