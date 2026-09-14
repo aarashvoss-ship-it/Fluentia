@@ -16,6 +16,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 export interface LessonRow {
 	id: string;
 	title: string;
+	subtitle?: string | null;
 	subject: string | null;
 	grade: string | null;
 	status: "draft" | "published" | "evaluated";
