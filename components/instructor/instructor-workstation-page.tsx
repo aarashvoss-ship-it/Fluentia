@@ -18,6 +18,7 @@ import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player";
 import { saveStudentProfile } from "@/lib/student-profiles";
 import { MusicLibraryManager } from "@/components/instructor/music-library-manager";
+import { InstructorChatWidget } from "@/components/instructor/instructor-chat-widget";
 
 interface InstructorWorkstationProps {
   instructorToken: string;
@@ -854,6 +855,11 @@ export default function InstructorWorkstationPage({
 </section>
 </>}
       </div>
+  <InstructorChatWidget
+    activeStudent={selectedStudent}
+    students={students}
+    lessonContext={newLesson.title || newLesson.slug || lessonId}
+  />
       {showPreview && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="lesson-preview-title">
         <div className="flex h-[88vh] max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-[#394252] bg-[#171d28] shadow-2xl">
           <div className="flex flex-col gap-4 border-b border-[#293343] p-5 sm:flex-row sm:items-center sm:justify-between">
