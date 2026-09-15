@@ -61,19 +61,18 @@ async function getLatestVersion(lessonId: string): Promise<LessonVersionRow | nu
       .from("lesson_versions")
       .select("*")
       .eq("lesson_id", lessonId)
-      .order("version_number", { ascending: false })
+      .order("created_at", { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
-    if (error && error.code !== "PGRST116") {
-      // PGRST116 is "no rows found" which is expected for new lessons
-      throw error;
+    if (error) {
+      console.warn(`No version found for ${lessonId}, using base lesson.`, error);
     }
 
     return data || null;
   } catch (error) {
-    console.error(`Error fetching latest version for lesson ${lessonId}:`, error);
-    throw error;
+    console.warn(`Error fetching version for ${lessonId}:`, error);
+    return null;
   }
 }
 
