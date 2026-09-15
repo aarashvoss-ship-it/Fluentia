@@ -5,14 +5,14 @@ CREATE TABLE IF NOT EXISTS messages (
   instructor_id text NOT NULL,
   sender_id text NOT NULL,
   receiver_id text NOT NULL,
-  channel_type text NOT NULL CHECK (channel_type IN ('student', 'support')),
-  body text NOT NULL,
+  tab_type text NOT NULL CHECK (tab_type IN ('active', 'support')),
+  content text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   read_at timestamptz
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_student_thread
-  ON messages(instructor_id, student_id, channel_type, created_at);
+  ON messages(instructor_id, student_id, tab_type, created_at);
 CREATE INDEX IF NOT EXISTS idx_messages_unread
   ON messages(instructor_id, receiver_id, read_at);
 
