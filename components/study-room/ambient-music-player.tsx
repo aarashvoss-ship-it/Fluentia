@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Music, Pause, Play, Volume2, VolumeX } from "lucide-react";
 
 const PLAYBACK_KEY = "fluentia:ambient-music:playing";
+const ENABLED_KEY = "fluentia:ambient-music:enabled";
 const VOLUME_KEY = "fluentia:ambient-music:volume";
 const DEFAULT_FOCUS_TRACK = "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3";
 
@@ -13,15 +14,18 @@ interface AmbientMusicPlayerProps {
 
 export function AmbientMusicPlayer({ src = DEFAULT_FOCUS_TRACK }: AmbientMusicPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const [isEnabled, setIsEnabled] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.35);
   const [showVolume, setShowVolume] = useState(false);
 
   useEffect(() => {
     const storedPlaying = window.localStorage.getItem(PLAYBACK_KEY) === "true";
+    const storedEnabled = window.localStorage.getItem(ENABLED_KEY);
     const storedVolume = Number(window.localStorage.getItem(VOLUME_KEY));
     if (!Number.isNaN(storedVolume) && storedVolume >= 0 && storedVolume <= 1) setVolume(storedVolume);
-    if (storedPlaying) setIsPlaying(true);
+    if (storedEnabled !== null) setIsEnabled(storedEnabled === "true");
+    if (storedPlaying && storedEnabled !== "false") setIsPlaying(true);
   }, []);
 
   useEffect(() => {
@@ -34,7 +38,7 @@ export function AmbientMusicPlayer({ src = DEFAULT_FOCUS_TRACK }: AmbientMusicPl
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    if (!isPlaying) {
+    if (!isEnabled || !isPlaying) {
       audio.pause();
       return;
     }
@@ -42,9 +46,23 @@ export function AmbientMusicPlayer({ src = DEFAULT_FOCUS_TRACK }: AmbientMusicPl
   }, [isPlaying]);
 
   function togglePlayback() {
+    if (!isEnabled) {
+      setIsEnabled(true);
+      window.localStorage.setItem(ENABLED_KEY, "true");
+    }
     const nextPlaying = !isPlaying;
     setIsPlaying(nextPlaying);
     window.localStorage.setItem(PLAYBACK_KEY, String(nextPlaying));
+  }
+
+  function toggleEnabled() {
+    const nextEnabled = !isEnabled;
+    setIsEnabled(nextEnabled);
+    window.localStorage.setItem(ENABLED_KEY, String(nextEnabled));
+    if (!nextEnabled) {
+      setIsPlaying(false);
+      window.localStorage.setItem(PLAYBACK_KEY, "false");
+    }
   }
 
   function handleVolumeChange(value: number) {
@@ -57,19 +75,19 @@ export function AmbientMusicPlayer({ src = DEFAULT_FOCUS_TRACK }: AmbientMusicPl
       <audio ref={audioRef} src={src} loop preload="auto" onEnded={() => setIsPlaying(false)} />
       <button
         type="button"
-        onClick={togglePlayback}
-        aria-label={isPlaying ? "Pause ambient focus music" : "Play ambient focus music"}
-        aria-pressed={isPlaying}
-        className={`flex h-8 w-8 items-center justify-center rounded-md border transition ${isPlaying ? "border-amber-500/70 bg-amber-500/10 text-amber-300 shadow-[0_0_14px_rgba(245,158,11,.18)]" : "border-[#394252] bg-[#171d28] text-stone-400 hover:border-amber-500 hover:text-amber-300"}`}
+        onClick={toggleEnabled}
+        aria-label={isEnabled ? "Disable ambient music" : "Enable ambient music"}
+        aria-pressed={isEnabled}
+        className={`flex h-8 w-8 items-center justify-center rounded-md border transition hover:border-amber-500/50 hover:shadow-amber-500/20 ${isEnabled ? "border-amber-500/70 bg-amber-500/10 text-amber-300 shadow-[0_0_14px_rgba(245,158,11,.18)]" : "border-[#394252] bg-[#171d28] text-stone-400 hover:text-amber-300"}`}
       >
-        {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+        <Music className="h-3.5 w-3.5" aria-hidden="true" />
       </button>
       <button
         type="button"
         onClick={() => setShowVolume((open) => !open)}
         aria-label="Adjust ambient music volume"
         aria-expanded={showVolume}
-        className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28] text-stone-400 transition hover:border-amber-500 hover:text-amber-300"
+        className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28] text-stone-400 transition hover:border-amber-500/50 hover:shadow-amber-500/20 hover:text-amber-300"
       >
         {volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
       </button>
@@ -83,11 +101,11 @@ export function AmbientMusicPlayer({ src = DEFAULT_FOCUS_TRACK }: AmbientMusicPl
       <button
         type="button"
         onClick={togglePlayback}
-        aria-label={isPlaying ? "Disable ambient music" : "Enable ambient music"}
+        aria-label={isPlaying ? "Pause ambient focus music" : "Play ambient focus music"}
         aria-pressed={isPlaying}
-        className={`flex h-8 w-8 items-center justify-center rounded-md border transition ${isPlaying ? "border-amber-500/70 bg-amber-500/10 text-amber-300 shadow-[0_0_14px_rgba(245,158,11,.18)]" : "border-[#394252] bg-[#171d28] text-stone-400 hover:border-amber-500 hover:text-amber-300"}`}
+        className={`flex h-8 w-8 items-center justify-center rounded-md border transition hover:border-amber-500/50 hover:shadow-amber-500/20 ${isPlaying ? "border-amber-500/70 bg-amber-500/10 text-amber-300 shadow-[0_0_14px_rgba(245,158,11,.18)]" : "border-[#394252] bg-[#171d28] text-stone-400 hover:text-amber-300"}`}
       >
-        <Music className="h-3.5 w-3.5" aria-hidden="true" />
+        {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
       </button>
     </div>
   );

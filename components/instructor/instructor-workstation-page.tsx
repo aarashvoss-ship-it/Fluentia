@@ -15,6 +15,7 @@ import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/
 import { AccessCard } from "@/components/access/access-card";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
+import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player";
 import { saveStudentProfile } from "@/lib/student-profiles";
 
 interface InstructorWorkstationProps {
@@ -777,7 +778,7 @@ export default function InstructorWorkstationPage({
         <div className="flex h-[88vh] max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-[#394252] bg-[#171d28] shadow-2xl">
           <div className="flex flex-col gap-4 border-b border-[#293343] p-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">{workstationState.bannerUrl && <img src={workstationState.bannerUrl} alt="" className="h-12 w-20 rounded object-cover" />}<div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Student View Preview</p><h2 id="lesson-preview-title" className="mt-1 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">{newLesson.title || "Untitled Lesson"}</h2><p className="mt-1 text-sm text-stone-400">{newLesson.subtitle || "Your instructor has prepared this lesson for you."}</p></div></div>
-            <div className="flex items-center gap-2"><button type="button" onClick={() => setShowPreview(false)} className="rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black">Back to Editing</button><button type="button" onClick={handleConfirmPublish} disabled={isPublishing} className="rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-black transition-colors hover:bg-amber-400 disabled:opacity-50">Publish Lesson</button></div>
+            <div className="flex items-center gap-2">{workstationState.content.ambientMusicUrl && <AmbientMusicPlayer src={workstationState.content.ambientMusicUrl} />}<button type="button" onClick={() => setShowPreview(false)} className="rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black">Back to Editing</button><button type="button" onClick={handleConfirmPublish} disabled={isPublishing} className="rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-black transition-colors hover:bg-amber-400 disabled:opacity-50">Publish Lesson</button></div>
           </div>
           <div className="grid min-h-0 flex-1 overflow-hidden md:grid-cols-[180px_1fr]">
             <nav className="flex gap-2 overflow-x-auto border-b border-[#293343] p-3 md:block md:space-y-1 md:border-b-0 md:border-r" aria-label="Preview lesson steps">{previewSteps.map(([step, label]) => <button key={step} type="button" onClick={() => setPreviewStep(step)} className={`block shrink-0 rounded-md px-3 py-2 text-left text-xs transition-colors md:w-full ${previewStep === step ? "bg-amber-500 text-black" : "text-stone-400 hover:bg-amber-500/10 hover:text-amber-300"}`}>{label}</button>)}</nav>

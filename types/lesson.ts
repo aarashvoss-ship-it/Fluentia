@@ -246,7 +246,9 @@ export interface InstructorLessonMock {
   };
 }
 
-export type StrictStepContent = InstructorLessonMock["content"];
+export type StrictStepContent = InstructorLessonMock["content"] & {
+  ambientMusicUrl?: string;
+};
 
 export interface LessonEvaluation {
   scores: Record<string, number>;

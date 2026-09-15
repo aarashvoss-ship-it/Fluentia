@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { ContentBlock, ContentBlockType, STUDY_STEPS, StudyStepId, StrictStepContent } from "@/types/lesson";
 import { useLessonEditorStore } from "@/lib/lesson-editor-store";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
-import { Eye, Layers, MoveDown, MoveUp, Plus, Trash2, X } from "lucide-react";
+import { Eye, Layers, MoveDown, MoveUp, Music, Plus, Trash2, X } from "lucide-react";
 
 interface LessonTailorEditorProps {
   content: StrictStepContent;
@@ -245,6 +245,40 @@ export function LessonTailorEditor({
           </button>
         )}
       </div>
+
+      <section className="mb-6 rounded-lg border border-amber-500/20 bg-[#0c1017]/70 p-3">
+        <div className="mb-2 flex items-center gap-2">
+          <Music className="h-4 w-4 text-amber-400" />
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Ambient lesson music</p>
+            <p className="mt-1 text-xs text-stone-500">Students can control this track from the lesson header.</p>
+          </div>
+        </div>
+        <input
+          value={content.ambientMusicUrl || ""}
+          onChange={(event) => handleChange({ ...content, ambientMusicUrl: event.target.value })}
+          placeholder="Audio URL (optional)"
+          className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500"
+          aria-label="Ambient lesson music URL"
+        />
+        <label className="mt-2 block text-xs text-stone-500">
+          Or upload MP3/WAV
+          <input
+            type="file"
+            accept="audio/mpeg,audio/wav,.mp3,.wav"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = () => handleChange({ ...content, ambientMusicUrl: String(reader.result || "") });
+              reader.readAsDataURL(file);
+            }}
+            className="mt-1 block w-full text-xs text-stone-400 file:mr-3 file:rounded file:border-0 file:bg-amber-500 file:px-2 file:py-1 file:text-xs file:font-semibold file:text-black"
+            aria-label="Upload ambient lesson music"
+          />
+        </label>
+        {content.ambientMusicUrl && <CustomAudioPlayer src={content.ambientMusicUrl} label="Ambient lesson music" />}
+      </section>
 
       {/* Stepper Tabs */}
       <nav aria-label="Lesson content steps" className="w-full mb-6">
