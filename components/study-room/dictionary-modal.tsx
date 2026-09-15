@@ -63,15 +63,11 @@ export function DictionaryModal({ initialWord = "", onClose, savedWords, onSave 
           <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search a word" className="min-w-0 flex-1 rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-sm outline-none focus:border-amber-500" />
           <button type="submit" className="rounded-md bg-amber-500 px-4 py-2 text-xs font-semibold text-[#0c1017]">Search</button>
         </form>
-        <div className="mt-4 flex justify-end border-b border-[#29303c] pb-3">
-          {entry?.source === "merriam-webster" ? (
-            <div className="flex w-full justify-end" aria-label="Merriam-Webster" role="img">
-              <img src="/images/mw-logo.svg" alt="Merriam-Webster" className="h-5 w-auto object-contain" />
-            </div>
-          ) : (
-            <span className="rounded border border-[#394252] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Free Dictionary</span>
-          )}
-        </div>
+        {entry?.source === "merriam-webster" && (
+          <div className="mt-4 flex justify-end border-b border-[#29303c] pb-3" aria-label="Merriam-Webster" role="img">
+            <img src="/images/mw-logo.svg" alt="Merriam-Webster" className="h-5 w-auto object-contain" />
+          </div>
+        )}
         {loading && <p className="py-8 text-center text-sm text-stone-400">Looking up “{query}”...</p>}
         {error && <p className="py-8 text-center text-sm text-amber-300">{error}</p>}
         {entry && !loading && <div className="space-y-4 pt-4">
