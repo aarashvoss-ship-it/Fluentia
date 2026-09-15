@@ -191,6 +191,7 @@ export interface LessonContent {
   moduleNumber: number;
   coverImage?: string;
   ambientMusicUrl?: string;
+  ambientTracks?: Array<{ title: string; url: string }>;
   instructor?: InstructorProfile;
   studentName?: string;
   status?: "draft" | "published";
@@ -248,6 +249,7 @@ export interface InstructorLessonMock {
 
 export type StrictStepContent = InstructorLessonMock["content"] & {
   ambientMusicUrl?: string;
+  ambientTracks?: Array<{ title: string; url: string }>;
 };
 
 export interface LessonEvaluation {

@@ -2,25 +2,34 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Music, Pause, Play, Volume2, VolumeX } from "lucide-react";
-import { AMBIENT_TRACKS } from "@/lib/musicTracks";
+import { AMBIENT_TRACKS, type LessonAudioTrack } from "@/lib/musicTracks";
 
 const PLAYBACK_KEY = "fluentia:ambient-music:playing";
 const ENABLED_KEY = "fluentia:ambient-music:enabled";
 const VOLUME_KEY = "fluentia:ambient-music:volume";
 interface AmbientMusicPlayerProps {
   src?: string;
+  tracks?: LessonAudioTrack[];
 }
 
-export function AmbientMusicPlayer({ src }: AmbientMusicPlayerProps) {
+export function AmbientMusicPlayer({ src, tracks = [] }: AmbientMusicPlayerProps) {
+  const availableTracks = tracks.length > 0 ? tracks : AMBIENT_TRACKS.map(({ label, url }) => ({ title: label, url }));
   const audioRef = useRef<HTMLAudioElement>(null);
-  const [trackIndex, setTrackIndex] = useState(() => Math.max(0, AMBIENT_TRACKS.findIndex((item) => item.url === src)));
-  const [selectedTrack, setSelectedTrack] = useState(src || AMBIENT_TRACKS[0].url);
-  const track = selectedTrack || AMBIENT_TRACKS[trackIndex]?.url || AMBIENT_TRACKS[0].url;
+  const [trackIndex, setTrackIndex] = useState(() => Math.max(0, availableTracks.findIndex((item) => item.url === src)));
+  const [selectedTrack, setSelectedTrack] = useState(src || availableTracks[0].url);
+  const track = selectedTrack || availableTracks[trackIndex]?.url || availableTracks[0].url;
   const [isEnabled, setIsEnabled] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.35);
   const [showVolume, setShowVolume] = useState(false);
   const [showTracks, setShowTracks] = useState(false);
+
+  useEffect(() => {
+    if (!src) return;
+    const nextIndex = availableTracks.findIndex((item) => item.url === src);
+    setTrackIndex(Math.max(0, nextIndex));
+    setSelectedTrack(src);
+  }, [src]);
 
   useEffect(() => {
     const storedPlaying = window.localStorage.getItem(PLAYBACK_KEY) === "true";
@@ -88,7 +97,7 @@ export function AmbientMusicPlayer({ src }: AmbientMusicPlayerProps) {
 
   function selectTrack(index: number) {
     setTrackIndex(index);
-    setSelectedTrack(AMBIENT_TRACKS[index].url);
+    setSelectedTrack(availableTracks[index].url);
     setShowTracks(false);
     setIsPlaying(false);
     window.localStorage.setItem(PLAYBACK_KEY, "false");
@@ -103,7 +112,7 @@ export function AmbientMusicPlayer({ src }: AmbientMusicPlayerProps) {
         loop
         preload="auto"
         onError={() => {
-          if (!src && trackIndex < AMBIENT_TRACKS.length - 1) {
+          if (!src && trackIndex < availableTracks.length - 1) {
             setTrackIndex((index) => index + 1);
             return;
           }
@@ -123,8 +132,8 @@ export function AmbientMusicPlayer({ src }: AmbientMusicPlayerProps) {
       </button>
       {showTracks && <div className="absolute right-0 top-10 z-40 w-52 rounded-md border border-[#394252] bg-[#171d28] p-2 shadow-xl">
         <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Music library</p>
-        {AMBIENT_TRACKS.map((item, index) => <button key={item.id} type="button" onClick={() => selectTrack(index)} className={`block w-full rounded px-2 py-2 text-left text-xs transition hover:bg-amber-500/10 hover:text-amber-300 ${track === item.url ? "text-amber-300" : "text-stone-400"}`}>{item.label}</button>)}
-        {src && !AMBIENT_TRACKS.some((item) => item.url === src) && <p className="px-2 py-2 text-[10px] text-stone-500">Custom lesson track</p>}
+        {availableTracks.map((item, index) => <button key={`${item.title}-${item.url}`} type="button" onClick={() => selectTrack(index)} className={`block w-full rounded px-2 py-2 text-left text-xs transition hover:bg-amber-500/10 hover:text-amber-300 ${track === item.url ? "text-amber-300" : "text-stone-400"}`}>{item.title}</button>)}
+        {src && !availableTracks.some((item) => item.url === src) && <p className="px-2 py-2 text-[10px] text-stone-500">Custom lesson track</p>}
       </div>}
       <button
         type="button"

@@ -4,6 +4,8 @@ export interface AmbientTrack {
   url: string;
 }
 
+export type LessonAudioTrack = { title: string; url: string };
+
 export const AMBIENT_TRACKS: AmbientTrack[] = [
   {
     id: "deep-focus",
@@ -26,3 +28,5 @@ export const AMBIENT_TRACKS: AmbientTrack[] = [
     url: "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3",
   },
 ];
+
+export const DEFAULT_LESSON_AUDIO_TRACKS: LessonAudioTrack[] = AMBIENT_TRACKS.map(({ label, url }) => ({ title: label, url }));

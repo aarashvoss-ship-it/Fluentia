@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { ContentBlock, ContentBlockType, STUDY_STEPS, StudyStepId, StrictStepContent } from "@/types/lesson";
 import { useLessonEditorStore } from "@/lib/lesson-editor-store";
+import { supabase } from "@/lib/supabase";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { Eye, Layers, MoveDown, MoveUp, Music, Plus, Trash2, X } from "lucide-react";
 import { AMBIENT_TRACKS } from "@/lib/musicTracks";
@@ -40,6 +41,7 @@ export function LessonTailorEditor({
   onPreview,
 }: LessonTailorEditorProps) {
   const [activeStep, setActiveStep] = useState<StudyStepId>("warm_up");
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const textAreaRefs = React.useRef<Record<string, HTMLTextAreaElement | null>>({});
   
   // Zustand store integration
@@ -56,6 +58,25 @@ export function LessonTailorEditor({
     if (onChange) {
       onChange(updatedContent);
     }
+  };
+
+  const updateAmbientUrl = (url: string, title: string) => {
+    const tracks = (content.ambientTracks || []).filter((track) => track.url !== url);
+    handleChange({ ...content, ambientMusicUrl: url, ambientTracks: url ? [{ title, url }, ...tracks] : tracks });
+  };
+
+  const uploadCustomAmbientTrack = async (file?: File) => {
+    if (!file) return;
+    setUploadStatus("Uploading audio...");
+    const path = `ambient/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
+    const { error } = await supabase.storage.from("lesson-audio").upload(path, file, { contentType: file.type || "audio/mpeg", upsert: false });
+    if (error) {
+      setUploadStatus("Upload failed. Use a public audio URL instead.");
+      return;
+    }
+    const { data } = supabase.storage.from("lesson-audio").getPublicUrl(path);
+    updateAmbientUrl(data.publicUrl, file.name.replace(/\.[^.]+$/, "") || "Custom Upload");
+    setUploadStatus("Custom track ready to save.");
   };
 
   const updateStepValue = (step: StudyStepId, field: string, value: unknown) => {
@@ -259,7 +280,10 @@ export function LessonTailorEditor({
         </div>
         <select
           value={AMBIENT_TRACK_OPTIONS.some((option) => option.value === (content.ambientMusicUrl || "")) ? content.ambientMusicUrl || "" : "custom"}
-          onChange={(event) => handleChange({ ...content, ambientMusicUrl: event.target.value === "custom" ? content.ambientMusicUrl || "" : event.target.value })}
+          onChange={(event) => {
+            const option = AMBIENT_TRACK_OPTIONS.find((item) => item.value === event.target.value);
+            if (option) updateAmbientUrl(option.value, option.label);
+          }}
           className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500 [color-scheme:dark]"
           aria-label="Ambient lesson music"
         >
@@ -268,11 +292,15 @@ export function LessonTailorEditor({
         </select>
         {!AMBIENT_TRACK_OPTIONS.some((option) => option.value === (content.ambientMusicUrl || "")) && <input
           value={content.ambientMusicUrl || ""}
-          onChange={(event) => handleChange({ ...content, ambientMusicUrl: event.target.value })}
+          onChange={(event) => updateAmbientUrl(event.target.value, "Custom Audio URL")}
           placeholder="https://..."
           className="mt-2 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500"
           aria-label="Custom ambient lesson music URL"
         />}
+        <label className="mt-2 block text-xs text-stone-500">Upload Custom MP3
+          <input type="file" accept="audio/mpeg,audio/mp3,.mp3" onChange={(event) => void uploadCustomAmbientTrack(event.target.files?.[0])} className="mt-1 block w-full text-xs text-stone-400 file:mr-3 file:rounded file:border-0 file:bg-amber-500 file:px-2 file:py-1 file:text-xs file:font-semibold file:text-black" aria-label="Upload custom ambient MP3" />
+        </label>
+        {uploadStatus && <p className="mt-2 text-[11px] text-amber-300">{uploadStatus}</p>}
         {content.ambientMusicUrl && <CustomAudioPlayer src={content.ambientMusicUrl} label="Ambient lesson music" />}
       </section>
 

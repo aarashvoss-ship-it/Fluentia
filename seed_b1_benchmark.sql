@@ -30,6 +30,12 @@ VALUES (
     "moduleNumber": 1,
     "coverImage": "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=1200&q=80",
     "ambientMusicUrl": "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3",
+    "ambientTracks": [
+      { "title": "Deep Focus (Lofi)", "url": "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3" },
+      { "title": "Gentle Rain & Piano", "url": "https://cdn.pixabay.com/download/audio/2022/10/25/audio_946b8a7f31.mp3" },
+      { "title": "Calm Ambient Synth", "url": "https://cdn.pixabay.com/download/audio/2022/03/10/audio_2c7f6f6c3f.mp3" },
+      { "title": "Alpha Waves", "url": "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3" }
+    ],
     "instructor": { "fullName": "Fluentia Benchmark Team", "initials": "FB" },
     "workflow": [
       { "stepNumber": 1, "id": "warm_up", "label": "Warm-up" },
