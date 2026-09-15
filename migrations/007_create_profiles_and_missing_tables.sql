@@ -69,26 +69,26 @@ ALTER TABLE user_notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE instructor_feedback ENABLE ROW LEVEL SECURITY;
 ALTER TABLE lesson_assignments ENABLE ROW LEVEL SECURITY;
 
--- The current client identifies users with profile tokens. Authenticated users
--- are also allowed through auth.uid() when JWT auth is enabled.
 DROP POLICY IF EXISTS "Profiles readable by token or owner" ON profiles;
-CREATE POLICY "Profiles readable by token or owner" ON profiles FOR SELECT
-USING (auth.uid() = id OR token = current_setting('request.jwt.claims', true)::json->>'token' OR token IS NOT NULL);
-
 DROP POLICY IF EXISTS "Profiles writable by token or owner" ON profiles;
-CREATE POLICY "Profiles writable by token or owner" ON profiles FOR ALL
-USING (auth.uid() = id OR token IS NOT NULL)
-WITH CHECK (auth.uid() = id OR token IS NOT NULL);
+DROP POLICY IF EXISTS "Profiles readable by owner" ON profiles;
+DROP POLICY IF EXISTS "Profiles writable by owner" ON profiles;
+CREATE POLICY "Profiles readable by owner" ON profiles FOR SELECT
+USING (auth.uid() = id);
+
+CREATE POLICY "Profiles writable by owner" ON profiles FOR ALL
+USING (auth.uid() = id)
+WITH CHECK (auth.uid() = id);
 
 DROP POLICY IF EXISTS "Vocabulary owned by profile" ON user_vocab;
 CREATE POLICY "Vocabulary owned by profile" ON user_vocab FOR ALL
-USING (auth.uid() = user_id OR EXISTS (SELECT 1 FROM profiles p WHERE p.id = user_id AND p.token IS NOT NULL))
-WITH CHECK (auth.uid() = user_id OR EXISTS (SELECT 1 FROM profiles p WHERE p.id = user_id AND p.token IS NOT NULL));
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
 
 DROP POLICY IF EXISTS "Notes owned by profile" ON user_notes;
 CREATE POLICY "Notes owned by profile" ON user_notes FOR ALL
-USING (auth.uid() = user_id OR EXISTS (SELECT 1 FROM profiles p WHERE p.id = user_id AND p.token IS NOT NULL))
-WITH CHECK (auth.uid() = user_id OR EXISTS (SELECT 1 FROM profiles p WHERE p.id = user_id AND p.token IS NOT NULL));
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
 
 DROP POLICY IF EXISTS "Feedback readable by participants" ON instructor_feedback;
 CREATE POLICY "Feedback readable by participants" ON instructor_feedback FOR SELECT
@@ -96,14 +96,14 @@ USING (auth.uid() = student_id OR auth.uid() = (SELECT instructor_id FROM lesson
 
 DROP POLICY IF EXISTS "Feedback writable by instructors" ON instructor_feedback;
 CREATE POLICY "Feedback writable by instructors" ON instructor_feedback FOR ALL
-USING (auth.uid() = (SELECT instructor_id FROM lessons WHERE lessons.id = instructor_feedback.lesson_id) OR auth.uid() IS NULL)
-WITH CHECK (auth.uid() = (SELECT instructor_id FROM lessons WHERE lessons.id = instructor_feedback.lesson_id) OR auth.uid() IS NULL);
+USING (auth.uid() = (SELECT instructor_id FROM lessons WHERE lessons.id = instructor_feedback.lesson_id))
+WITH CHECK (auth.uid() = (SELECT instructor_id FROM lessons WHERE lessons.id = instructor_feedback.lesson_id));
 
 DROP POLICY IF EXISTS "Assignments readable by participants" ON lesson_assignments;
 CREATE POLICY "Assignments readable by participants" ON lesson_assignments FOR SELECT
-USING (auth.uid() = student_id OR auth.uid() = (SELECT instructor_id FROM lessons WHERE lessons.id = lesson_assignments.lesson_id) OR auth.uid() IS NULL);
+USING (auth.uid() = student_id OR auth.uid() = (SELECT instructor_id FROM lessons WHERE lessons.id = lesson_assignments.lesson_id));
 
 DROP POLICY IF EXISTS "Assignments writable by instructors" ON lesson_assignments;
 CREATE POLICY "Assignments writable by instructors" ON lesson_assignments FOR ALL
-USING (auth.uid() = (SELECT instructor_id FROM lessons WHERE lessons.id = lesson_assignments.lesson_id) OR auth.uid() IS NULL)
-WITH CHECK (auth.uid() = (SELECT instructor_id FROM lessons WHERE lessons.id = lesson_assignments.lesson_id) OR auth.uid() IS NULL);
+USING (auth.uid() = (SELECT instructor_id FROM lessons WHERE lessons.id = lesson_assignments.lesson_id))
+WITH CHECK (auth.uid() = (SELECT instructor_id FROM lessons WHERE lessons.id = lesson_assignments.lesson_id));

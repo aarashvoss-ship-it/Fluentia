@@ -235,6 +235,9 @@ export async function saveLesson(lesson: LessonContent): Promise<void> {
       persistenceError = error;
     }
   }
+  if (isSupabaseConfigured() && !demoDataEnabled()) {
+    throw persistenceError || new Error("Unable to save lesson to Supabase");
+  }
   const lessons = readManifest().filter((item) => item.slug !== lesson.slug);
   writeManifest([...lessons, lesson]);
   notifyDataUpdated({ type: "lesson", slug: lesson.slug, studentToken: lesson.studentId });
@@ -284,10 +287,11 @@ export async function fetchStudentProgress(slug: string, studentToken?: string):
         const progress = data?.answers?.progress;
         if (progress) return { currentStep: progress.currentStep || "warm_up", completedSteps: progress.completedSteps || [], status: data.status || progress.status || "not_started", updatedAt: data.submitted_at || new Date(0).toISOString() };
       }
-    } catch {
-      // Use local progress when Supabase is unavailable.
+    } catch (error) {
+      if (!demoDataEnabled()) throw error;
     }
   }
+  if (isSupabaseConfigured() && !demoDataEnabled()) throw new Error(`Progress unavailable for ${slug}`);
   return readJson<StudentProgressRecord>(progressKey(slug, studentToken)) || {
     currentStep: "warm_up",
     completedSteps: [],
@@ -372,10 +376,11 @@ export async function submitStudentLesson(
           return nextState;
         }
       }
-    } catch {
-      // Continue with the local state fallback below.
+      } catch (error) {
+        if (!demoDataEnabled()) throw error;
     }
   }
+    if (isSupabaseConfigured() && !demoDataEnabled()) throw new Error(`Unable to save submission for ${slug}`);
   await saveLessonState(slug, nextState, studentToken);
   if (progress) {
     await saveStudentProgress(slug, {
@@ -460,7 +465,7 @@ export async function prepareMediaUrl(
 }
 
 export async function uploadAudioSubmission(input: string | Blob, name?: string) {
-  return prepareMediaUrl(input, "audio-submissions", name);
+  return prepareMediaUrl(input, "lesson-audio", name);
 }
 
 export async function uploadLessonMedia(input: string | Blob, name?: string) {
@@ -479,10 +484,11 @@ export async function fetchSavedVocabulary(studentToken?: string): Promise<Saved
         const { data, error } = await supabase.from("user_vocab").select("*").eq("user_id", studentId).order("saved_at", { ascending: false });
         if (!error && data) return data.map((row: SupabaseRow) => ({ word: row.word, partOfSpeech: row.part_of_speech || row.partOfSpeech, definition: row.definition, example: row.example, pronunciationUrl: row.pronunciation_url || row.pronunciationUrl, source: row.source || "free-dictionary", savedAt: row.saved_at || row.savedAt || new Date().toISOString() }));
       }
-    } catch {
-      // Use local vocabulary when Supabase is unavailable.
+    } catch (error) {
+      if (!demoDataEnabled()) throw error;
     }
   }
+  if (isSupabaseConfigured() && !demoDataEnabled()) throw new Error("Vocabulary unavailable from Supabase");
   return readJson<SavedVocabularyWord[]>(scopedKey(VOCAB_PREFIX, studentToken)) || [];
 }
 
@@ -496,10 +502,11 @@ export async function saveVocabularyWord(studentToken: string | undefined, word:
         const { error } = await supabase.from("user_vocab").upsert({ user_id: studentId, word: word.word, part_of_speech: word.partOfSpeech, definition: word.definition, example: word.example, pronunciation_url: word.pronunciationUrl, source: word.source, saved_at: word.savedAt }, { onConflict: "user_id,word" });
         if (!error) return next;
       }
-    } catch {
-      // Keep the local vocabulary as an offline fallback.
+    } catch (error) {
+      if (!demoDataEnabled()) throw error;
     }
   }
+  if (isSupabaseConfigured() && !demoDataEnabled()) throw new Error("Unable to save vocabulary to Supabase");
   writeJson(scopedKey(VOCAB_PREFIX, studentToken), next);
   return next;
 }
@@ -513,10 +520,11 @@ export async function removeVocabularyWord(studentToken: string | undefined, wor
         const { error } = await supabase.from("user_vocab").delete().eq("user_id", studentId).eq("word", word);
         if (!error) return next;
       }
-    } catch {
-      // Keep the local vocabulary as an offline fallback.
+    } catch (error) {
+      if (!demoDataEnabled()) throw error;
     }
   }
+  if (isSupabaseConfigured() && !demoDataEnabled()) throw new Error("Unable to remove vocabulary from Supabase");
   writeJson(scopedKey(VOCAB_PREFIX, studentToken), next);
   return next;
 }
@@ -529,10 +537,11 @@ export async function fetchStudentNotes(studentToken?: string): Promise<StudentN
         const { data, error } = await supabase.from("user_notes").select("*").eq("user_id", studentId).order("updated_at", { ascending: false });
         if (!error && data) return data.map((row: SupabaseRow) => ({ id: row.id, text: row.text, lessonSlug: row.lesson_slug || row.lessonSlug, updatedAt: row.updated_at || new Date().toISOString() }));
       }
-    } catch {
-      // Use local notes when Supabase is unavailable.
+    } catch (error) {
+      if (!demoDataEnabled()) throw error;
     }
   }
+  if (isSupabaseConfigured() && !demoDataEnabled()) throw new Error("Notes unavailable from Supabase");
   return readJson<StudentNote[]>(scopedKey(NOTES_PREFIX, studentToken)) || [];
 }
 
@@ -546,19 +555,22 @@ export async function saveStudentNote(studentToken: string | undefined, note: St
         const { error } = await supabase.from("user_notes").upsert({ id: note.id, user_id: studentId, text: note.text, lesson_slug: note.lessonSlug, updated_at: note.updatedAt }, { onConflict: "id" });
         if (!error) return next;
       }
-    } catch {
-      // Keep local notes as an offline fallback.
+    } catch (error) {
+      if (!demoDataEnabled()) throw error;
     }
   }
+  if (isSupabaseConfigured() && !demoDataEnabled()) throw new Error("Unable to save notes to Supabase");
   writeJson(scopedKey(NOTES_PREFIX, studentToken), next);
   return next;
 }
 
 export async function fetchChatMessages(studentToken?: string): Promise<ChatMessage[]> {
+  if (isSupabaseConfigured() && !demoDataEnabled()) throw new Error("Chat history is managed by the Supabase chat widgets");
   return readJson<ChatMessage[]>(scopedKey(CHAT_PREFIX, studentToken)) || [];
 }
 
 export async function saveChatMessage(studentToken: string | undefined, message: ChatMessage): Promise<ChatMessage[]> {
+  if (isSupabaseConfigured() && !demoDataEnabled()) throw new Error("Chat messages must be saved through Supabase chat widgets");
   const next = [...await fetchChatMessages(studentToken), message];
   writeJson(scopedKey(CHAT_PREFIX, studentToken), next);
   return next;
@@ -569,5 +581,6 @@ export async function fetchStudentTheme(studentToken?: string): Promise<"dark" |
 }
 
 export async function saveStudentTheme(studentToken: string | undefined, theme: "dark" | "light"): Promise<void> {
+  if (isSupabaseConfigured() && !demoDataEnabled()) throw new Error("Theme persistence is not configured in Supabase");
   writeJson(scopedKey(THEME_PREFIX, studentToken), theme);
 }

@@ -236,7 +236,8 @@ export async function getLessonById(idOrSlug = BENCHMARK_LESSON_SLUG): Promise<L
 
     if (error) {
       console.warn(`Error searching for lesson ${idOrSlug} by ${lookupColumn}:`, error);
-      return fallback;
+      if (demoDataEnabled()) return fallback;
+      throw error;
     }
 
     if (!lesson) {
