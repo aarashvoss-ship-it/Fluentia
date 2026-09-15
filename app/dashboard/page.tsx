@@ -193,10 +193,11 @@ function DashboardContent() {
 
   return (
     <main className="min-h-screen bg-[#0c1017] text-[#e8e7e4] font-sans">
-        <header style={{ backgroundImage: `linear-gradient(90deg, rgba(12,16,23,.96), rgba(12,16,23,.62)), url(${dashboardHeaderBanner})` }} className="relative flex min-h-[280px] w-full flex-col justify-end overflow-hidden bg-slate-950 bg-cover bg-center p-8 md:min-h-[340px]">
+        <header style={{ backgroundImage: `linear-gradient(90deg, rgba(12,16,23,.96), rgba(12,16,23,.62)), url(${dashboardHeaderBanner})` }} className="relative flex min-h-[280px] w-full flex-col justify-end overflow-visible bg-slate-950 bg-cover bg-center p-8 md:min-h-[340px]">
           <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=1800&q=80')] bg-cover bg-center opacity-40" aria-hidden="true" />
           <div className="absolute inset-0 bg-[linear-gradient(0deg,rgba(12,16,23,.98),transparent_65%)]" aria-hidden="true" />
           <div className="relative z-10 mx-auto w-full max-w-5xl">
+          {profileOpen && <button type="button" aria-label="Close student profile" onClick={() => setProfileOpen(false)} className="fixed inset-0 z-[90] cursor-default bg-black/55" />}
           <span className="w-fit rounded-full border border-amber-500/40 bg-[#332713]/85 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e4ae45]">
             ENGLISH B1 - ACTIVE MODULE
           </span>
@@ -217,7 +218,7 @@ function DashboardContent() {
                 <div className="hidden text-left sm:block"><p className="text-xs font-semibold text-stone-100">{displayName}</p><p className="text-[10px] text-stone-500">{activeStudent.profile?.level || "B2 Upper Intermediate"}</p></div>
                 <button type="button" onClick={() => { setProfileOpen(true); setProfileTab("profile"); }} aria-label="Profile settings" title="Profile settings" className="text-stone-500 transition hover:text-amber-300"><Settings2 className="h-4 w-4" /></button>
                 {profileOpen && (
-                  <div id="student-profile-flyout" className="absolute right-0 top-12 z-30 flex max-h-[min(80vh,620px)] w-[min(22rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-xl border border-[#394252] bg-[#171d28] text-left shadow-2xl">
+                  <div id="student-profile-flyout" className="absolute right-0 top-12 z-[100] flex max-h-[min(80vh,620px)] w-[min(22rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-xl border border-[#394252] bg-[#171d28] text-left shadow-2xl">
                     <div className="flex items-start justify-between gap-4 border-b border-[#29303c] p-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Student profile</p><p className="mt-1 text-sm font-semibold text-stone-100">{displayName}</p></div><button type="button" onClick={() => setProfileOpen(false)} aria-label="Close profile" className="text-stone-500 hover:text-stone-200"><X className="h-4 w-4" /></button></div>
                     <div className="grid grid-cols-2 border-b border-[#29303c] px-4 pt-3"><button type="button" onClick={() => setProfileTab("profile")} className={`border-b-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] ${profileTab === "profile" ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-300"}`}>Profile &amp; Preferences</button><button type="button" onClick={() => setProfileTab("customization")} className={`border-b-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] ${profileTab === "customization" ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-300"}`}>Customization</button></div>
                     <div className="min-h-0 flex-1 overflow-y-auto p-4">
