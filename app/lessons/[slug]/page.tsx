@@ -301,10 +301,19 @@ export default function LessonPage() {
     });
   }, [accessDenied, activeStudent?.token, studentReady]);
 
-  function handleDoubleClick() {
-    const selection = window.getSelection()?.toString().trim().split(/\s+/)[0]?.replace(/[^a-zA-Z'-]/g, "");
-    if (selection && selection.length > 1) setDictionaryWord(selection);
-  }
+  useEffect(() => {
+    function handleDoubleClick(event: MouseEvent) {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, button, a, [role=dialog]")) return;
+
+      const selectedText = window.getSelection()?.toString().trim() || "";
+      const selectedWord = selectedText.match(/^[a-zA-Z]+(?:[-'][a-zA-Z]+)*$/)?.[0];
+      if (selectedWord && selectedWord.length > 1) setDictionaryWord(selectedWord);
+    }
+
+    document.addEventListener("dblclick", handleDoubleClick);
+    return () => document.removeEventListener("dblclick", handleDoubleClick);
+  }, []);
 
   async function persistSubmission(nextSubmission: StudentSubmission, nextProgress?: { currentStep?: StudyStepId; completedSteps?: StudyStepId[]; status?: "not_started" | "in_progress" | "submitted" | "reviewed" }) {
     if (!lesson) return;
@@ -516,7 +525,7 @@ export default function LessonPage() {
   );
 
   return (
-    <div className="fluentia-study-room min-h-screen bg-[#0c1017] text-[#e8e7e4]" onDoubleClick={handleDoubleClick}>
+    <div className="fluentia-study-room min-h-screen bg-[#0c1017] text-[#e8e7e4]">
       {!isResultsStep && (
         <section className="relative min-h-[320px] w-full bg-slate-950 bg-cover bg-center flex flex-col justify-end p-8 overflow-hidden md:min-h-[380px]">
           <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=1800&q=80')] bg-cover bg-center opacity-40" />

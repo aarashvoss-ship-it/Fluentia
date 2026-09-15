@@ -44,7 +44,11 @@ export function DictionaryModal({ initialWord = "", onClose, savedWords, onSave 
     }
   }
 
-  useEffect(() => { if (initialWord) void lookup(initialWord); }, [initialWord]);
+  useEffect(() => {
+    if (!initialWord) return;
+    setQuery(initialWord);
+    void lookup(initialWord);
+  }, [initialWord]);
 
   const isSaved = entry ? savedWords.some((word) => word.word.toLowerCase() === entry.word.toLowerCase()) : false;
 
@@ -59,14 +63,18 @@ export function DictionaryModal({ initialWord = "", onClose, savedWords, onSave 
           <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search a word" className="min-w-0 flex-1 rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-sm outline-none focus:border-amber-500" />
           <button type="submit" className="rounded-md bg-amber-500 px-4 py-2 text-xs font-semibold text-[#0c1017]">Search</button>
         </form>
-        <div className="mt-4 flex items-center justify-between border-b border-[#29303c] pb-3 text-[10px] uppercase tracking-[0.12em] text-stone-500">
-          <span className="flex items-center gap-2">
-            {entry?.source === "merriam-webster" && <img src="/images/mw-logo.svg" alt="Merriam-Webster" className="h-5 w-auto object-contain" />}
-            <span>Definition source: {entry?.source === "merriam-webster" ? "Merriam-Webster" : "Free Dictionary"}</span>
-          </span>
-          <span className="flex items-center gap-1.5 text-stone-500">
-            <span title="Free Dictionary Fallback" aria-label="Free Dictionary Fallback" className={`rounded border px-1.5 py-0.5 font-semibold ${entry?.source === "free-dictionary" ? "border-sky-500/40 text-sky-300" : "border-[#394252] text-stone-600"}`}>MT</span>
-          </span>
+        <div className="mt-4 flex justify-end border-b border-[#29303c] pb-3">
+          {entry?.source === "merriam-webster" ? (
+            <span className="inline-flex items-center gap-1.5 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300" role="img" aria-label="Merriam-Webster">
+              <svg viewBox="0 0 32 16" aria-hidden="true" className="h-4 w-8 fill-current">
+                <rect x="0.5" y="0.5" width="31" height="15" rx="2" fill="none" stroke="currentColor" />
+                <text x="16" y="11.5" textAnchor="middle" fontSize="8" fontWeight="700" fill="currentColor">MW</text>
+              </svg>
+              <span>Merriam-Webster</span>
+            </span>
+          ) : (
+            <span className="rounded border border-[#394252] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Free Dictionary</span>
+          )}
         </div>
         {loading && <p className="py-8 text-center text-sm text-stone-400">Looking up “{query}”...</p>}
         {error && <p className="py-8 text-center text-sm text-amber-300">{error}</p>}
