@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck:supabase": "tsc --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --skipLibCheck scripts/test-supabase.ts",
+    "test:supabase": "node --no-warnings --experimental-strip-types scripts/test-supabase.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

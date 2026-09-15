@@ -280,10 +280,9 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
     const { content, changes_summary, ...lessonData } = input;
     const hasTitle = typeof lessonData.title === "string" && lessonData.title.trim().length > 0;
     const title = hasTitle ? lessonData.title.trim() : "Untitled Lesson";
-    const baseSlug = hasTitle
-      ? title.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
-      : "untitled-lesson";
-    const slug = `${baseSlug || "untitled-lesson"}-${Date.now()}`;
+    const slug = (title && title.trim() !== "")
+      ? title.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-" + Date.now()
+      : "lesson-" + Date.now();
     const versionContent = {
       ...content,
       slug,
@@ -297,6 +296,7 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
         {
           ...lessonData,
           title,
+          slug,
           status: lessonData.status || "draft",
         },
       ])
