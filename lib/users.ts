@@ -49,12 +49,15 @@ export const FLUENTIA_USERS: FluentiaUser[] = [
   { id: "instructor-avoss", token: "avoss-9042", name: "AVoss", role: "instructor" },
 ];
 
-export const STUDENT_USERS = FLUENTIA_USERS.filter(
-  (user): user is FluentiaUser & { profile: StudentProfile; token: string } =>
-    user.role === "student" && Boolean(user.profile && user.token)
-);
+export interface StudentUser extends FluentiaUser {
+  role: "student";
+  token: string;
+  profile: StudentProfile;
+}
 
-export type StudentUser = (typeof STUDENT_USERS)[number];
+export const STUDENT_USERS: StudentUser[] = FLUENTIA_USERS.filter(
+  (user): user is StudentUser => user.role === "student" && Boolean(user.profile && user.token)
+);
 
 export function findUser(value?: string | null) {
   if (!value) return undefined;

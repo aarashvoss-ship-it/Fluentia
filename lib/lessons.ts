@@ -20,6 +20,7 @@ export interface CreateLessonInput {
   grade?: string;
   status?: "draft" | "published" | "evaluated";
   instructor_id?: string;
+  assigned_all_students?: boolean;
   content: Record<string, any>;
   changes_summary?: string;
 }
@@ -30,6 +31,7 @@ export interface UpdateLessonInput {
   student_id?: string;
   student_token?: string | null;
   instructor_id?: string;
+  assigned_all_students?: boolean;
   subject?: string;
   grade?: string;
   status?: "draft" | "published" | "evaluated";
@@ -279,31 +281,24 @@ export async function getLessonsByStudentId(studentId: string): Promise<LessonWi
   }
 
   try {
-    const { data: lessons, error } = await supabase
-      .from("lessons")
-      .select("*")
-      .order("created_at", { ascending: false });
+    const studentUuid = await resolveUserUuid(studentId);
+    const [directResult, assignmentResult, allStudentsResult] = await Promise.all([
+      supabase.from("lessons").select("*").eq("status", "published").or(`student_id.eq.${studentUuid},student_token.eq.${studentId}`),
+      supabase.from("lessons").select("*, lesson_assignments!inner(student_id)").eq("status", "published").eq("lesson_assignments.student_id", studentUuid),
+      supabase.from("lessons").select("*").eq("status", "published").eq("assigned_all_students", true),
+    ]);
 
-    if (error) throw error;
-
-    const enrichedLessons = await Promise.all(
-      (lessons || []).map(async (lesson) => {
-        const version = await getLatestLessonVersion(lesson.id);
-        return {
-          ...lesson,
-          current_version: version || undefined,
-          content: version?.content,
-        };
-      })
-    );
-
-    return enrichedLessons.filter((lesson) => {
-      const content = lesson.content || {};
-      const assignedStudents = Array.isArray(content.assignedStudents) ? content.assignedStudents : [];
-      return lesson.student_token === studentId
-        || content.assignedAllStudents === true
-        || assignedStudents.some((student: unknown) => typeof student === "string" ? student === studentId : Boolean(student && typeof student === "object" && ((student as Record<string, unknown>).id === studentId || (student as Record<string, unknown>).token === studentId)));
+    const firstError = directResult.error || assignmentResult.error || allStudentsResult.error;
+    if (firstError) throw firstError;
+    const uniqueLessons = new Map<string, LessonRow>();
+    [...(directResult.data || []), ...(assignmentResult.data || []), ...(allStudentsResult.data || [])].forEach((lesson) => {
+      uniqueLessons.set(lesson.id, lesson as LessonRow);
     });
+
+    return Promise.all([...uniqueLessons.values()].map(async (lesson) => {
+      const version = await getLatestLessonVersion(lesson.id);
+      return { ...lesson, current_version: version || undefined, content: version?.content };
+    }));
   } catch (error) {
     console.warn(`Unable to load assigned lessons for student ${studentId}; using published fallback.`, error);
     return [];
@@ -314,7 +309,10 @@ export async function assignLessonToStudent(lessonId: string, studentToken: stri
   const lesson = await getLessonById(lessonId);
   if (!lesson) throw new Error("Lesson not found");
   const content = { ...(lesson.content || {}), assignedAllStudents: false, assignedStudents: [studentToken] };
-  const updated = await updateLesson(lessonId, { student_token: studentToken, content, changes_summary: "Assigned to student" });
+  const updated = await updateLesson(lessonId, { student_token: studentToken, assigned_all_students: false, content, changes_summary: "Assigned to student" });
+  const studentUuid = await resolveUserUuid(studentToken);
+  const { error: assignmentError } = await supabase.from("lesson_assignments").upsert({ lesson_id: lessonId, student_id: studentUuid }, { onConflict: "lesson_id,student_id" });
+  if (assignmentError) throw assignmentError;
   if (typeof window !== "undefined") window.dispatchEvent(new Event("fluentia:lesson-updated"));
   return updated;
 }
@@ -323,7 +321,7 @@ export async function assignLessonToAllActiveStudents(lessonId: string): Promise
   const lesson = await getLessonById(lessonId);
   if (!lesson) throw new Error("Lesson not found");
   const content = { ...(lesson.content || {}), assignedAllStudents: true, assignedStudents: [] };
-  const updated = await updateLesson(lessonId, { student_token: null, content, changes_summary: "Assigned to all active students" });
+  const updated = await updateLesson(lessonId, { student_token: null, assigned_all_students: true, content, changes_summary: "Assigned to all active students" });
   if (typeof window !== "undefined") window.dispatchEvent(new Event("fluentia:lesson-updated"));
   return updated;
 }
@@ -332,7 +330,9 @@ export async function unassignLesson(lessonId: string): Promise<LessonWithVersio
   const lesson = await getLessonById(lessonId);
   if (!lesson) throw new Error("Lesson not found");
   const content = { ...(lesson.content || {}), assignedAllStudents: false, assignedStudents: [] };
-  const updated = await updateLesson(lessonId, { student_token: null, content, changes_summary: "Unassigned lesson" });
+  const updated = await updateLesson(lessonId, { student_token: null, assigned_all_students: false, content, changes_summary: "Unassigned lesson" });
+  const { error: assignmentError } = await supabase.from("lesson_assignments").delete().eq("lesson_id", lessonId);
+  if (assignmentError) throw assignmentError;
   if (typeof window !== "undefined") window.dispatchEvent(new Event("fluentia:lesson-updated"));
   return updated;
 }

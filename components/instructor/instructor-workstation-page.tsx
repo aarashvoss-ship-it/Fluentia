@@ -10,7 +10,7 @@ import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/su
 import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
 import { assignLessonToAllActiveStudents, assignLessonToStudent, createLesson, deleteLesson, getLessons, unassignLesson, updateLesson, type LessonWithVersion } from "@/lib/lessons";
 import { INSTRUCTOR_TOKEN, PublishedLessonState } from "@/lib/lesson-store";
-import { DEFAULT_STUDENT, STUDENT_USERS, StudentUser } from "@/lib/users";
+import { DEFAULT_STUDENT, StudentUser } from "@/lib/users";
 import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/storage-service";
 import { AccessCard } from "@/components/access/access-card";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
@@ -486,7 +486,35 @@ export default function InstructorWorkstationPage({
       setPendingSubmissionCount(pendingCount ?? 0);
       setPublishedLessonCount(publishedCount ?? 0);
       setDraftLessonCount(draftsCount ?? 0);
-      setStudents(STUDENT_USERS);
+      const { data: profileRows, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, token, full_name, role, level, target_goal, avatar_url, banner_url")
+        .eq("role", "student")
+        .order("full_name", { ascending: true });
+      if (profileError) throw profileError;
+      const nextStudents: StudentUser[] = (profileRows || []).map((profile) => ({
+        id: profile.id,
+        token: profile.token,
+        name: profile.full_name,
+        role: "student",
+        profile: {
+          id: profile.id,
+          fullName: profile.full_name,
+          level: profile.level || "B1 Intermediate",
+          targetGoal: profile.target_goal || "",
+          avatarUrl: profile.avatar_url || undefined,
+          bannerUrl: profile.banner_url || undefined,
+          weaknesses: [],
+          teacherNotes: "",
+          attendanceRate: 0,
+          completedModulesCount: 0,
+        },
+      }));
+      setStudents(nextStudents);
+      if (nextStudents.length > 0 && !nextStudents.some((student) => student.id === selectedStudent.id)) {
+        setSelectedStudent(nextStudents[0]);
+        setSelectedStudentId(nextStudents[0].id);
+      }
     };
     const refreshCounts = () => void loadCounts();
     void loadCounts();
@@ -850,7 +878,7 @@ export default function InstructorWorkstationPage({
 </div>
 </div>
 <div className="lg:col-span-5 lg:sticky lg:top-6">
-<SubmissionEvaluator lessonId={newLesson.slug || lessonId} studentName={selectedStudent?.name || "Selected Student"} evaluation={workstationState.evaluation} onUpdateEvaluation={(evaluation: LessonEvaluation) => setWorkstationState((previous) => ({ ...previous, evaluation }))} onSubmitFeedback={async (feedback: FeedbackPayload) => { const evaluation = { ...workstationState.evaluation, scores: feedback.scores, comments: feedback.comments, criterionFeedback: feedback.criterionFeedback, published: true }; setWorkstationState((previous) => ({ ...previous, evaluation })); await saveInstructorFeedback(newLesson.slug || lessonId, selectedStudent.token, evaluation); setPublishStatus("Strengths, study plan, and evaluation synced with student view!"); }} />
+<SubmissionEvaluator lessonId={databaseLessonId || newLesson.slug || lessonId} studentId={selectedStudent.id} instructorId={instructorToken} studentName={selectedStudent?.name || "Selected Student"} useSupabase evaluation={workstationState.evaluation} onUpdateEvaluation={(evaluation: LessonEvaluation) => setWorkstationState((previous) => ({ ...previous, evaluation }))} onSubmitFeedback={async (feedback: FeedbackPayload) => { const evaluation = { ...workstationState.evaluation, scores: feedback.scores, comments: feedback.comments, criterionFeedback: feedback.criterionFeedback, published: true }; setWorkstationState((previous) => ({ ...previous, evaluation })); await saveInstructorFeedback(newLesson.slug || lessonId, selectedStudent.token, evaluation); setPublishStatus("Strengths, study plan, and evaluation synced with student view!"); }} />
 </div>
 </section>
 </>}
