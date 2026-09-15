@@ -305,7 +305,7 @@ export default function InstructorWorkstationPage({
     const label = names[0] === "All Students"
       ? names[0]
       : names.length > 1
-        ? `Assigned to ${names.length} students`
+        ? `${names[0]} +${names.length - 1} more`
         : names[0];
     return <span className="group relative inline-flex max-w-full">
       <span className="truncate rounded-md border border-[#394252] bg-[#0c1017] px-2 py-1 text-[11px] text-stone-300">{label}</span>
@@ -726,18 +726,17 @@ export default function InstructorWorkstationPage({
             <div className="overflow-x-auto">
               <table className="min-w-[920px] w-full text-left text-xs">
                 <thead className="border-b border-[#202631] bg-[#0c1017] text-[10px] uppercase tracking-[0.12em] text-stone-500">
-                  <tr><th className="px-5 py-3 font-semibold">Title</th><th className="px-4 py-3 font-semibold">Subtitle</th><th className="px-4 py-3 font-semibold">Assigned Student</th><th className="px-4 py-3 font-semibold">Status</th><th className="px-4 py-3 font-semibold">Module</th><th className="px-4 py-3 text-right font-semibold">Actions</th></tr>
+                  <tr><th className="px-5 py-3 font-semibold">Lesson</th><th className="px-4 py-3 font-semibold">Assigned Students</th><th className="px-4 py-3 font-semibold">Status</th><th className="px-4 py-3 font-semibold">Module</th><th className="px-4 py-3 text-right font-semibold">Actions</th></tr>
                 </thead>
                 <tbody className="divide-y divide-[#202631]">
                   {createdLessons.map((lesson) => <tr key={lesson.id} onClick={() => handleEditLesson(lesson)} className="cursor-pointer text-stone-300 transition hover:bg-[#202631]/30">
-                    <td className="max-w-[220px] px-5 py-4"><button type="button" onClick={() => handleEditLesson(lesson)} className="max-w-full text-left"><p className="truncate font-semibold text-stone-100">{lesson.title}</p><p className="mt-1 truncate text-[10px] text-stone-600">{lesson.content?.slug || lesson.id}</p></button></td>
-                    <td className="max-w-[260px] px-4 py-4"><span className="line-clamp-2 text-stone-400">{lesson.content?.subtitle || lesson.subtitle || "No subtitle"}</span></td>
+                    <td className="max-w-[280px] px-5 py-4"><button type="button" onClick={() => handleEditLesson(lesson)} className="max-w-full text-left"><p className="truncate font-semibold text-stone-100">{lesson.title}</p><p className="mt-1 line-clamp-2 text-[11px] text-stone-400">{lesson.content?.subtitle || lesson.subtitle || "No subtitle"}</p><p className="mt-1 truncate text-[10px] text-stone-600">{lesson.content?.slug || lesson.id}</p></button></td>
                     <td className="px-4 py-4 text-stone-300">{renderAssignedStudents(lesson)}</td>
                     <td className="px-4 py-4"><span className={`rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${lesson.status === "published" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/30 bg-amber-500/10 text-amber-300"}`}>{lesson.status === "published" ? "Published" : "Draft"}</span></td>
                     <td className="px-4 py-4 text-stone-300">Module {lesson.content?.moduleNumber || lesson.module_number || 1}</td>
                     <td className="px-4 py-4"><div className="flex justify-end gap-2"><button type="button" onClick={(event) => { event.stopPropagation(); handleEditLesson(lesson); }} className="rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500 hover:text-black">Edit / Continue</button><button type="button" onClick={(event) => { event.stopPropagation(); duplicateLesson(lesson); }} className="rounded-md border border-sky-500/50 px-3 py-2 text-xs font-semibold text-sky-300 hover:bg-sky-500 hover:text-black">Duplicate</button><button type="button" onClick={(event) => { event.stopPropagation(); setLessonPendingDelete(lesson); }} aria-label={`Delete ${lesson.title}`} title="Delete lesson" className="flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button></div></td>
                   </tr>)}
-                  {createdLessons.length === 0 && <tr><td colSpan={6} className="px-5 py-10 text-center text-stone-500">No lessons have been created yet.</td></tr>}
+                  {createdLessons.length === 0 && <tr><td colSpan={5} className="px-5 py-10 text-center text-stone-500">No lessons have been created yet.</td></tr>}
                 </tbody>
               </table>
             </div>

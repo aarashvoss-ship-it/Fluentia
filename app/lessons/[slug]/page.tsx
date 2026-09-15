@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { ChatMessage, ContentBlock, SavedVocabularyWord, StudentNote, StudyStepId, STUDY_STEPS, LessonContent, StudentSubmission } from "@/types/lesson";
 import { getLessonById, type LessonWithVersion } from "@/lib/lessons";
 import { persistResolvedStudent, PublishedLessonState, resolveStudentAccess, writeLastAccessedLesson } from "@/lib/lesson-store";
@@ -94,7 +94,8 @@ function AudioResponseBlock({ value, onChange }: { value?: string; onChange: (va
 
 export default function LessonPage() {
   const rawSlug = useParams()?.slug;
-  const requestedSlug = typeof rawSlug === "string" ? rawSlug : "";
+  const searchParams = useSearchParams();
+  const requestedSlug = typeof rawSlug === "string" ? rawSlug : searchParams.get("slug") || searchParams.get("id") || "";
   const [lesson, setLesson] = useState<LessonWithVersion | null>(null);
   const [loading, setLoading] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
@@ -258,7 +259,7 @@ export default function LessonPage() {
     : typeof lesson?.module_number === "number"
       ? lesson.module_number
       : null;
-  const instructor = lessonMetadata.instructor;
+  const instructor = { fullName: "AVoss", initials: "AV" };
   const heroBanner = typeof lessonContent.coverImage === "string"
     ? lessonContent.coverImage
     : typeof lesson?.banner_url === "string"
@@ -433,26 +434,26 @@ export default function LessonPage() {
 
   return (
     <div className="fluentia-study-room min-h-screen bg-[#0c1017] text-[#e8e7e4]" onDoubleClick={handleDoubleClick}>
-      <div className="mx-auto max-w-[920px] px-5 sm:px-0">
       {!isResultsStep && (
-        <section className="relative h-[295px] overflow-hidden border-b border-[#202631]">
+        <section className="relative h-[330px] w-full overflow-hidden border-b border-[#202631]">
           {heroBanner && <><img src={heroBanner} alt="" className="absolute inset-0 h-full w-full object-cover opacity-55" /><div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,11,17,.72),rgba(7,11,17,.08)_55%,rgba(7,11,17,.72)),linear-gradient(0deg,#0c1017_0%,transparent_58%)]" /></>}
-          <div className="relative flex h-full flex-col justify-end pb-14">
+          <div className="relative mx-auto flex h-full max-w-5xl flex-col justify-end px-5 pb-14 sm:px-0">
             {(lesson.grade || lesson.subject) && <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#aeb3b9]">{lesson.grade || lesson.subject}</p>}
             <span className="mb-3 w-fit rounded-sm border border-[#a77b25] bg-[#332713]/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#dca42f]">Module {lessonModuleNumber ?? 1}</span>
             <h1 className="font-[var(--font-fraunces)] text-[38px] leading-[0.98] tracking-[-0.02em] text-[#f1eee8] sm:text-[42px]">
               {displayLessonTitle || lesson.title}
             </h1>
             {lessonSubtitle && <p className="mt-4 text-xs text-[#b5bac2]">{lessonSubtitle}</p>}
-            {instructor && <div className="mt-7 flex items-center gap-2 text-[11px] text-[#9ba1aa]">{instructor.avatarUrl ? <img src={instructor.avatarUrl} alt="" className="h-6 w-6 rounded-full object-cover" /> : <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#283344] text-[9px] font-semibold text-[#d9a63b]">{instructor.initials}</span>}Guided by {instructor.fullName}</div>}
+            <div className="mt-7 flex items-center gap-2 text-[11px] text-[#9ba1aa]"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#283344] text-[9px] font-semibold text-[#d9a63b]">{instructor.initials}</span>Guided by {instructor.fullName}</div>
           </div>
         </section>
       )}
 
+      <div className="mx-auto max-w-5xl px-5 sm:px-0">
       <header className="pt-8">
         <div className="flex items-center justify-between text-[12px]">
                 <p className="text-[#aeb2b9]">Welcome back, <span className="text-[#e6e4e0]">{activeStudent!.name}</span>.</p>
-              <div className="flex items-center gap-2">{lessonContent.ambientMusicUrl && <AmbientMusicPlayer src={lessonContent.ambientMusicUrl} />}<button type="button" onClick={() => setDictionaryWord("")} aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28] text-stone-400 transition hover:border-amber-500 hover:text-amber-300"><DictionaryIcon className="h-4 w-4" /></button><button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs transition ${sidebarOpen ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#171d28] text-amber-300 hover:border-amber-500"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button><Link href={`/dashboard?student=${encodeURIComponent(activeStudent!.token)}`} className="flex items-center gap-1 text-[#646d7b] transition-colors hover:text-[#bdc1c8]"><ChevronRight className="h-3 w-3 rotate-180" />Course overview</Link></div>
+              <div className="flex items-center gap-2"><AmbientMusicPlayer src={lessonContent.ambientMusicUrl} /><button type="button" onClick={() => setDictionaryWord("")} aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28] text-stone-400 transition hover:border-amber-500 hover:text-amber-300"><DictionaryIcon className="h-4 w-4" /></button><button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs transition ${sidebarOpen ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#171d28] text-amber-300 hover:border-amber-500"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button><Link href={`/dashboard?student=${encodeURIComponent(activeStudent!.token)}`} className="flex items-center gap-1 text-[#646d7b] transition-colors hover:text-[#bdc1c8]"><ChevronRight className="h-3 w-3 rotate-180" />Course overview</Link></div>
         </div>
         <div className="mt-8">
           <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#556078]">Your journey</p>

@@ -2,28 +2,25 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Music, Pause, Play, Volume2, VolumeX } from "lucide-react";
+import { AMBIENT_TRACKS } from "@/lib/musicTracks";
 
 const PLAYBACK_KEY = "fluentia:ambient-music:playing";
 const ENABLED_KEY = "fluentia:ambient-music:enabled";
 const VOLUME_KEY = "fluentia:ambient-music:volume";
-const FALLBACK_TRACKS = [
-  "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3",
-  "https://cdn.pixabay.com/download/audio/2022/10/25/audio_946b8a7f31.mp3",
-  "https://cdn.pixabay.com/download/audio/2022/03/10/audio_2c7f6f6c3f.mp3",
-];
-
 interface AmbientMusicPlayerProps {
   src?: string;
 }
 
 export function AmbientMusicPlayer({ src }: AmbientMusicPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
-  const [fallbackIndex, setFallbackIndex] = useState(0);
-  const track = src || FALLBACK_TRACKS[fallbackIndex];
+  const [trackIndex, setTrackIndex] = useState(() => Math.max(0, AMBIENT_TRACKS.findIndex((item) => item.url === src)));
+  const [selectedTrack, setSelectedTrack] = useState(src || AMBIENT_TRACKS[0].url);
+  const track = selectedTrack || AMBIENT_TRACKS[trackIndex]?.url || AMBIENT_TRACKS[0].url;
   const [isEnabled, setIsEnabled] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.35);
   const [showVolume, setShowVolume] = useState(false);
+  const [showTracks, setShowTracks] = useState(false);
 
   useEffect(() => {
     const storedPlaying = window.localStorage.getItem(PLAYBACK_KEY) === "true";
@@ -89,6 +86,15 @@ export function AmbientMusicPlayer({ src }: AmbientMusicPlayerProps) {
     if (value > 0 && audioRef.current?.paused === false) setIsPlaying(true);
   }
 
+  function selectTrack(index: number) {
+    setTrackIndex(index);
+    setSelectedTrack(AMBIENT_TRACKS[index].url);
+    setShowTracks(false);
+    setIsPlaying(false);
+    window.localStorage.setItem(PLAYBACK_KEY, "false");
+    window.setTimeout(() => audioRef.current?.load(), 0);
+  }
+
   return (
     <div className="relative flex items-center gap-1">
       <audio
@@ -97,8 +103,8 @@ export function AmbientMusicPlayer({ src }: AmbientMusicPlayerProps) {
         loop
         preload="auto"
         onError={() => {
-          if (!src && fallbackIndex < FALLBACK_TRACKS.length - 1) {
-            setFallbackIndex((index) => index + 1);
+          if (!src && trackIndex < AMBIENT_TRACKS.length - 1) {
+            setTrackIndex((index) => index + 1);
             return;
           }
           setIsPlaying(false);
@@ -108,13 +114,18 @@ export function AmbientMusicPlayer({ src }: AmbientMusicPlayerProps) {
       />
       <button
         type="button"
-        onClick={toggleEnabled}
-        aria-label={isEnabled ? "Disable ambient music" : "Enable ambient music"}
-        aria-pressed={isEnabled}
+        onClick={() => setShowTracks((open) => !open)}
+        aria-label="Choose ambient music track"
+        aria-expanded={showTracks}
         className={`flex h-8 w-8 items-center justify-center p-2 rounded-lg bg-slate-800/80 border border-slate-700 hover:border-amber-500/50 hover:shadow-amber-500/10 transition-all ${isEnabled ? "border-amber-500/70 bg-amber-500/10 text-amber-300 shadow-[0_0_14px_rgba(245,158,11,.18)]" : "text-stone-400 hover:text-amber-300"}`}
       >
         <Music className="h-3.5 w-3.5" aria-hidden="true" />
       </button>
+      {showTracks && <div className="absolute right-0 top-10 z-40 w-52 rounded-md border border-[#394252] bg-[#171d28] p-2 shadow-xl">
+        <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Music library</p>
+        {AMBIENT_TRACKS.map((item, index) => <button key={item.id} type="button" onClick={() => selectTrack(index)} className={`block w-full rounded px-2 py-2 text-left text-xs transition hover:bg-amber-500/10 hover:text-amber-300 ${track === item.url ? "text-amber-300" : "text-stone-400"}`}>{item.label}</button>)}
+        {src && !AMBIENT_TRACKS.some((item) => item.url === src) && <p className="px-2 py-2 text-[10px] text-stone-500">Custom lesson track</p>}
+      </div>}
       <button
         type="button"
         onClick={() => setShowVolume((open) => !open)}

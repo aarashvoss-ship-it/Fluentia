@@ -5,13 +5,9 @@ import { ContentBlock, ContentBlockType, STUDY_STEPS, StudyStepId, StrictStepCon
 import { useLessonEditorStore } from "@/lib/lesson-editor-store";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { Eye, Layers, MoveDown, MoveUp, Music, Plus, Trash2, X } from "lucide-react";
+import { AMBIENT_TRACKS } from "@/lib/musicTracks";
 
-const AMBIENT_TRACK_OPTIONS = [
-  { value: "", label: "None" },
-  { value: "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3", label: "Deep Focus (Lofi)" },
-  { value: "https://cdn.pixabay.com/download/audio/2022/10/25/audio_946b8a7f31.mp3", label: "Gentle Rain & Piano" },
-  { value: "https://cdn.pixabay.com/download/audio/2022/03/10/audio_2c7f6f6c3f.mp3", label: "Calm Ambient Synth" },
-];
+const AMBIENT_TRACK_OPTIONS = [{ value: "", label: "None" }, ...AMBIENT_TRACKS.map((track) => ({ value: track.url, label: track.label }))];
 
 interface LessonTailorEditorProps {
   content: StrictStepContent;
@@ -268,7 +264,7 @@ export function LessonTailorEditor({
           aria-label="Ambient lesson music"
         >
           {AMBIENT_TRACK_OPTIONS.map((option) => <option key={option.label} value={option.value}>{option.label}</option>)}
-          <option value="custom">Custom Audio URL</option>
+          <option value="custom">Upload / Custom URL</option>
         </select>
         {!AMBIENT_TRACK_OPTIONS.some((option) => option.value === (content.ambientMusicUrl || "")) && <input
           value={content.ambientMusicUrl || ""}
