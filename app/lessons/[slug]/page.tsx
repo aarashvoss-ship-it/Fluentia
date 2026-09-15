@@ -168,8 +168,8 @@ export default function LessonPage() {
         console.error("Failed to load lesson:", error);
         setLessonNotFound(true);
       } finally {
+        setLoading(false);
         if (mounted) {
-          setLoading(false);
           setLessonReady(true);
         }
       }
@@ -364,16 +364,28 @@ export default function LessonPage() {
     return <AccessCard title="By Invitation Only" message="This lesson requires a valid student session token." />;
   }
 
-  if (loading || !lessonReady || !studentReady || !lesson || !lessonStateHydrated) {
-    return <div className="fluentia-study-room min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
+  if (loading || !lessonReady || !studentReady) {
+    return (
+      <div className="fluentia-study-room flex min-h-screen items-center justify-center bg-[#0c1017] px-5 text-sm text-stone-400">
+        Loading lesson...
+      </div>
+    );
   }
 
-  if (lessonNotFound) {
+  if (lessonNotFound || !lesson || !lesson.current_version || !lesson.content) {
     return (
-      <div className="fluentia-study-room min-h-screen bg-[#0c1017] px-5 py-16 text-center text-[#e8e7e4]">
-        <h1 className="font-[var(--font-fraunces)] text-2xl text-[#f1eee8]">Lesson unavailable</h1>
-        <p className="mt-3 text-sm text-[#8f98a8]">This lesson is no longer published.</p>
-        <Link href={`/dashboard?student=${encodeURIComponent(activeStudent!.token)}`} className="mt-6 inline-flex rounded-md bg-amber-500 px-4 py-2 text-xs font-semibold text-slate-950">Return to Dashboard</Link>
+      <div className="fluentia-study-room flex min-h-screen flex-col items-center justify-center bg-[#0c1017] px-5 py-16 text-center text-[#e8e7e4]">
+        <h1 className="font-[var(--font-fraunces)] text-2xl text-[#f1eee8]">Lesson not found or still in draft</h1>
+        <p className="mt-3 max-w-md text-sm text-[#8f98a8]">This lesson does not have a published version yet. Please return to your dashboard and try again later.</p>
+        <Link href={`/dashboard?student=${encodeURIComponent(activeStudent?.token || activeStudent?.id || "")}`} className="mt-6 inline-flex rounded-md bg-amber-500 px-4 py-2 text-xs font-semibold text-slate-950">Return to Dashboard</Link>
+      </div>
+    );
+  }
+
+  if (!lessonStateHydrated) {
+    return (
+      <div className="fluentia-study-room flex min-h-screen items-center justify-center bg-[#0c1017] px-5 text-sm text-stone-400">
+        Preparing study room...
       </div>
     );
   }
