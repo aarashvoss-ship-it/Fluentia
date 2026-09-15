@@ -14,6 +14,7 @@ import { DEFAULT_STUDENT, STUDENT_USERS, StudentUser } from "@/lib/users";
 import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/storage-service";
 import { AccessCard } from "@/components/access/access-card";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
+import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { saveStudentProfile } from "@/lib/student-profiles";
 
 interface InstructorWorkstationProps {
@@ -580,7 +581,7 @@ export default function InstructorWorkstationPage({
           {block.title && <h4 className="mb-2 text-sm font-semibold text-stone-100">{block.title}</h4>}
           {block.type === "text" && <MarkdownContent value={block.body || "No text added yet."} className="text-sm leading-relaxed text-stone-300" />}
           {block.type === "image" && <>{block.imageUrl ? <img src={block.imageUrl} alt={block.caption || block.title || "Lesson image"} className="max-h-72 w-full rounded-md object-cover" /> : <p className="text-xs text-stone-500">Image not configured.</p>}{block.caption && <p className="mt-2 text-xs text-stone-500">{block.caption}</p>}</>}
-          {block.type === "audio" && <audio controls src={block.audioUrl} className="w-full" />}
+          {block.type === "audio" && <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio lesson"} />}
           {block.type === "video" && <div className="rounded-md border border-dashed border-[#394252] p-4 text-xs text-stone-500">Video preview: {block.videoUrl || "URL not configured"}</div>}
           {block.type === "question" && <div className="space-y-2"><p className="text-sm text-stone-300">{block.prompt || "Question not configured."}</p><div className="flex flex-wrap gap-2">{block.options.filter(Boolean).map((option) => <span key={option} className="rounded border border-[#394252] px-2 py-1 text-xs text-stone-400">{option}</span>)}</div></div>}
           {block.type === "quiz" && <div className="space-y-3">{(block.questions || []).map((question, index) => <div key={`${block.id}-${index}`}><p className="text-sm text-stone-300">{question.prompt || "Question not configured."}</p><div className="mt-2 flex flex-wrap gap-2">{question.options.map((option) => <span key={option} className="rounded border border-[#394252] px-2 py-1 text-xs text-stone-400">{option || "Option"}</span>)}</div></div>)}</div>}
