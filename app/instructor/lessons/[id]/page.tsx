@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useLessonEditorStore } from "@/lib/lesson-editor-store";
 import { InstructorLessonPage } from "@/components/instructor/instructor-lesson-page";
 import { AccessCard } from "@/components/access/access-card";
@@ -12,24 +12,22 @@ import { AccessCard } from "@/components/access/access-card";
  */
 export default function LessonDetailPage() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
   const lessonId = params?.id;
 
   const {
     lesson,
     isLoading,
     error,
-    hydrateLessonFromDatabase,
   } = useLessonEditorStore();
 
   // Hydrate lesson data on mount
   useEffect(() => {
     if (lessonId && lessonId !== "new") {
-      hydrateLessonFromDatabase(lessonId).catch((err) => {
+      useLessonEditorStore.getState().hydrateLessonFromDatabase(lessonId).catch((err) => {
         console.error("Failed to load lesson:", err);
       });
     }
-  }, [lessonId, hydrateLessonFromDatabase]);
+  }, [lessonId]);
 
   // Handle loading state
   if (isLoading) {

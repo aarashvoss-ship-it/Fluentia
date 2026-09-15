@@ -7,7 +7,8 @@ import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 import type { StrictStepContent, ContentBlock } from "@/types/lesson";
 import {
-  getLessonById,
+  getLatestLessonVersion,
+  getLessonBaseById,
   updateLesson,
   type LessonWithVersion,
 } from "@/lib/lessons";
@@ -79,7 +80,7 @@ export const useLessonEditorStore = create<LessonEditorState>()(
     hydrateLessonFromDatabase: async (lessonId: string) => {
       set({ isLoading: true, error: null });
       try {
-        const lesson = await getLessonById(lessonId);
+        const lesson = await getLessonBaseById(lessonId);
 
         if (!lesson) {
           throw new Error(`Lesson ${lessonId} not found`);
@@ -91,11 +92,25 @@ export const useLessonEditorStore = create<LessonEditorState>()(
           state.bannerUrl = lesson.content?.coverImage || lesson.content?.bannerUrl || lesson.banner_url || "";
           state.isLoading = false;
         });
+
+        void getLatestLessonVersion(lesson.id).then((version) => {
+          if (!version) return;
+          set((state) => {
+            if (state.lesson?.id !== lesson.id) return;
+            state.lesson.current_version = version;
+            state.lesson.content = version.content;
+            state.content = version.content as StrictStepContent;
+          });
+        }).catch((versionError) => {
+          console.warn(`Background version load failed for ${lesson.id}:`, versionError);
+        });
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Failed to load lesson";
         set({ error: errorMessage, isLoading: false });
         throw error;
+      } finally {
+        set({ isLoading: false });
       }
     },
 

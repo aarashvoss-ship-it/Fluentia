@@ -6,7 +6,9 @@ import { StudentContextPanel } from "@/components/instructor/student-context-pan
 import { LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
 import { InstructorBannerManager } from "@/components/instructor/banner-manager";
 import { SubmissionEvaluator } from "@/components/instructor/submission-evaluator";
+import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player";
 import { DEFAULT_STUDENT } from "@/lib/users";
+import { BookOpen } from "lucide-react";
 
 interface InstructorLessonPageProps {
   lessonId: string;
@@ -79,7 +81,11 @@ export function InstructorLessonPage({ lessonId }: InstructorLessonPageProps) {
               {lesson.title}
             </h1>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <button type="button" aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28] text-stone-400 transition hover:border-amber-500 hover:text-amber-300">
+              <BookOpen className="h-4 w-4" />
+            </button>
+            <AmbientMusicPlayer src={content.ambientMusicUrl || undefined} />
             {publishStatus && (
               <span
                 className={`text-sm ${

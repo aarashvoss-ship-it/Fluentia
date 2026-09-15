@@ -54,6 +54,22 @@ function getRequestedStep(value: string | null): StudyStepId | null {
     : null;
 }
 
+function withLessonTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = window.setTimeout(() => reject(new Error(`Lesson request timed out after ${timeoutMs}ms`)), timeoutMs);
+    promise.then(
+      (value) => {
+        window.clearTimeout(timeout);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timeout);
+        reject(error);
+      }
+    );
+  });
+}
+
 function AudioResponseBlock({ value, onChange }: { value?: string; onChange: (value: string) => void }) {
   const [isRecording, setIsRecording] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -143,7 +159,7 @@ export default function LessonPage() {
 
   // Fetch lesson data asynchronously
   useEffect(() => {
-    if (!isMounted || accessDenied) return;
+    if (!requestedSlug) return;
     let mounted = true;
     setLessonReady(false);
     setLessonNotFound(false);
@@ -152,7 +168,7 @@ export default function LessonPage() {
 
     const loadLesson = async () => {
       try {
-        const lesson = await getLessonById(requestedSlug);
+        const lesson = await withLessonTimeout(getLessonById(requestedSlug), 2000);
         if (!mounted) return;
         
         if (lesson) {
@@ -179,7 +195,7 @@ export default function LessonPage() {
     return () => {
       mounted = false;
     };
-  }, [accessDenied, isMounted, requestedSlug, activeStudent?.token]);
+  }, [requestedSlug]);
 
   useEffect(() => {
     if (!lessonReady || !studentReady || lessonNotFound || !lesson) return;
@@ -441,7 +457,7 @@ export default function LessonPage() {
       <header className="pt-8">
         <div className="flex items-center justify-between text-[12px]">
                 <p className="text-[#aeb2b9]">Welcome back, <span className="text-[#e6e4e0]">{activeStudent!.name}</span>.</p>
-              <div className="flex items-center gap-2"><button type="button" onClick={() => setDictionaryWord("")} aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28] text-stone-400 transition hover:border-amber-500 hover:text-amber-300"><DictionaryIcon className="h-4 w-4" /></button>{lessonContent.ambientMusicUrl && <AmbientMusicPlayer src={lessonContent.ambientMusicUrl} />}<button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs transition ${sidebarOpen ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#171d28] text-amber-300 hover:border-amber-500"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button><Link href={`/dashboard?student=${encodeURIComponent(activeStudent!.token)}`} className="flex items-center gap-1 text-[#646d7b] transition-colors hover:text-[#bdc1c8]"><ChevronRight className="h-3 w-3 rotate-180" />Course overview</Link></div>
+              <div className="flex items-center gap-2">{lessonContent.ambientMusicUrl && <AmbientMusicPlayer src={lessonContent.ambientMusicUrl} />}<button type="button" onClick={() => setDictionaryWord("")} aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28] text-stone-400 transition hover:border-amber-500 hover:text-amber-300"><DictionaryIcon className="h-4 w-4" /></button><button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs transition ${sidebarOpen ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#171d28] text-amber-300 hover:border-amber-500"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button><Link href={`/dashboard?student=${encodeURIComponent(activeStudent!.token)}`} className="flex items-center gap-1 text-[#646d7b] transition-colors hover:text-[#bdc1c8]"><ChevronRight className="h-3 w-3 rotate-180" />Course overview</Link></div>
         </div>
         <div className="mt-8">
           <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#556078]">Your journey</p>

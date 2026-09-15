@@ -48,6 +48,22 @@ function isMissingStudentColumn(error: { code?: string; message?: string } | nul
   return Boolean(error && (error.code === "42703" || error.code === "PGRST204") && /student_(id|token)/i.test(error.message || ""));
 }
 
+function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(`Lesson query timed out after ${timeoutMs}ms`)), timeoutMs);
+    promise.then(
+      (value) => {
+        clearTimeout(timeout);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      }
+    );
+  });
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -55,7 +71,7 @@ function isMissingStudentColumn(error: { code?: string; message?: string } | nul
 /**
  * Fetches the latest version for a given lesson
  */
-async function getLatestVersion(lessonId: string): Promise<LessonVersionRow | null> {
+export async function getLatestLessonVersion(lessonId: string): Promise<LessonVersionRow | null> {
   try {
     const { data, error } = await supabase
       .from("lesson_versions")
@@ -72,6 +88,25 @@ async function getLatestVersion(lessonId: string): Promise<LessonVersionRow | nu
     return data || null;
   } catch (error) {
     console.warn(`Error fetching version for ${lessonId}:`, error);
+    return null;
+  }
+}
+
+export async function getLessonBaseById(id: string): Promise<LessonWithVersion | null> {
+  if (!isSupabaseConfigured()) return null;
+
+  try {
+    const { data, error } = await withTimeout(
+      supabase.from("lessons").select("*").eq("id", id).maybeSingle(),
+      3000
+    );
+    if (error) {
+      console.warn(`Unable to load base lesson ${id}:`, error);
+      return null;
+    }
+    return data || null;
+  } catch (error) {
+    console.warn(`Error loading base lesson ${id}:`, error);
     return null;
   }
 }
@@ -125,7 +160,7 @@ export async function getLessons(): Promise<LessonWithVersion[]> {
     // Enrich each lesson with its latest version content
     const enrichedLessons = await Promise.all(
       (lessons || []).map(async (lesson) => {
-        const version = await getLatestVersion(lesson.id);
+        const version = await getLatestLessonVersion(lesson.id);
         return {
           ...lesson,
           current_version: version || undefined,
@@ -162,7 +197,7 @@ export async function getLessonById(idOrSlug: string): Promise<LessonWithVersion
 
     // If found by ID, return it
     if (lesson) {
-      const version = await getLatestVersion(lesson.id);
+      const version = await getLatestLessonVersion(lesson.id);
       return {
         ...lesson,
         current_version: version || undefined,
@@ -180,7 +215,7 @@ export async function getLessonById(idOrSlug: string): Promise<LessonWithVersion
         .maybeSingle();
 
       if (lessonByTitle) {
-        const version = await getLatestVersion(lessonByTitle.id);
+        const version = await getLatestLessonVersion(lessonByTitle.id);
         return {
           ...lessonByTitle,
           current_version: version || undefined,
@@ -229,7 +264,7 @@ export async function getLessonsByStudentId(studentId: string): Promise<LessonWi
 
     const enrichedLessons = await Promise.all(
       (lessons || []).map(async (lesson) => {
-        const version = await getLatestVersion(lesson.id);
+        const version = await getLatestLessonVersion(lesson.id);
         return {
           ...lesson,
           current_version: version || undefined,
@@ -265,7 +300,7 @@ export async function getLessonsByInstructorId(instructorId: string): Promise<Le
 
     const enrichedLessons = await Promise.all(
       (lessons || []).map(async (lesson) => {
-        const version = await getLatestVersion(lesson.id);
+        const version = await getLatestLessonVersion(lesson.id);
         return {
           ...lesson,
           current_version: version || undefined,
@@ -420,7 +455,7 @@ export async function updateLesson(
 
     if (fetchError) throw fetchError;
 
-    const latestVersion = newVersion || (await getLatestVersion(id));
+    const latestVersion = newVersion || (await getLatestLessonVersion(id));
 
     return {
       ...lesson,
