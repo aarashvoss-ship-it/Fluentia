@@ -24,6 +24,8 @@ import {
   BookOpen,
   Headphones,
   FileText,
+  Lock,
+  Unlock,
   PenTool,
   Mic,
   Award,
@@ -90,6 +92,45 @@ function AudioResponseBlock({ value, onChange }: { value?: string; onChange: (va
   };
 
   return <div className="mt-4 space-y-3 rounded-lg border border-amber-500/20 bg-[#0c1017] p-3"><div className="flex flex-wrap gap-2"><label className="cursor-pointer rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 hover:border-amber-500">Upload response<input type="file" accept="audio/*" onChange={(event) => uploadAudio(event.target.files?.[0])} className="sr-only" /></label><button type="button" onClick={() => void toggleRecording()} className={`rounded-md border px-3 py-2 text-xs ${isRecording ? "border-red-400 text-red-300" : "border-amber-500/50 text-amber-300"}`}>{isRecording ? "Stop recording" : "Record response"}</button></div>{value && <CustomAudioPlayer src={value} label="Recorded response" />}</div>;
+}
+
+function MediaTranscriptAccordion({ transcript, isUnlocked }: { transcript?: string; isUnlocked: boolean }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isUnlocked) setIsOpen(false);
+  }, [isUnlocked]);
+
+  if (!isUnlocked) {
+    return (
+      <div className="group relative mt-4">
+        <button
+          type="button"
+          disabled
+          aria-disabled="true"
+          className="flex w-full cursor-not-allowed items-center gap-2 rounded-md border border-[#293343] bg-[#0c1017] px-3 py-2 text-left text-xs text-stone-500 opacity-80"
+        >
+          <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          Transcript
+        </button>
+        <span role="tooltip" className="pointer-events-none absolute bottom-full left-0 z-10 mb-2 hidden max-w-sm rounded-md border border-[#394252] bg-[#171d28] px-3 py-2 text-xs leading-relaxed text-stone-300 shadow-xl group-hover:block">
+          Transcript locks until lesson submission. Complete all steps to unlock for review.
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <details open={isOpen} onToggle={(event) => setIsOpen(event.currentTarget.open)} className="mt-4 rounded-md border border-amber-500/20 bg-[#0c1017]">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-semibold text-amber-300 [&::-webkit-details-marker]:hidden">
+        <Unlock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        Transcript
+      </summary>
+      <div className="border-t border-[#293343] px-3 py-3">
+        {transcript?.trim() ? <MarkdownContent value={transcript} className="text-sm leading-relaxed text-stone-300" /> : <p className="text-xs text-stone-500">No transcript was provided for this media.</p>}
+      </div>
+    </details>
+  );
 }
 
 export default function LessonPage() {
@@ -405,6 +446,10 @@ export default function LessonPage() {
   }
 
   const isResultsStep = currentStep === "results";
+  const areTranscriptsUnlocked = submission.status === "submitted"
+    || submission.status === "reviewed"
+    || completedSteps.includes("results")
+    || isResultsStep;
 
   if (!isMounted) {
     return <div className="fluentia-study-room min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
@@ -460,8 +505,8 @@ export default function LessonPage() {
         <article key={block.id} className="rounded-xl border border-[#202631] bg-[#121721] p-5">
           {block.title && <h3 className="mb-3 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">{block.title}</h3>}
           {block.type === "text" && <><MarkdownContent value={block.body} className="text-sm leading-relaxed text-stone-300" /><textarea value={submission.blockResponses?.[block.id] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [block.id]: event.target.value } })} rows={3} placeholder="Write your response here..." className="mt-4 w-full resize-none rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.title || "Text"} response`} /></>}
-          {block.type === "audio" && <>{block.audioUrl ? <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio assignment"} /> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Audio assignment</div>}<AudioResponseBlock value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} /></>}
-          {block.type === "video" && (block.videoUrl ? <div className="aspect-video overflow-hidden rounded-lg border border-[#202631] bg-[#0c1017]"><iframe src={getVideoEmbedUrl(block.videoUrl)} title={block.title || "Lesson video"} className="h-full w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen /></div> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Video embed placeholder</div>)}
+          {block.type === "audio" && <>{block.audioUrl ? <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio assignment"} /> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Audio assignment</div>}<AudioResponseBlock value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} /><MediaTranscriptAccordion transcript={block.transcript} isUnlocked={areTranscriptsUnlocked} /></>}
+          {block.type === "video" && <>{block.videoUrl ? <div className="aspect-video overflow-hidden rounded-lg border border-[#202631] bg-[#0c1017]"><iframe src={getVideoEmbedUrl(block.videoUrl)} title={block.title || "Lesson video"} className="h-full w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen /></div> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Video embed placeholder</div>}<MediaTranscriptAccordion transcript={block.transcript} isUnlocked={areTranscriptsUnlocked} /></>}
           {block.type === "image" && (block.imageUrl ? <figure><img src={block.imageUrl} alt={block.title} className="max-h-[420px] w-full rounded-lg object-cover" />{block.caption && <figcaption className="mt-2 text-xs text-stone-500">{block.caption}</figcaption>}</figure> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Image placeholder</div>)}
           {block.type === "question" && <div className="space-y-2"><p className="text-sm text-stone-300">{block.prompt}</p><div className="grid gap-2 sm:grid-cols-2">{block.options.filter(Boolean).map((option) => <button key={option} type="button" onClick={() => void persistSubmission({ ...submission, quizSelections: { ...(submission.quizSelections || {}), [block.id]: option } })} className={`rounded-md border px-3 py-2 text-left text-xs transition ${submission.quizSelections?.[block.id] === option ? "border-amber-500 bg-amber-500/10 text-amber-300" : "border-[#202631] bg-[#0c1017] text-stone-400 hover:border-amber-500/50 hover:text-amber-300"}`}>{option}</button>)}</div></div>}
           {block.type === "quiz" && <div className="space-y-4">{block.questions.map((question) => <div key={question.id}><p className="text-sm text-stone-300">{question.prompt}</p><div className="mt-2 grid gap-2 sm:grid-cols-2">{question.options.map((option) => <button key={option} type="button" onClick={() => void persistSubmission({ ...submission, quizSelections: { ...(submission.quizSelections || {}), [question.id]: option } })} className={`rounded-md border px-3 py-2 text-left text-xs transition ${submission.quizSelections?.[question.id] === option ? "border-amber-500 bg-amber-500/10 text-amber-300" : "border-[#202631] bg-[#0c1017] text-stone-400 hover:border-amber-500/50 hover:text-amber-300"}`}>{option}</button>)}</div></div>)}</div>}

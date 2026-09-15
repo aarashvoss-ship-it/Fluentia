@@ -53,11 +53,13 @@ export interface TextContentBlock extends ContentBlockBase {
 export interface AudioContentBlock extends ContentBlockBase {
   type: "audio";
   audioUrl: string;
+  transcript?: string;
 }
 
 export interface VideoContentBlock extends ContentBlockBase {
   type: "video";
   videoUrl: string;
+  transcript?: string;
 }
 
 export interface ImageContentBlock extends ContentBlockBase {
