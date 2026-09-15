@@ -1,9 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { FormEvent, useEffect, useState } from "react";
 import { Bookmark, Check, Loader2, Search, Volume2 } from "lucide-react";
-import mwLogo from "@/public/images/mw-logo.png";
 import type { SavedVocabularyWord } from "@/types/lesson";
 
 interface DictionaryDefinition {
@@ -103,9 +101,7 @@ export default function InstantDictionaryLookup({
         </button>
       </form>
 
-      <div className="mt-4 flex justify-center">
-        <Image src={mwLogo} alt="Merriam-Webster" width={180} height={40} className="h-auto w-auto" />
-      </div>
+      <p className="mt-2 text-right text-xs text-slate-500">Powered by Merriam-Webster</p>
 
       {error && <p className="mt-5 text-center text-sm text-amber-300">{error}</p>}
       {loading && <p className="mt-5 text-center text-sm text-stone-400">Looking up {searchTerm}...</p>}
