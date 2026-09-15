@@ -122,7 +122,7 @@ VALUES (
   }
   $$::jsonb
 )
-ON CONFLICT (lesson_id, version_number) DO UPDATE SET
+ON CONFLICT (id) DO UPDATE SET
   changes_summary = EXCLUDED.changes_summary,
   content = EXCLUDED.content,
   created_at = now();
