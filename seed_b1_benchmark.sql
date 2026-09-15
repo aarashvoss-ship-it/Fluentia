@@ -2,18 +2,14 @@
 -- Run after migrations/001_create_base_schema.sql with Supabase SQL Editor or a service-role connection.
 -- Safe to rerun: the fixed lesson/version IDs are updated in place.
 
-INSERT INTO lessons (id, title, subject, grade, status)
+INSERT INTO lessons (id, title, status)
 VALUES (
   'b1b10001-1001-4001-8001-000000000001',
   'The Architecture of Daily Habits (B1 Intermediate)',
-  'English language and communication',
-  'B1 Intermediate',
   'published'
 )
 ON CONFLICT (id) DO UPDATE SET
   title = EXCLUDED.title,
-  subject = EXCLUDED.subject,
-  grade = EXCLUDED.grade,
   status = EXCLUDED.status,
   updated_at = now();
 
