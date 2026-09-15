@@ -65,13 +65,9 @@ export function DictionaryModal({ initialWord = "", onClose, savedWords, onSave 
         </form>
         <div className="mt-4 flex justify-end border-b border-[#29303c] pb-3">
           {entry?.source === "merriam-webster" ? (
-            <span className="inline-flex items-center gap-1.5 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300" role="img" aria-label="Merriam-Webster">
-              <svg viewBox="0 0 32 16" aria-hidden="true" className="h-4 w-8 fill-current">
-                <rect x="0.5" y="0.5" width="31" height="15" rx="2" fill="none" stroke="currentColor" />
-                <text x="16" y="11.5" textAnchor="middle" fontSize="8" fontWeight="700" fill="currentColor">MW</text>
-              </svg>
-              <span>Merriam-Webster</span>
-            </span>
+            <div className="flex w-full justify-end" aria-label="Merriam-Webster" role="img">
+              <img src="/images/mw-logo.svg" alt="Merriam-Webster" className="h-5 w-auto object-contain" />
+            </div>
           ) : (
             <span className="rounded border border-[#394252] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Free Dictionary</span>
           )}
