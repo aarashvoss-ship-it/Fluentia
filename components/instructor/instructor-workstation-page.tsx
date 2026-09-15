@@ -858,6 +858,7 @@ export default function InstructorWorkstationPage({
   <InstructorChatWidget
     activeStudent={selectedStudent}
     students={students}
+        instructorId={instructorToken}
     lessonContext={newLesson.title || newLesson.slug || lessonId}
   />
       {showPreview && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="lesson-preview-title">
