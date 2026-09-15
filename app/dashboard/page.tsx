@@ -200,7 +200,7 @@ function DashboardContent() {
           <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=1800&q=80')] bg-cover bg-center opacity-40" aria-hidden="true" />
           <div className="absolute inset-0 bg-[linear-gradient(0deg,rgba(12,16,23,.98),transparent_65%)]" aria-hidden="true" />
           <div className="z-10 mx-auto w-full max-w-5xl">
-          {profileOpen && <button type="button" aria-label="Close student profile" onClick={() => setProfileOpen(false)} className="fixed inset-0 z-40 cursor-default bg-black/55" />}
+          {profileOpen && <button type="button" aria-label="Close student profile" onClick={() => setProfileOpen(false)} className="fixed inset-0 z-0 cursor-default bg-black/55" />}
           <span className="w-fit rounded-full border border-amber-500/40 bg-[#332713]/85 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e4ae45]">
             ENGLISH B1 - ACTIVE MODULE
           </span>
@@ -211,11 +211,11 @@ function DashboardContent() {
               </h1>
               <p className="mt-2 text-sm text-[#b5bac2]">Continue your journey in {nextLesson?.title || "Habits & Productivity"}.</p>
             </div>
-            <div className="absolute right-8 top-8 z-50 flex items-center gap-3">
-              <button type="button" onClick={() => setDictionaryOpen(true)} aria-label="Open dictionary" className="flex h-9 w-9 items-center justify-center rounded-md border border-[#394252] bg-[#171d28] text-stone-400 transition hover:border-amber-500 hover:text-amber-300"><BookOpen className="h-4 w-4" /></button>
-              <button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex items-center gap-2 rounded-md border px-3 py-2 text-xs transition ${sidebarOpen ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#171d28] text-stone-300 hover:border-amber-500"}`}><PanelRight className="h-4 w-4" />Learning Hub</button>
-              <div className="relative flex items-center gap-2 border-l border-[#29303c] pl-3" aria-label="Student profile">
-                <button type="button" onClick={() => setProfileOpen((open) => !open)} aria-expanded={profileOpen} aria-controls="student-profile-flyout" style={!avatarImage ? { backgroundColor: selectedAvatar.backgroundColor } : undefined} className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-full text-xs font-bold transition hover:ring-2 hover:ring-amber-400/60 ${avatarImage ? "bg-[#283344]" : selectedAvatar.className}`}>
+            <div className="absolute top-6 right-8 z-10 flex items-center gap-2.5">
+              <button type="button" onClick={() => setDictionaryOpen(true)} aria-label="Open dictionary" className="flex h-10 w-10 items-center justify-center rounded-md border border-[#394252] bg-[#171d28] text-stone-400 transition hover:border-amber-500 hover:text-amber-300"><BookOpen className="h-4 w-4" /></button>
+              <button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex h-10 items-center gap-2 rounded-md border px-3.5 py-2 text-xs transition ${sidebarOpen ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#171d28] text-stone-300 hover:border-amber-500"}`}><PanelRight className="h-4 w-4" />Learning Hub</button>
+              <div className="relative flex h-10 items-center gap-2 rounded-md border border-[#394252] bg-[#171d28] px-3.5 py-2" aria-label="Student profile">
+                <button type="button" onClick={() => setProfileOpen((open) => !open)} aria-expanded={profileOpen} aria-controls="student-profile-flyout" style={!avatarImage ? { backgroundColor: selectedAvatar.backgroundColor } : undefined} className={`flex h-8 w-8 items-center justify-center overflow-hidden rounded-full text-xs font-bold transition hover:ring-2 hover:ring-amber-400/60 ${avatarImage ? "bg-[#283344]" : selectedAvatar.className}`}>
                   {avatarImage ? <img src={avatarImage} alt={`${displayName} avatar`} className="h-full w-full object-cover" /> : profileInitials}
                 </button>
                 <div className="hidden text-left sm:block"><p className="text-xs font-semibold text-stone-100">{displayName}</p><p className="text-[10px] text-stone-500">{activeStudent.profile?.level || "B2 Upper Intermediate"}</p></div>
