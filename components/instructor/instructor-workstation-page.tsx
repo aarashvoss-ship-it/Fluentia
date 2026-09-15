@@ -17,6 +17,7 @@ import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player";
 import { saveStudentProfile } from "@/lib/student-profiles";
+import { MusicLibraryManager } from "@/components/instructor/music-library-manager";
 
 interface InstructorWorkstationProps {
   instructorToken: string;
@@ -47,7 +48,7 @@ export default function InstructorWorkstationPage({
   const [publishedLessonCount, setPublishedLessonCount] = useState(0);
   const [draftLessonCount, setDraftLessonCount] = useState(0);
   const [lessonStatus, setLessonStatus] = useState<"draft" | "published">("published");
-  const [activeTab, setActiveTab] = useState<"dashboard" | "builder" | "evaluation">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "builder" | "evaluation" | "music">("dashboard");
   const [heroBannerOpen, setHeroBannerOpen] = useState(false);
   const [activeStudentsOpen, setActiveStudentsOpen] = useState(false);
   const [sidebarStep, setSidebarStep] = useState<keyof SidebarBlocksByStep>("warm_up");
@@ -657,7 +658,7 @@ export default function InstructorWorkstationPage({
         <nav className="sticky top-0 z-20 mb-8 border-b border-[#202631] bg-[#0c1017]/95 backdrop-blur" aria-label="Instructor workstation views">
           <div className="flex items-center justify-between gap-4 overflow-x-auto">
             <div className="flex shrink-0 gap-1">
-              {([["dashboard", "Dashboard"], ["builder", "Lesson Builder"], ["evaluation", "Student Evaluation"]] as const).map(([tab, label]) => <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`whitespace-nowrap border-b-2 px-4 py-3 text-xs font-semibold transition ${activeTab === tab ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}>{label}</button>)}
+              {([["dashboard", "Dashboard"], ["builder", "Lesson Builder"], ["evaluation", "Student Evaluation"], ["music", "Music Library"]] as const).map(([tab, label]) => <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`whitespace-nowrap border-b-2 px-4 py-3 text-xs font-semibold transition ${activeTab === tab ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}>{label}</button>)}
             </div>
             <label className="flex w-64 max-w-[240px] shrink-0 items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400">
               <span className="sr-only">Active student</span>
@@ -742,6 +743,8 @@ export default function InstructorWorkstationPage({
             </div>
           </section>
         </section>}
+
+        {activeTab === "music" && <MusicLibraryManager />}
 
         {activeTab === "builder" && <>
           <section className="mb-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" aria-labelledby="lesson-details-title">

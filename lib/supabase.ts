@@ -39,6 +39,15 @@ export interface LessonVersionRow {
 	created_at: string;
 }
 
+export interface AmbientTrackRow {
+	id: string;
+	title: string;
+	url: string;
+	sort_order: number;
+	is_active: boolean;
+	created_at: string;
+}
+
 export interface SubmissionRow {
 	id: string;
 	lesson_id: string;

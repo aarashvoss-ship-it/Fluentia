@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Music, Pause, Play, Volume2, VolumeX } from "lucide-react";
 import { AMBIENT_TRACKS, type LessonAudioTrack } from "@/lib/musicTracks";
+import { getAmbientTracks } from "@/lib/music-library";
 
 const PLAYBACK_KEY = "fluentia:ambient-music:playing";
 const ENABLED_KEY = "fluentia:ambient-music:enabled";
@@ -13,7 +14,8 @@ interface AmbientMusicPlayerProps {
 }
 
 export function AmbientMusicPlayer({ src, tracks = [] }: AmbientMusicPlayerProps) {
-  const availableTracks = tracks.length > 0 ? tracks : AMBIENT_TRACKS.map(({ label, url }) => ({ title: label, url }));
+  const [libraryTracks, setLibraryTracks] = useState<LessonAudioTrack[]>(tracks);
+  const availableTracks = libraryTracks.length > 0 ? libraryTracks : AMBIENT_TRACKS.map(({ label, url }) => ({ title: label, url }));
   const audioRef = useRef<HTMLAudioElement>(null);
   const [trackIndex, setTrackIndex] = useState(() => Math.max(0, availableTracks.findIndex((item) => item.url === src)));
   const [selectedTrack, setSelectedTrack] = useState(src || availableTracks[0].url);
@@ -23,6 +25,18 @@ export function AmbientMusicPlayer({ src, tracks = [] }: AmbientMusicPlayerProps
   const [volume, setVolume] = useState(0.35);
   const [showVolume, setShowVolume] = useState(false);
   const [showTracks, setShowTracks] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    void getAmbientTracks().then((nextTracks) => {
+      if (mounted) setLibraryTracks(nextTracks);
+    }).catch(() => {
+      if (mounted && tracks.length > 0) setLibraryTracks(tracks);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [tracks]);
 
   useEffect(() => {
     if (!src) return;
