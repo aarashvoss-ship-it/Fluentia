@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { ContentBlock, ContentBlockType, STUDY_STEPS, StudyStepId, StrictStepContent } from "@/types/lesson";
 import { useLessonEditorStore } from "@/lib/lesson-editor-store";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
+import { uploadLessonMedia } from "@/services/storage-service";
 import { Eye, Layers, MoveDown, MoveUp, Plus, Trash2, X } from "lucide-react";
 
 interface LessonTailorEditorProps {
@@ -106,11 +107,14 @@ export function LessonTailorEditor({
     }
   };
 
-  const handleAudioUpload = (step: StudyStepId, index: number, file?: File) => {
+  const handleAudioUpload = async (step: StudyStepId, index: number, file?: File) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => updateDynamicBlock(step, index, { audioUrl: String(reader.result || "") });
-    reader.readAsDataURL(file);
+    try {
+      const asset = await uploadLessonMedia(file, `lesson-${step}-${Date.now()}`);
+      updateDynamicBlock(step, index, { audioUrl: asset.url });
+    } catch (error) {
+      console.error("Lesson audio upload failed:", error);
+    }
   };
 
   const applyMarkdown = (step: StudyStepId, index: number, prefix: string, suffix = "") => {

@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { MessageCircle, Search, Send, X } from "lucide-react";
 import { fetchChatMessages, saveChatMessage } from "@/services/storage-service";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { resolveUserUuid } from "@/lib/identity";
 import type { ChatMessage } from "@/types/lesson";
 import type { StudentUser } from "@/lib/users";
 
@@ -75,11 +76,17 @@ export function InstructorChatWidget({ activeStudent, students, instructorId, le
   const [supportMessages, setSupportMessages] = useState<ChatMessage[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadByStudent, setUnreadByStudent] = useState<Record<string, number>>({});
+  const [resolvedInstructorId, setResolvedInstructorId] = useState(instructorId);
   const containerRef = useRef<HTMLDivElement>(null);
   const tabRef = useRef<ChatTab>("active");
   const openRef = useRef(false);
 
   useEffect(() => setSelectedConversationId(null), [activeStudent?.id]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+    void resolveUserUuid(instructorId).then(setResolvedInstructorId).catch((error) => console.error("Unable to resolve instructor identity:", error));
+  }, [instructorId]);
 
   useEffect(() => {
     if (!open) return;
@@ -97,7 +104,7 @@ export function InstructorChatWidget({ activeStudent, students, instructorId, le
       const { data, error } = await supabase
         .from("messages")
         .select("id, student_id, instructor_id, sender_id, receiver_id, tab_type, content, created_at, read_at")
-        .eq("instructor_id", instructorId)
+        .eq("instructor_id", resolvedInstructorId)
         .in("tab_type", ["active", "support"])
         .order("created_at", { ascending: true });
       if (cancelled || error || !data) return;
@@ -119,12 +126,13 @@ export function InstructorChatWidget({ activeStudent, students, instructorId, le
     void loadMessages();
     const channel = supabase
       .channel("public:messages")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `instructor_id=eq.${instructorId}` }, (payload) => {
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
         const row = payload.new as MessageRow;
+        if (row.instructor_id !== resolvedInstructorId && row.tab_type !== "support") return;
         const message = toChatMessage(row);
         if (row.tab_type === "support") setSupportMessages((current) => appendUnique(current, message));
         else if (row.student_id) setThreadMessages((current) => ({ ...current, [row.student_id!]: appendUnique(current[row.student_id!] || [], message) }));
-        const isIncoming = row.sender_id !== instructorId;
+        const isIncoming = row.sender_id !== resolvedInstructorId;
         const shouldNotify = !openRef.current || row.tab_type !== tabRef.current;
         if (isIncoming) {
           triggerChime();
@@ -139,7 +147,7 @@ export function InstructorChatWidget({ activeStudent, students, instructorId, le
       cancelled = true;
       void supabase.removeChannel(channel);
     };
-  }, [instructorId]);
+  }, [resolvedInstructorId]);
 
   useEffect(() => {
     if (isSupabaseConfigured()) return;
@@ -202,11 +210,12 @@ export function InstructorChatWidget({ activeStudent, students, instructorId, le
     const studentId = conversationStudent ? studentKey(conversationStudent) : null;
     if (!trimmedText || (tab !== "support" && !studentId)) return;
     if (isSupabaseConfigured()) {
-      const receiverId = tab === "support" ? "fluentia-support" : studentId!;
+      const senderUuid = await resolveUserUuid(instructorId);
+      const receiverId = tab === "support" ? senderUuid : await resolveUserUuid(studentId!);
       const { data, error } = await supabase.from("messages").insert({
         student_id: tab === "support" ? null : studentId,
-        instructor_id: instructorId,
-        sender_id: instructorId,
+        instructor_id: senderUuid,
+        sender_id: senderUuid,
         receiver_id: receiverId,
         tab_type: tab === "support" ? "support" : "active",
         content: trimmedText,

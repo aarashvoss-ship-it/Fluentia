@@ -17,6 +17,7 @@ import { AccessCard } from "@/components/access/access-card";
 import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
+import { uploadAudioSubmission } from "@/services/storage-service";
 import {
   ArrowRight,
   ChevronRight,
@@ -55,16 +56,15 @@ function getRequestedStep(value: string | null): StudyStepId | null {
     : null;
 }
 
-function AudioResponseBlock({ value, onChange }: { value?: string; onChange: (value: string) => void }) {
+function AudioResponseBlock({ value, onChange, studentToken, lessonId }: { value?: string; onChange: (value: string) => void; studentToken?: string; lessonId?: string }) {
   const [isRecording, setIsRecording] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
-  const uploadAudio = (file?: File) => {
+  const uploadAudio = async (file?: File) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => onChange(String(reader.result || ""));
-    reader.readAsDataURL(file);
+    const asset = await uploadAudioSubmission(file, `${studentToken || "student"}-${lessonId || "lesson"}`);
+    onChange(asset.url);
   };
 
   const toggleRecording = async () => {
@@ -79,9 +79,7 @@ function AudioResponseBlock({ value, onChange }: { value?: string; onChange: (va
     recorder.ondataavailable = (event) => chunksRef.current.push(event.data);
     recorder.onstop = () => {
       const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
-      const reader = new FileReader();
-      reader.onload = () => onChange(String(reader.result || ""));
-      reader.readAsDataURL(blob);
+      void uploadAudioSubmission(blob, `${studentToken || "student"}-${lessonId || "lesson"}`).then((asset) => onChange(asset.url)).catch((error) => console.error("Audio upload failed:", error));
       stream.getTracks().forEach((track) => track.stop());
       setIsRecording(false);
     };

@@ -46,6 +46,7 @@ export interface LessonWithVersion extends LessonRow {
 
 export const BENCHMARK_LESSON_ID = "b1b10001-1001-4001-8001-000000000001";
 export const BENCHMARK_LESSON_SLUG = "the-architecture-of-daily-habits-b1";
+const demoDataEnabled = () => process.env.NEXT_PUBLIC_ENABLE_DEMO_DATA === "true";
 
 const FALLBACK_LESSON: LessonWithVersion = {
   id: BENCHMARK_LESSON_ID,
@@ -220,8 +221,8 @@ export async function getLessons(): Promise<LessonWithVersion[]> {
 export async function getLessonById(idOrSlug = BENCHMARK_LESSON_SLUG): Promise<LessonWithVersion | null> {
   const fallback = { ...FALLBACK_LESSON, slug: idOrSlug || FALLBACK_LESSON.slug };
   if (!isSupabaseConfigured()) {
-    console.warn("Supabase not configured; using fallback lesson");
-    return fallback;
+    if (demoDataEnabled()) return fallback;
+    throw new Error("Supabase is not configured and demo data is disabled");
   }
 
   try {
@@ -250,12 +251,11 @@ export async function getLessonById(idOrSlug = BENCHMARK_LESSON_SLUG): Promise<L
           return { ...lessonById, current_version: version || undefined, content: version?.content };
         }
       }
-      if (idOrSlug !== BENCHMARK_LESSON_SLUG) {
+      if (idOrSlug !== BENCHMARK_LESSON_SLUG && demoDataEnabled()) {
         const benchmark = await getLessonById(BENCHMARK_LESSON_SLUG);
         if (benchmark) return benchmark;
       }
-      console.warn(`Lesson not found: ${idOrSlug}; using fallback lesson`);
-      return fallback;
+      throw new Error(`Lesson not found: ${idOrSlug}`);
     }
 
     const version = await getLatestLessonVersion(lesson.id);
@@ -267,7 +267,8 @@ export async function getLessonById(idOrSlug = BENCHMARK_LESSON_SLUG): Promise<L
   } catch (error) {
     // Catch all unexpected errors and return null gracefully
     console.error(`Error fetching lesson ${idOrSlug}:`, error);
-    return fallback;
+    if (demoDataEnabled()) return fallback;
+    throw error;
   }
 }
 

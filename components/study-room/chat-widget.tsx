@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { MessageCircle, Send, X } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { resolveUserUuid } from "@/lib/identity";
 import { ChatMessage } from "@/types/lesson";
 
 interface ChatWidgetProps {
@@ -49,7 +50,7 @@ function toChatMessage(row: MessageRow): ChatMessage {
     id: row.id,
     tab: row.tab_type === "support" ? "support" : "instructor",
     text: row.content,
-    sender: row.sender_id === row.instructor_id ? "team" : "student",
+    sender: row.sender_id === row.student_id ? "student" : "team",
     createdAt: row.created_at,
   };
 }
@@ -64,6 +65,8 @@ export function ChatWidget({ messages, onSend, currentUserId = "student", studen
   const [text, setText] = useState("");
   const [remoteMessages, setRemoteMessages] = useState<ChatMessage[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [resolvedStudentId, setResolvedStudentId] = useState(studentId);
+  const [resolvedInstructorId, setResolvedInstructorId] = useState(instructorId);
   const openRef = useRef(false);
   const tabRef = useRef(tab);
 
@@ -73,22 +76,31 @@ export function ChatWidget({ messages, onSend, currentUserId = "student", studen
 
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
+    void Promise.all([resolveUserUuid(studentId), resolveUserUuid(instructorId)]).then(([studentUuid, instructorUuid]) => {
+      setResolvedStudentId(studentUuid);
+      setResolvedInstructorId(instructorUuid);
+    }).catch((error) => console.error("Unable to resolve chat identities:", error));
+  }, [studentId, instructorId]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
     let cancelled = false;
     const loadMessages = async () => {
       const { data, error } = await supabase.from("messages")
         .select("id, student_id, instructor_id, sender_id, receiver_id, tab_type, content, created_at, read_at")
-        .eq("student_id", studentId)
+        .eq("student_id", resolvedStudentId)
         .in("tab_type", ["active", "support"])
         .order("created_at", { ascending: true });
       if (!cancelled && !error && data) setRemoteMessages((data as MessageRow[]).map(toChatMessage));
     };
     void loadMessages();
     const channel = supabase.channel("public:messages")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `student_id=eq.${studentId}` }, (payload) => {
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
         const row = payload.new as MessageRow;
+        if (row.student_id !== resolvedStudentId && row.tab_type !== "support") return;
         const message = toChatMessage(row);
         setRemoteMessages((current) => appendUnique(current, message));
-        if (row.sender_id === currentUserId) return;
+        if (row.sender_id === resolvedStudentId) return;
         triggerChime();
         if (!openRef.current || row.tab_type !== tabRef.current) setUnreadCount((count) => count + 1);
       })
@@ -97,7 +109,7 @@ export function ChatWidget({ messages, onSend, currentUserId = "student", studen
       cancelled = true;
       void supabase.removeChannel(channel);
     };
-  }, [currentUserId, studentId]);
+  }, [currentUserId, resolvedStudentId, resolvedInstructorId]);
 
   const visible = (isSupabaseConfigured() ? remoteMessages : messages).filter((message) => message.tab === tab);
 
@@ -106,11 +118,15 @@ export function ChatWidget({ messages, onSend, currentUserId = "student", studen
     const trimmedText = text.trim();
     if (!trimmedText) return;
     if (isSupabaseConfigured()) {
+      const [senderUuid, receiverUuid] = await Promise.all([
+        resolveUserUuid(currentUserId),
+        resolveUserUuid(tab === "support" ? instructorId : instructorId),
+      ]);
       const { data, error } = await supabase.from("messages").insert({
-        student_id: studentId,
-        instructor_id: instructorId,
-        sender_id: currentUserId,
-        receiver_id: tab === "support" ? "fluentia-support" : instructorId,
+        student_id: resolvedStudentId,
+        instructor_id: resolvedInstructorId,
+        sender_id: senderUuid,
+        receiver_id: receiverUuid,
         tab_type: tab === "support" ? "support" : "active",
         content: trimmedText,
       }).select("id, student_id, instructor_id, sender_id, receiver_id, tab_type, content, created_at, read_at").single();

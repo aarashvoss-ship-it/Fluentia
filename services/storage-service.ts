@@ -24,7 +24,7 @@ export interface StudentProgressRecord {
 }
 
 export interface StorageMediaAsset {
-  bucket: "audio-submissions" | "lesson-media" | "voice-feedback";
+  bucket: "audio-submissions" | "lesson-audio" | "lesson-media" | "voice-feedback";
   name: string;
   url: string;
   size?: number;
@@ -39,6 +39,7 @@ const NOTES_PREFIX = "fluentia:notes:";
 const CHAT_PREFIX = "fluentia:chat:";
 const THEME_PREFIX = "fluentia:theme:";
 export const FLUENTIA_DATA_UPDATED_EVENT = "fluentia:data-updated";
+const demoDataEnabled = () => process.env.NEXT_PUBLIC_ENABLE_DEMO_DATA === "true";
 
 function notifyDataUpdated(detail: { type: string; slug?: string; studentToken?: string }) {
   if (typeof window !== "undefined") {
@@ -269,6 +270,7 @@ export async function fetchLessonState(slug: string, studentToken?: string): Pro
       // Use local state when Supabase is unavailable.
     }
   }
+  if (isSupabaseConfigured() && !demoDataEnabled()) throw new Error(`Lesson state unavailable for ${slug}`);
   return getState(slug, studentToken);
 }
 
@@ -329,6 +331,7 @@ export async function saveLessonState(
   state: PublishedLessonState,
   studentToken?: string
 ): Promise<PublishedLessonState> {
+  if (isSupabaseConfigured() && !demoDataEnabled()) throw new Error("Cannot save lesson state outside Supabase");
   writeJson(getLessonStateKey(slug, studentToken), state);
   notifyDataUpdated({ type: "lesson-state", slug, studentToken });
   return state;
@@ -442,8 +445,9 @@ export async function prepareMediaUrl(
         const { data } = supabase.storage.from(bucket).getPublicUrl(path);
         return { bucket, name: path, url: data.publicUrl, size: input.size, type: input.type };
       }
+      throw error || new Error(`Unable to upload media to ${bucket}`);
     } catch {
-      // Use a browser object URL when storage is unavailable.
+      if (!demoDataEnabled()) throw new Error(`Unable to upload media to ${bucket}`);
     }
   }
   const url = typeof input === "string" ? input : URL.createObjectURL(input);
