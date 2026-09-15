@@ -36,6 +36,7 @@ export function LessonTailorEditor({
   onPreview,
 }: LessonTailorEditorProps) {
   const [activeStep, setActiveStep] = useState<StudyStepId>("warm_up");
+  const textAreaRefs = React.useRef<Record<string, HTMLTextAreaElement | null>>({});
   
   // Zustand store integration
   const {
@@ -109,6 +110,36 @@ export function LessonTailorEditor({
     const reader = new FileReader();
     reader.onload = () => updateDynamicBlock(step, index, { audioUrl: String(reader.result || "") });
     reader.readAsDataURL(file);
+  };
+
+  const applyMarkdown = (step: StudyStepId, index: number, prefix: string, suffix = "") => {
+    const block = getBlocks(step)[index];
+    if (!block || block.type !== "text") return;
+    const textarea = textAreaRefs.current[block.id];
+    const value = block.body;
+    const start = textarea?.selectionStart ?? value.length;
+    const end = textarea?.selectionEnd ?? value.length;
+    const selected = value.slice(start, end) || "text";
+    const nextValue = `${value.slice(0, start)}${prefix}${selected}${suffix}${value.slice(end)}`;
+    updateDynamicBlock(step, index, { body: nextValue });
+    requestAnimationFrame(() => {
+      const nextStart = start + prefix.length;
+      const nextEnd = nextStart + selected.length;
+      textarea?.focus();
+      textarea?.setSelectionRange(nextStart, nextEnd);
+    });
+  };
+
+  const prependMarkdownLine = (step: StudyStepId, index: number, prefix: string) => {
+    const block = getBlocks(step)[index];
+    if (!block || block.type !== "text") return;
+    const textarea = textAreaRefs.current[block.id];
+    const value = block.body;
+    const start = textarea?.selectionStart ?? value.length;
+    const lineStart = value.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
+    const nextValue = `${value.slice(0, lineStart)}${prefix}${value.slice(lineStart)}`;
+    updateDynamicBlock(step, index, { body: nextValue });
+    requestAnimationFrame(() => textarea?.focus());
   };
 
   const renderDynamicBuilder = (step: StudyStepId) => {
@@ -185,7 +216,7 @@ export function LessonTailorEditor({
               </div>
             </div>
             <input value={block.title} onChange={(event) => updateDynamicBlock(step, index, { title: event.target.value })} placeholder="Block title" className="mb-2 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.type} block title`} />
-            {block.type === "text" && <textarea value={block.body} onChange={(event) => updateDynamicBlock(step, index, { body: event.target.value })} placeholder="Main body content" rows={4} className="w-full resize-y rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Text block body" />}
+            {block.type === "text" && <div className="space-y-2"><div className="flex flex-wrap items-center gap-1 rounded border border-[#202631] bg-[#0c1017] p-1" role="toolbar" aria-label="Text formatting"><button type="button" onClick={() => prependMarkdownLine(step, index, "# ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]" aria-label="Heading 1">H1</button><button type="button" onClick={() => prependMarkdownLine(step, index, "## ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]" aria-label="Heading 2">H2</button><button type="button" onClick={() => applyMarkdown(step, index, "**", "**")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]" aria-label="Bold">B</button><button type="button" onClick={() => applyMarkdown(step, index, "*", "*")} className="rounded px-2 py-1 text-xs italic text-stone-300 hover:bg-[#293343]" aria-label="Italic">I</button><button type="button" onClick={() => prependMarkdownLine(step, index, "- ")} className="rounded px-2 py-1 text-xs text-stone-300 hover:bg-[#293343]" aria-label="Bullet list">- List</button></div><textarea ref={(element) => { textAreaRefs.current[block.id] = element; }} value={block.body} onChange={(event) => updateDynamicBlock(step, index, { body: event.target.value })} placeholder="Main body content" rows={4} className="w-full resize-y rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Text block body" /></div>}
             {block.type === "audio" && <div className="space-y-2"><input value={block.audioUrl.startsWith("data:") ? "" : block.audioUrl} onChange={(event) => updateDynamicBlock(step, index, { audioUrl: event.target.value })} placeholder="Audio URL" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Audio block URL" /><label className="block text-xs text-stone-500">Or upload MP3/WAV<input type="file" accept="audio/mpeg,audio/wav,.mp3,.wav" onChange={(event) => handleAudioUpload(step, index, event.target.files?.[0])} className="mt-1 block w-full text-xs text-stone-400 file:mr-3 file:rounded file:border-0 file:bg-amber-500 file:px-2 file:py-1 file:text-xs file:font-semibold file:text-black" aria-label="Upload audio file" /></label>{block.audioUrl && <audio controls src={block.audioUrl} className="w-full" />}</div>}
             {block.type === "video" && <div className="space-y-2"><input value={block.videoUrl} onChange={(event) => updateDynamicBlock(step, index, { videoUrl: event.target.value })} placeholder="YouTube or video embed URL" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Video block URL" />{getVideoEmbedUrl(block.videoUrl) ? <div className="aspect-video overflow-hidden rounded border border-[#202631] bg-[#0c1017]"><iframe src={getVideoEmbedUrl(block.videoUrl) || undefined} title={block.title || "Lesson video"} className="h-full w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen /></div> : null}</div>}
             {block.type === "image" && <div className="space-y-2"><input value={block.imageUrl} onChange={(event) => updateDynamicBlock(step, index, { imageUrl: event.target.value })} placeholder="Image URL" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Image block URL" /><input value={block.caption} onChange={(event) => updateDynamicBlock(step, index, { caption: event.target.value })} placeholder="Image caption" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Image block caption" /></div>}

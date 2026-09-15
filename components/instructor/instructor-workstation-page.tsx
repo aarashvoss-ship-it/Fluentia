@@ -13,6 +13,7 @@ import { INSTRUCTOR_TOKEN, PublishedLessonState } from "@/lib/lesson-store";
 import { DEFAULT_STUDENT, STUDENT_USERS, StudentUser } from "@/lib/users";
 import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/storage-service";
 import { AccessCard } from "@/components/access/access-card";
+import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { saveStudentProfile } from "@/lib/student-profiles";
 
 interface InstructorWorkstationProps {
@@ -577,7 +578,7 @@ export default function InstructorWorkstationPage({
       {previewBlocks.map((block: ContentBlock) => (
         <article key={block.id} className="rounded-lg border border-[#293343] bg-[#0c1017] p-4">
           {block.title && <h4 className="mb-2 text-sm font-semibold text-stone-100">{block.title}</h4>}
-          {block.type === "text" && <p className="whitespace-pre-wrap text-sm leading-relaxed text-stone-300">{block.body || "No text added yet."}</p>}
+          {block.type === "text" && <MarkdownContent value={block.body || "No text added yet."} className="text-sm leading-relaxed text-stone-300" />}
           {block.type === "image" && <>{block.imageUrl ? <img src={block.imageUrl} alt={block.caption || block.title || "Lesson image"} className="max-h-72 w-full rounded-md object-cover" /> : <p className="text-xs text-stone-500">Image not configured.</p>}{block.caption && <p className="mt-2 text-xs text-stone-500">{block.caption}</p>}</>}
           {block.type === "audio" && <audio controls src={block.audioUrl} className="w-full" />}
           {block.type === "video" && <div className="rounded-md border border-dashed border-[#394252] p-4 text-xs text-stone-500">Video preview: {block.videoUrl || "URL not configured"}</div>}

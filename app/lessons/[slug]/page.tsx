@@ -15,6 +15,7 @@ import { LearningSidebar } from "@/components/study-room/learning-sidebar";
 import { ChatWidget } from "@/components/study-room/chat-widget";
 import { AccessCard } from "@/components/access/access-card";
 import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player";
+import { MarkdownContent } from "@/components/study-room/markdown-content";
 import {
   ArrowRight,
   ChevronRight,
@@ -395,7 +396,7 @@ export default function LessonPage() {
       {blocks.filter((block) => block.enabled !== false).map((block) => (
         <article key={block.id} className="rounded-xl border border-[#202631] bg-[#121721] p-5">
           {block.title && <h3 className="mb-3 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">{block.title}</h3>}
-          {block.type === "text" && <><p className="whitespace-pre-wrap text-sm leading-relaxed text-stone-300">{block.body}</p><textarea value={submission.blockResponses?.[block.id] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [block.id]: event.target.value } })} rows={3} placeholder="Write your response here..." className="mt-4 w-full resize-none rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.title || "Text"} response`} /></>}
+          {block.type === "text" && <><MarkdownContent value={block.body} className="text-sm leading-relaxed text-stone-300" /><textarea value={submission.blockResponses?.[block.id] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [block.id]: event.target.value } })} rows={3} placeholder="Write your response here..." className="mt-4 w-full resize-none rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.title || "Text"} response`} /></>}
           {block.type === "audio" && <>{block.audioUrl ? <audio controls src={block.audioUrl} className="w-full" /> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Audio assignment</div>}<AudioResponseBlock value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} /></>}
           {block.type === "video" && (block.videoUrl ? <div className="aspect-video overflow-hidden rounded-lg border border-[#202631] bg-[#0c1017]"><iframe src={getVideoEmbedUrl(block.videoUrl)} title={block.title || "Lesson video"} className="h-full w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen /></div> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Video embed placeholder</div>)}
           {block.type === "image" && (block.imageUrl ? <figure><img src={block.imageUrl} alt={block.title} className="max-h-[420px] w-full rounded-lg object-cover" />{block.caption && <figcaption className="mt-2 text-xs text-stone-500">{block.caption}</figcaption>}</figure> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Image placeholder</div>)}
