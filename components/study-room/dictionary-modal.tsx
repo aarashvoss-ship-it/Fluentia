@@ -49,7 +49,7 @@ export function DictionaryModal({ initialWord = "", onClose, savedWords, onSave 
   const isSaved = entry ? savedWords.some((word) => word.word.toLowerCase() === entry.word.toLowerCase()) : false;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center" role="dialog" aria-modal="true" aria-label="Dictionary lookup">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }} role="dialog" aria-modal="true" aria-label="Dictionary lookup">
       <div className="w-full max-w-lg rounded-xl border border-[#394252] bg-[#171d28] p-5 text-[#e8e7e4] shadow-2xl">
         <div className="flex items-center justify-between border-b border-[#29303c] pb-3">
           <div className="flex items-center gap-2"><BookOpen className="h-4 w-4 text-amber-400" /><h2 className="font-[var(--font-fraunces)] text-xl">Dictionary</h2></div>
@@ -60,9 +60,11 @@ export function DictionaryModal({ initialWord = "", onClose, savedWords, onSave 
           <button type="submit" className="rounded-md bg-amber-500 px-4 py-2 text-xs font-semibold text-[#0c1017]">Search</button>
         </form>
         <div className="mt-4 flex items-center justify-between border-b border-[#29303c] pb-3 text-[10px] uppercase tracking-[0.12em] text-stone-500">
-          <span>Definition source: {entry?.source === "merriam-webster" ? "Merriam-Webster" : "Free Dictionary"}</span>
+          <span className="flex items-center gap-2">
+            {entry?.source === "merriam-webster" && <img src="/images/mw-logo.svg" alt="Merriam-Webster" className="h-5 w-auto object-contain" />}
+            <span>Definition source: {entry?.source === "merriam-webster" ? "Merriam-Webster" : "Free Dictionary"}</span>
+          </span>
           <span className="flex items-center gap-1.5 text-stone-500">
-            <span title="Merriam-Webster API" aria-label="Merriam-Webster API" className={`rounded border px-1.5 py-0.5 font-semibold ${entry?.source === "merriam-webster" ? "border-amber-500/40 text-amber-300" : "border-[#394252] text-stone-600"}`}>MW</span>
             <span title="Free Dictionary Fallback" aria-label="Free Dictionary Fallback" className={`rounded border px-1.5 py-0.5 font-semibold ${entry?.source === "free-dictionary" ? "border-sky-500/40 text-sky-300" : "border-[#394252] text-stone-600"}`}>MT</span>
           </span>
         </div>

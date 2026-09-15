@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
+function cleanMerriamWebsterText(value: string | undefined) {
+  return value?.replace(/\{[^}]*\}/g, "").replace(/\s+/g, " ").trim();
+}
+
 export async function GET(request: NextRequest) {
   const word = request.nextUrl.searchParams.get("word")?.trim().toLowerCase();
   if (!word || !/^[a-z'-]+$/.test(word)) return NextResponse.json({ error: "Invalid word" }, { status: 400 });
@@ -22,8 +26,8 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
           word,
           partOfSpeech: first.fl,
-          definition: first.shortdef[0],
-          example: first.et?.[0]?.[1],
+          definition: cleanMerriamWebsterText(first.shortdef[0]),
+          example: cleanMerriamWebsterText(first.et?.[0]?.[1]),
           phonetic: first.hwi?.prs?.[0]?.mw,
           pronunciationUrl: sound && audioPath ? `https://media.merriam-webster.com/audio/prons/en/us/mp3/${audioPath}/${sound}.mp3` : undefined,
           source: "merriam-webster",
