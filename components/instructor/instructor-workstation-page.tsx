@@ -215,6 +215,44 @@ export default function InstructorWorkstationPage({
     setActiveTab("builder");
   };
 
+  const duplicateLesson = (lesson?: LessonWithVersion) => {
+    const sourceContent = (lesson?.content || workstationState.content) as Record<string, any>;
+    const sourceTitle = lesson?.title || newLesson.title || "Untitled Lesson";
+    const sourceSlug = typeof sourceContent.slug === "string" ? sourceContent.slug : createSlug(sourceTitle);
+    const copySlug = `${sourceSlug.replace(/-copy(?:-\d+)?$/, "")}-copy-${Date.now()}`;
+    const copyContent: Record<string, any> = {
+      ...sourceContent,
+      slug: copySlug,
+      title: `${sourceTitle} Copy`,
+      student_id: undefined,
+      student_token: undefined,
+      status: "draft",
+    };
+    hasLoadedLesson.current = false;
+    setDatabaseLessonId(null);
+    setSelectedStudentId(null);
+    setSelectedStudent(DEFAULT_STUDENT);
+    setNewLesson((previous) => ({
+      ...previous,
+      studentId: "",
+      title: `${sourceTitle} Copy`,
+      slug: copySlug,
+      subtitle: typeof copyContent.subtitle === "string" ? copyContent.subtitle : "",
+      moduleNumber: String(copyContent.moduleNumber || 1),
+      status: "draft",
+    }));
+    setWorkstationState((previous) => ({
+      ...previous,
+      content: copyContent,
+      bannerUrl: typeof copyContent.coverImage === "string" ? copyContent.coverImage : previous.bannerUrl,
+    }));
+    setSidebarBlocksByStep((copyContent as Record<string, any>).sidebarBlocks || {});
+    setLessonStatus("draft");
+    setSaveIndicator("idle");
+    setPublishStatus("Copy ready. Select a student before saving the new draft.");
+    setActiveTab("builder");
+  };
+
   const handleDeleteLesson = async () => {
     if (!lessonPendingDelete) return;
     const lesson = lessonPendingDelete;
@@ -335,7 +373,7 @@ export default function InstructorWorkstationPage({
     const saveAfterInactivity = () => {
       const elapsed = Date.now() - lastInputAt.current;
       if (elapsed < 3000) return window.setTimeout(saveAfterInactivity, 3000 - elapsed);
-      void saveLessonChanges("draft", true);
+      void saveLessonChanges(newLesson.status === "published" ? "published" : "draft", true);
       return undefined;
     };
     const timer = window.setTimeout(saveAfterInactivity, 3000);
@@ -495,7 +533,7 @@ export default function InstructorWorkstationPage({
 
   const handleSaveDraft = () => {
     console.log("Saving lesson...", { ...newLesson, content: workstationState.content });
-    void saveLessonChanges("draft");
+    void saveLessonChanges(newLesson.status === "published" ? "published" : "draft");
   };
 
   const handlePreviewPublish = () => {
@@ -565,7 +603,9 @@ export default function InstructorWorkstationPage({
           {activeTab === "builder" && <div className="flex flex-col items-end gap-2">
             <div className="flex items-center gap-3">
             <select value={databaseLessonId && createdLessons.some((lesson) => lesson.id === databaseLessonId && lesson.status === "draft") ? databaseLessonId : ""} onChange={(event) => { const draft = createdLessons.find((lesson) => lesson.id === event.target.value); if (draft) activateLesson(draft); }} aria-label="Drafts" className="min-w-[280px] max-w-[320px] truncate rounded-lg border border-amber-500/50 bg-[#171d28] px-3 py-2.5 text-xs font-semibold text-amber-300 outline-none transition-colors hover:bg-amber-500 hover:text-black [color-scheme:dark]"><option value="" className="bg-slate-900 text-slate-100">Drafts</option>{createdLessons.filter((lesson) => lesson.status === "draft").slice(0, 8).map((lesson) => <option key={lesson.id} value={lesson.id} className="bg-slate-900 text-slate-100">{lesson.title}</option>)}</select>
+            {databaseLessonId && <button type="button" onClick={() => { const currentLesson = createdLessons.find((lesson) => lesson.id === databaseLessonId); duplicateLesson(currentLesson); }} className="rounded-lg border border-sky-500/50 px-4 py-2.5 text-xs font-semibold text-sky-300 hover:bg-sky-500 hover:text-black">Duplicate / Save As</button>}
             <button type="button" onClick={handleSaveDraft} className="rounded-lg border border-amber-500/50 px-4 py-2.5 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black">Save</button>
+            {newLesson.status === "published" && <><button type="button" onClick={() => void saveLessonChanges("published")} className="rounded-lg border border-emerald-500/50 px-4 py-2.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500 hover:text-black">Update Published Lesson</button><button type="button" onClick={() => duplicateLesson(createdLessons.find((lesson) => lesson.id === databaseLessonId))} className="rounded-lg border border-sky-500/50 px-4 py-2.5 text-xs font-semibold text-sky-300 hover:bg-sky-500 hover:text-black">Save as New Draft</button></>}
             <button type="button" onClick={handlePreviewPublish} className="rounded-lg border border-amber-500/50 px-4 py-2.5 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black">Preview &amp; Publish</button>
             </div>
             <div className="flex min-h-5 items-center gap-3 text-xs" aria-live="polite">
@@ -650,13 +690,13 @@ export default function InstructorWorkstationPage({
                   <tr><th className="px-5 py-3 font-semibold">Title</th><th className="px-4 py-3 font-semibold">Subtitle</th><th className="px-4 py-3 font-semibold">Assigned Student</th><th className="px-4 py-3 font-semibold">Status</th><th className="px-4 py-3 font-semibold">Module</th><th className="px-4 py-3 text-right font-semibold">Actions</th></tr>
                 </thead>
                 <tbody className="divide-y divide-[#202631]">
-                  {createdLessons.map((lesson) => <tr key={lesson.id} className="text-stone-300 transition hover:bg-[#202631]/30">
-                    <td className="max-w-[220px] px-5 py-4"><p className="truncate font-semibold text-stone-100">{lesson.title}</p><p className="mt-1 truncate text-[10px] text-stone-600">{lesson.content?.slug || lesson.id}</p></td>
+                  {createdLessons.map((lesson) => <tr key={lesson.id} onClick={() => handleEditLesson(lesson)} className="cursor-pointer text-stone-300 transition hover:bg-[#202631]/30">
+                    <td className="max-w-[220px] px-5 py-4"><button type="button" onClick={() => handleEditLesson(lesson)} className="max-w-full text-left"><p className="truncate font-semibold text-stone-100">{lesson.title}</p><p className="mt-1 truncate text-[10px] text-stone-600">{lesson.content?.slug || lesson.id}</p></button></td>
                     <td className="max-w-[260px] px-4 py-4"><span className="line-clamp-2 text-stone-400">{lesson.content?.subtitle || lesson.subtitle || "No subtitle"}</span></td>
                     <td className="px-4 py-4 text-stone-300">{getAssignedStudentName(lesson)}</td>
                     <td className="px-4 py-4"><span className={`rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${lesson.status === "published" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/30 bg-amber-500/10 text-amber-300"}`}>{lesson.status === "published" ? "Published" : "Draft"}</span></td>
                     <td className="px-4 py-4 text-stone-300">Module {lesson.content?.moduleNumber || lesson.module_number || 1}</td>
-                    <td className="px-4 py-4"><div className="flex justify-end gap-2"><button type="button" onClick={() => handleEditLesson(lesson)} className="rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500 hover:text-black">Edit / Continue</button><button type="button" onClick={() => setLessonPendingDelete(lesson)} aria-label={`Delete ${lesson.title}`} title="Delete lesson" className="flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button></div></td>
+                    <td className="px-4 py-4"><div className="flex justify-end gap-2"><button type="button" onClick={(event) => { event.stopPropagation(); handleEditLesson(lesson); }} className="rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500 hover:text-black">Edit / Continue</button><button type="button" onClick={(event) => { event.stopPropagation(); duplicateLesson(lesson); }} className="rounded-md border border-sky-500/50 px-3 py-2 text-xs font-semibold text-sky-300 hover:bg-sky-500 hover:text-black">Duplicate</button><button type="button" onClick={(event) => { event.stopPropagation(); setLessonPendingDelete(lesson); }} aria-label={`Delete ${lesson.title}`} title="Delete lesson" className="flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button></div></td>
                   </tr>)}
                   {createdLessons.length === 0 && <tr><td colSpan={6} className="px-5 py-10 text-center text-stone-500">No lessons have been created yet.</td></tr>}
                 </tbody>
