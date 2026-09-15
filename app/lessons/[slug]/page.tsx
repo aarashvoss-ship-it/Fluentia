@@ -124,6 +124,8 @@ export default function LessonPage() {
   const [dictionaryWord, setDictionaryWord] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [submissionSaveError, setSubmissionSaveError] = useState<string | null>(null);
+  const [studentBannerUrl, setStudentBannerUrl] = useState<string | null>(null);
+  const [bannerLoadFailed, setBannerLoadFailed] = useState(false);
 
   // Initialize student access on mount
   useEffect(() => {
@@ -181,6 +183,40 @@ export default function LessonPage() {
       mounted = false;
     };
   }, [requestedSlug]);
+
+  useEffect(() => {
+    const token = activeStudent?.token;
+    if (!token) return;
+    const readBannerPreference = () => {
+      try {
+        const stored = window.localStorage.getItem(`fluentia:profile:${token}`);
+        if (!stored) {
+          setStudentBannerUrl(null);
+          return;
+        }
+        const preferences = JSON.parse(stored) as { customBannerUrl?: string; bannerPreset?: string };
+        const presetImages: Record<string, string> = {
+          "default-dark": "https://images.unsplash.com/photo-1519608487953-e999c86e7455?w=1600&q=85",
+          mountains: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1600&q=85",
+          architecture: "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=1600&q=85",
+        };
+        const candidate = typeof preferences.customBannerUrl === "string" && preferences.customBannerUrl.trim()
+          ? preferences.customBannerUrl.trim()
+          : presetImages[preferences.bannerPreset || "default-dark"];
+        setStudentBannerUrl(candidate || null);
+        setBannerLoadFailed(false);
+      } catch {
+        setStudentBannerUrl(null);
+      }
+    };
+    readBannerPreference();
+    window.addEventListener("storage", readBannerPreference);
+    window.addEventListener("fluentia:student-profile-updated", readBannerPreference);
+    return () => {
+      window.removeEventListener("storage", readBannerPreference);
+      window.removeEventListener("fluentia:student-profile-updated", readBannerPreference);
+    };
+  }, [activeStudent?.token]);
 
   useEffect(() => {
     if (!lessonReady || !studentReady || lessonNotFound || !lesson) return;
@@ -261,11 +297,12 @@ export default function LessonPage() {
       : null;
   const lessonLevel = (lesson?.grade || "English B1").replace(/\s+Intermediate$/i, "").toUpperCase();
   const instructor = { fullName: "AVoss", initials: "AV" };
-  const heroBanner = typeof lessonContent.coverImage === "string"
+  const lessonBanner = typeof lessonContent.coverImage === "string"
     ? lessonContent.coverImage
     : typeof lesson?.banner_url === "string"
       ? lesson.banner_url
       : undefined;
+  const heroBanner = bannerLoadFailed ? "https://images.unsplash.com/photo-1519608487953-e999c86e7455?w=1600&q=85" : studentBannerUrl || lessonBanner;
   const evaluation = publishedLesson?.evaluation;
   const isEvaluationPublished = evaluation?.published === true;
   const totalScore = evaluation
@@ -438,7 +475,7 @@ export default function LessonPage() {
       {!isResultsStep && (
         <section className="relative min-h-[320px] w-full bg-slate-950 bg-cover bg-center flex flex-col justify-end p-8 overflow-hidden md:min-h-[380px]">
           <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=1800&q=80')] bg-cover bg-center opacity-40" />
-          {heroBanner && <img src={heroBanner} alt="" className="absolute inset-0 h-full w-full object-cover opacity-40" />}
+          {heroBanner && <img src={heroBanner} alt="" onError={() => setBannerLoadFailed(true)} className="absolute inset-0 h-full w-full object-cover opacity-40" />}
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,11,17,.88),rgba(7,11,17,.22)_58%,rgba(7,11,17,.72)),linear-gradient(0deg,#0c1017_0%,transparent_62%)]" />
           <div className="absolute right-5 top-5 z-10 flex flex-wrap items-center justify-end gap-2 md:right-8 md:top-8">
             <AmbientMusicPlayer src={lessonContent.ambientMusicUrl} tracks={lessonContent.ambientTracks} />
