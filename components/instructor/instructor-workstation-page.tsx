@@ -157,14 +157,39 @@ export default function InstructorWorkstationPage({
     }
   };
 
+  const getSavedStudentId = (lesson: LessonWithVersion) => {
+    const metadata = (lesson.content || {}) as Record<string, any>;
+    const nestedMetadata = metadata.metadata && typeof metadata.metadata === "object"
+      ? metadata.metadata
+      : {};
+    const candidates = [
+      lesson.student_id,
+      lesson.student_token,
+      metadata.student_id,
+      metadata.studentId,
+      metadata.student_token,
+      metadata.studentToken,
+      nestedMetadata.student_id,
+      nestedMetadata.studentId,
+      nestedMetadata.student_token,
+      nestedMetadata.studentToken,
+    ];
+    return candidates.find((value): value is string => typeof value === "string" && value.trim().length > 0)?.trim() || null;
+  };
+
   const activateLesson = (lesson: LessonWithVersion) => {
     const content = lesson.content || {};
     const lessonSlug = typeof content.slug === "string" ? content.slug : lesson.id;
+    const savedStudentId = getSavedStudentId(lesson);
+    const savedStudent = savedStudentId
+      ? students.find((student) => student.id === savedStudentId || student.token === savedStudentId)
+      : undefined;
     hasLoadedLesson.current = false;
-    setSelectedStudentId(lesson.student_token || lesson.student_id || null);
+    setSelectedStudentId(savedStudentId);
+    if (savedStudent) setSelectedStudent(savedStudent);
     setNewLesson((previous) => ({
       ...previous,
-      studentId: lesson.student_token || lesson.student_id || previous.studentId,
+      studentId: savedStudentId || previous.studentId,
       title: lesson.title,
       slug: lessonSlug,
       subtitle: typeof content.subtitle === "string" ? content.subtitle : lesson.subtitle || "",
