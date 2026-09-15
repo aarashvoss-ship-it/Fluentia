@@ -11,6 +11,7 @@ import {
 } from "@/types/lesson";
 import { PublishedLessonState, getLessonStateKey } from "@/lib/lesson-store";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { resolveUserUuid } from "@/lib/identity";
 
 export type LessonStatus = "draft" | "published";
 export type SubmissionStatus = "not_started" | "in_progress" | "submitted" | "reviewed";
@@ -123,10 +124,7 @@ type SupabaseRow = Record<string, any>;
 async function getStudentId(studentToken?: string) {
   if (!isSupabaseConfigured() || !studentToken) return null;
   try {
-    const { data: student } = await supabase.from("students").select("id").or(`id.eq.${studentToken},token.eq.${studentToken}`).maybeSingle();
-    if (student?.id) return student.id;
-    const { data: profile } = await supabase.from("profiles").select("id").eq("token", studentToken).maybeSingle();
-    return profile?.id || null;
+    return await resolveUserUuid(studentToken);
   } catch {
     return null;
   }
@@ -214,10 +212,11 @@ export async function saveLesson(lesson: LessonContent): Promise<void> {
   let persistenceError: unknown;
   if (isSupabaseConfigured()) {
     try {
+      const resolvedStudentId = lesson.studentId ? await resolveUserUuid(String(lesson.studentId)) : null;
       const payload = {
         id: String(lesson.id),
         slug: String(lesson.slug),
-        student_id: lesson.studentId ? String(lesson.studentId) : null,
+        student_id: resolvedStudentId,
         title: String(lesson.title || "Untitled Lesson"),
         subtitle: lesson.subtitle?.trim() || null,
         module_number: Number.isFinite(lesson.moduleNumber) ? lesson.moduleNumber : 1,

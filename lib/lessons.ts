@@ -1,4 +1,5 @@
 import { supabase, type LessonRow, type LessonVersionRow, isSupabaseConfigured } from "@/lib/supabase";
+import { resolveUserUuid } from "@/lib/identity";
 import type { LessonContent, InstructorLessonMock } from "@/types/lesson";
 
 /**
@@ -28,6 +29,7 @@ export interface UpdateLessonInput {
   banner_url?: string;
   student_id?: string;
   student_token?: string | null;
+  instructor_id?: string;
   subject?: string;
   grade?: string;
   status?: "draft" | "published" | "evaluated";
@@ -380,7 +382,9 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
   }
 
   try {
-    const { content, changes_summary, banner_url, student_id, student_token, ...lessonData } = input;
+    const { content, changes_summary, banner_url, student_id, student_token, instructor_id, ...lessonData } = input;
+    const resolvedStudentId = student_id ? await resolveUserUuid(student_id) : undefined;
+    const resolvedInstructorId = instructor_id ? await resolveUserUuid(instructor_id) : undefined;
     const hasTitle = typeof lessonData.title === "string" && lessonData.title.trim().length > 0;
     const title = hasTitle ? lessonData.title.trim() : "Untitled Lesson";
     const slug = (title && title.trim() !== "")
@@ -399,8 +403,9 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
       slug,
       status: lessonData.status || "draft",
       ...(banner_url ? { banner_url } : {}),
-      ...(student_id ? { student_id } : {}),
+      ...(resolvedStudentId ? { student_id: resolvedStudentId } : {}),
       ...(student_token ? { student_token } : {}),
+      ...(resolvedInstructorId ? { instructor_id: resolvedInstructorId } : {}),
     };
     let { data: lesson, error: lessonError } = await supabase
       .from("lessons")
@@ -408,7 +413,7 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
       .select()
       .single();
     if (isMissingBannerColumn(lessonError) || isMissingStudentColumn(lessonError)) {
-      const { banner_url: _ignoredBannerUrl, student_id: _ignoredStudentId, student_token: _ignoredStudentToken, ...lessonPayloadWithoutOptionalColumns } = lessonPayload;
+      const { banner_url: _ignoredBannerUrl, student_id: _ignoredStudentId, student_token: _ignoredStudentToken, instructor_id: _ignoredInstructorId, ...lessonPayloadWithoutOptionalColumns } = lessonPayload;
       ({ data: lesson, error: lessonError } = await supabase
         .from("lessons")
         .insert([lessonPayloadWithoutOptionalColumns])
@@ -457,11 +462,13 @@ export async function updateLesson(
   }
 
   try {
-    const { content, changes_summary, banner_url, student_id, student_token, ...lessonData } = input;
+    const { content, changes_summary, banner_url, student_id, student_token, instructor_id, ...lessonData } = input;
+    const resolvedStudentId = student_id ? await resolveUserUuid(student_id) : undefined;
+    const resolvedInstructorId = instructor_id ? await resolveUserUuid(instructor_id) : undefined;
     // Update the lesson metadata
     const hasStudentTokenUpdate = Object.prototype.hasOwnProperty.call(input, "student_token");
-    if (Object.keys(lessonData).length > 0 || banner_url || student_id || hasStudentTokenUpdate) {
-      const updatePayload = { ...lessonData, ...(banner_url ? { banner_url } : {}), ...(student_id ? { student_id } : {}), ...(hasStudentTokenUpdate ? { student_token } : {}) };
+    if (Object.keys(lessonData).length > 0 || banner_url || resolvedStudentId || resolvedInstructorId || hasStudentTokenUpdate) {
+      const updatePayload = { ...lessonData, ...(banner_url ? { banner_url } : {}), ...(resolvedStudentId ? { student_id: resolvedStudentId } : {}), ...(resolvedInstructorId ? { instructor_id: resolvedInstructorId } : {}), ...(hasStudentTokenUpdate ? { student_token } : {}) };
       let { error: updateError } = await supabase
         .from("lessons")
         .update(updatePayload)

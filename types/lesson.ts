@@ -220,6 +220,7 @@ export interface StudentProfile {
   id?: string;
   fullName: string;
   avatarUrl?: string;
+  bannerUrl?: string;
   level: string;
   targetGoal: string;
   weaknesses: string[];

@@ -4,6 +4,7 @@
  */
 
 import { supabase, type SubmissionRow, type EvaluationRow, isSupabaseConfigured } from "@/lib/supabase";
+import { resolveUserUuid } from "@/lib/identity";
 
 // ============================================================================
 // Types
@@ -52,12 +53,13 @@ export async function createSubmission(
   }
 
   try {
+    const studentUuid = await resolveUserUuid(input.student_id);
     const { data, error } = await supabase
       .from("submissions")
       .insert([
         {
           lesson_id: input.lesson_id,
-          student_id: input.student_id,
+          student_id: studentUuid,
           answers: input.answers,
           status: input.status || "in_progress",
           submitted_at: new Date().toISOString(),
@@ -313,12 +315,13 @@ export async function createEvaluation(
 
   try {
     // Insert evaluation
+    const instructorUuid = await resolveUserUuid(input.instructor_id);
     const { data: evaluation, error: evalError } = await supabase
       .from("evaluations")
       .insert([
         {
           submission_id: input.submission_id,
-          instructor_id: input.instructor_id,
+          instructor_id: instructorUuid,
           feedback: input.feedback || null,
           score: input.score || null,
           evaluated_at: new Date().toISOString(),
