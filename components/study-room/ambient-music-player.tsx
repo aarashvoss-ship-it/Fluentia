@@ -13,8 +13,8 @@ interface AmbientMusicPlayerProps {
   tracks?: LessonAudioTrack[];
 }
 
-export function AmbientMusicPlayer({ src, tracks = [] }: AmbientMusicPlayerProps) {
-  const [libraryTracks, setLibraryTracks] = useState<LessonAudioTrack[]>(tracks);
+export function AmbientMusicPlayer({ src, tracks }: AmbientMusicPlayerProps) {
+  const [libraryTracks, setLibraryTracks] = useState<LessonAudioTrack[]>(tracks || []);
   const availableTracks = libraryTracks.length > 0 ? libraryTracks : AMBIENT_TRACKS.map(({ label, url }) => ({ title: label, url }));
   const audioRef = useRef<HTMLAudioElement>(null);
   const [trackIndex, setTrackIndex] = useState(() => Math.max(0, availableTracks.findIndex((item) => item.url === src)));
@@ -31,7 +31,7 @@ export function AmbientMusicPlayer({ src, tracks = [] }: AmbientMusicPlayerProps
     void getAmbientTracks().then((nextTracks) => {
       if (mounted) setLibraryTracks(nextTracks);
     }).catch(() => {
-      if (mounted && tracks.length > 0) setLibraryTracks(tracks);
+      if (mounted && tracks && tracks.length > 0) setLibraryTracks(tracks);
     });
     return () => {
       mounted = false;
