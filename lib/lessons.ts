@@ -40,6 +40,9 @@ export interface LessonWithVersion extends LessonRow {
   content?: Record<string, any>;
 }
 
+export const BENCHMARK_LESSON_ID = "b1b10001-1001-4001-8001-000000000001";
+export const BENCHMARK_LESSON_SLUG = "the-architecture-of-daily-habits-b1";
+
 function isMissingBannerColumn(error: { code?: string; message?: string } | null) {
   return Boolean(error && (error.code === "42703" || error.code === "PGRST204") && /banner_url/i.test(error.message || ""));
 }
@@ -161,7 +164,7 @@ export async function getLessons(): Promise<LessonWithVersion[]> {
  * Tries to find by ID first (UUID format), then by title as a slug-like match
  * Returns null gracefully if lesson not found or error occurs (instead of throwing)
  */
-export async function getLessonById(idOrSlug: string): Promise<LessonWithVersion | null> {
+export async function getLessonById(idOrSlug = BENCHMARK_LESSON_SLUG): Promise<LessonWithVersion | null> {
   if (!isSupabaseConfigured()) {
     console.warn("Supabase not configured");
     return null;

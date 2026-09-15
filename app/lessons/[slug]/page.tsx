@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ChatMessage, ContentBlock, SavedVocabularyWord, StudentNote, StudyStepId, STUDY_STEPS, LessonContent, StudentSubmission } from "@/types/lesson";
-import { getLatestLessonVersion, getLessonBaseById, type LessonWithVersion } from "@/lib/lessons";
+import { getLessonById, type LessonWithVersion } from "@/lib/lessons";
 import { persistResolvedStudent, PublishedLessonState, resolveStudentAccess, writeLastAccessedLesson } from "@/lib/lesson-store";
 import { fetchChatMessages, fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, saveChatMessage, saveStudentNote, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
 import { type StudentUser } from "@/lib/users";
@@ -148,24 +148,18 @@ export default function LessonPage() {
     setLessonReady(false);
     setLessonNotFound(false);
     setLoading(true);
-    setLessonStateHydrated(false);
 
     const loadLesson = async () => {
       try {
-        const lesson = await getLessonBaseById(requestedSlug);
+        const lesson = await getLessonById(requestedSlug);
         if (!mounted) return;
         
         if (lesson) {
           setLesson(lesson);
+          setLessonStateHydrated(true);
           if (activeStudent?.token) {
             writeLastAccessedLesson(lesson.id, activeStudent.token);
           }
-          void getLatestLessonVersion(lesson.id).then((version) => {
-            if (!mounted || !version) return;
-            setLesson((currentLesson) => currentLesson?.id === lesson.id
-              ? { ...currentLesson, current_version: version, content: version.content }
-              : currentLesson);
-          });
         } else {
           setLessonNotFound(true);
         }
@@ -189,7 +183,6 @@ export default function LessonPage() {
 
   useEffect(() => {
     if (!lessonReady || !studentReady || lessonNotFound || !lesson) return;
-    setLessonStateHydrated(false);
     setCurrentStep("warm_up");
     const params = new URLSearchParams(window.location.search);
     const requestedStep = getRequestedStep(params.get("step"));
@@ -309,6 +302,9 @@ export default function LessonPage() {
     instructor_feedback?: { status?: string; strengths?: string; areasToImprove?: string; nextStep?: string };
     stepLabel?: string;
   };
+  const resultSummary = ((lessonContent.results?.blocks || []) as ContentBlock[]).find(
+    (block) => block.type === "text" && block.title?.toLowerCase() === "summary"
+  );
 
   const stepResults: StepResult[] = [
     { id: "warm-up", step: "Warm-up", prompt: lessonContent.warm_up?.quote?.text || lessonContent.warm_up?.intro_narrative?.text, answer: getStepResponse("warm_up"), referenceAnswer: getBlockAnswerKeys("warm_up") || undefined },
@@ -684,6 +680,10 @@ export default function LessonPage() {
                   </div>
                 </div> : null}
               </div>
+              {resultSummary?.type === "text" && <div className="rounded-xl border border-[#202631] bg-[#121721] p-5 text-left">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Summary</p>
+                <MarkdownContent value={resultSummary.body} className="mt-3 text-sm leading-relaxed text-stone-300" />
+              </div>}
               {benchmarkResults.feedback_notes && <div className="rounded-xl border border-[#202631] bg-[#121721] p-5 text-left">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Review Notes</p>
                 <div className="mt-3 grid gap-3 text-sm text-stone-400 sm:grid-cols-3">
