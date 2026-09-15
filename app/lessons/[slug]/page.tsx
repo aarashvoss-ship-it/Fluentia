@@ -259,6 +259,7 @@ export default function LessonPage() {
     : typeof lesson?.module_number === "number"
       ? lesson.module_number
       : null;
+  const lessonLevel = (lesson?.grade || "English B1").replace(/\s+Intermediate$/i, "").toUpperCase();
   const instructor = { fullName: "AVoss", initials: "AV" };
   const heroBanner = typeof lessonContent.coverImage === "string"
     ? lessonContent.coverImage
@@ -435,11 +436,17 @@ export default function LessonPage() {
   return (
     <div className="fluentia-study-room min-h-screen bg-[#0c1017] text-[#e8e7e4]" onDoubleClick={handleDoubleClick}>
       {!isResultsStep && (
-        <section className="relative min-h-[300px] w-full bg-cover bg-center overflow-hidden border-b border-[#202631]">
-          {heroBanner && <><img src={heroBanner} alt="" className="absolute inset-0 h-full w-full object-cover opacity-55" /><div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,11,17,.72),rgba(7,11,17,.08)_55%,rgba(7,11,17,.72)),linear-gradient(0deg,#0c1017_0%,transparent_58%)]" /></>}
-          <div className="relative mx-auto flex h-full max-w-5xl flex-col justify-end px-5 pb-14 sm:px-0">
-            {(lesson.grade || lesson.subject) && <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#aeb3b9]">{lesson.grade || lesson.subject}</p>}
-            <span className="mb-3 w-fit rounded-sm border border-[#a77b25] bg-[#332713]/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#dca42f]">Module {lessonModuleNumber ?? 1}</span>
+        <section className="relative min-h-[320px] w-full bg-slate-950 bg-cover bg-center flex flex-col justify-end p-8 overflow-hidden md:min-h-[380px]">
+          <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=1800&q=80')] bg-cover bg-center opacity-40" />
+          {heroBanner && <img src={heroBanner} alt="" className="absolute inset-0 h-full w-full object-cover opacity-40" />}
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,11,17,.88),rgba(7,11,17,.22)_58%,rgba(7,11,17,.72)),linear-gradient(0deg,#0c1017_0%,transparent_62%)]" />
+          <div className="absolute right-5 top-5 z-10 flex flex-wrap items-center justify-end gap-2 md:right-8 md:top-8">
+            <AmbientMusicPlayer src={lessonContent.ambientMusicUrl} tracks={lessonContent.ambientTracks} />
+            <button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs transition ${sidebarOpen ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#171d28]/90 text-amber-300 hover:border-amber-500"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button>
+            <Link href={`/dashboard?student=${encodeURIComponent(activeStudent!.token)}`} className="flex items-center gap-1 rounded-md border border-[#394252] bg-[#171d28]/90 px-3 py-2 text-xs text-[#b5bac2] transition-colors hover:border-amber-500/50 hover:text-amber-300"><ChevronRight className="h-3 w-3 rotate-180" />Course overview</Link>
+          </div>
+          <div className="relative z-10 mx-auto flex h-full w-full max-w-5xl flex-col justify-end px-0 pb-2">
+            <span className="mb-4 w-fit rounded-full border border-amber-500/40 bg-[#332713]/85 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e4ae45]">{lessonLevel} - MODULE {lessonModuleNumber ?? 1}</span>
             <h1 className="font-[var(--font-fraunces)] text-[38px] leading-[0.98] tracking-[-0.02em] text-[#f1eee8] sm:text-[42px]">
               {displayLessonTitle || lesson.title}
             </h1>
@@ -449,11 +456,11 @@ export default function LessonPage() {
         </section>
       )}
 
-      <div className="mx-auto max-w-5xl px-5 sm:px-0">
-      <header className="pt-8">
+            <div className="mx-auto max-w-5xl px-4 py-8">
+            <header>
         <div className="flex items-center justify-between text-[12px]">
                 <p className="text-[#aeb2b9]">Welcome back, <span className="text-[#e6e4e0]">{activeStudent!.name}</span>.</p>
-              <div className="flex items-center gap-2"><AmbientMusicPlayer src={lessonContent.ambientMusicUrl} tracks={lessonContent.ambientTracks} /><button type="button" onClick={() => setDictionaryWord("")} aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28] text-stone-400 transition hover:border-amber-500 hover:text-amber-300"><DictionaryIcon className="h-4 w-4" /></button><button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs transition ${sidebarOpen ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#171d28] text-amber-300 hover:border-amber-500"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button><Link href={`/dashboard?student=${encodeURIComponent(activeStudent!.token)}`} className="flex items-center gap-1 text-[#646d7b] transition-colors hover:text-[#bdc1c8]"><ChevronRight className="h-3 w-3 rotate-180" />Course overview</Link></div>
+              <button type="button" onClick={() => setDictionaryWord("")} aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28] text-stone-400 transition hover:border-amber-500 hover:text-amber-300"><DictionaryIcon className="h-4 w-4" /></button>
         </div>
         <div className="mt-8">
           <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#556078]">Your journey</p>
