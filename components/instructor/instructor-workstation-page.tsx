@@ -21,6 +21,9 @@ interface InstructorWorkstationProps {
   allowStudentQuery?: boolean;
 }
 
+type SidebarBlock = { id: string; title: string; body: string };
+type SidebarBlocksByStep = Partial<Record<"warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking", SidebarBlock[]>>;
+
 export default function InstructorWorkstationPage({
   instructorToken,
   lessonSlug,
@@ -44,10 +47,8 @@ export default function InstructorWorkstationPage({
   const [activeTab, setActiveTab] = useState<"dashboard" | "builder" | "evaluation">("dashboard");
   const [heroBannerOpen, setHeroBannerOpen] = useState(false);
   const [activeStudentsOpen, setActiveStudentsOpen] = useState(false);
-  const [sidebarBlocks, setSidebarBlocks] = useState([
-    { id: "teacher-notes", title: "Teacher Notes", body: "" },
-    { id: "extra-vocabulary", title: "Extra Vocabulary", body: "" },
-  ]);
+  const [sidebarStep, setSidebarStep] = useState<keyof SidebarBlocksByStep>("warm_up");
+  const [sidebarBlocksByStep, setSidebarBlocksByStep] = useState<SidebarBlocksByStep>({});
 
   const [workstationState, setWorkstationState] = useState<{
     content: StrictStepContent;
@@ -106,7 +107,7 @@ export default function InstructorWorkstationPage({
       subtitle: subtitle.trim() || "A new Fluentia learning journey.",
       moduleNumber: Number(moduleNumber) || 1,
       bannerUrl: workstationState.bannerUrl,
-      sidebarBlocks,
+      sidebarBlocksByStep,
     });
 
   async function handleStudentChange(student: StudentUser, requestedLessonSlug = lessonId) {
@@ -123,7 +124,7 @@ export default function InstructorWorkstationPage({
     const lessons = await getLessons();
     const loadedLesson = lessons.find((lesson) => {
       const lessonSlug = typeof lesson.content?.slug === "string" ? lesson.content.slug : lesson.id;
-      return lesson.student_token === id && (!requestedLessonSlug || lessonSlug === requestedLessonSlug || lesson.id === requestedLessonSlug);
+      return (lesson.student_token === id || lesson.student_id === id) && (!requestedLessonSlug || lessonSlug === requestedLessonSlug || lesson.id === requestedLessonSlug);
     });
     if (!loadedLesson) {
       resetNewLessonForm(id);
@@ -131,7 +132,11 @@ export default function InstructorWorkstationPage({
 
     setSelectedStudent(student);
     setWorkstationState((previous) => ({ ...previous, studentProfile: student.profile }));
-    setDatabaseLessonId(loadedLesson?.id || null);
+    if (loadedLesson) activateLesson(loadedLesson);
+    else {
+      setSidebarBlocksByStep({});
+      setDatabaseLessonId(null);
+    }
   }
 
   const createSlug = (title: string) => {
@@ -156,10 +161,10 @@ export default function InstructorWorkstationPage({
     const content = lesson.content || {};
     const lessonSlug = typeof content.slug === "string" ? content.slug : lesson.id;
     hasLoadedLesson.current = false;
-    setSelectedStudentId(lesson.student_token || null);
+    setSelectedStudentId(lesson.student_token || lesson.student_id || null);
     setNewLesson((previous) => ({
       ...previous,
-      studentId: lesson.student_token || previous.studentId,
+      studentId: lesson.student_token || lesson.student_id || previous.studentId,
       title: lesson.title,
       slug: lessonSlug,
       subtitle: typeof content.subtitle === "string" ? content.subtitle : lesson.subtitle || "",
@@ -171,6 +176,7 @@ export default function InstructorWorkstationPage({
       content,
       bannerUrl: typeof content.coverImage === "string" ? content.coverImage : lesson.banner_url || "",
     }));
+    setSidebarBlocksByStep((content as Record<string, any>).sidebarBlocks || {});
     setDatabaseLessonId(lesson.id);
     setLessonStatus(lesson.status === "published" ? "published" : "draft");
     window.setTimeout(() => {
@@ -199,6 +205,7 @@ export default function InstructorWorkstationPage({
         moduleNumber,
         coverImage: workstationState.bannerUrl,
         bannerUrl: workstationState.bannerUrl,
+        sidebarBlocks: sidebarBlocksByStep,
       };
       const created = await createLesson({
         title,
@@ -256,7 +263,7 @@ export default function InstructorWorkstationPage({
     };
     const timer = window.setTimeout(saveAfterInactivity, 3000);
     return () => window.clearTimeout(timer);
-  }, [workstationState.content, workstationState.bannerUrl, newLesson.title, newLesson.subtitle, newLesson.moduleNumber, sidebarBlocks, databaseLessonId]);
+  }, [workstationState.content, workstationState.bannerUrl, newLesson.title, newLesson.subtitle, newLesson.moduleNumber, sidebarBlocksByStep, databaseLessonId]);
 
   useEffect(() => {
     const handleInput = () => {
@@ -349,9 +356,7 @@ export default function InstructorWorkstationPage({
       moduleNumber,
       coverImage: workstationState.bannerUrl,
       bannerUrl: workstationState.bannerUrl,
-      notes: sidebarBlocks.find((block) => block.id === "teacher-notes")?.body || "",
-      vocabulary: sidebarBlocks.find((block) => block.id === "extra-vocabulary")?.body || "",
-      sidebarBlocks,
+      sidebarBlocks: sidebarBlocksByStep,
     };
     try {
       const lesson = databaseLessonId
@@ -465,12 +470,16 @@ export default function InstructorWorkstationPage({
 <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-400">Fluentia Instructor Studio</span>
 <h1 className="mt-2 font-[var(--font-fraunces)] text-2xl font-semibold text-[#f1eee8]">Instructor Workstation</h1>
 </div>
-          {activeTab === "builder" && <div className="flex items-center gap-3">
-            {publishStatus !== null && publishStatus.trim().length > 0 && <span className="rounded-lg border border-[#202631] bg-[#171d28] px-3 py-1.5 text-xs font-medium text-amber-400">{publishStatus}</span>}
+          {activeTab === "builder" && <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-3">
             <select value={databaseLessonId && createdLessons.some((lesson) => lesson.id === databaseLessonId && lesson.status === "draft") ? databaseLessonId : ""} onChange={(event) => { const draft = createdLessons.find((lesson) => lesson.id === event.target.value); if (draft) activateLesson(draft); }} aria-label="Drafts" className="min-w-[280px] max-w-[320px] truncate rounded-lg border border-amber-500/50 bg-[#171d28] px-3 py-2.5 text-xs font-semibold text-amber-300 outline-none transition-colors hover:bg-amber-500 hover:text-black [color-scheme:dark]"><option value="" className="bg-slate-900 text-slate-100">Drafts</option>{createdLessons.filter((lesson) => lesson.status === "draft").slice(0, 8).map((lesson) => <option key={lesson.id} value={lesson.id} className="bg-slate-900 text-slate-100">{lesson.title}</option>)}</select>
-            {databaseLessonId && <span className={`inline-block min-w-[90px] text-right text-xs ${saveIndicator === "error" ? "text-red-300" : "text-stone-400"}`}>{saveIndicator === "saving" ? "● Saving" : saveIndicator === "saved" ? "● Auto-saved" : saveIndicator === "error" ? "● Save failed" : "● Saved"}</span>}
             <button type="button" onClick={handleSaveDraft} className="rounded-lg border border-amber-500/50 px-4 py-2.5 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black">Save</button>
             <button type="button" onClick={handlePreviewPublish} className="rounded-lg border border-amber-500/50 px-4 py-2.5 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black">Preview &amp; Publish</button>
+            </div>
+            <div className="flex min-h-5 items-center gap-3 text-xs" aria-live="polite">
+              {publishStatus !== null && publishStatus.trim().length > 0 && <span className="rounded-lg border border-[#202631] bg-[#171d28] px-3 py-1.5 font-medium text-amber-400">{publishStatus}</span>}
+              {databaseLessonId && <span className={saveIndicator === "error" ? "text-red-300" : "text-stone-400"}>{saveIndicator === "saving" ? "● Saving" : saveIndicator === "saved" ? "● Auto-saved" : saveIndicator === "error" ? "● Save failed" : "● Saved"}</span>}
+            </div>
           </div>}
         </header>
 
@@ -570,8 +579,9 @@ export default function InstructorWorkstationPage({
                 <div className="mt-4"><InstructorBannerManager bannerUrl={workstationState.bannerUrl} customInput={workstationState.customBannerUrl} onUpdateBanner={(bannerUrl: string) => setWorkstationState((previous) => ({ ...previous, bannerUrl }))} onUpdateCustomInput={(customBannerUrl: string) => setWorkstationState((previous) => ({ ...previous, customBannerUrl }))} /></div>
               </details>
               <section className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
-                <div className="flex items-center justify-between"><h3 className="font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Sidebar Blocks</h3><button type="button" onClick={() => setSidebarBlocks((blocks) => [...blocks, { id: `block-${Date.now()}`, title: "References", body: "" }])} className="flex items-center gap-1.5 rounded-md border border-amber-500 px-3 py-2 text-sm text-amber-500"><Plus className="h-3.5 w-3.5" />Add Block</button></div>
-                <div className="mt-4 space-y-3">{sidebarBlocks.map((block) => <div key={block.id} className="rounded-lg border border-[#202631] bg-[#0c1017] p-3"><div className="flex gap-2"><input value={block.title} onChange={(event) => setSidebarBlocks((blocks) => blocks.map((item) => item.id === block.id ? { ...item, title: event.target.value } : item))} className="min-w-0 flex-1 border-b border-[#394252] bg-transparent pb-1 text-xs font-semibold text-stone-200" aria-label="Sidebar block title" /><button type="button" onClick={() => setSidebarBlocks((blocks) => blocks.filter((item) => item.id !== block.id))} aria-label={`Delete ${block.title}`}><Trash2 className="h-3.5 w-3.5" /></button></div><textarea value={block.body} onChange={(event) => setSidebarBlocks((blocks) => blocks.map((item) => item.id === block.id ? { ...item, body: event.target.value } : item))} rows={3} className="mt-3 w-full resize-none rounded-md border border-[#202631] bg-[#171d28] p-2.5 text-xs text-stone-300" /></div>)}</div>
+                <div className="flex items-center justify-between gap-3"><h3 className="font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Step Sidebar</h3><button type="button" onClick={() => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: [...(current[sidebarStep] || []), { id: `sidebar-${Date.now()}`, title: "Sidebar note", body: "" }] }))} className="flex items-center gap-1.5 rounded-md border border-amber-500 px-3 py-2 text-sm text-amber-500"><Plus className="h-3.5 w-3.5" />Add Block</button></div>
+                <select value={sidebarStep} onChange={(event) => setSidebarStep(event.target.value as keyof SidebarBlocksByStep)} className="mt-3 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 [color-scheme:dark]" aria-label="Sidebar step"><option value="warm_up">Warm-up</option><option value="lesson">Lesson</option><option value="listening">Listening</option><option value="reading">Reading</option><option value="writing">Writing</option><option value="speaking">Speaking</option></select>
+                <div className="mt-4 space-y-3">{(sidebarBlocksByStep[sidebarStep] || []).map((block) => <div key={block.id} className="rounded-lg border border-[#202631] bg-[#0c1017] p-3"><div className="flex gap-2"><input value={block.title} onChange={(event) => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, title: event.target.value } : item) }))} className="min-w-0 flex-1 border-b border-[#394252] bg-transparent pb-1 text-xs font-semibold text-stone-200" aria-label="Sidebar block title" /><button type="button" onClick={() => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: (current[sidebarStep] || []).filter((item) => item.id !== block.id) }))} aria-label={`Delete ${block.title}`}><Trash2 className="h-3.5 w-3.5" /></button></div><textarea value={block.body} onChange={(event) => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, body: event.target.value } : item) }))} rows={3} className="mt-3 w-full resize-y rounded-md border border-[#202631] bg-[#171d28] p-2.5 text-xs text-stone-300" /></div>)}</div>
               </section>
             </aside>
           </main>
@@ -603,7 +613,7 @@ export default function InstructorWorkstationPage({
 </>}
       </div>
       {showPreview && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="lesson-preview-title">
-        <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-[#394252] bg-[#171d28] shadow-2xl">
+        <div className="flex h-[88vh] max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-[#394252] bg-[#171d28] shadow-2xl">
           <div className="flex flex-col gap-4 border-b border-[#293343] p-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">{workstationState.bannerUrl && <img src={workstationState.bannerUrl} alt="" className="h-12 w-20 rounded object-cover" />}<div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Student View Preview</p><h2 id="lesson-preview-title" className="mt-1 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">{newLesson.title || "Untitled Lesson"}</h2><p className="mt-1 text-sm text-stone-400">{newLesson.subtitle || "Your instructor has prepared this lesson for you."}</p></div></div>
             <div className="flex items-center gap-2"><button type="button" onClick={() => setShowPreview(false)} className="rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black">Back to Editing</button><button type="button" onClick={handleConfirmPublish} disabled={isPublishing} className="rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-black transition-colors hover:bg-amber-400 disabled:opacity-50">Publish Lesson</button></div>

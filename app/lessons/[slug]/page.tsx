@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ChatMessage, ContentBlock, SavedVocabularyWord, StudentNote, StudyStepId, STUDY_STEPS, LessonContent, StudentSubmission } from "@/types/lesson";
@@ -50,6 +50,44 @@ function getRequestedStep(value: string | null): StudyStepId | null {
   return Number.isInteger(stepNumber) && stepNumber >= 1 && stepNumber <= STUDY_STEPS.length
     ? STUDY_STEPS[stepNumber - 1].id
     : null;
+}
+
+function AudioResponseBlock({ value, onChange }: { value?: string; onChange: (value: string) => void }) {
+  const [isRecording, setIsRecording] = useState(false);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+
+  const uploadAudio = (file?: File) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => onChange(String(reader.result || ""));
+    reader.readAsDataURL(file);
+  };
+
+  const toggleRecording = async () => {
+    if (isRecording) {
+      recorderRef.current?.stop();
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) return;
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const recorder = new MediaRecorder(stream);
+    chunksRef.current = [];
+    recorder.ondataavailable = (event) => chunksRef.current.push(event.data);
+    recorder.onstop = () => {
+      const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+      const reader = new FileReader();
+      reader.onload = () => onChange(String(reader.result || ""));
+      reader.readAsDataURL(blob);
+      stream.getTracks().forEach((track) => track.stop());
+      setIsRecording(false);
+    };
+    recorderRef.current = recorder;
+    recorder.start();
+    setIsRecording(true);
+  };
+
+  return <div className="mt-4 space-y-3 rounded-lg border border-amber-500/20 bg-[#0c1017] p-3"><div className="flex flex-wrap gap-2"><label className="cursor-pointer rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 hover:border-amber-500">Upload response<input type="file" accept="audio/*" onChange={(event) => uploadAudio(event.target.files?.[0])} className="sr-only" /></label><button type="button" onClick={() => void toggleRecording()} className={`rounded-md border px-3 py-2 text-xs ${isRecording ? "border-red-400 text-red-300" : "border-amber-500/50 text-amber-300"}`}>{isRecording ? "Stop recording" : "Record response"}</button></div>{value && <audio controls src={value} className="w-full" />}</div>;
 }
 
 export default function LessonPage() {
@@ -358,7 +396,7 @@ export default function LessonPage() {
         <article key={block.id} className="rounded-xl border border-[#202631] bg-[#121721] p-5">
           {block.title && <h3 className="mb-3 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">{block.title}</h3>}
           {block.type === "text" && <><p className="whitespace-pre-wrap text-sm leading-relaxed text-stone-300">{block.body}</p><textarea value={submission.blockResponses?.[block.id] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [block.id]: event.target.value } })} rows={3} placeholder="Write your response here..." className="mt-4 w-full resize-none rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.title || "Text"} response`} /></>}
-          {block.type === "audio" && <>{block.audioUrl ? <audio controls src={block.audioUrl} className="w-full" /> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Audio recording placeholder</div>}<input value={submission.audioUploads?.[block.id] || ""} onChange={(event) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: event.target.value } })} placeholder="Paste recording URL or upload reference" className="mt-3 w-full rounded-lg border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.title || "Audio"} recording URL`} /></>}
+          {block.type === "audio" && <>{block.audioUrl ? <audio controls src={block.audioUrl} className="w-full" /> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Audio assignment</div>}<AudioResponseBlock value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} /></>}
           {block.type === "video" && (block.videoUrl ? <div className="aspect-video overflow-hidden rounded-lg border border-[#202631] bg-[#0c1017]"><iframe src={getVideoEmbedUrl(block.videoUrl)} title={block.title || "Lesson video"} className="h-full w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen /></div> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Video embed placeholder</div>)}
           {block.type === "image" && (block.imageUrl ? <figure><img src={block.imageUrl} alt={block.title} className="max-h-[420px] w-full rounded-lg object-cover" />{block.caption && <figcaption className="mt-2 text-xs text-stone-500">{block.caption}</figcaption>}</figure> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Image placeholder</div>)}
           {block.type === "question" && <div className="space-y-2"><p className="text-sm text-stone-300">{block.prompt}</p><div className="grid gap-2 sm:grid-cols-2">{block.options.filter(Boolean).map((option) => <button key={option} type="button" onClick={() => void persistSubmission({ ...submission, quizSelections: { ...(submission.quizSelections || {}), [block.id]: option } })} className={`rounded-md border px-3 py-2 text-left text-xs transition ${submission.quizSelections?.[block.id] === option ? "border-amber-500 bg-amber-500/10 text-amber-300" : "border-[#202631] bg-[#0c1017] text-stone-400 hover:border-amber-500/50 hover:text-amber-300"}`}>{option}</button>)}</div></div>}
