@@ -76,16 +76,20 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const loadDashboard = async (studentToken: string) => {
-      const availableLessons = (await getLessons()).filter((lesson) => lesson.status === "published");
+      const [lessonRows, savedProfile, savedWords, studentNotes, messages] = await Promise.all([
+        getLessons(),
+        getStudentProfile(studentToken).catch(() => null),
+        fetchSavedVocabulary(studentToken),
+        fetchStudentNotes(studentToken),
+        fetchChatMessages(studentToken),
+      ]);
+      const availableLessons = lessonRows.filter((lesson) => lesson.status === "published");
       setLessons(availableLessons);
-      try {
-        const savedProfile = await getStudentProfile(studentToken);
-        if (savedProfile && Object.keys(savedProfile).length > 0) {
-          setActiveStudent((previous) => previous.profile
-            ? { ...previous, profile: { ...previous.profile, ...savedProfile } }
-            : previous);
-        }
-      } catch { }
+      if (savedProfile && Object.keys(savedProfile).length > 0) {
+        setActiveStudent((previous) => previous.profile
+          ? { ...previous, profile: { ...previous.profile, ...savedProfile } }
+          : previous);
+      }
       const nextLessonStates = Object.fromEntries(await Promise.all(availableLessons.map(async (lesson) => [lesson.id, await fetchLessonState(lesson.id, studentToken)])));
       setLessonStates(nextLessonStates);
       const completedModulesCount = availableLessons.filter((lesson) => getLessonStatus(nextLessonStates[lesson.id]) === "completed").length;
@@ -93,8 +97,7 @@ export default function DashboardPage() {
         ...previous,
         profile: previous.profile ? { ...previous.profile, completedModulesCount } : previous.profile,
       }));
-      setSavedWords(await fetchSavedVocabulary(studentToken));
-      const [studentNotes, messages] = await Promise.all([fetchStudentNotes(studentToken), fetchChatMessages(studentToken)]);
+      setSavedWords(savedWords);
       setNotes(studentNotes);
       setChatMessages(messages);
     };

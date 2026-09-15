@@ -92,21 +92,23 @@ export async function getLatestLessonVersion(lessonId: string): Promise<LessonVe
   }
 }
 
-export async function getLessonBaseById(id: string): Promise<LessonWithVersion | null> {
+export async function getLessonBaseById(idOrSlug: string): Promise<LessonWithVersion | null> {
   if (!isSupabaseConfigured()) return null;
 
   try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idOrSlug);
+    const lookupColumn = isUuid ? "id" : "slug";
     const { data, error } = await withTimeout(
-      supabase.from("lessons").select("*").eq("id", id).maybeSingle(),
+      supabase.from("lessons").select("*").eq(lookupColumn, idOrSlug).maybeSingle(),
       3000
     );
     if (error) {
-      console.warn(`Unable to load base lesson ${id}:`, error);
+      console.warn(`Unable to load base lesson ${idOrSlug}:`, error);
       return null;
     }
     return data || null;
   } catch (error) {
-    console.warn(`Error loading base lesson ${id}:`, error);
+    console.warn(`Error loading base lesson ${idOrSlug}:`, error);
     return null;
   }
 }
@@ -157,19 +159,12 @@ export async function getLessons(): Promise<LessonWithVersion[]> {
 
     if (error) throw error;
 
-    // Enrich each lesson with its latest version content
-    const enrichedLessons = await Promise.all(
-      (lessons || []).map(async (lesson) => {
-        const version = await getLatestLessonVersion(lesson.id);
-        return {
-          ...lesson,
-          current_version: version || undefined,
-          content: version?.content,
-        };
-      })
-    );
-
-    return enrichedLessons;
+    // Keep the dashboard critical path to one metadata query. Version content is loaded by the lesson view.
+    return (lessons || []).map((lesson) => ({
+      ...lesson,
+      current_version: undefined,
+      content: undefined,
+    }));
   } catch (error) {
     console.error("Error fetching lessons:", error);
     throw error;

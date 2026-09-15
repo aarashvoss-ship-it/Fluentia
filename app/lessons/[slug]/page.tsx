@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ChatMessage, ContentBlock, SavedVocabularyWord, StudentNote, StudyStepId, STUDY_STEPS, LessonContent, StudentSubmission } from "@/types/lesson";
-import { getLessonById, type LessonWithVersion } from "@/lib/lessons";
+import { getLatestLessonVersion, getLessonBaseById, type LessonWithVersion } from "@/lib/lessons";
 import { persistResolvedStudent, PublishedLessonState, resolveStudentAccess, writeLastAccessedLesson } from "@/lib/lesson-store";
 import { fetchChatMessages, fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, saveChatMessage, saveStudentNote, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
 import { type StudentUser } from "@/lib/users";
@@ -168,7 +168,7 @@ export default function LessonPage() {
 
     const loadLesson = async () => {
       try {
-        const lesson = await withLessonTimeout(getLessonById(requestedSlug), 8000);
+        const lesson = await withLessonTimeout(getLessonBaseById(requestedSlug), 8000);
         if (!mounted) return;
         
         if (lesson) {
@@ -176,6 +176,12 @@ export default function LessonPage() {
           if (activeStudent?.token) {
             writeLastAccessedLesson(lesson.id, activeStudent.token);
           }
+          void getLatestLessonVersion(lesson.id).then((version) => {
+            if (!mounted || !version) return;
+            setLesson((currentLesson) => currentLesson?.id === lesson.id
+              ? { ...currentLesson, current_version: version, content: version.content }
+              : currentLesson);
+          });
         } else {
           setLessonNotFound(true);
         }
@@ -388,7 +394,7 @@ export default function LessonPage() {
     );
   }
 
-  if (lessonNotFound || !lesson || !lesson.current_version || !lesson.content) {
+  if (lessonNotFound || !lesson) {
     return (
       <div className="fluentia-study-room flex min-h-screen flex-col items-center justify-center bg-[#0c1017] px-5 py-16 text-center text-[#e8e7e4]">
         <h1 className="font-[var(--font-fraunces)] text-2xl text-[#f1eee8]">Lesson not found or still in draft</h1>
