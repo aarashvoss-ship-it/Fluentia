@@ -235,6 +235,8 @@ export default function InstructorWorkstationPage({
     const title = newLesson.title.trim() || "Untitled Lesson";
     const slug = newLesson.slug.trim().toLowerCase() || createSlug(title);
     const moduleNumber = Number(newLesson.moduleNumber) || 1;
+    const assignedStudentId = student.id;
+    const assignedStudentToken = student.token;
 
     try {
       const content = {
@@ -243,6 +245,8 @@ export default function InstructorWorkstationPage({
         title,
         subtitle: newLesson.subtitle.trim() || "A new Fluentia learning journey.",
         moduleNumber,
+        student_id: assignedStudentId,
+        student_token: assignedStudentToken,
         coverImage: workstationState.bannerUrl,
         bannerUrl: workstationState.bannerUrl,
         sidebarBlocks: sidebarBlocksByStep,
@@ -388,12 +392,17 @@ export default function InstructorWorkstationPage({
     setValidationErrors({});
     setSaveIndicator("saving");
     if (!isAutoSave) setIsPublishing(true);
+    const assignedStudent = students.find(
+      (student) => student.id === studentId || student.token === studentId
+    ) || selectedStudent;
     const content = {
       ...workstationState.content,
       slug,
       title,
       subtitle: newLesson.subtitle.trim() || "A new Fluentia learning journey.",
       moduleNumber,
+      student_id: assignedStudent.id,
+      student_token: assignedStudent.token,
       coverImage: workstationState.bannerUrl,
       bannerUrl: workstationState.bannerUrl,
       sidebarBlocks: sidebarBlocksByStep,
