@@ -43,6 +43,57 @@ export interface LessonWithVersion extends LessonRow {
 export const BENCHMARK_LESSON_ID = "b1b10001-1001-4001-8001-000000000001";
 export const BENCHMARK_LESSON_SLUG = "the-architecture-of-daily-habits-b1";
 
+const FALLBACK_LESSON: LessonWithVersion = {
+  id: BENCHMARK_LESSON_ID,
+  title: "The Architecture of Daily Habits",
+  subtitle: "A practical lesson about routines, friction, and sustainable change.",
+  module_number: 1,
+  banner_url: undefined,
+  slug: BENCHMARK_LESSON_SLUG,
+  subject: "English",
+  grade: "B1",
+  status: "published",
+  student_token: null,
+  student_id: null,
+  instructor_id: null,
+  created_at: new Date(0).toISOString(),
+  updated_at: new Date(0).toISOString(),
+  content: {
+    slug: BENCHMARK_LESSON_SLUG,
+    title: "The Architecture of Daily Habits",
+    subtitle: "A practical lesson about routines, friction, and sustainable change.",
+    moduleNumber: 1,
+    warm_up: {
+      intro_narrative: { text: "Small changes become easier when the environment supports them.", enabled: true },
+      quote: { text: "What habit would you like to make easier?", enabled: true },
+    },
+    lesson: {
+      core_concept: { text: "Design the environment around the behavior you want to repeat.", enabled: true },
+      examples: [
+        { text: "Put a book beside your bed to make reading more visible.", enabled: true },
+        { text: "Prepare your running clothes the night before to reduce friction.", enabled: true },
+      ],
+    },
+    listening: {
+      transcript: { text: "Listen for the ideas about cues, friction, and repetition.", enabled: true },
+      questions: [],
+    },
+    reading: {
+      article_markdown: { text: "A reliable routine begins with a clear cue and a manageable first step.", enabled: true },
+      analytical_questions: [],
+    },
+    writing: {
+      prompt: { text: "Describe one routine you want to improve and the first small step you will take.", enabled: true },
+      draft_editor: { enabled: true, placeholder: "Write your response here..." },
+    },
+    speaking: {
+      scenario: { text: "Explain your habit plan aloud in two or three sentences.", enabled: true },
+      audio_capture: { enabled: false },
+    },
+    results: {},
+  },
+};
+
 function isMissingBannerColumn(error: { code?: string; message?: string } | null) {
   return Boolean(error && (error.code === "42703" || error.code === "PGRST204") && /banner_url/i.test(error.message || ""));
 }
@@ -163,9 +214,10 @@ export async function getLessons(): Promise<LessonWithVersion[]> {
  * Returns null gracefully if lesson not found or error occurs (instead of throwing)
  */
 export async function getLessonById(idOrSlug = BENCHMARK_LESSON_SLUG): Promise<LessonWithVersion | null> {
+  const fallback = { ...FALLBACK_LESSON, slug: idOrSlug || FALLBACK_LESSON.slug };
   if (!isSupabaseConfigured()) {
-    console.warn("Supabase not configured");
-    return null;
+    console.warn("Supabase not configured; using fallback lesson");
+    return fallback;
   }
 
   try {
@@ -179,15 +231,27 @@ export async function getLessonById(idOrSlug = BENCHMARK_LESSON_SLUG): Promise<L
 
     if (error) {
       console.warn(`Error searching for lesson ${idOrSlug} by ${lookupColumn}:`, error);
-      return null;
+      return fallback;
     }
 
     if (!lesson) {
-      if (idOrSlug !== BENCHMARK_LESSON_SLUG) {
-        return getLessonById(BENCHMARK_LESSON_SLUG);
+      if (!isUuid) {
+        const { data: lessonById, error: idError } = await supabase
+          .from("lessons")
+          .select("*")
+          .eq("id", idOrSlug)
+          .maybeSingle();
+        if (!idError && lessonById) {
+          const version = await getLatestLessonVersion(lessonById.id);
+          return { ...lessonById, current_version: version || undefined, content: version?.content };
+        }
       }
-      console.warn(`Lesson not found: ${idOrSlug}`);
-      return null;
+      if (idOrSlug !== BENCHMARK_LESSON_SLUG) {
+        const benchmark = await getLessonById(BENCHMARK_LESSON_SLUG);
+        if (benchmark) return benchmark;
+      }
+      console.warn(`Lesson not found: ${idOrSlug}; using fallback lesson`);
+      return fallback;
     }
 
     const version = await getLatestLessonVersion(lesson.id);
@@ -199,7 +263,7 @@ export async function getLessonById(idOrSlug = BENCHMARK_LESSON_SLUG): Promise<L
   } catch (error) {
     // Catch all unexpected errors and return null gracefully
     console.error(`Error fetching lesson ${idOrSlug}:`, error);
-    return null;
+    return fallback;
   }
 }
 
