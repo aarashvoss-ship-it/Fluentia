@@ -13,6 +13,8 @@ import type { LessonContent, InstructorLessonMock } from "@/types/lesson";
 export interface CreateLessonInput {
   title: string;
   banner_url?: string;
+  student_id?: string;
+  student_token?: string;
   subject?: string;
   grade?: string;
   status?: "draft" | "published" | "evaluated";
@@ -24,6 +26,8 @@ export interface CreateLessonInput {
 export interface UpdateLessonInput {
   title?: string;
   banner_url?: string;
+  student_id?: string;
+  student_token?: string;
   subject?: string;
   grade?: string;
   status?: "draft" | "published" | "evaluated";
@@ -38,6 +42,10 @@ export interface LessonWithVersion extends LessonRow {
 
 function isMissingBannerColumn(error: { code?: string; message?: string } | null) {
   return Boolean(error && (error.code === "42703" || error.code === "PGRST204") && /banner_url/i.test(error.message || ""));
+}
+
+function isMissingStudentColumn(error: { code?: string; message?: string } | null) {
+  return Boolean(error && (error.code === "42703" || error.code === "PGRST204") && /student_(id|token)/i.test(error.message || ""));
 }
 
 // ============================================================================
@@ -283,7 +291,7 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
   }
 
   try {
-    const { content, changes_summary, banner_url, ...lessonData } = input;
+    const { content, changes_summary, banner_url, student_id, student_token, ...lessonData } = input;
     const hasTitle = typeof lessonData.title === "string" && lessonData.title.trim().length > 0;
     const title = hasTitle ? lessonData.title.trim() : "Untitled Lesson";
     const slug = (title && title.trim() !== "")
@@ -302,17 +310,19 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
       slug,
       status: lessonData.status || "draft",
       ...(banner_url ? { banner_url } : {}),
+      ...(student_id ? { student_id } : {}),
+      ...(student_token ? { student_token } : {}),
     };
     let { data: lesson, error: lessonError } = await supabase
       .from("lessons")
       .insert([lessonPayload])
       .select()
       .single();
-    if (isMissingBannerColumn(lessonError)) {
-      const { banner_url: _ignoredBannerUrl, ...lessonPayloadWithoutBanner } = lessonPayload;
+    if (isMissingBannerColumn(lessonError) || isMissingStudentColumn(lessonError)) {
+      const { banner_url: _ignoredBannerUrl, student_id: _ignoredStudentId, student_token: _ignoredStudentToken, ...lessonPayloadWithoutOptionalColumns } = lessonPayload;
       ({ data: lesson, error: lessonError } = await supabase
         .from("lessons")
-        .insert([lessonPayloadWithoutBanner])
+        .insert([lessonPayloadWithoutOptionalColumns])
         .select()
         .single());
     }
@@ -358,15 +368,15 @@ export async function updateLesson(
   }
 
   try {
-    const { content, changes_summary, banner_url, ...lessonData } = input;
+    const { content, changes_summary, banner_url, student_id, student_token, ...lessonData } = input;
     // Update the lesson metadata
-    if (Object.keys(lessonData).length > 0 || banner_url) {
-      const updatePayload = { ...lessonData, ...(banner_url ? { banner_url } : {}) };
+    if (Object.keys(lessonData).length > 0 || banner_url || student_id || student_token) {
+      const updatePayload = { ...lessonData, ...(banner_url ? { banner_url } : {}), ...(student_id ? { student_id } : {}), ...(student_token ? { student_token } : {}) };
       let { error: updateError } = await supabase
         .from("lessons")
         .update(updatePayload)
         .eq("id", id);
-      if (isMissingBannerColumn(updateError)) {
+      if (isMissingBannerColumn(updateError) || isMissingStudentColumn(updateError)) {
         if (Object.keys(lessonData).length > 0) {
           ({ error: updateError } = await supabase
             .from("lessons")

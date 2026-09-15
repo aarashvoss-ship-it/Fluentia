@@ -256,7 +256,8 @@ export default function InstructorWorkstationPage({
 
   async function handleCreateLesson() {
     const draftStudentId = selectedStudentId || newLesson.studentId || selectedStudent.id;
-    const student = students.find((item) => item.id === draftStudentId) || selectedStudent;
+    const student = students.find((item) => item.id === draftStudentId || item.token === draftStudentId)
+      || (selectedStudent.id === draftStudentId || selectedStudent.token === draftStudentId ? selectedStudent : null);
     if (!student) {
       setValidationErrors({ selectedStudentId: "Select a student before creating the draft." });
       setPublishStatus("Select a student before creating the draft.");
@@ -284,6 +285,8 @@ export default function InstructorWorkstationPage({
       const created = await createLesson({
         title,
         banner_url: workstationState.bannerUrl,
+        student_id: student.id,
+        student_token: student.token,
         status: newLesson.status,
         content,
         changes_summary: "Initial lesson created in Lesson Builder",
@@ -424,7 +427,13 @@ export default function InstructorWorkstationPage({
     if (!isAutoSave) setIsPublishing(true);
     const assignedStudent = students.find(
       (student) => student.id === studentId || student.token === studentId
-    ) || selectedStudent;
+    ) || (selectedStudent.id === studentId || selectedStudent.token === studentId ? selectedStudent : null);
+    if (!assignedStudent?.id || !assignedStudent.token) {
+      setSaveIndicator("error");
+      setPublishStatus("Select a valid student before saving the lesson.");
+      if (!isAutoSave) setIsPublishing(false);
+      return;
+    }
     const content = {
       ...workstationState.content,
       slug,
@@ -441,14 +450,18 @@ export default function InstructorWorkstationPage({
       const lesson = databaseLessonId
         ? await updateLesson(databaseLessonId, {
             title,
-        banner_url: workstationState.bannerUrl,
+          banner_url: workstationState.bannerUrl,
+          student_id: assignedStudent.id,
+          student_token: assignedStudent.token,
             status,
             content,
             changes_summary: `Lesson updated as ${status}`,
           })
         : await createLesson({
             title,
-          banner_url: workstationState.bannerUrl,
+            banner_url: workstationState.bannerUrl,
+            student_id: assignedStudent.id,
+            student_token: assignedStudent.token,
             status,
             content,
             changes_summary: `Initial lesson created as ${status}`,
