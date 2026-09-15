@@ -8,7 +8,7 @@ import { LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor
 import { InstructorBannerManager } from "@/components/instructor/banner-manager";
 import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/submission-evaluator";
 import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
-import { createLesson, getLessons, updateLesson, type LessonWithVersion } from "@/lib/lessons";
+import { createLesson, deleteLesson, getLessons, updateLesson, type LessonWithVersion } from "@/lib/lessons";
 import { INSTRUCTOR_TOKEN, PublishedLessonState } from "@/lib/lesson-store";
 import { DEFAULT_STUDENT, STUDENT_USERS, StudentUser } from "@/lib/users";
 import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/storage-service";
@@ -81,6 +81,7 @@ export default function InstructorWorkstationPage({
   const inputTimer = useRef<number | null>(null);
   const [validationErrors, setValidationErrors] = useState<Partial<Record<"selectedStudentId" | "title" | "slug" | "moduleNumber", string>>>({});
   const [createdLessons, setCreatedLessons] = useState<LessonWithVersion[]>([]);
+  const [lessonPendingDelete, setLessonPendingDelete] = useState<LessonWithVersion | null>(null);
   const [newLesson, setNewLesson] = useState({
     studentId: DEFAULT_STUDENT.id,
     title: "",
@@ -207,6 +208,35 @@ export default function InstructorWorkstationPage({
     window.setTimeout(() => {
       hasLoadedLesson.current = true;
     }, 0);
+  };
+
+  const handleEditLesson = (lesson: LessonWithVersion) => {
+    activateLesson(lesson);
+    setActiveTab("builder");
+  };
+
+  const handleDeleteLesson = async () => {
+    if (!lessonPendingDelete) return;
+    const lesson = lessonPendingDelete;
+    setLessonPendingDelete(null);
+    setCreatedLessons((current) => current.filter((item) => item.id !== lesson.id));
+    if (databaseLessonId === lesson.id) {
+      setDatabaseLessonId(null);
+      setSaveIndicator("idle");
+    }
+    try {
+      await deleteLesson(lesson.id);
+      setPublishStatus(`Lesson '${lesson.title}' deleted.`);
+    } catch (error) {
+      console.error("Lesson deletion failed:", error);
+      setCreatedLessons((current) => [lesson, ...current]);
+      setPublishStatus("Lesson deletion failed. The lesson was restored in the table.");
+    }
+  };
+
+  const getAssignedStudentName = (lesson: LessonWithVersion) => {
+    const assignedStudentId = getSavedStudentId(lesson);
+    return students.find((student) => student.id === assignedStudentId || student.token === assignedStudentId)?.name || assignedStudentId || "Unassigned";
   };
 
   useEffect(() => {
@@ -593,6 +623,33 @@ export default function InstructorWorkstationPage({
 <button type="button" onClick={() => setActiveTab("evaluation")} className="mt-4 text-xs font-semibold text-amber-300 hover:text-amber-200">Review student work</button>
 </div>
 </div>
+          <section className="overflow-hidden rounded-xl border border-[#202631] bg-[#171d28]/60" aria-labelledby="lesson-management-title">
+            <div className="flex items-center justify-between gap-4 border-b border-[#202631] px-5 py-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Lesson Management</p>
+                <h2 id="lesson-management-title" className="mt-1 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">All Lessons</h2>
+              </div>
+              <span className="text-xs text-stone-500">{createdLessons.length} lessons</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-[920px] w-full text-left text-xs">
+                <thead className="border-b border-[#202631] bg-[#0c1017] text-[10px] uppercase tracking-[0.12em] text-stone-500">
+                  <tr><th className="px-5 py-3 font-semibold">Title</th><th className="px-4 py-3 font-semibold">Subtitle</th><th className="px-4 py-3 font-semibold">Assigned Student</th><th className="px-4 py-3 font-semibold">Status</th><th className="px-4 py-3 font-semibold">Module</th><th className="px-4 py-3 text-right font-semibold">Actions</th></tr>
+                </thead>
+                <tbody className="divide-y divide-[#202631]">
+                  {createdLessons.map((lesson) => <tr key={lesson.id} className="text-stone-300 transition hover:bg-[#202631]/30">
+                    <td className="max-w-[220px] px-5 py-4"><p className="truncate font-semibold text-stone-100">{lesson.title}</p><p className="mt-1 truncate text-[10px] text-stone-600">{lesson.content?.slug || lesson.id}</p></td>
+                    <td className="max-w-[260px] px-4 py-4"><span className="line-clamp-2 text-stone-400">{lesson.content?.subtitle || lesson.subtitle || "No subtitle"}</span></td>
+                    <td className="px-4 py-4 text-stone-300">{getAssignedStudentName(lesson)}</td>
+                    <td className="px-4 py-4"><span className={`rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${lesson.status === "published" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/30 bg-amber-500/10 text-amber-300"}`}>{lesson.status === "published" ? "Published" : "Draft"}</span></td>
+                    <td className="px-4 py-4 text-stone-300">Module {lesson.content?.moduleNumber || lesson.module_number || 1}</td>
+                    <td className="px-4 py-4"><div className="flex justify-end gap-2"><button type="button" onClick={() => handleEditLesson(lesson)} className="rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500 hover:text-black">Edit / Continue</button><button type="button" onClick={() => setLessonPendingDelete(lesson)} aria-label={`Delete ${lesson.title}`} title="Delete lesson" className="flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button></div></td>
+                  </tr>)}
+                  {createdLessons.length === 0 && <tr><td colSpan={6} className="px-5 py-10 text-center text-stone-500">No lessons have been created yet.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </section>
         </section>}
 
         {activeTab === "builder" && <>
@@ -673,6 +730,7 @@ export default function InstructorWorkstationPage({
           </div>
         </div>
       </div>}
+      {lessonPendingDelete && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-lesson-title"><div className="w-full max-w-md rounded-xl border border-[#394252] bg-[#171d28] p-6 shadow-2xl"><h2 id="delete-lesson-title" className="font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Delete lesson?</h2><p className="mt-3 text-sm leading-relaxed text-stone-400">Are you sure you want to delete this lesson?</p><p className="mt-2 truncate text-xs text-amber-300">{lessonPendingDelete.title}</p><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setLessonPendingDelete(null)} className="rounded-md border border-[#394252] px-4 py-2 text-xs font-semibold text-stone-300 hover:border-stone-300">Cancel</button><button type="button" onClick={() => void handleDeleteLesson()} className="rounded-md bg-red-500 px-4 py-2 text-xs font-semibold text-white hover:bg-red-400">Delete lesson</button></div></div></div>}
     </div>
   );
 }
