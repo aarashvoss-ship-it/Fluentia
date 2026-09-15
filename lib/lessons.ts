@@ -188,55 +188,30 @@ export async function getLessonById(idOrSlug: string): Promise<LessonWithVersion
   }
 
   try {
-    // First try: search by ID (assuming UUID format)
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idOrSlug);
+    const lookupColumn = isUuid ? "id" : "slug";
     const { data: lesson, error } = await supabase
       .from("lessons")
       .select("*")
-      .eq("id", idOrSlug)
+      .eq(lookupColumn, idOrSlug)
       .maybeSingle();
 
-    // If found by ID, return it
-    if (lesson) {
-      const version = await getLatestLessonVersion(lesson.id);
-      return {
-        ...lesson,
-        current_version: version || undefined,
-        content: version?.content,
-      };
+    if (error) {
+      console.warn(`Error searching for lesson ${idOrSlug} by ${lookupColumn}:`, error);
+      return null;
     }
 
-    // If not found by ID, try a title match for deployments that predate UUID routing.
-    if (error?.code === "PGRST116" || !lesson) {
-      const { data: lessonByTitle, error: titleError } = await supabase
-        .from("lessons")
-        .select("*")
-        .ilike("title", `%${idOrSlug}%`)
-        .limit(1)
-        .maybeSingle();
-
-      if (lessonByTitle) {
-        const version = await getLatestLessonVersion(lessonByTitle.id);
-        return {
-          ...lessonByTitle,
-          current_version: version || undefined,
-          content: version?.content,
-        };
-      }
-
-      // If still not found or error, return null gracefully
-      if (titleError?.code === "PGRST116") {
-        console.warn(`Lesson not found: ${idOrSlug}`);
-        return null;
-      }
-
-      if (titleError) {
-        console.warn(`Error searching for lesson ${idOrSlug}:`, titleError);
-        return null;
-      }
+    if (!lesson) {
+      console.warn(`Lesson not found: ${idOrSlug}`);
+      return null;
     }
 
-    // If we get here, lesson was not found
-    return null;
+    const version = await getLatestLessonVersion(lesson.id);
+    return {
+      ...lesson,
+      current_version: version || undefined,
+      content: version?.content,
+    };
   } catch (error) {
     // Catch all unexpected errors and return null gracefully
     console.error(`Error fetching lesson ${idOrSlug}:`, error);

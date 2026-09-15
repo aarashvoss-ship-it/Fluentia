@@ -168,7 +168,7 @@ export default function LessonPage() {
 
     const loadLesson = async () => {
       try {
-        const lesson = await withLessonTimeout(getLessonById(requestedSlug), 2000);
+        const lesson = await withLessonTimeout(getLessonById(requestedSlug), 8000);
         if (!mounted) return;
         
         if (lesson) {
