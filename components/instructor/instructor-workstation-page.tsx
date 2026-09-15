@@ -76,6 +76,8 @@ export default function InstructorWorkstationPage({
   const [saveIndicator, setSaveIndicator] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const hasLoadedLesson = useRef(false);
   const lastSavedDraftSignature = useRef<string | null>(null);
+  const lastInputAt = useRef(0);
+  const inputTimer = useRef<number | null>(null);
   const [validationErrors, setValidationErrors] = useState<Partial<Record<"selectedStudentId" | "title" | "slug" | "moduleNumber", string>>>({});
   const [createdLessons, setCreatedLessons] = useState<LessonWithVersion[]>([]);
   const [newLesson, setNewLesson] = useState({
@@ -103,6 +105,7 @@ export default function InstructorWorkstationPage({
       title: title.trim() || "Untitled Lesson",
       subtitle: subtitle.trim() || "A new Fluentia learning journey.",
       moduleNumber: Number(moduleNumber) || 1,
+      bannerUrl: workstationState.bannerUrl,
       sidebarBlocks,
     });
 
@@ -159,11 +162,15 @@ export default function InstructorWorkstationPage({
       studentId: lesson.student_token || previous.studentId,
       title: lesson.title,
       slug: lessonSlug,
-      subtitle: typeof content.subtitle === "string" ? content.subtitle : "",
-      moduleNumber: String(content.moduleNumber || 1),
+      subtitle: typeof content.subtitle === "string" ? content.subtitle : lesson.subtitle || "",
+      moduleNumber: String(content.moduleNumber || lesson.module_number || 1),
       status: lesson.status === "published" ? "published" : "draft",
     }));
-    setWorkstationState((previous) => ({ ...previous, content }));
+    setWorkstationState((previous) => ({
+      ...previous,
+      content,
+      bannerUrl: typeof content.coverImage === "string" ? content.coverImage : lesson.banner_url || "",
+    }));
     setDatabaseLessonId(lesson.id);
     setLessonStatus(lesson.status === "published" ? "published" : "draft");
     window.setTimeout(() => {
@@ -190,9 +197,15 @@ export default function InstructorWorkstationPage({
         title,
         subtitle: newLesson.subtitle.trim() || "A new Fluentia learning journey.",
         moduleNumber,
+        coverImage: workstationState.bannerUrl,
+        bannerUrl: workstationState.bannerUrl,
       };
       const created = await createLesson({
         title,
+        slug,
+        subtitle: content.subtitle,
+        module_number: moduleNumber,
+        banner_url: workstationState.bannerUrl,
         status: newLesson.status,
         content,
         changes_summary: "Initial lesson created in Lesson Builder",
@@ -238,11 +251,34 @@ export default function InstructorWorkstationPage({
     }
     if (lastSavedDraftSignature.current === draftSignature) return;
     setSaveIndicator("saving");
-    const timer = window.setTimeout(() => {
+    const saveAfterInactivity = () => {
+      const elapsed = Date.now() - lastInputAt.current;
+      if (elapsed < 3000) return window.setTimeout(saveAfterInactivity, 3000 - elapsed);
       void saveLessonChanges("draft", true);
-    }, 900);
+      return undefined;
+    };
+    const timer = window.setTimeout(saveAfterInactivity, 3000);
     return () => window.clearTimeout(timer);
-  }, [workstationState.content, newLesson.title, newLesson.subtitle, newLesson.moduleNumber, sidebarBlocks, databaseLessonId]);
+  }, [workstationState.content, workstationState.bannerUrl, newLesson.title, newLesson.subtitle, newLesson.moduleNumber, sidebarBlocks, databaseLessonId]);
+
+  useEffect(() => {
+    const handleInput = () => {
+      lastInputAt.current = Date.now();
+      if (inputTimer.current) window.clearTimeout(inputTimer.current);
+      inputTimer.current = window.setTimeout(() => { inputTimer.current = null; }, 3000);
+    };
+    document.addEventListener("input", handleInput, true);
+    return () => {
+      document.removeEventListener("input", handleInput, true);
+      if (inputTimer.current) window.clearTimeout(inputTimer.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!publishStatus) return;
+    const timer = window.setTimeout(() => setPublishStatus(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [publishStatus]);
 
   useEffect(() => {
     const loadCounts = async () => {
@@ -314,6 +350,8 @@ export default function InstructorWorkstationPage({
       title,
       subtitle: newLesson.subtitle.trim() || "A new Fluentia learning journey.",
       moduleNumber,
+      coverImage: workstationState.bannerUrl,
+      bannerUrl: workstationState.bannerUrl,
       notes: sidebarBlocks.find((block) => block.id === "teacher-notes")?.body || "",
       vocabulary: sidebarBlocks.find((block) => block.id === "extra-vocabulary")?.body || "",
       sidebarBlocks,
@@ -322,12 +360,19 @@ export default function InstructorWorkstationPage({
       const lesson = databaseLessonId
         ? await updateLesson(databaseLessonId, {
             title,
+          subtitle: content.subtitle,
+          module_number: moduleNumber,
+          banner_url: workstationState.bannerUrl,
             status,
             content,
             changes_summary: `Lesson updated as ${status}`,
           })
         : await createLesson({
             title,
+          slug,
+          subtitle: content.subtitle,
+          module_number: moduleNumber,
+          banner_url: workstationState.bannerUrl,
             status,
             content,
             changes_summary: `Initial lesson created as ${status}`,
@@ -342,12 +387,12 @@ export default function InstructorWorkstationPage({
         moduleNumber: String(moduleNumber),
         status,
       }));
-      setWorkstationState((previous) => ({ ...previous, content: lesson.content || content }));
+      setWorkstationState((previous) => ({ ...previous, content: lesson.content || content, bannerUrl: workstationState.bannerUrl }));
       hasLoadedLesson.current = true;
       await refreshCreatedLessons();
       setLessonStatus(status);
       setSaveIndicator("saved");
-      lastSavedDraftSignature.current = getDraftSignature(workstationState.content, title, newLesson.subtitle, String(moduleNumber));
+      lastSavedDraftSignature.current = getDraftSignature(content, title, content.subtitle, String(moduleNumber));
       console.log("Lesson saved successfully", { lessonId: lesson.id, status });
       if (!isAutoSave) setPublishStatus(`Lesson saved as ${status} and synced with student view.`);
     } catch (error) {
@@ -565,7 +610,7 @@ export default function InstructorWorkstationPage({
       {showPreview && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="lesson-preview-title">
         <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-[#394252] bg-[#171d28] shadow-2xl">
           <div className="flex flex-col gap-4 border-b border-[#293343] p-5 sm:flex-row sm:items-center sm:justify-between">
-            <div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Student View Preview</p><h2 id="lesson-preview-title" className="mt-1 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">{newLesson.title || "Untitled Lesson"}</h2></div>
+            <div className="flex items-center gap-4">{workstationState.bannerUrl && <img src={workstationState.bannerUrl} alt="" className="h-12 w-20 rounded object-cover" />}<div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Student View Preview</p><h2 id="lesson-preview-title" className="mt-1 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">{newLesson.title || "Untitled Lesson"}</h2><p className="mt-1 text-sm text-stone-400">{newLesson.subtitle || "Your instructor has prepared this lesson for you."}</p></div></div>
             <div className="flex items-center gap-2"><button type="button" onClick={() => setShowPreview(false)} className="rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black">Back to Editing</button><button type="button" onClick={handleConfirmPublish} disabled={isPublishing} className="rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-black transition-colors hover:bg-amber-400 disabled:opacity-50">Publish Lesson</button></div>
           </div>
           <div className="grid min-h-0 flex-1 overflow-hidden md:grid-cols-[180px_1fr]">

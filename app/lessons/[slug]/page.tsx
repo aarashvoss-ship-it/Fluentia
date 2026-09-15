@@ -208,10 +208,22 @@ export default function LessonPage() {
 
   const lessonContent = lesson?.content || {};
   const lessonMetadata = lessonContent as LessonContent;
-  const lessonSubtitle = typeof lesson?.subtitle === "string" ? lesson.subtitle.trim() : "";
-  const lessonModuleNumber = typeof lessonContent.moduleNumber === "number" ? lessonContent.moduleNumber : null;
+  const lessonSubtitle = typeof lesson?.subtitle === "string"
+    ? lesson.subtitle.trim()
+    : typeof lessonContent.subtitle === "string"
+      ? lessonContent.subtitle.trim()
+      : "";
+  const lessonModuleNumber = typeof lessonContent.moduleNumber === "number"
+    ? lessonContent.moduleNumber
+    : typeof lesson?.module_number === "number"
+      ? lesson.module_number
+      : null;
   const instructor = lessonMetadata.instructor;
-  const heroBanner = typeof lessonContent.coverImage === "string" ? lessonContent.coverImage : undefined;
+  const heroBanner = typeof lessonContent.coverImage === "string"
+    ? lessonContent.coverImage
+    : typeof lesson?.banner_url === "string"
+      ? lesson.banner_url
+      : undefined;
   const evaluation = publishedLesson?.evaluation;
   const isEvaluationPublished = evaluation?.published === true;
   const totalScore = evaluation

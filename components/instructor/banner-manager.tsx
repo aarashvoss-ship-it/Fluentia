@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Image, Upload, Check } from "lucide-react";
 
 interface BannerManagerProps {
@@ -23,6 +23,10 @@ export function InstructorBannerManager({
   onUpdateCustomInput,
 }: BannerManagerProps) {
   const [selectedUrl, setSelectedUrl] = useState<string>(bannerUrl);
+
+  useEffect(() => {
+    setSelectedUrl(bannerUrl);
+  }, [bannerUrl]);
 
   const handleSelect = (url: string) => {
     setSelectedUrl(url);

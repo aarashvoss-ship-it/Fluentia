@@ -17,6 +17,9 @@ export interface LessonRow {
 	id: string;
 	title: string;
 	subtitle?: string | null;
+	module_number?: number | null;
+	banner_url?: string | null;
+	slug?: string | null;
 	subject: string | null;
 	grade: string | null;
 	status: "draft" | "published" | "evaluated";

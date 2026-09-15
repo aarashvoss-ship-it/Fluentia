@@ -12,6 +12,10 @@ import type { LessonContent, InstructorLessonMock } from "@/types/lesson";
 
 export interface CreateLessonInput {
   title: string;
+  slug?: string;
+  subtitle?: string;
+  module_number?: number;
+  banner_url?: string;
   subject?: string;
   grade?: string;
   status?: "draft" | "published" | "evaluated";
@@ -22,6 +26,10 @@ export interface CreateLessonInput {
 
 export interface UpdateLessonInput {
   title?: string;
+  slug?: string;
+  subtitle?: string;
+  module_number?: number;
+  banner_url?: string;
   subject?: string;
   grade?: string;
   status?: "draft" | "published" | "evaluated";
@@ -283,8 +291,15 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
     const baseSlug = hasTitle
       ? title.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
       : "untitled-lesson";
-    const slug = `${baseSlug || "untitled-lesson"}-${Date.now()}`;
-    const versionContent = { ...content, slug };
+    const slug = lessonData.slug || `${baseSlug || "untitled-lesson"}-${Date.now()}`;
+    const versionContent = {
+      ...content,
+      slug,
+      title,
+      subtitle: lessonData.subtitle || content.subtitle,
+      moduleNumber: lessonData.module_number || content.moduleNumber,
+      coverImage: lessonData.banner_url || content.coverImage,
+    };
 
     // Insert the lesson
     const { data: lesson, error: lessonError } = await supabase
@@ -294,6 +309,9 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
           ...lessonData,
           title,
           slug,
+          subtitle: lessonData.subtitle || null,
+          module_number: lessonData.module_number || 1,
+          banner_url: lessonData.banner_url || null,
           status: lessonData.status || "draft",
         },
       ])
@@ -342,10 +360,18 @@ export async function updateLesson(
 
   try {
     const { content, changes_summary, ...lessonData } = input;
+    const metadata = content || {};
+    const updatePayload = {
+      ...lessonData,
+      ...(content ? {
+        subtitle: typeof metadata.subtitle === "string" ? metadata.subtitle : null,
+        module_number: Number(metadata.moduleNumber) || 1,
+        banner_url: typeof metadata.coverImage === "string" ? metadata.coverImage : null,
+      } : {}),
+    };
 
     // Update the lesson metadata
-    const updatePayload = Object.keys(lessonData).length > 0 ? lessonData : null;
-    if (updatePayload) {
+    if (Object.keys(updatePayload).length > 0) {
       const { error: updateError } = await supabase
         .from("lessons")
         .update(updatePayload)

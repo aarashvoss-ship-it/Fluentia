@@ -35,6 +35,7 @@ export interface QuizQuestion {
   prompt: string;
   options: string[];
   correctAnswer?: string;
+  correct_answer?: string;
 }
 
 export interface ContentBlockBase {
