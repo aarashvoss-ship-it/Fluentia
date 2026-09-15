@@ -158,7 +158,7 @@ export async function getLessonById(idOrSlug: string): Promise<LessonWithVersion
       .from("lessons")
       .select("*")
       .eq("id", idOrSlug)
-      .single();
+      .maybeSingle();
 
     // If found by ID, return it
     if (lesson) {
@@ -177,7 +177,7 @@ export async function getLessonById(idOrSlug: string): Promise<LessonWithVersion
         .select("*")
         .ilike("title", `%${idOrSlug}%`)
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (lessonByTitle) {
         const version = await getLatestVersion(lessonByTitle.id);
