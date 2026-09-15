@@ -78,7 +78,7 @@ export function AmbientMusicPlayer({ src = DEFAULT_FOCUS_TRACK }: AmbientMusicPl
         onClick={toggleEnabled}
         aria-label={isEnabled ? "Disable ambient music" : "Enable ambient music"}
         aria-pressed={isEnabled}
-        className={`flex h-8 w-8 items-center justify-center rounded-md border transition hover:border-amber-500/50 hover:shadow-amber-500/20 ${isEnabled ? "border-amber-500/70 bg-amber-500/10 text-amber-300 shadow-[0_0_14px_rgba(245,158,11,.18)]" : "border-[#394252] bg-[#171d28] text-stone-400 hover:text-amber-300"}`}
+        className={`flex h-8 w-8 items-center justify-center rounded-md border transition hover:border-amber-500/50 hover:shadow-md hover:shadow-amber-500/10 ${isEnabled ? "border-amber-500/70 bg-amber-500/10 text-amber-300 shadow-[0_0_14px_rgba(245,158,11,.18)]" : "border-[#394252] bg-[#171d28] text-stone-400 hover:text-amber-300"}`}
       >
         <Music className="h-3.5 w-3.5" aria-hidden="true" />
       </button>
@@ -87,7 +87,7 @@ export function AmbientMusicPlayer({ src = DEFAULT_FOCUS_TRACK }: AmbientMusicPl
         onClick={() => setShowVolume((open) => !open)}
         aria-label="Adjust ambient music volume"
         aria-expanded={showVolume}
-        className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28] text-stone-400 transition hover:border-amber-500/50 hover:shadow-amber-500/20 hover:text-amber-300"
+        className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28] text-stone-400 transition hover:border-amber-500/50 hover:shadow-md hover:shadow-amber-500/10 hover:text-amber-300"
       >
         {volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
       </button>
@@ -103,7 +103,7 @@ export function AmbientMusicPlayer({ src = DEFAULT_FOCUS_TRACK }: AmbientMusicPl
         onClick={togglePlayback}
         aria-label={isPlaying ? "Pause ambient focus music" : "Play ambient focus music"}
         aria-pressed={isPlaying}
-        className={`flex h-8 w-8 items-center justify-center rounded-md border transition hover:border-amber-500/50 hover:shadow-amber-500/20 ${isPlaying ? "border-amber-500/70 bg-amber-500/10 text-amber-300 shadow-[0_0_14px_rgba(245,158,11,.18)]" : "border-[#394252] bg-[#171d28] text-stone-400 hover:text-amber-300"}`}
+        className={`flex h-8 w-8 items-center justify-center rounded-md border transition hover:border-amber-500/50 hover:shadow-md hover:shadow-amber-500/10 ${isPlaying ? "border-amber-500/70 bg-amber-500/10 text-amber-300 shadow-[0_0_14px_rgba(245,158,11,.18)]" : "border-[#394252] bg-[#171d28] text-stone-400 hover:text-amber-300"}`}
       >
         {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
       </button>
