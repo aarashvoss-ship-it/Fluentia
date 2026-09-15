@@ -193,17 +193,19 @@ function DashboardContent() {
 
   return (
     <main className="min-h-screen bg-[#0c1017] text-[#e8e7e4] font-sans">
-      <div className="mx-auto max-w-6xl px-6 py-10 md:py-14">
-        <header style={{ backgroundImage: `linear-gradient(90deg, rgba(12,16,23,.98), rgba(12,16,23,.78)), url(${dashboardHeaderBanner})` }} className="border-b border-[#202631] bg-cover bg-center bg-no-repeat px-5 py-6 pb-8 md:px-8">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-400">
-            Fluentia Study Room
-          </p>
+        <header style={{ backgroundImage: `linear-gradient(90deg, rgba(12,16,23,.96), rgba(12,16,23,.62)), url(${dashboardHeaderBanner})` }} className="relative flex min-h-[280px] w-full flex-col justify-end overflow-hidden bg-slate-950 bg-cover bg-center p-8 md:min-h-[340px]">
+          <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=1800&q=80')] bg-cover bg-center opacity-40" aria-hidden="true" />
+          <div className="absolute inset-0 bg-[linear-gradient(0deg,rgba(12,16,23,.98),transparent_65%)]" aria-hidden="true" />
+          <div className="relative z-10 mx-auto w-full max-w-5xl">
+          <span className="w-fit rounded-full border border-amber-500/40 bg-[#332713]/85 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e4ae45]">
+            ENGLISH B1 - ACTIVE MODULE
+          </span>
           <div className="mt-3 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
             <div>
               <h1 className="font-[var(--font-fraunces)] text-3xl font-semibold text-[#f1eee8]">
                 Welcome back, {displayName}.
               </h1>
-              <p className="mt-2 text-sm text-[#8f98a8]">Choose a lesson to continue your journey.</p>
+              <p className="mt-2 text-sm text-[#b5bac2]">Continue your journey in {nextLesson?.title || "Habits & Productivity"}.</p>
             </div>
             <div className="flex items-center gap-3">
               <button type="button" onClick={() => setDictionaryOpen(true)} aria-label="Open dictionary" className="flex h-9 w-9 items-center justify-center rounded-md border border-[#394252] bg-[#171d28] text-stone-400 transition hover:border-amber-500 hover:text-amber-300"><BookOpen className="h-4 w-4" /></button>
@@ -228,7 +230,10 @@ function DashboardContent() {
             </div>
           </div>
           <div className="mt-4 flex items-center gap-2 text-xs text-[#667084]"><UserRound className="h-3.5 w-3.5" />{displayLessons.length} lessons available <span className="text-[#394252]">|</span> B2 Upper Intermediate</div>
+          </div>
         </header>
+
+      <div className="mx-auto max-w-5xl px-4 py-8">
 
         <section className="grid gap-3 border-b border-[#202631] py-6 sm:grid-cols-3" aria-label="Student progress overview">
           <div className="rounded-xl border border-[#202631] bg-[#121721] p-4">
