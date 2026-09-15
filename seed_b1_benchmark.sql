@@ -1,18 +1,20 @@
 -- Fluentia B1 benchmark lesson seed.
--- Run after migrations/001_create_base_schema.sql with Supabase SQL Editor or a service-role connection.
+-- Run after migrations/001_create_base_schema.sql and migrations/004_add_lesson_student_token.sql with Supabase SQL Editor or a service-role connection.
 -- Safe to rerun: the fixed lesson/version IDs are updated in place.
 
-INSERT INTO lessons (id, slug, title, status)
+INSERT INTO lessons (id, slug, title, status, student_token)
 VALUES (
   'b1b10001-1001-4001-8001-000000000001',
   'the-architecture-of-daily-habits-b1',
   'The Architecture of Daily Habits (B1 Intermediate)',
-  'published'
+  'published',
+  'navid-3912'
 )
 ON CONFLICT (id) DO UPDATE SET
   slug = EXCLUDED.slug,
   title = EXCLUDED.title,
   status = EXCLUDED.status,
+  student_token = EXCLUDED.student_token,
   updated_at = now();
 
 INSERT INTO lesson_versions (id, lesson_id, version_number, changes_summary, content)

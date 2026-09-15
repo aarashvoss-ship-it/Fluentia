@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { BookOpen, CheckCircle2, Clock3, Flame, Layers3, MessageSquareText, PanelRight, Settings2, UserRound, X } from "lucide-react";
 import { DEFAULT_STUDENT, type StudentUser } from "@/lib/users";
 import { persistResolvedStudent, PublishedLessonState, resolveStudentAccess, writeLastAccessedLesson } from "@/lib/lesson-store";
-import { getLessons, type LessonWithVersion } from "@/lib/lessons";
+import { getLessons, getLessonsByStudentId, type LessonWithVersion } from "@/lib/lessons";
 import { FLUENTIA_DATA_UPDATED_EVENT, fetchChatMessages, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, removeVocabularyWord, saveChatMessage, saveStudentNote, saveVocabularyWord } from "@/services/storage-service";
 import { ChatMessage, SavedVocabularyWord, StudentNote } from "@/types/lesson";
 import { DictionaryModal } from "@/components/study-room/dictionary-modal";
@@ -54,7 +55,9 @@ function isValidImageUrl(value: string) {
   }
 }
 
-export default function DashboardPage() {
+function DashboardContent() {
+  const searchParams = useSearchParams();
+  const studentId = searchParams.get("student") || searchParams.get("token") || "navid-3912";
   const [isMounted, setIsMounted] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
   const [activeStudent, setActiveStudent] = useState(DEFAULT_STUDENT);
@@ -77,13 +80,16 @@ export default function DashboardPage() {
   useEffect(() => {
     const loadDashboard = async (studentToken: string) => {
       const [lessonRows, savedProfile, savedWords, studentNotes, messages] = await Promise.all([
-        getLessons(),
+        getLessonsByStudentId(studentToken),
         getStudentProfile(studentToken).catch(() => null),
         fetchSavedVocabulary(studentToken),
         fetchStudentNotes(studentToken),
         fetchChatMessages(studentToken),
       ]);
-      const availableLessons = lessonRows.filter((lesson) => lesson.status === "published");
+      const assignedLessons = lessonRows.filter((lesson) => lesson.status === "published");
+      const availableLessons = assignedLessons.length > 0
+        ? assignedLessons
+        : (await getLessons()).filter((lesson) => lesson.status === "published");
       setLessons(availableLessons);
       if (savedProfile && Object.keys(savedProfile).length > 0) {
         setActiveStudent((previous) => previous.profile
@@ -102,7 +108,7 @@ export default function DashboardPage() {
       setChatMessages(messages);
     };
     const params = new URLSearchParams(window.location.search);
-    const active = resolveStudentAccess(params.get("student") || params.get("token"));
+    const active = resolveStudentAccess(studentId);
     if (!active) {
       setAccessDenied(true);
       setIsMounted(true);
@@ -178,9 +184,10 @@ export default function DashboardPage() {
     : undefined;
   const avatarImage = isValidImageUrl(customAvatarUrl.trim()) ? customAvatarUrl.trim() : "";
   const availableLessons = displayLessons.filter((lesson) => lesson.id !== nextLesson?.id);
-  const getLessonHref = (lessonId: string, status: LessonStatus) => {
+  const getLessonHref = (lesson: LessonWithVersion, status: LessonStatus) => {
     const stepParam = status === "completed" ? "&step=7" : status === "pending-review" ? "&start=warm_up" : "";
-    return `/lessons/${lessonId}?student=${encodeURIComponent(token)}${stepParam}`;
+    const lessonPath = lesson.content?.slug || lesson.slug || lesson.id;
+    return `/lessons/${lessonPath}?student=${encodeURIComponent(token)}${stepParam}`;
   };
   const rememberLesson = (lessonId: string) => writeLastAccessedLesson(lessonId, token);
 
@@ -257,13 +264,13 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2 text-amber-400"><Layers3 className="h-4 w-4" /><p className="text-[10px] font-semibold uppercase tracking-[0.14em]">My Vocabulary &amp; Flashcards</p></div>
               <p className="mt-2 text-sm text-stone-400">Review saved words between lessons.</p>
             </div>
-            {displayLessons[0] && <Link href={getLessonHref(displayLessons[0].id, getLessonStatus(lessonStates[displayLessons[0].id]))} onClick={() => rememberLesson(displayLessons[0].id)} className="text-xs font-semibold text-amber-300 hover:text-amber-200">Open Study Room</Link>}
+            {displayLessons[0] && <Link href={getLessonHref(displayLessons[0], getLessonStatus(lessonStates[displayLessons[0].id]))} onClick={() => rememberLesson(displayLessons[0].id)} className="text-xs font-semibold text-amber-300 hover:text-amber-200">Open Study Room</Link>}
           </div>
           {currentCard ? <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center"><button type="button" onClick={() => setShowDefinition((shown) => !shown)} className="flex min-h-24 flex-1 items-center justify-center rounded-lg border border-amber-500/30 bg-[#0c1017] p-4 text-center transition hover:border-amber-400"><span className="font-[var(--font-fraunces)] text-2xl text-stone-100">{showDefinition ? currentCard.definition : currentCard.word}</span></button><div className="flex items-center justify-between gap-4 sm:w-36 sm:flex-col"><span className="text-xs text-stone-500">{cardIndex + 1} / {savedWords.length} cards</span><button type="button" onClick={() => { setCardIndex((index) => (index + 1) % savedWords.length); setShowDefinition(false); }} className="text-xs font-semibold text-amber-300 hover:text-amber-200">Next card</button></div></div> : <p className="mt-4 rounded-lg border border-dashed border-[#394252] p-4 text-sm text-stone-500">Save words in the Study Room dictionary to build your first deck.</p>}
         </section>
 
         {nextLesson && <section className="mt-6" aria-label="Continue learning">
-          <Link href={getLessonHref(nextLesson.id, getLessonStatus(lessonStates[nextLesson.id]))} onClick={() => rememberLesson(nextLesson.id)} style={instructorLessonBanner ? { backgroundImage: `url(${instructorLessonBanner})` } : undefined} className="group relative block h-64 overflow-hidden rounded-xl border border-amber-500/30 bg-cover bg-center bg-no-repeat transition-colors hover:border-amber-400/70">
+          <Link href={getLessonHref(nextLesson, getLessonStatus(lessonStates[nextLesson.id]))} onClick={() => rememberLesson(nextLesson.id)} style={instructorLessonBanner ? { backgroundImage: `url(${instructorLessonBanner})` } : undefined} className="group relative block h-64 overflow-hidden rounded-xl border border-amber-500/30 bg-cover bg-center bg-no-repeat transition-colors hover:border-amber-400/70">
             <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,11,17,.95),rgba(7,11,17,.6)_52%,rgba(7,11,17,.82)),linear-gradient(0deg,rgba(7,11,17,.92),transparent_65%)]" />
             <div className="relative flex h-full flex-col justify-between p-5 md:p-7"><div><div className="flex items-center gap-2 text-amber-400"><Flame className="h-4 w-4" /><span className="text-[10px] font-semibold uppercase tracking-[0.16em]">Continue Learning / Next Up</span></div><h2 className="mt-2 font-[var(--font-fraunces)] text-2xl font-semibold text-stone-100 md:text-3xl">{nextLesson.title}</h2><p className="mt-2 max-w-2xl text-sm text-stone-300">{nextLesson.content?.subtitle || "Continue your personalized language practice."}</p></div><div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div className="w-full max-w-xs"><div className="flex items-center justify-between text-xs text-stone-300"><span>{progressPercent}% course progress</span><span>{completedLessons}/{displayLessons.length}</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-[#0c1017]/80"><div className="h-full rounded-full bg-amber-500 transition-all" style={{ width: `${progressPercent}%` }} /></div></div><span className="inline-flex w-fit items-center rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 transition group-hover:bg-amber-400">Start Lesson <span className="ml-2" aria-hidden="true">-&gt;</span></span></div></div>
           </Link>
@@ -335,7 +342,7 @@ export default function DashboardPage() {
                   <p className="mt-2 text-sm leading-relaxed text-stone-400">{lesson.content?.subtitle || "Continue your personalized language practice."}</p>
                   <p className="mt-3 flex items-center gap-2 text-[11px] text-stone-500"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#283344] text-[8px] font-semibold text-[#d9a63b]">{lesson.content?.instructor?.initials || ""}</span> Guided by {lesson.content?.instructor?.fullName || "Your instructor"}</p>
                 </div>
-                <Link href={getLessonHref(lesson.id, status)} onClick={() => rememberLesson(lesson.id)} className={`mt-5 inline-flex rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
+                <Link href={getLessonHref(lesson, status)} onClick={() => rememberLesson(lesson.id)} className={`mt-5 inline-flex rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
                   status === "completed"
                     ? "bg-emerald-500 text-[#0c1017]"
                     : "bg-amber-500 text-[#0c1017] group-hover:bg-amber-400"
@@ -393,4 +400,8 @@ export default function DashboardPage() {
       )}
     </main>
   );
+}
+
+export default function DashboardPage() {
+  return <Suspense fallback={<main className="min-h-screen bg-[#0c1017]" />}><DashboardContent /></Suspense>;
 }

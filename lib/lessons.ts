@@ -185,6 +185,9 @@ export async function getLessonById(idOrSlug = BENCHMARK_LESSON_SLUG): Promise<L
     }
 
     if (!lesson) {
+      if (idOrSlug !== BENCHMARK_LESSON_SLUG) {
+        return getLessonById(BENCHMARK_LESSON_SLUG);
+      }
       console.warn(`Lesson not found: ${idOrSlug}`);
       return null;
     }
@@ -233,8 +236,8 @@ export async function getLessonsByStudentId(studentId: string): Promise<LessonWi
 
     return enrichedLessons;
   } catch (error) {
-    console.error(`Error fetching lessons for student ${studentId}:`, error);
-    throw error;
+    console.warn(`Unable to load assigned lessons for student ${studentId}; using published fallback.`, error);
+    return [];
   }
 }
 
