@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { ContentBlock, ContentBlockType, STUDY_STEPS, StudyStepId, StrictStepContent } from "@/types/lesson";
 import { useLessonEditorStore } from "@/lib/lesson-editor-store";
-import { ToggleLeft, ToggleRight, Eye, Layers, MoveDown, MoveUp, Plus, Trash2, X } from "lucide-react";
+import { Eye, Layers, MoveDown, MoveUp, Plus, Trash2, X } from "lucide-react";
 
 interface LessonTailorEditorProps {
   content: StrictStepContent;
@@ -53,43 +53,6 @@ export function LessonTailorEditor({
     }
   };
 
-  const toggleBlock = (step: StudyStepId, blockKey: string) => {
-    const stepObj = (content[step] as Record<string, any>) || {};
-    const currentBlock = stepObj[blockKey] || { enabled: true };
-    const updated = {
-      ...content,
-      [step]: {
-        ...stepObj,
-        [blockKey]: {
-          ...currentBlock,
-          enabled: !currentBlock.enabled,
-        },
-      },
-    };
-    handleChange(updated);
-  };
-
-  const updateTextValue = (
-    step: StudyStepId,
-    blockKey: string,
-    field: string,
-    value: string
-  ) => {
-    const stepObj = (content[step] as Record<string, any>) || {};
-    const currentBlock = stepObj[blockKey] || { enabled: true };
-    const updated = {
-      ...content,
-      [step]: {
-        ...stepObj,
-        [blockKey]: {
-          ...currentBlock,
-          [field]: value,
-        },
-      },
-    };
-    handleChange(updated);
-  };
-
   const updateStepValue = (step: StudyStepId, field: string, value: unknown) => {
     handleChange({
       ...content,
@@ -111,11 +74,6 @@ export function LessonTailorEditor({
     const items = [...((stepContent[field] as any[]) || [])];
     items[index] = { ...items[index], [key]: value };
     updateStepValue(step, field, items);
-  };
-
-  const insertIntoBlock = (step: StudyStepId, field: string, snippet: string) => {
-    const block = (((content[step] || {}) as Record<string, any>)[field] || { text: "", enabled: true }) as Record<string, any>;
-    updateTextValue(step, field, "text", `${block.text || ""}${block.text ? "\n" : ""}${snippet}`);
   };
 
   const getBlocks = (step: StudyStepId): ContentBlock[] =>
@@ -231,68 +189,6 @@ export function LessonTailorEditor({
     );
   };
 
-  const renderBlockEditor = (
-    step: StudyStepId,
-    field: string,
-    label: string,
-    placeholder: string,
-    multiline = false
-  ) => {
-    const block = ((content[step] || {}) as Record<string, any>)[field] || {
-      text: "",
-      enabled: true,
-    };
-    const Input = multiline ? "textarea" : "input";
-    return (
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-amber-400">{label}</span>
-          <button
-            type="button"
-            onClick={() => toggleBlock(step, field)}
-            className="text-slate-400 hover:text-white transition"
-            aria-label={`${block.enabled === false ? "Enable" : "Disable"} ${label}`}
-          >
-            {block.enabled !== false ? (
-              <ToggleRight className="w-6 h-6 text-amber-400" />
-            ) : (
-              <ToggleLeft className="w-6 h-6 text-slate-500" />
-            )}
-          </button>
-        </div>
-        <Input
-          value={block.text || ""}
-          onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-            updateTextValue(step, field, "text", e.target.value)
-          }
-          placeholder={placeholder}
-          rows={multiline ? 5 : undefined}
-          className="w-full bg-[#171d28] border border-[#202631] rounded-md p-2.5 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500 leading-relaxed"
-        />
-      </div>
-    );
-  };
-
-  const renderLexiconHelpers = (step: StudyStepId, field: string) => (
-    <div className="flex flex-wrap items-center gap-2 text-[10px] text-stone-500">
-      <span>Insert format:</span>
-      {[
-        ["Definition", "term (part of speech) — definition"],
-        ["Tooltip", "{{term|short learner-friendly meaning}}"],
-        ["Example", "term — Example sentence using the term."],
-      ].map(([label, snippet]) => (
-        <button
-          key={label}
-          type="button"
-          onClick={() => insertIntoBlock(step, field, snippet)}
-          className="rounded border border-[#394252] px-2 py-1 text-stone-400 transition hover:border-amber-500 hover:text-amber-300"
-        >
-          {label}
-        </button>
-      ))}
-    </div>
-  );
-
   return (
     <div className="bg-[#171d28]/60 border border-[#202631] rounded-xl p-5 text-[#d9dce0]">
       <div className="flex items-center justify-between mb-4 border-b border-[#202631] pb-3">
@@ -342,84 +238,6 @@ export function LessonTailorEditor({
       {/* Block Content Editor */}
       <div className="space-y-4">
         {renderDynamicBuilder(activeStep)}
-        {activeStep === "lesson" && (
-          <div className="space-y-5">
-            {renderBlockEditor("lesson", "core_concept", "Core Concept", "Edit the core lesson concept...", true)}
-            {(content.lesson?.examples || []).map((item, index) => (
-              <label key={`example-${index}`} className="block text-xs text-stone-400">
-                Example {index + 1}
-                <input
-                  value={item.text}
-                  onChange={(e) => updateArrayValue("lesson", "examples", index, "text", e.target.value)}
-                  className="mt-1 w-full bg-[#171d28] border border-[#202631] rounded-md p-2.5 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500"
-                />
-              </label>
-            ))}
-          </div>
-        )}
-
-        {activeStep === "listening" && (
-          <div className="space-y-5">
-            <label className="block text-xs text-stone-400">Audio URL<input value={content.listening?.audio_url || ""} onChange={(e) => updateStepValue("listening", "audio_url", e.target.value)} className="mt-1 w-full bg-[#171d28] border border-[#202631] rounded-md p-2.5 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500" /></label>
-            {renderBlockEditor("listening", "transcript", "Transcript", "Edit the transcript...", true)}
-            {(content.listening?.questions || []).map((item, index) => (
-              <div key={item.id} className="space-y-2">
-                <label className="block text-xs text-stone-400">Question {index + 1}<input value={item.question} onChange={(e) => updateArrayValue("listening", "questions", index, "question", e.target.value)} className="mt-1 w-full bg-[#171d28] border border-[#202631] rounded-md p-2.5 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500" /></label>
-                <label className="block text-xs text-stone-400">Correct Answer / Key<input value={item.correct_answer || ""} onChange={(e) => updateArrayValue("listening", "questions", index, "correct_answer", e.target.value)} placeholder="Enter the expected answer" className="mt-1 w-full rounded-md border border-amber-500/30 bg-[#171d28] p-2.5 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500" /></label>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {activeStep === "reading" && (
-          <div className="space-y-5">
-            {renderBlockEditor("reading", "article_markdown", "Article", "Edit the reading article...", true)}
-            {renderBlockEditor("reading", "lexicon_notes", "Reading Lexicon", "Add notes, definitions, or tooltip-ready vocabulary...", true)}
-            {renderLexiconHelpers("reading", "lexicon_notes")}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-amber-400">Vocabulary Tooltips</span>
-                <button
-                  type="button"
-                  onClick={() => updateStepValue("reading", "vocabulary_drawer", [...(content.reading?.vocabulary_drawer || []), { word: "", definition: "", enabled: true }])}
-                  className="rounded border border-[#394252] px-2 py-1 text-[10px] text-stone-400 hover:border-amber-500 hover:text-amber-300"
-                >
-                  Add term
-                </button>
-              </div>
-              {(content.reading?.vocabulary_drawer || [{ word: "", definition: "", enabled: true }]).map((item, index) => (
-              <div key={`${item.word}-${index}`} className="grid grid-cols-2 gap-2">
-                <input value={item.word} onChange={(e) => updateArrayValue("reading", "vocabulary_drawer", index, "word", e.target.value)} className="bg-[#171d28] border border-[#202631] rounded-md p-2.5 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500" aria-label={`Vocabulary word ${index + 1}`} />
-                <input value={item.definition} onChange={(e) => updateArrayValue("reading", "vocabulary_drawer", index, "definition", e.target.value)} className="bg-[#171d28] border border-[#202631] rounded-md p-2.5 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500" aria-label={`Vocabulary definition ${index + 1}`} />
-              </div>
-            ))}
-            </div>
-            <div className="space-y-3">
-              {(content.reading?.analytical_questions || []).map((item, index) => (
-                <div key={item.id} className="space-y-2">
-                  <label className="block text-xs text-stone-400">Reading Task {index + 1}<input value={item.question} onChange={(e) => updateArrayValue("reading", "analytical_questions", index, "question", e.target.value)} className="mt-1 w-full rounded-md border border-[#202631] bg-[#171d28] p-2.5 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500" /></label>
-                  <label className="block text-xs text-stone-400">Correct Answer / Key<input value={item.correct_answer || ""} onChange={(e) => updateArrayValue("reading", "analytical_questions", index, "correct_answer", e.target.value)} placeholder="Enter the expected answer" className="mt-1 w-full rounded-md border border-amber-500/30 bg-[#171d28] p-2.5 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500" /></label>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {activeStep === "writing" && (
-          <div className="space-y-5">
-            {renderBlockEditor("writing", "prompt", "Writing Prompt", "Edit the writing prompt...", true)}
-            <label className="block text-xs text-stone-400">Draft Placeholder<input value={content.writing?.draft_editor?.placeholder || ""} onChange={(e) => updateStepValue("writing", "draft_editor", { ...(content.writing?.draft_editor || { enabled: true }), placeholder: e.target.value })} className="mt-1 w-full bg-[#171d28] border border-[#202631] rounded-md p-2.5 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500" /></label>
-          </div>
-        )}
-
-        {activeStep === "speaking" && (
-          <div className="space-y-5">
-            {renderBlockEditor("speaking", "scenario", "Speaking Scenario", "Edit the speaking scenario...", true)}
-            {(content.speaking?.discussion_points || []).map((item, index) => (
-              <label key={`discussion-${index}`} className="block text-xs text-stone-400">Discussion Point {index + 1}<input value={item.text} onChange={(e) => updateArrayValue("speaking", "discussion_points", index, "text", e.target.value)} className="mt-1 w-full bg-[#171d28] border border-[#202631] rounded-md p-2.5 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500" /></label>
-            ))}
-          </div>
-        )}
 
       </div>
     </div>

@@ -3,7 +3,7 @@
 import { ShieldAlert } from "lucide-react";
 
 interface AccessCardProps {
-  title: "By Invitation Only" | "Access Denied";
+  title: string;
   message: string;
 }
 

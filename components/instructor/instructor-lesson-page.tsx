@@ -138,12 +138,12 @@ export function InstructorLessonPage({ lessonId }: InstructorLessonPageProps) {
           {/* Sidebar */}
           <div className="flex flex-col gap-6">
             <StudentContextPanel
-              studentName={DEFAULT_STUDENT.fullName}
+              studentName={DEFAULT_STUDENT.name}
               profile={DEFAULT_STUDENT.profile}
             />
             <SubmissionEvaluator
               lessonId={lessonId}
-              studentName={DEFAULT_STUDENT.fullName}
+              studentName={DEFAULT_STUDENT.name}
             />
           </div>
         </div>

@@ -202,10 +202,6 @@ export default function InstructorWorkstationPage({
       };
       const created = await createLesson({
         title,
-        slug,
-        subtitle: content.subtitle,
-        module_number: moduleNumber,
-        banner_url: workstationState.bannerUrl,
         status: newLesson.status,
         content,
         changes_summary: "Initial lesson created in Lesson Builder",
@@ -360,19 +356,12 @@ export default function InstructorWorkstationPage({
       const lesson = databaseLessonId
         ? await updateLesson(databaseLessonId, {
             title,
-          subtitle: content.subtitle,
-          module_number: moduleNumber,
-          banner_url: workstationState.bannerUrl,
             status,
             content,
             changes_summary: `Lesson updated as ${status}`,
           })
         : await createLesson({
             title,
-          slug,
-          subtitle: content.subtitle,
-          module_number: moduleNumber,
-          banner_url: workstationState.bannerUrl,
             status,
             content,
             changes_summary: `Initial lesson created as ${status}`,
