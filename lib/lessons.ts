@@ -12,6 +12,7 @@ import type { LessonContent, InstructorLessonMock } from "@/types/lesson";
 
 export interface CreateLessonInput {
   title: string;
+  banner_url?: string;
   subject?: string;
   grade?: string;
   status?: "draft" | "published" | "evaluated";
@@ -22,6 +23,7 @@ export interface CreateLessonInput {
 
 export interface UpdateLessonInput {
   title?: string;
+  banner_url?: string;
   subject?: string;
   grade?: string;
   status?: "draft" | "published" | "evaluated";
@@ -32,6 +34,10 @@ export interface UpdateLessonInput {
 export interface LessonWithVersion extends LessonRow {
   current_version?: LessonVersionRow;
   content?: Record<string, any>;
+}
+
+function isMissingBannerColumn(error: { code?: string; message?: string } | null) {
+  return Boolean(error && (error.code === "42703" || error.code === "PGRST204") && /banner_url/i.test(error.message || ""));
 }
 
 // ============================================================================
@@ -277,7 +283,7 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
   }
 
   try {
-    const { content, changes_summary, ...lessonData } = input;
+    const { content, changes_summary, banner_url, ...lessonData } = input;
     const hasTitle = typeof lessonData.title === "string" && lessonData.title.trim().length > 0;
     const title = hasTitle ? lessonData.title.trim() : "Untitled Lesson";
     const slug = (title && title.trim() !== "")
@@ -290,18 +296,26 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
     };
 
     // Insert the lesson
-    const { data: lesson, error: lessonError } = await supabase
+    const lessonPayload = {
+      ...lessonData,
+      title,
+      slug,
+      status: lessonData.status || "draft",
+      ...(banner_url ? { banner_url } : {}),
+    };
+    let { data: lesson, error: lessonError } = await supabase
       .from("lessons")
-      .insert([
-        {
-          ...lessonData,
-          title,
-          slug,
-          status: lessonData.status || "draft",
-        },
-      ])
+      .insert([lessonPayload])
       .select()
       .single();
+    if (isMissingBannerColumn(lessonError)) {
+      const { banner_url: _ignoredBannerUrl, ...lessonPayloadWithoutBanner } = lessonPayload;
+      ({ data: lesson, error: lessonError } = await supabase
+        .from("lessons")
+        .insert([lessonPayloadWithoutBanner])
+        .select()
+        .single());
+    }
 
     if (lessonError) throw lessonError;
 
@@ -344,13 +358,24 @@ export async function updateLesson(
   }
 
   try {
-    const { content, changes_summary, ...lessonData } = input;
+    const { content, changes_summary, banner_url, ...lessonData } = input;
     // Update the lesson metadata
-    if (Object.keys(lessonData).length > 0) {
-      const { error: updateError } = await supabase
+    if (Object.keys(lessonData).length > 0 || banner_url) {
+      const updatePayload = { ...lessonData, ...(banner_url ? { banner_url } : {}) };
+      let { error: updateError } = await supabase
         .from("lessons")
-        .update(lessonData)
+        .update(updatePayload)
         .eq("id", id);
+      if (isMissingBannerColumn(updateError)) {
+        if (Object.keys(lessonData).length > 0) {
+          ({ error: updateError } = await supabase
+            .from("lessons")
+            .update(lessonData)
+            .eq("id", id));
+        } else {
+          updateError = null;
+        }
+      }
 
       if (updateError) throw updateError;
     }

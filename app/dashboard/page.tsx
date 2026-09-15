@@ -303,7 +303,7 @@ export default function DashboardPage() {
               className="group overflow-hidden rounded-xl border border-[#202631] bg-[#121721] transition-colors hover:border-amber-500/50"
             >
               <div className="relative h-44 overflow-hidden border-b border-[#202631]">
-                <img src={lesson.content?.coverImage || BANNER_PRESETS[0].image} alt="" className="h-full w-full object-cover opacity-70 transition duration-500 group-hover:scale-105 group-hover:opacity-85" />
+                <img src={(typeof lesson.content?.coverImage === "string" ? lesson.content.coverImage : typeof lesson.content?.bannerUrl === "string" ? lesson.content.bannerUrl : undefined) || BANNER_PRESETS[0].image} alt="" className="h-full w-full object-cover opacity-70 transition duration-500 group-hover:scale-105 group-hover:opacity-85" />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#121721] via-transparent to-transparent" />
                   <span className="absolute bottom-4 left-5 rounded-sm border border-[#a77b25] bg-[#332713]/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#dca42f]">
                   Module {lesson.content?.moduleNumber || 1}

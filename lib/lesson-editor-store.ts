@@ -88,7 +88,7 @@ export const useLessonEditorStore = create<LessonEditorState>()(
         set((state) => {
           state.lesson = lesson;
           state.content = lesson.content || {};
-          state.bannerUrl = lesson.content?.bannerUrl || "";
+          state.bannerUrl = lesson.content?.coverImage || lesson.content?.bannerUrl || lesson.banner_url || "";
           state.isLoading = false;
         });
       } catch (error) {
@@ -283,6 +283,7 @@ export const useLessonEditorStore = create<LessonEditorState>()(
         try {
           const currentState = get();
           await updateLesson(state.lesson.id, {
+            banner_url: url,
             content: {
               ...currentState.content,
               bannerUrl: url,

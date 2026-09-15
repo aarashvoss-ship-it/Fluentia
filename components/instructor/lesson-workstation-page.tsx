@@ -31,7 +31,7 @@ export function LessonWorkstationPage({ lessonId }: { lessonId: string }) {
     setTimeout(() => {
       setIsPublishing(false);
       setPublishStatus("Updates successfully synced with student view!");
-      setTimeout(() => setPublishStatus(null), 4000);
+      setTimeout(() => setPublishStatus(null), 3000);
     }, 800);
   };
 

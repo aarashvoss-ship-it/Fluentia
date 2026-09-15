@@ -376,7 +376,7 @@ export default function LessonPage() {
           {heroBanner && <><img src={heroBanner} alt="" className="absolute inset-0 h-full w-full object-cover opacity-55" /><div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,11,17,.72),rgba(7,11,17,.08)_55%,rgba(7,11,17,.72)),linear-gradient(0deg,#0c1017_0%,transparent_58%)]" /></>}
           <div className="relative flex h-full flex-col justify-end pb-14">
             {(lesson.grade || lesson.subject) && <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#aeb3b9]">{lesson.grade || lesson.subject}</p>}
-            <span className="mb-3 w-fit rounded-sm border border-[#a77b25] bg-[#332713]/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#dca42f]">{lessonModuleNumber !== null ? `#${lessonModuleNumber}` : "#1"}</span>
+            <span className="mb-3 w-fit rounded-sm border border-[#a77b25] bg-[#332713]/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#dca42f]">Module {lessonModuleNumber ?? 1}</span>
             <h1 className="font-[var(--font-fraunces)] text-[38px] leading-[0.98] tracking-[-0.02em] text-[#f1eee8] sm:text-[42px]">
               {lesson.title}
             </h1>

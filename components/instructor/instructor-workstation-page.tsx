@@ -202,6 +202,7 @@ export default function InstructorWorkstationPage({
       };
       const created = await createLesson({
         title,
+        banner_url: workstationState.bannerUrl,
         status: newLesson.status,
         content,
         changes_summary: "Initial lesson created in Lesson Builder",
@@ -272,7 +273,7 @@ export default function InstructorWorkstationPage({
 
   useEffect(() => {
     if (!publishStatus) return;
-    const timer = window.setTimeout(() => setPublishStatus(null), 4000);
+    const timer = window.setTimeout(() => setPublishStatus(null), 3000);
     return () => window.clearTimeout(timer);
   }, [publishStatus]);
 
@@ -356,12 +357,14 @@ export default function InstructorWorkstationPage({
       const lesson = databaseLessonId
         ? await updateLesson(databaseLessonId, {
             title,
+        banner_url: workstationState.bannerUrl,
             status,
             content,
             changes_summary: `Lesson updated as ${status}`,
           })
         : await createLesson({
             title,
+          banner_url: workstationState.bannerUrl,
             status,
             content,
             changes_summary: `Initial lesson created as ${status}`,
@@ -399,7 +402,8 @@ export default function InstructorWorkstationPage({
   };
 
   const handlePreviewPublish = () => {
-    void saveLessonChanges("draft").then(() => setShowPreview(true));
+    setShowPreview(true);
+    void saveLessonChanges("draft");
   };
 
   const handleConfirmPublish = () => {
@@ -429,7 +433,9 @@ export default function InstructorWorkstationPage({
     ["speaking", "Speaking"],
   ] as const;
   const previewContent = workstationState.content[previewStep] as Record<string, any> | undefined;
-  const previewBlocks = Array.isArray(previewContent?.blocks) ? previewContent.blocks : [];
+  const previewBlocks = Array.isArray(previewContent?.blocks)
+    ? previewContent.blocks.filter((block: ContentBlock) => block.enabled !== false)
+    : [];
 
   const renderPreviewStep = () => (
     <div className="space-y-4">
