@@ -209,6 +209,21 @@ export default function InstructorWorkstationPage({
     }, 0);
   };
 
+  useEffect(() => {
+    if (!databaseLessonId || students.length === 0) return;
+    const currentLesson = createdLessons.find((lesson) => lesson.id === databaseLessonId);
+    if (!currentLesson) return;
+    const savedStudentId = getSavedStudentId(currentLesson);
+    if (!savedStudentId) return;
+    const matchingStudent = students.find(
+      (student) => student.id === savedStudentId || student.token === savedStudentId
+    );
+    if (!matchingStudent) return;
+    setSelectedStudentId(matchingStudent.id);
+    setSelectedStudent(matchingStudent);
+    setNewLesson((previous) => ({ ...previous, studentId: matchingStudent.id }));
+  }, [databaseLessonId, createdLessons, students]);
+
   async function handleCreateLesson() {
     const draftStudentId = selectedStudentId || newLesson.studentId || selectedStudent.id;
     const student = students.find((item) => item.id === draftStudentId) || selectedStudent;
