@@ -27,7 +27,7 @@ export interface UpdateLessonInput {
   title?: string;
   banner_url?: string;
   student_id?: string;
-  student_token?: string;
+  student_token?: string | null;
   subject?: string;
   grade?: string;
   status?: "draft" | "published" | "evaluated";
@@ -147,11 +147,9 @@ export async function getLessons(): Promise<LessonWithVersion[]> {
 
     if (error) throw error;
 
-    // Keep the dashboard critical path to one metadata query. Version content is loaded by the lesson view.
-    return (lessons || []).map((lesson) => ({
-      ...lesson,
-      current_version: undefined,
-      content: undefined,
+    return Promise.all((lessons || []).map(async (lesson) => {
+      const version = await getLatestLessonVersion(lesson.id);
+      return { ...lesson, current_version: version || undefined, content: version?.content };
     }));
   } catch (error) {
     console.error("Error fetching lessons:", error);
@@ -218,7 +216,6 @@ export async function getLessonsByStudentId(studentId: string): Promise<LessonWi
     const { data: lessons, error } = await supabase
       .from("lessons")
       .select("*")
-      .eq("student_token", studentId)
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -234,11 +231,44 @@ export async function getLessonsByStudentId(studentId: string): Promise<LessonWi
       })
     );
 
-    return enrichedLessons;
+    return enrichedLessons.filter((lesson) => {
+      const content = lesson.content || {};
+      const assignedStudents = Array.isArray(content.assignedStudents) ? content.assignedStudents : [];
+      return lesson.student_token === studentId
+        || content.assignedAllStudents === true
+        || assignedStudents.some((student: unknown) => typeof student === "string" ? student === studentId : Boolean(student && typeof student === "object" && ((student as Record<string, unknown>).id === studentId || (student as Record<string, unknown>).token === studentId)));
+    });
   } catch (error) {
     console.warn(`Unable to load assigned lessons for student ${studentId}; using published fallback.`, error);
     return [];
   }
+}
+
+export async function assignLessonToStudent(lessonId: string, studentToken: string): Promise<LessonWithVersion> {
+  const lesson = await getLessonById(lessonId);
+  if (!lesson) throw new Error("Lesson not found");
+  const content = { ...(lesson.content || {}), assignedAllStudents: false, assignedStudents: [studentToken] };
+  const updated = await updateLesson(lessonId, { student_token: studentToken, content, changes_summary: "Assigned to student" });
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("fluentia:lesson-updated"));
+  return updated;
+}
+
+export async function assignLessonToAllActiveStudents(lessonId: string): Promise<LessonWithVersion> {
+  const lesson = await getLessonById(lessonId);
+  if (!lesson) throw new Error("Lesson not found");
+  const content = { ...(lesson.content || {}), assignedAllStudents: true, assignedStudents: [] };
+  const updated = await updateLesson(lessonId, { student_token: null, content, changes_summary: "Assigned to all active students" });
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("fluentia:lesson-updated"));
+  return updated;
+}
+
+export async function unassignLesson(lessonId: string): Promise<LessonWithVersion> {
+  const lesson = await getLessonById(lessonId);
+  if (!lesson) throw new Error("Lesson not found");
+  const content = { ...(lesson.content || {}), assignedAllStudents: false, assignedStudents: [] };
+  const updated = await updateLesson(lessonId, { student_token: null, content, changes_summary: "Unassigned lesson" });
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("fluentia:lesson-updated"));
+  return updated;
 }
 
 /**
@@ -365,17 +395,18 @@ export async function updateLesson(
   try {
     const { content, changes_summary, banner_url, student_id, student_token, ...lessonData } = input;
     // Update the lesson metadata
-    if (Object.keys(lessonData).length > 0 || banner_url || student_id || student_token) {
-      const updatePayload = { ...lessonData, ...(banner_url ? { banner_url } : {}), ...(student_id ? { student_id } : {}), ...(student_token ? { student_token } : {}) };
+    const hasStudentTokenUpdate = Object.prototype.hasOwnProperty.call(input, "student_token");
+    if (Object.keys(lessonData).length > 0 || banner_url || student_id || hasStudentTokenUpdate) {
+      const updatePayload = { ...lessonData, ...(banner_url ? { banner_url } : {}), ...(student_id ? { student_id } : {}), ...(hasStudentTokenUpdate ? { student_token } : {}) };
       let { error: updateError } = await supabase
         .from("lessons")
         .update(updatePayload)
         .eq("id", id);
       if (isMissingBannerColumn(updateError) || isMissingStudentColumn(updateError)) {
-        if (Object.keys(lessonData).length > 0) {
+        if (Object.keys(lessonData).length > 0 || hasStudentTokenUpdate) {
           ({ error: updateError } = await supabase
             .from("lessons")
-            .update(lessonData)
+            .update({ ...lessonData, ...(hasStudentTokenUpdate ? { student_token } : {}) })
             .eq("id", id));
         } else {
           updateError = null;
