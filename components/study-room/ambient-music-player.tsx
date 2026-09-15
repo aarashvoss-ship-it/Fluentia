@@ -29,7 +29,12 @@ export function AmbientMusicPlayer({ src, tracks }: AmbientMusicPlayerProps) {
   useEffect(() => {
     let mounted = true;
     void getAmbientTracks().then((nextTracks) => {
-      if (mounted) setLibraryTracks(nextTracks);
+      if (!mounted) return;
+      setLibraryTracks(nextTracks);
+      if (!src && nextTracks[0]) {
+        setTrackIndex(0);
+        setSelectedTrack(nextTracks[0].url);
+      }
     }).catch(() => {
       if (mounted && tracks && tracks.length > 0) setLibraryTracks(tracks);
     });
@@ -109,13 +114,26 @@ export function AmbientMusicPlayer({ src, tracks }: AmbientMusicPlayerProps) {
     if (value > 0 && audioRef.current?.paused === false) setIsPlaying(true);
   }
 
-  function selectTrack(index: number) {
+  async function selectTrack(index: number) {
+    const nextTrack = availableTracks[index];
+    if (!nextTrack) return;
     setTrackIndex(index);
-    setSelectedTrack(availableTracks[index].url);
+    setSelectedTrack(nextTrack.url);
     setShowTracks(false);
-    setIsPlaying(false);
-    window.localStorage.setItem(PLAYBACK_KEY, "false");
-    window.setTimeout(() => audioRef.current?.load(), 0);
+    setIsEnabled(true);
+    setIsPlaying(true);
+    window.localStorage.setItem(ENABLED_KEY, "true");
+    window.localStorage.setItem(PLAYBACK_KEY, "true");
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.src = nextTrack.url;
+    audio.load();
+    try {
+      await audio.play();
+    } catch {
+      setIsPlaying(false);
+      window.localStorage.setItem(PLAYBACK_KEY, "false");
+    }
   }
 
   return (
@@ -146,7 +164,7 @@ export function AmbientMusicPlayer({ src, tracks }: AmbientMusicPlayerProps) {
       </button>
       {showTracks && <div className="absolute right-0 top-10 z-40 w-52 rounded-md border border-[#394252] bg-[#171d28] p-2 shadow-xl">
         <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Music library</p>
-        {availableTracks.map((item, index) => <button key={`${item.title}-${item.url}`} type="button" onClick={() => selectTrack(index)} className={`block w-full rounded px-2 py-2 text-left text-xs transition hover:bg-amber-500/10 hover:text-amber-300 ${track === item.url ? "text-amber-300" : "text-stone-400"}`}>{item.title}</button>)}
+        {availableTracks.map((item, index) => <button key={`${item.title}-${item.url}`} type="button" onClick={() => void selectTrack(index)} className={`block w-full rounded px-2 py-2 text-left text-xs transition hover:bg-amber-500/10 hover:text-amber-300 ${track === item.url ? "text-amber-300" : "text-stone-400"}`}>{item.title}</button>)}
         {src && !availableTracks.some((item) => item.url === src) && <p className="px-2 py-2 text-[10px] text-stone-500">Custom lesson track</p>}
       </div>}
       <button

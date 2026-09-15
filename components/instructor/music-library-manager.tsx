@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Pause, Play, Trash2, Upload } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { createAmbientTrack, deleteAmbientTrack, getAmbientTracks } from "@/lib/music-library";
+import { createAmbientTrack, deleteAmbientTrack } from "@/lib/music-library";
+import { DEFAULT_LESSON_AUDIO_TRACKS } from "@/lib/musicTracks";
 import type { AmbientTrackRow } from "@/lib/supabase";
 
 export function MusicLibraryManager() {
@@ -15,10 +16,30 @@ export function MusicLibraryManager() {
   const loadTracks = async () => {
     const { data, error } = await supabase.from("ambient_tracks").select("*").order("sort_order").order("created_at");
     if (error) {
-      setStatus("Run migration 003 to enable the shared music library.");
+      setTracks(DEFAULT_LESSON_AUDIO_TRACKS.map((track, index) => ({
+        id: `fallback-${index}`,
+        title: track.title,
+        url: track.url,
+        sort_order: index + 1,
+        is_active: true,
+        created_at: new Date(0).toISOString(),
+      })));
+      setStatus("Showing default tracks. Run migration 003 to enable shared storage.");
       return;
     }
-    setTracks((data || []) as AmbientTrackRow[]);
+    if (!data || data.length === 0) {
+      const seeded = await Promise.all(DEFAULT_LESSON_AUDIO_TRACKS.map((track) => createAmbientTrack(track.title, track.url).catch(() => null)));
+      const created = seeded.filter((track): track is AmbientTrackRow => Boolean(track));
+      if (created.length > 0) {
+        setTracks(created);
+        setStatus("Default tracks added to the shared library.");
+        return;
+      }
+      setTracks(DEFAULT_LESSON_AUDIO_TRACKS.map((track, index) => ({ ...track, id: `fallback-${index}`, sort_order: index + 1, is_active: true, created_at: new Date(0).toISOString() })));
+      setStatus("Showing default tracks. Add migration 003 to persist them.");
+      return;
+    }
+    setTracks(data as AmbientTrackRow[]);
   };
 
   useEffect(() => {

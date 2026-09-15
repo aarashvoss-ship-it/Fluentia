@@ -20,10 +20,10 @@ CREATE POLICY "Instructor can manage ambient tracks"
 
 INSERT INTO ambient_tracks (title, url, sort_order)
 VALUES
-  ('Deep Focus (Lofi)', 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3', 1),
-  ('Gentle Rain & Piano', 'https://cdn.pixabay.com/download/audio/2022/10/25/audio_946b8a7f31.mp3', 2),
-  ('Calm Ambient Synth', 'https://cdn.pixabay.com/download/audio/2022/03/10/audio_2c7f6f6c3f.mp3', 3),
-  ('Alpha Waves', 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3', 4)
+  ('Deep Focus (Lofi)', 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3', 1),
+  ('Gentle Rain & Piano', 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3', 2),
+  ('Calm Ambient Synth', 'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3', 3),
+  ('Alpha Waves', 'https://cdn.pixabay.com/download/audio/2021/09/06/audio_84e1d13f98.mp3', 4)
 ON CONFLICT (url) DO UPDATE SET
   title = EXCLUDED.title,
   sort_order = EXCLUDED.sort_order,
