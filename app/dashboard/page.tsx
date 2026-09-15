@@ -240,7 +240,7 @@ function DashboardContent() {
       <div className="mx-auto max-w-5xl px-4 py-8">
 
         <section className="grid gap-3 border-b border-[#202631] py-6 sm:grid-cols-3" aria-label="Student progress overview">
-          <div className="relative rounded-xl border border-[#202631] bg-[#121721] p-4 md:col-start-3" aria-label="Student profile">
+          <div className="relative order-last rounded-xl border border-[#202631] bg-[#121721] p-4" aria-label="Student profile">
             <div className="flex items-center gap-3">
               <button type="button" onClick={() => setProfileOpen((open) => !open)} aria-expanded={profileOpen} aria-controls="student-profile-flyout" style={!avatarImage ? { backgroundColor: selectedAvatar.backgroundColor } : undefined} className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-bold transition hover:ring-2 hover:ring-amber-400/60 ${avatarImage ? "bg-[#283344]" : selectedAvatar.className}`}>
                 {avatarImage ? <img src={avatarImage} alt={`${displayName} avatar`} className="h-full w-full object-cover" /> : profileInitials}
@@ -265,10 +265,6 @@ function DashboardContent() {
               {hasFeedback ? <CheckCircle2 className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
               {hasFeedback ? "Feedback Ready" : hasPendingReview ? "Pending Review" : "Pending Review"}
             </p>
-          </div>
-          <div className="rounded-xl border border-[#202631] bg-[#121721] p-4">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#667084]">Attendance / Level</p>
-            <p className="mt-2 text-sm font-semibold text-stone-100">{activeStudent.profile?.attendanceRate || 0}% <span className="font-normal text-stone-500">|</span> {activeStudent.profile?.level}</p>
           </div>
         </section>
 
