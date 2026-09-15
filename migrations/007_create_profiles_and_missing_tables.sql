@@ -73,6 +73,10 @@ DROP POLICY IF EXISTS "Profiles readable by token or owner" ON profiles;
 DROP POLICY IF EXISTS "Profiles writable by token or owner" ON profiles;
 DROP POLICY IF EXISTS "Profiles readable by owner" ON profiles;
 DROP POLICY IF EXISTS "Profiles writable by owner" ON profiles;
+DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON profiles;
+CREATE POLICY "Public profiles are viewable by everyone" ON profiles FOR SELECT
+USING (true);
+
 CREATE POLICY "Profiles readable by owner" ON profiles FOR SELECT
 USING (auth.uid() = id);
 

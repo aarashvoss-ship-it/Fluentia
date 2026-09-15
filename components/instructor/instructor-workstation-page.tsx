@@ -42,6 +42,8 @@ export default function InstructorWorkstationPage({
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
   const [students, setStudents] = useState<StudentUser[]>([]);
+  const [studentsLoading, setStudentsLoading] = useState(true);
+  const [studentsError, setStudentsError] = useState<string | null>(null);
   const [publishStatus, setPublishStatus] = useState<string | null>(null);
 
   const [databaseLessonId, setDatabaseLessonId] = useState<string | null>(null);
@@ -477,43 +479,59 @@ export default function InstructorWorkstationPage({
   useEffect(() => {
     let cancelled = false;
     const loadCounts = async () => {
-      const [{ count: pendingCount }, { count: publishedCount }, { count: draftsCount }] = await Promise.all([
-        supabase.from("submissions").select("id", { count: "exact", head: true }).eq("status", "submitted"),
-        supabase.from("lessons").select("id", { count: "exact", head: true }).eq("status", "published"),
-        supabase.from("lessons").select("id", { count: "exact", head: true }).eq("status", "draft"),
-      ]);
-      if (cancelled) return;
-      setPendingSubmissionCount(pendingCount ?? 0);
-      setPublishedLessonCount(publishedCount ?? 0);
-      setDraftLessonCount(draftsCount ?? 0);
-      const { data: profileRows, error: profileError } = await supabase
-        .from("profiles")
-        .select("id, token, full_name, role, level, target_goal, avatar_url, banner_url")
-        .eq("role", "student")
-        .order("full_name", { ascending: true });
-      if (profileError) throw profileError;
-      const nextStudents: StudentUser[] = (profileRows || []).map((profile) => ({
-        id: profile.id,
-        token: profile.token,
-        name: profile.full_name,
-        role: "student",
-        profile: {
+      setStudentsLoading(true);
+      setStudentsError(null);
+      try {
+        const [pendingResult, publishedResult, draftsResult] = await Promise.allSettled([
+          supabase.from("submissions").select("id", { count: "exact", head: true }).eq("status", "submitted"),
+          supabase.from("lessons").select("id", { count: "exact", head: true }).eq("status", "published"),
+          supabase.from("lessons").select("id", { count: "exact", head: true }).eq("status", "draft"),
+        ]);
+        const { data: profileRows, error: profileError } = await supabase
+          .from("profiles")
+          .select("id, token, full_name, role, level, target_goal, avatar_url, banner_url")
+          .eq("role", "student")
+          .order("full_name", { ascending: true });
+        if (profileError) {
+          console.error("Failed to load student profiles:", { code: profileError.code, message: profileError.message, details: profileError.details, hint: profileError.hint });
+          throw new Error(profileError.message || "Unable to load student profiles");
+        }
+        if (cancelled) return;
+        setPendingSubmissionCount(pendingResult.status === "fulfilled" ? pendingResult.value.count ?? 0 : 0);
+        setPublishedLessonCount(publishedResult.status === "fulfilled" ? publishedResult.value.count ?? 0 : 0);
+        setDraftLessonCount(draftsResult.status === "fulfilled" ? draftsResult.value.count ?? 0 : 0);
+        const nextStudents: StudentUser[] = (profileRows || []).map((profile) => ({
           id: profile.id,
-          fullName: profile.full_name,
-          level: profile.level || "B1 Intermediate",
-          targetGoal: profile.target_goal || "",
-          avatarUrl: profile.avatar_url || undefined,
-          bannerUrl: profile.banner_url || undefined,
-          weaknesses: [],
-          teacherNotes: "",
-          attendanceRate: 0,
-          completedModulesCount: 0,
-        },
-      }));
-      setStudents(nextStudents);
-      if (nextStudents.length > 0 && !nextStudents.some((student) => student.id === selectedStudent.id)) {
-        setSelectedStudent(nextStudents[0]);
-        setSelectedStudentId(nextStudents[0].id);
+          token: profile.token,
+          name: profile.full_name,
+          role: "student",
+          profile: {
+            id: profile.id,
+            fullName: profile.full_name,
+            level: profile.level || "B1 Intermediate",
+            targetGoal: profile.target_goal || "",
+            avatarUrl: profile.avatar_url || undefined,
+            bannerUrl: profile.banner_url || undefined,
+            weaknesses: [],
+            teacherNotes: "",
+            attendanceRate: 0,
+            completedModulesCount: 0,
+          },
+        }));
+        setStudents(nextStudents);
+        if (nextStudents.length > 0 && !nextStudents.some((student) => student.id === selectedStudent.id)) {
+          setSelectedStudent(nextStudents[0]);
+          setSelectedStudentId(nextStudents[0].id);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to load students";
+        if (!cancelled) {
+          setStudents([]);
+          setStudentsError(message);
+          console.error("Instructor workstation student loading failed:", message);
+        }
+      } finally {
+        if (!cancelled) setStudentsLoading(false);
       }
     };
     const refreshCounts = () => void loadCounts();
@@ -729,7 +747,7 @@ export default function InstructorWorkstationPage({
             <label className="flex w-64 max-w-[240px] shrink-0 items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400">
               <span className="sr-only">Active student</span>
               <select value={selectedStudentId || ""} onChange={(event) => { const nextStudent = students.find((student) => student.id === event.target.value); if (nextStudent) void handleStudentChange(nextStudent); }} className="w-full rounded-md border border-amber-500/50 bg-[#171d28] px-3 py-2 text-xs font-medium normal-case tracking-normal text-stone-200 outline-none transition-colors hover:border-amber-400 focus:border-amber-400 [color-scheme:dark]" aria-label="Select active student">
-                <option value="">Choose a student</option>
+                <option value="">{studentsLoading ? "Loading students..." : studentsError ? "Unable to load students" : students.length === 0 ? "No registered students" : "Choose a student"}</option>
                 {students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}
               </select>
             </label>
@@ -765,7 +783,7 @@ export default function InstructorWorkstationPage({
               <div className="absolute left-0 right-0 top-full z-50 mt-2 rounded-lg border border-[#394252] bg-[#171d28] p-3 shadow-2xl">
                 <label className="sr-only" htmlFor="active-student-selector">Select active student</label>
                 <select id="active-student-selector" value={selectedStudentId || ""} onChange={(event) => { const nextStudent = students.find((student) => student.id === event.target.value); if (nextStudent) { void handleStudentChange(nextStudent); setActiveStudentsOpen(false); } }} className="w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark]" aria-label="Select active student">
-                  <option value="">Choose a student</option>
+                  <option value="">{studentsLoading ? "Loading students..." : studentsError ? "Unable to load students" : students.length === 0 ? "No registered students" : "Choose a student"}</option>
                   {students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}
                 </select>
               </div>
@@ -802,7 +820,7 @@ export default function InstructorWorkstationPage({
                     <td className="px-4 py-4"><span className={`rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${lesson.status === "published" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/30 bg-amber-500/10 text-amber-300"}`}>{lesson.status === "published" ? "Published" : "Draft"}</span></td>
                     <td className="px-4 py-4 text-stone-300">Module {lesson.content?.moduleNumber || lesson.module_number || 1}</td>
                     <td className="px-4 py-4"><div className="flex flex-wrap justify-end gap-2" onClick={(event) => event.stopPropagation()}>
-                      <select defaultValue="" onChange={(event) => void handleAssignStudent(lesson, event.target.value)} aria-label={`Assign ${lesson.title} to a student`} className="max-w-40 rounded-md border border-amber-500/40 bg-[#0c1017] px-2 py-2 text-[11px] text-stone-300 [color-scheme:dark]"><option value="">Assign to Student</option>{students.map((student) => <option key={student.token} value={student.token}>{student.name}</option>)}</select>
+                      <select defaultValue="" onChange={(event) => void handleAssignStudent(lesson, event.target.value)} aria-label={`Assign ${lesson.title} to a student`} className="max-w-40 rounded-md border border-amber-500/40 bg-[#0c1017] px-2 py-2 text-[11px] text-stone-300 [color-scheme:dark]"><option value="">{studentsLoading ? "Loading students..." : studentsError ? "Students unavailable" : students.length === 0 ? "No students" : "Assign to Student"}</option>{students.map((student) => <option key={student.token} value={student.token}>{student.name}</option>)}</select>
                       <button type="button" onClick={() => void handleAssignAllStudents(lesson)} title="Assign to all active students" className="flex items-center gap-1 rounded-md border border-emerald-500/40 px-2.5 py-2 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-500/10"><Users className="h-3.5 w-3.5" />All Active</button>
                       {getAssignedStudentNames(lesson).length > 0 && <button type="button" onClick={() => void handleUnassignLesson(lesson)} title="Unassign lesson" className="flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 hover:bg-red-500/10"><UserMinus className="h-4 w-4" /></button>}
                       <button type="button" onClick={() => handleEditLesson(lesson)} className="rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500 hover:text-black">Edit / Continue</button><button type="button" onClick={() => duplicateLesson(lesson)} className="rounded-md border border-sky-500/50 px-3 py-2 text-xs font-semibold text-sky-300 hover:bg-sky-500 hover:text-black">Duplicate</button><button type="button" onClick={() => setLessonPendingDelete(lesson)} aria-label={`Delete ${lesson.title}`} title="Delete lesson" className="flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button>
@@ -827,7 +845,7 @@ export default function InstructorWorkstationPage({
             <div className="grid gap-3 md:grid-cols-4">
 <label className="text-xs text-stone-400">Lesson Title<input value={newLesson.title} onChange={(event) => setLessonTitle(event.target.value)} placeholder="A new lesson" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" />
 </label>
-<label className="text-xs text-stone-400">Select Student<select value={selectedStudentId || ""} onChange={(event) => { const nextStudent = students.find((student) => student.id === event.target.value); if (nextStudent) void handleStudentChange(nextStudent); }} className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark]" aria-label="Select student for lesson">{students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}</select>
+<label className="text-xs text-stone-400">Select Student<select value={selectedStudentId || ""} onChange={(event) => { const nextStudent = students.find((student) => student.id === event.target.value); if (nextStudent) void handleStudentChange(nextStudent); }} className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark]" aria-label="Select student for lesson"><option value="">{studentsLoading ? "Loading students..." : studentsError ? "Unable to load students" : students.length === 0 ? "No registered students" : "Choose a student"}</option>{students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}</select>
 </label>
 <label className="text-xs text-stone-400">Module Number<input value={newLesson.moduleNumber} onChange={(event) => setNewLesson((previous) => ({ ...previous, moduleNumber: event.target.value }))} placeholder="1" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" />
 </label>
