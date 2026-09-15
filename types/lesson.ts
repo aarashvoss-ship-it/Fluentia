@@ -20,7 +20,7 @@ export const STUDY_STEPS: StudyStep[] = [
   { id: "reading",   label: "Reading",   stepNumber: "04" },
   { id: "writing",   label: "Writing",   stepNumber: "05" },
   { id: "speaking",  label: "Speaking",  stepNumber: "06" },
-  { id: "results",   label: "Results",   stepNumber: "07" },
+  { id: "results",   label: "Results & Review",   stepNumber: "07" },
 ];
 
 export interface BlockItem {

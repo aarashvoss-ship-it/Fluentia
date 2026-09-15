@@ -48,22 +48,6 @@ function isMissingStudentColumn(error: { code?: string; message?: string } | nul
   return Boolean(error && (error.code === "42703" || error.code === "PGRST204") && /student_(id|token)/i.test(error.message || ""));
 }
 
-function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error(`Lesson query timed out after ${timeoutMs}ms`)), timeoutMs);
-    promise.then(
-      (value) => {
-        clearTimeout(timeout);
-        resolve(value);
-      },
-      (error) => {
-        clearTimeout(timeout);
-        reject(error);
-      }
-    );
-  });
-}
-
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -98,10 +82,11 @@ export async function getLessonBaseById(idOrSlug: string): Promise<LessonWithVer
   try {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idOrSlug);
     const lookupColumn = isUuid ? "id" : "slug";
-    const { data, error } = await withTimeout(
-      supabase.from("lessons").select("*").eq(lookupColumn, idOrSlug).maybeSingle(),
-      3000
-    );
+    const { data, error } = await supabase
+      .from("lessons")
+      .select("*")
+      .eq(lookupColumn, idOrSlug)
+      .maybeSingle();
     if (error) {
       console.warn(`Unable to load base lesson ${idOrSlug}:`, error);
       return null;

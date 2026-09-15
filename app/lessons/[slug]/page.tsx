@@ -54,22 +54,6 @@ function getRequestedStep(value: string | null): StudyStepId | null {
     : null;
 }
 
-function withLessonTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timeout = window.setTimeout(() => reject(new Error(`Lesson request timed out after ${timeoutMs}ms`)), timeoutMs);
-    promise.then(
-      (value) => {
-        window.clearTimeout(timeout);
-        resolve(value);
-      },
-      (error) => {
-        window.clearTimeout(timeout);
-        reject(error);
-      }
-    );
-  });
-}
-
 function AudioResponseBlock({ value, onChange }: { value?: string; onChange: (value: string) => void }) {
   const [isRecording, setIsRecording] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -168,7 +152,7 @@ export default function LessonPage() {
 
     const loadLesson = async () => {
       try {
-        const lesson = await withLessonTimeout(getLessonBaseById(requestedSlug), 8000);
+        const lesson = await getLessonBaseById(requestedSlug);
         if (!mounted) return;
         
         if (lesson) {
@@ -316,6 +300,14 @@ export default function LessonPage() {
       ? (lessonContent.listening?.questions || []).map((question: { id: string; correct_answer?: string }) => question.correct_answer || lessonContent.results?.answer_keys?.listening?.[question.id] || "")
       : (lessonContent.reading?.analytical_questions || []).map((question: { id: string; correct_answer?: string }) => question.correct_answer || lessonContent.results?.answer_keys?.reading?.[question.id] || "");
     return [...keys, getBlockAnswerKeys(step)].filter(Boolean).join("\n");
+  };
+
+  const benchmarkResults = (lessonContent.results || {}) as {
+    answer_keys?: Record<string, Record<string, string>>;
+    quiz_breakdown?: Array<{ questionId: string; correctResponse: string; skill: string }>;
+    feedback_notes?: Record<string, string>;
+    instructor_feedback?: { status?: string; strengths?: string; areasToImprove?: string; nextStep?: string };
+    stepLabel?: string;
   };
 
   const stepResults: StepResult[] = [
@@ -673,6 +665,35 @@ export default function LessonPage() {
                 </h3>
                 {lessonContent.results?.self_reflection?.text && <p className="text-stone-400 text-sm">{lessonContent.results.self_reflection.text}</p>}
               </div>
+              <div className="grid gap-4 text-left md:grid-cols-2">
+                {benchmarkResults.answer_keys && <div className="rounded-xl border border-[#202631] bg-[#121721] p-5">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Answer Keys</p>
+                  <div className="mt-3 space-y-3 text-sm text-stone-300">
+                    {Object.entries(benchmarkResults.answer_keys).map(([section, answers]) => (
+                      <div key={section}>
+                        <p className="text-xs font-semibold capitalize text-stone-400">{section.replaceAll("_", " ")}</p>
+                        {Object.entries(answers).map(([questionId, answer]) => <p key={questionId} className="mt-1"><span className="text-stone-500">{questionId}:</span> {answer}</p>)}
+                      </div>
+                    ))}
+                  </div>
+                </div>}
+                {benchmarkResults.quiz_breakdown?.length ? <div className="rounded-xl border border-[#202631] bg-[#121721] p-5">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Quiz Breakdown</p>
+                  <div className="mt-3 space-y-3 text-sm text-stone-300">
+                    {benchmarkResults.quiz_breakdown.map((item) => <div key={item.questionId}><p className="text-xs text-stone-500">{item.skill}</p><p className="mt-1">{item.questionId}: <span className="text-amber-200">{item.correctResponse}</span></p></div>)}
+                  </div>
+                </div> : null}
+              </div>
+              {benchmarkResults.feedback_notes && <div className="rounded-xl border border-[#202631] bg-[#121721] p-5 text-left">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Review Notes</p>
+                <div className="mt-3 grid gap-3 text-sm text-stone-400 sm:grid-cols-3">
+                  {Object.entries(benchmarkResults.feedback_notes).map(([section, note]) => <p key={section}><span className="block text-xs font-semibold capitalize text-stone-300">{section.replaceAll("_", " ")}</span>{note}</p>)}
+                </div>
+              </div>}
+              {benchmarkResults.instructor_feedback && <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5 text-left">
+                <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Instructor Feedback</p><span className="rounded border border-amber-500/30 px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-amber-300">{benchmarkResults.instructor_feedback.status || "pending"}</span></div>
+                <p className="mt-3 text-sm text-stone-400">Your instructor feedback will appear here after your writing and speaking responses are reviewed.</p>
+              </div>}
               <div className="space-y-3 text-left">
                 {stepResults.map((result) => (
                   <div key={result.id} className="grid gap-3 rounded-xl border border-[#202631] bg-[#121721] p-4 md:grid-cols-[150px_1fr]">
