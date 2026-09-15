@@ -6,14 +6,20 @@ import { Music, Pause, Play, Volume2, VolumeX } from "lucide-react";
 const PLAYBACK_KEY = "fluentia:ambient-music:playing";
 const ENABLED_KEY = "fluentia:ambient-music:enabled";
 const VOLUME_KEY = "fluentia:ambient-music:volume";
-const DEFAULT_FOCUS_TRACK = "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3";
+const FALLBACK_TRACKS = [
+  "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3",
+  "https://cdn.pixabay.com/download/audio/2022/10/25/audio_946b8a7f31.mp3",
+  "https://cdn.pixabay.com/download/audio/2022/03/10/audio_2c7f6f6c3f.mp3",
+];
 
 interface AmbientMusicPlayerProps {
   src?: string;
 }
 
-export function AmbientMusicPlayer({ src = DEFAULT_FOCUS_TRACK }: AmbientMusicPlayerProps) {
+export function AmbientMusicPlayer({ src }: AmbientMusicPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const [fallbackIndex, setFallbackIndex] = useState(0);
+  const track = src || FALLBACK_TRACKS[fallbackIndex];
   const [isEnabled, setIsEnabled] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.35);
@@ -42,10 +48,13 @@ export function AmbientMusicPlayer({ src = DEFAULT_FOCUS_TRACK }: AmbientMusicPl
       audio.pause();
       return;
     }
-    void audio.play().catch(() => setIsPlaying(false));
-  }, [isPlaying]);
+    void audio.play().catch(() => {
+      setIsPlaying(false);
+      window.localStorage.setItem(PLAYBACK_KEY, "false");
+    });
+  }, [isEnabled, isPlaying, track]);
 
-  function togglePlayback() {
+  async function togglePlayback() {
     if (!isEnabled) {
       setIsEnabled(true);
       window.localStorage.setItem(ENABLED_KEY, "true");
@@ -53,6 +62,16 @@ export function AmbientMusicPlayer({ src = DEFAULT_FOCUS_TRACK }: AmbientMusicPl
     const nextPlaying = !isPlaying;
     setIsPlaying(nextPlaying);
     window.localStorage.setItem(PLAYBACK_KEY, String(nextPlaying));
+    if (nextPlaying) {
+      try {
+        await audioRef.current?.play();
+      } catch {
+        setIsPlaying(false);
+        window.localStorage.setItem(PLAYBACK_KEY, "false");
+      }
+    } else {
+      audioRef.current?.pause();
+    }
   }
 
   function toggleEnabled() {
@@ -72,7 +91,21 @@ export function AmbientMusicPlayer({ src = DEFAULT_FOCUS_TRACK }: AmbientMusicPl
 
   return (
     <div className="relative flex items-center gap-1">
-      <audio ref={audioRef} src={src} loop preload="auto" onEnded={() => setIsPlaying(false)} />
+      <audio
+        ref={audioRef}
+        src={track}
+        loop
+        preload="auto"
+        onError={() => {
+          if (!src && fallbackIndex < FALLBACK_TRACKS.length - 1) {
+            setFallbackIndex((index) => index + 1);
+            return;
+          }
+          setIsPlaying(false);
+          window.localStorage.setItem(PLAYBACK_KEY, "false");
+        }}
+        onEnded={() => setIsPlaying(false)}
+      />
       <button
         type="button"
         onClick={toggleEnabled}
@@ -100,7 +133,7 @@ export function AmbientMusicPlayer({ src = DEFAULT_FOCUS_TRACK }: AmbientMusicPl
       )}
       <button
         type="button"
-        onClick={togglePlayback}
+        onClick={() => void togglePlayback()}
         aria-label={isPlaying ? "Pause ambient focus music" : "Play ambient focus music"}
         aria-pressed={isPlaying}
         className={`flex h-8 w-8 items-center justify-center p-2 rounded-lg bg-slate-800/80 border border-slate-700 hover:border-amber-500/50 hover:shadow-amber-500/10 transition-all ${isPlaying ? "border-amber-500/70 bg-amber-500/10 text-amber-300 shadow-[0_0_14px_rgba(245,158,11,.18)]" : "text-stone-400 hover:text-amber-300"}`}

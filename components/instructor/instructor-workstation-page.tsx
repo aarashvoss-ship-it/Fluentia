@@ -275,9 +275,42 @@ export default function InstructorWorkstationPage({
     }
   };
 
-  const getAssignedStudentName = (lesson: LessonWithVersion) => {
+  const getAssignedStudentNames = (lesson: LessonWithVersion) => {
+    const metadata = (lesson.content || {}) as Record<string, any>;
+    const assignedAll = metadata.assignedAllStudents === true
+      || metadata.assigned_all_students === true
+      || metadata.assignmentMode === "all";
+    if (assignedAll) return ["All Students"];
+
+    const assignedStudents = metadata.assignedStudents || metadata.assigned_students;
+    if (Array.isArray(assignedStudents) && assignedStudents.length > 0) {
+      return assignedStudents.map((assignedStudent: unknown) => {
+        const identifier = typeof assignedStudent === "string"
+          ? assignedStudent
+          : typeof assignedStudent === "object" && assignedStudent !== null
+            ? String((assignedStudent as Record<string, unknown>).id || (assignedStudent as Record<string, unknown>).token || (assignedStudent as Record<string, unknown>).name || "")
+            : "";
+        return students.find((student) => student.id === identifier || student.token === identifier)?.name || identifier;
+      }).filter(Boolean);
+    }
+
     const assignedStudentId = getSavedStudentId(lesson);
-    return students.find((student) => student.id === assignedStudentId || student.token === assignedStudentId)?.name || assignedStudentId || "Unassigned";
+    const assignedStudentName = students.find((student) => student.id === assignedStudentId || student.token === assignedStudentId)?.name;
+    return assignedStudentName || assignedStudentId ? [assignedStudentName || assignedStudentId!] : [];
+  };
+
+  const renderAssignedStudents = (lesson: LessonWithVersion) => {
+    const names = getAssignedStudentNames(lesson);
+    if (names.length === 0) return <span className="text-stone-500">Not assigned</span>;
+    const label = names[0] === "All Students"
+      ? names[0]
+      : names.length > 1
+        ? `Assigned to ${names.length} students`
+        : names[0];
+    return <span className="group relative inline-flex max-w-full">
+      <span className="truncate rounded-md border border-[#394252] bg-[#0c1017] px-2 py-1 text-[11px] text-stone-300">{label}</span>
+      {(names.length > 1 || names[0] === "All Students") && <span role="tooltip" className="pointer-events-none invisible absolute left-0 top-full z-20 mt-2 w-56 rounded-md border border-[#394252] bg-[#171d28] p-2 text-[11px] leading-relaxed text-stone-300 opacity-0 shadow-xl transition group-hover:visible group-hover:opacity-100">{names[0] === "All Students" ? "Available to every student" : names.join(", ")}</span>}
+    </span>;
   };
 
   useEffect(() => {
@@ -403,12 +436,14 @@ export default function InstructorWorkstationPage({
   }, [publishStatus]);
 
   useEffect(() => {
+    let cancelled = false;
     const loadCounts = async () => {
       const [{ count: pendingCount }, { count: publishedCount }, { count: draftsCount }] = await Promise.all([
         supabase.from("submissions").select("id", { count: "exact", head: true }).eq("status", "submitted"),
         supabase.from("lessons").select("id", { count: "exact", head: true }).eq("status", "published"),
         supabase.from("lessons").select("id", { count: "exact", head: true }).eq("status", "draft"),
       ]);
+      if (cancelled) return;
       setPendingSubmissionCount(pendingCount ?? 0);
       setPublishedLessonCount(publishedCount ?? 0);
       setDraftLessonCount(draftsCount ?? 0);
@@ -419,10 +454,11 @@ export default function InstructorWorkstationPage({
     window.addEventListener(FLUENTIA_DATA_UPDATED_EVENT, refreshCounts);
     window.addEventListener("fluentia:lesson-updated", refreshCounts);
     return () => {
+      cancelled = true;
       window.removeEventListener(FLUENTIA_DATA_UPDATED_EVENT, refreshCounts);
       window.removeEventListener("fluentia:lesson-updated", refreshCounts);
     };
-  }, [createdLessons]);
+  }, []);
 
   const clearValidationError = (field: keyof typeof validationErrors) => {
     setValidationErrors((previous) => {
@@ -696,7 +732,7 @@ export default function InstructorWorkstationPage({
                   {createdLessons.map((lesson) => <tr key={lesson.id} onClick={() => handleEditLesson(lesson)} className="cursor-pointer text-stone-300 transition hover:bg-[#202631]/30">
                     <td className="max-w-[220px] px-5 py-4"><button type="button" onClick={() => handleEditLesson(lesson)} className="max-w-full text-left"><p className="truncate font-semibold text-stone-100">{lesson.title}</p><p className="mt-1 truncate text-[10px] text-stone-600">{lesson.content?.slug || lesson.id}</p></button></td>
                     <td className="max-w-[260px] px-4 py-4"><span className="line-clamp-2 text-stone-400">{lesson.content?.subtitle || lesson.subtitle || "No subtitle"}</span></td>
-                    <td className="px-4 py-4 text-stone-300">{getAssignedStudentName(lesson)}</td>
+                    <td className="px-4 py-4 text-stone-300">{renderAssignedStudents(lesson)}</td>
                     <td className="px-4 py-4"><span className={`rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${lesson.status === "published" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/30 bg-amber-500/10 text-amber-300"}`}>{lesson.status === "published" ? "Published" : "Draft"}</span></td>
                     <td className="px-4 py-4 text-stone-300">Module {lesson.content?.moduleNumber || lesson.module_number || 1}</td>
                     <td className="px-4 py-4"><div className="flex justify-end gap-2"><button type="button" onClick={(event) => { event.stopPropagation(); handleEditLesson(lesson); }} className="rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500 hover:text-black">Edit / Continue</button><button type="button" onClick={(event) => { event.stopPropagation(); duplicateLesson(lesson); }} className="rounded-md border border-sky-500/50 px-3 py-2 text-xs font-semibold text-sky-300 hover:bg-sky-500 hover:text-black">Duplicate</button><button type="button" onClick={(event) => { event.stopPropagation(); setLessonPendingDelete(lesson); }} aria-label={`Delete ${lesson.title}`} title="Delete lesson" className="flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button></div></td>

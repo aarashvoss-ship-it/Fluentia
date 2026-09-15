@@ -247,6 +247,7 @@ export default function LessonPage() {
 
   const lessonContent = lesson?.content || {};
   const lessonMetadata = lessonContent as LessonContent;
+  const displayLessonTitle = lesson?.title.replace(/\s+\((?:A1|A2|B1|B2|C1|C2)\b[^)]*\)$/i, "");
   const lessonSubtitle = typeof lesson?.subtitle === "string"
     ? lesson.subtitle.trim()
     : typeof lessonContent.subtitle === "string"
@@ -440,7 +441,7 @@ export default function LessonPage() {
             {(lesson.grade || lesson.subject) && <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#aeb3b9]">{lesson.grade || lesson.subject}</p>}
             <span className="mb-3 w-fit rounded-sm border border-[#a77b25] bg-[#332713]/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#dca42f]">Module {lessonModuleNumber ?? 1}</span>
             <h1 className="font-[var(--font-fraunces)] text-[38px] leading-[0.98] tracking-[-0.02em] text-[#f1eee8] sm:text-[42px]">
-              {lesson.title}
+              {displayLessonTitle || lesson.title}
             </h1>
             {lessonSubtitle && <p className="mt-4 text-xs text-[#b5bac2]">{lessonSubtitle}</p>}
             {instructor && <div className="mt-7 flex items-center gap-2 text-[11px] text-[#9ba1aa]">{instructor.avatarUrl ? <img src={instructor.avatarUrl} alt="" className="h-6 w-6 rounded-full object-cover" /> : <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#283344] text-[9px] font-semibold text-[#d9a63b]">{instructor.initials}</span>}Guided by {instructor.fullName}</div>}

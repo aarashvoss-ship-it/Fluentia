@@ -6,6 +6,13 @@ import { useLessonEditorStore } from "@/lib/lesson-editor-store";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { Eye, Layers, MoveDown, MoveUp, Music, Plus, Trash2, X } from "lucide-react";
 
+const AMBIENT_TRACK_OPTIONS = [
+  { value: "", label: "None" },
+  { value: "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3", label: "Deep Focus (Lofi)" },
+  { value: "https://cdn.pixabay.com/download/audio/2022/10/25/audio_946b8a7f31.mp3", label: "Gentle Rain & Piano" },
+  { value: "https://cdn.pixabay.com/download/audio/2022/03/10/audio_2c7f6f6c3f.mp3", label: "Calm Ambient Synth" },
+];
+
 interface LessonTailorEditorProps {
   content: StrictStepContent;
   onChange?: (updatedContent: StrictStepContent) => void;
@@ -254,29 +261,22 @@ export function LessonTailorEditor({
             <p className="mt-1 text-xs text-stone-500">Students can control this track from the lesson header.</p>
           </div>
         </div>
-        <input
+        <select
+          value={AMBIENT_TRACK_OPTIONS.some((option) => option.value === (content.ambientMusicUrl || "")) ? content.ambientMusicUrl || "" : "custom"}
+          onChange={(event) => handleChange({ ...content, ambientMusicUrl: event.target.value === "custom" ? content.ambientMusicUrl || "" : event.target.value })}
+          className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500 [color-scheme:dark]"
+          aria-label="Ambient lesson music"
+        >
+          {AMBIENT_TRACK_OPTIONS.map((option) => <option key={option.label} value={option.value}>{option.label}</option>)}
+          <option value="custom">Custom Audio URL</option>
+        </select>
+        {!AMBIENT_TRACK_OPTIONS.some((option) => option.value === (content.ambientMusicUrl || "")) && <input
           value={content.ambientMusicUrl || ""}
           onChange={(event) => handleChange({ ...content, ambientMusicUrl: event.target.value })}
-          placeholder="Audio URL (optional)"
-          className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500"
-          aria-label="Ambient lesson music URL"
-        />
-        <label className="mt-2 block text-xs text-stone-500">
-          Or upload MP3/WAV
-          <input
-            type="file"
-            accept="audio/mpeg,audio/wav,.mp3,.wav"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (!file) return;
-              const reader = new FileReader();
-              reader.onload = () => handleChange({ ...content, ambientMusicUrl: String(reader.result || "") });
-              reader.readAsDataURL(file);
-            }}
-            className="mt-1 block w-full text-xs text-stone-400 file:mr-3 file:rounded file:border-0 file:bg-amber-500 file:px-2 file:py-1 file:text-xs file:font-semibold file:text-black"
-            aria-label="Upload ambient lesson music"
-          />
-        </label>
+          placeholder="https://..."
+          className="mt-2 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500"
+          aria-label="Custom ambient lesson music URL"
+        />}
         {content.ambientMusicUrl && <CustomAudioPlayer src={content.ambientMusicUrl} label="Ambient lesson music" />}
       </section>
 
