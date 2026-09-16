@@ -107,10 +107,17 @@ export function StudentContextPanel({
             <select
               value={displayProfile.level.match(/^(A1|A2|B1|B2|C1|C2)/)?.[1] || "B1"}
               onChange={(e) => updateProfile("level", e.target.value)}
-              className="mt-1 w-full bg-transparent text-xs text-amber-400 focus:outline-none"
+              className="mt-1 w-full max-w-[220px] rounded-md border border-[#394252] bg-[#111827] px-2 py-1 text-xs text-white outline-none focus:border-amber-500 [color-scheme:dark]"
               aria-label="Student level"
             >
-              {(["A1", "A2", "B1", "B2", "C1", "C2"] as const).map((level) => <option key={level} value={level} className="text-slate-900 bg-white">{level}</option>)}
+              {([
+                ["A1", "Beginner"],
+                ["A2", "Elementary"],
+                ["B1", "Intermediate"],
+                ["B2", "Upper Intermediate"],
+                ["C1", "Advanced"],
+                ["C2", "Proficient"],
+              ] as const).map(([value, label]) => <option key={value} value={value} className="bg-[#111827] text-white">{value} ({label})</option>)}
             </select>
           </div>
         </div>
