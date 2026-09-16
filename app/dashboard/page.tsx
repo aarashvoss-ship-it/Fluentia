@@ -6,7 +6,7 @@ import { BookOpen, CheckCircle2, Clock3, Flame, Layers3, MessageSquareText, Pane
 import { type StudentUser } from "@/lib/users";
 import { persistResolvedStudent, PublishedLessonState, writeLastAccessedLesson } from "@/lib/lesson-store";
 import { getLessonsByStudentId, type LessonWithVersion } from "@/lib/lessons";
-import { FLUENTIA_DATA_UPDATED_EVENT, fetchChatMessages, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, removeVocabularyWord, saveChatMessage, saveStudentNote, saveVocabularyWord } from "@/services/storage-service";
+import { FLUENTIA_DATA_UPDATED_EVENT, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, removeVocabularyWord, saveChatMessage, saveStudentNote, saveVocabularyWord } from "@/services/storage-service";
 import { ChatMessage, SavedVocabularyWord, StudentNote } from "@/types/lesson";
 import { DictionaryModal } from "@/components/study-room/dictionary-modal";
 import { LearningSidebar } from "@/components/study-room/learning-sidebar";
@@ -84,12 +84,11 @@ function DashboardContent() {
 
   useEffect(() => {
     const loadDashboard = async (userId: string) => {
-      const [lessonRows, savedProfile, savedWords, studentNotes, messages] = await Promise.all([
+      const [lessonRows, savedProfile, savedWords, studentNotes] = await Promise.all([
         getLessonsByStudentId(userId),
         getStudentProfile(userId),
         fetchSavedVocabulary(userId),
         fetchStudentNotes(userId),
-        fetchChatMessages(userId),
       ]);
       const assignedLessons = lessonRows.filter((lesson) => lesson.status === "published");
       const availableLessons = assignedLessons;
@@ -115,7 +114,6 @@ function DashboardContent() {
         : previous);
       setSavedWords(savedWords);
       setNotes(studentNotes);
-      setChatMessages(messages);
     };
     const loadAuthenticatedDashboard = async () => {
       const { data: userData, error: userError } = await supabase.auth.getUser();
