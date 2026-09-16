@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronDown, Plus, Trash2, UserMinus, Users } from "lucide-react";
+import { ChevronDown, MoreVertical, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { StudentContextPanel } from "@/components/instructor/student-context-panel";
 import { LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
@@ -89,6 +89,7 @@ export default function InstructorWorkstationPage({
   const [validationErrors, setValidationErrors] = useState<Partial<Record<"selectedStudentId" | "title" | "slug" | "moduleNumber", string>>>({});
   const [createdLessons, setCreatedLessons] = useState<LessonWithVersion[]>([]);
   const [lessonPendingDelete, setLessonPendingDelete] = useState<LessonWithVersion | null>(null);
+  const [openLessonMenuId, setOpenLessonMenuId] = useState<string | null>(null);
   const [newLesson, setNewLesson] = useState({
     studentId: DEFAULT_STUDENT.id,
     title: "",
@@ -311,8 +312,8 @@ export default function InstructorWorkstationPage({
       : names.length > 1
         ? `${names[0]} +${names.length - 1} more`
         : names[0];
-    return <span className="group relative inline-flex max-w-full">
-      <span className="truncate rounded-md border border-[#394252] bg-[#0c1017] px-2 py-1 text-[11px] text-stone-300">{label}</span>
+    return <span className="group relative inline-flex min-w-0 flex-1">
+      <span className="min-w-0 truncate rounded-md border border-[#394252] bg-[#0c1017] px-2 py-1 text-[11px] text-stone-300">{label}</span>
       {(names.length > 1 || names[0] === "All Students") && <span role="tooltip" className="pointer-events-none invisible absolute left-0 top-full z-20 mt-2 w-56 rounded-md border border-[#394252] bg-[#171d28] p-2 text-[11px] leading-relaxed text-stone-300 opacity-0 shadow-xl transition group-hover:visible group-hover:opacity-100">{names[0] === "All Students" ? "Available to every student" : names.join(", ")}</span>}
     </span>;
   };
@@ -332,6 +333,18 @@ export default function InstructorWorkstationPage({
       console.error("Lesson assignment failed:", error);
       setPublishStatus("Lesson assignment failed.");
     }
+  };
+
+  const handleAssignmentChange = async (lesson: LessonWithVersion, value: string) => {
+    if (value === "__all_active__") {
+      await handleAssignAllStudents(lesson);
+      return;
+    }
+    if (value === "__unassign__") {
+      await handleUnassignLesson(lesson);
+      return;
+    }
+    await handleAssignStudent(lesson, value);
   };
 
   const handleAssignAllStudents = async (lesson: LessonWithVersion) => {
@@ -809,21 +822,32 @@ export default function InstructorWorkstationPage({
               <span className="text-xs text-stone-500">{createdLessons.length} lessons</span>
             </div>
             <div className="overflow-x-auto">
-              <table className="min-w-[920px] w-full text-left text-xs">
+              <table className="min-w-[980px] w-full table-fixed text-left text-xs">
+                <colgroup>
+                  <col className="w-[29%]" />
+                  <col className="w-[25%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[20%]" />
+                </colgroup>
                 <thead className="border-b border-[#202631] bg-[#0c1017] text-[10px] uppercase tracking-[0.12em] text-stone-500">
                   <tr><th className="px-5 py-3 font-semibold">Lesson</th><th className="px-4 py-3 font-semibold">Assigned Students</th><th className="px-4 py-3 font-semibold">Status</th><th className="px-4 py-3 font-semibold">Module</th><th className="px-4 py-3 text-right font-semibold">Actions</th></tr>
                 </thead>
                 <tbody className="divide-y divide-[#202631]">
                   {createdLessons.map((lesson) => <tr key={lesson.id} onClick={() => handleEditLesson(lesson)} className="cursor-pointer text-stone-300 transition hover:bg-[#202631]/30">
-                    <td className="max-w-[280px] px-5 py-4"><button type="button" onClick={() => handleEditLesson(lesson)} className="max-w-full text-left"><p className="truncate font-semibold text-stone-100">{lesson.title}</p><p className="mt-1 line-clamp-2 text-[11px] text-stone-400">{lesson.content?.subtitle || lesson.subtitle || "No subtitle"}</p><p className="mt-1 truncate text-[10px] text-stone-600">{lesson.content?.slug || lesson.id}</p></button></td>
-                    <td className="px-4 py-4 text-stone-300">{renderAssignedStudents(lesson)}</td>
+                    <td className="min-w-0 px-5 py-4"><button type="button" onClick={() => handleEditLesson(lesson)} className="block min-w-0 max-w-full text-left"><p className="truncate font-semibold text-stone-100" title={lesson.title}>{lesson.title}</p><p className="mt-1 truncate text-[11px] text-stone-400" title={lesson.content?.subtitle || lesson.subtitle || "No subtitle"}>{lesson.content?.subtitle || lesson.subtitle || "No subtitle"}</p><p className="mt-1 truncate text-[10px] text-stone-600" title={lesson.content?.slug || lesson.id}>{lesson.content?.slug || lesson.id}</p></button></td>
+                    <td className="min-w-0 px-4 py-4 text-stone-300" onClick={(event) => event.stopPropagation()}><div className="flex min-w-0 items-center gap-2">{renderAssignedStudents(lesson)}<select defaultValue="" onChange={(event) => void handleAssignmentChange(lesson, event.target.value)} aria-label={`Assign ${lesson.title} to a student`} className="w-[4.5rem] shrink-0 rounded-md border border-amber-500/40 bg-[#0c1017] px-2 py-1.5 text-[11px] text-amber-300 outline-none [color-scheme:dark]" title="Assign lesson"><option value="">Assign</option><option value="__all_active__">All active</option>{getAssignedStudentNames(lesson).length > 0 && <option value="__unassign__">Unassign</option>}{students.map((student) => <option key={student.token} value={student.token}>{student.name}</option>)}</select></div></td>
                     <td className="px-4 py-4"><span className={`rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${lesson.status === "published" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/30 bg-amber-500/10 text-amber-300"}`}>{lesson.status === "published" ? "Published" : "Draft"}</span></td>
                     <td className="px-4 py-4 text-stone-300">Module {lesson.content?.moduleNumber || lesson.module_number || 1}</td>
-                    <td className="px-4 py-4"><div className="flex flex-wrap justify-end gap-2" onClick={(event) => event.stopPropagation()}>
-                      <select defaultValue="" onChange={(event) => void handleAssignStudent(lesson, event.target.value)} aria-label={`Assign ${lesson.title} to a student`} className="max-w-40 rounded-md border border-amber-500/40 bg-[#0c1017] px-2 py-2 text-[11px] text-stone-300 [color-scheme:dark]"><option value="">{studentsLoading ? "Loading students..." : studentsError ? "Students unavailable" : students.length === 0 ? "No students" : "Assign to Student"}</option>{students.map((student) => <option key={student.token} value={student.token}>{student.name}</option>)}</select>
-                      <button type="button" onClick={() => void handleAssignAllStudents(lesson)} title="Assign to all active students" className="flex items-center gap-1 rounded-md border border-emerald-500/40 px-2.5 py-2 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-500/10"><Users className="h-3.5 w-3.5" />All Active</button>
-                      {getAssignedStudentNames(lesson).length > 0 && <button type="button" onClick={() => void handleUnassignLesson(lesson)} title="Unassign lesson" className="flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 hover:bg-red-500/10"><UserMinus className="h-4 w-4" /></button>}
-                      <button type="button" onClick={() => handleEditLesson(lesson)} className="rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500 hover:text-black">Edit / Continue</button><button type="button" onClick={() => duplicateLesson(lesson)} className="rounded-md border border-sky-500/50 px-3 py-2 text-xs font-semibold text-sky-300 hover:bg-sky-500 hover:text-black">Duplicate</button><button type="button" onClick={() => setLessonPendingDelete(lesson)} aria-label={`Delete ${lesson.title}`} title="Delete lesson" className="flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button>
+                    <td className="px-4 py-4"><div className="flex items-center justify-end gap-2" onClick={(event) => event.stopPropagation()}>
+                      <button type="button" onClick={() => handleEditLesson(lesson)} className="whitespace-nowrap rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500 hover:text-black">Edit / Continue</button>
+                      <div className="relative">
+                        <button type="button" onClick={() => setOpenLessonMenuId((current) => current === lesson.id ? null : lesson.id)} aria-label={`More actions for ${lesson.title}`} title="More actions" aria-expanded={openLessonMenuId === lesson.id} className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] text-stone-300 hover:border-amber-500/60 hover:text-amber-300"><MoreVertical className="h-4 w-4" /></button>
+                        {openLessonMenuId === lesson.id && <div className="absolute right-0 top-full z-30 mt-2 w-36 rounded-md border border-[#394252] bg-[#171d28] p-1 shadow-xl">
+                          <button type="button" onClick={() => { duplicateLesson(lesson); setOpenLessonMenuId(null); }} className="block w-full rounded px-3 py-2 text-left text-xs text-stone-300 hover:bg-[#202631] hover:text-stone-100">Duplicate</button>
+                          <button type="button" onClick={() => { setLessonPendingDelete(lesson); setOpenLessonMenuId(null); }} className="block w-full rounded px-3 py-2 text-left text-xs text-red-300 hover:bg-red-500/10">Delete</button>
+                        </div>}
+                      </div>
                     </div></td>
                   </tr>)}
                   {createdLessons.length === 0 && <tr><td colSpan={5} className="px-5 py-10 text-center text-stone-500">No lessons have been created yet.</td></tr>}
