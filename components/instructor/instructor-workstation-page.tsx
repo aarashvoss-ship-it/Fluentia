@@ -332,14 +332,28 @@ export default function InstructorWorkstationPage({
     window.dispatchEvent(new Event("fluentia:lesson-updated"));
   };
 
+  const logAssignmentError = (context: string, error: unknown) => {
+    const supabaseError = error && typeof error === "object" ? error as { code?: string; message?: string; details?: string; hint?: string } : undefined;
+    console.error(context, {
+      code: supabaseError?.code,
+      message: supabaseError?.message || (error instanceof Error ? error.message : String(error)),
+      details: supabaseError?.details,
+      hint: supabaseError?.hint,
+    });
+  };
+
   const handleAssignStudent = async (lesson: LessonWithVersion, studentToken: string) => {
-    if (!studentToken) return;
+    const normalizedStudentToken = studentToken.trim();
+    if (!lesson.id.trim() || !normalizedStudentToken) {
+      setPublishStatus("Select a valid lesson and student before assigning.");
+      return;
+    }
     try {
-      await refreshLessonListAfterAssignment(await assignLessonToStudent(lesson.id, studentToken));
+      await refreshLessonListAfterAssignment(await assignLessonToStudent(lesson.id.trim(), normalizedStudentToken));
       setPublishStatus("Lesson assigned to the selected student.");
     } catch (error) {
-      console.error("Lesson assignment failed:", error);
-      setPublishStatus("Lesson assignment failed.");
+      logAssignmentError("Lesson assignment failed:", error);
+      setPublishStatus("Lesson assignment failed. Check the assignment details and try again.");
     }
   };
 
@@ -360,8 +374,8 @@ export default function InstructorWorkstationPage({
       await refreshLessonListAfterAssignment(await assignLessonToAllActiveStudents(lesson.id));
       setPublishStatus("Lesson assigned to all active students.");
     } catch (error) {
-      console.error("Bulk lesson assignment failed:", error);
-      setPublishStatus("Bulk lesson assignment failed.");
+      logAssignmentError("Bulk lesson assignment failed:", error);
+      setPublishStatus("Bulk lesson assignment failed. Check the assignment details and try again.");
     }
   };
 
@@ -370,8 +384,8 @@ export default function InstructorWorkstationPage({
       await refreshLessonListAfterAssignment(await unassignLesson(lesson.id));
       setPublishStatus("Lesson unassigned.");
     } catch (error) {
-      console.error("Lesson unassignment failed:", error);
-      setPublishStatus("Lesson unassignment failed.");
+      logAssignmentError("Lesson unassignment failed:", error);
+      setPublishStatus("Lesson unassignment failed. Check the assignment details and try again.");
     }
   };
 

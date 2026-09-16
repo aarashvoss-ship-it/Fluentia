@@ -307,12 +307,16 @@ export async function getLessonsByStudentId(studentId: string): Promise<LessonWi
 }
 
 export async function assignLessonToStudent(lessonId: string, studentToken: string): Promise<LessonWithVersion> {
-  const lesson = await getLessonById(lessonId);
+  const normalizedLessonId = lessonId.trim();
+  const normalizedStudentToken = studentToken.trim();
+  if (!normalizedLessonId || !normalizedStudentToken) throw new Error("A lesson and student are required for assignment");
+  const lesson = await getLessonById(normalizedLessonId);
   if (!lesson) throw new Error("Lesson not found");
-  const content = { ...(lesson.content || {}), assignedAllStudents: false, assignedStudents: [studentToken] };
-  const updated = await updateLesson(lessonId, { student_token: studentToken, assigned_all_students: false, content, changes_summary: "Assigned to student" });
-  const studentUuid = await resolveUserUuid(studentToken);
-  const { error: assignmentError } = await supabase.from("lesson_assignments").upsert({ lesson_id: lessonId, student_id: studentUuid }, { onConflict: "lesson_id,student_id" });
+  const studentUuid = await resolveUserUuid(normalizedStudentToken);
+  const content = { ...(lesson.content || {}), assignedAllStudents: false, assignedStudents: [normalizedStudentToken] };
+  const updated = await updateLesson(normalizedLessonId, { student_token: normalizedStudentToken, assigned_all_students: false, content, changes_summary: "Assigned to student" });
+  const assignmentPayload = { lesson_id: normalizedLessonId, student_id: studentUuid };
+  const { error: assignmentError } = await supabase.from("lesson_assignments").upsert(assignmentPayload, { onConflict: "lesson_id,student_id" });
   if (assignmentError) throw assignmentError;
   if (typeof window !== "undefined") window.dispatchEvent(new Event("fluentia:lesson-updated"));
   return updated;
