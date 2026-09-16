@@ -27,29 +27,38 @@ export async function GET(request: NextRequest) {
     },
   );
 
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
-  if (error) {
-    console.error("Supabase OAuth exchange error object:", error);
+  const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+  if (exchangeError) {
+    console.error("Supabase OAuth exchange error object:", exchangeError);
     console.error("Supabase OAuth callback failed:", {
-      code: error.code,
-      message: error.message,
+      code: exchangeError.code,
+      message: exchangeError.message,
     });
-    return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error.message)}`, origin));
+    return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(exchangeError.message)}`, origin));
   }
 
   const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user?.email) {
+  const user = userData.user;
+  if (userError || !user) {
     if (userError) console.error("Supabase authenticated-user error object:", userError);
     console.error("Supabase OAuth user lookup failed:", {
       code: userError?.code,
-      message: userError?.message || "Authenticated user has no email address",
+      message: userError?.message || "Authenticated user was not returned",
     });
     await supabase.auth.signOut();
     return NextResponse.redirect(new URL("/login?error=allowlist_check_failed", origin));
   }
 
-  const email = userData.user.email.trim().toLowerCase();
-  console.log("Authenticated Google user email:", email);
+  const userEmail = (user?.email || user?.user_metadata?.email || '').trim().toLowerCase();
+  console.log('[AUTH CALLBACK] User Email:', userEmail);
+  if (!userEmail) {
+    console.error('[AUTH CALLBACK] Supabase Error:', {
+      code: "MISSING_USER_EMAIL",
+      message: "Authenticated user has no email address",
+    });
+    await supabase.auth.signOut();
+    return NextResponse.redirect(new URL("/login?error=not_invited", origin));
+  }
 
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceRoleKey) {
@@ -66,28 +75,22 @@ export async function GET(request: NextRequest) {
     serviceRoleKey,
     { auth: { autoRefreshToken: false, persistSession: false } },
   );
-  const { data: allowedUser, error: allowlistError } = await adminSupabase
+  const { data, error } = await adminSupabase
     .from("allowed_users")
     .select("email")
-    .ilike("email", email)
-    .limit(1)
+    .ilike("email", userEmail)
     .maybeSingle();
 
-  console.log("Allowed users query result:", { data: allowedUser, error: allowlistError });
+  console.log('[AUTH CALLBACK] Allowlist Match:', data);
+  console.log('[AUTH CALLBACK] Supabase Error:', error);
 
-  if (allowlistError) {
-    console.error("Supabase allowlist error object:", allowlistError);
-    console.error("Supabase allowlist lookup failed:", {
-      code: allowlistError.code,
-      message: allowlistError.message,
-      details: allowlistError.details,
-      hint: allowlistError.hint,
-    });
+  if (error) {
+    console.error("Supabase allowlist error object:", error);
     await supabase.auth.signOut();
-    return NextResponse.redirect(new URL("/login?error=allowlist_check_failed", origin));
+    return NextResponse.redirect(new URL("/login?error=not_invited", origin));
   }
 
-  if (!allowedUser) {
+  if (!data) {
     await supabase.auth.signOut();
     return NextResponse.redirect(new URL("/login?error=not_invited", origin));
   }
