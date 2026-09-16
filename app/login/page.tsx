@@ -3,7 +3,6 @@
 import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
-import { AccessCard } from '@/components/access/access-card';
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,11 +16,16 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const notInvited = searchParams.get('error') === 'not_invited';
-
-  if (notInvited) {
-    return <AccessCard title="By Invitation Only" message="Your Google account is not on the Fluentia allowlist. Please contact your instructor for an invitation." />;
-  }
+  const authError = searchParams.get('error');
+  const callbackMessage = authError === 'not_invited'
+    ? 'Your Google account is not on the Fluentia allowlist. Please contact your instructor for an invitation.'
+    : authError === 'allowlist_check_failed'
+      ? 'We could not verify your invitation right now. Please try again later or contact your instructor.'
+      : authError === 'missing_oauth_code'
+        ? 'The Google sign-in response was incomplete. Please try again.'
+        : authError
+          ? 'Sign-in could not be completed. Please try again.'
+          : '';
 
   // PKCE returns an authorization code for /auth/callback to exchange.
   const handleGoogleLogin = async () => {
@@ -72,6 +76,8 @@ function LoginForm() {
       <section className="w-full max-w-md rounded-xl border border-[#293343] bg-[#171d28] p-6 shadow-xl">
         <h1 className="text-2xl font-semibold">Sign in to Fluentia</h1>
         <p className="mt-2 text-sm text-stone-400">Continue your language learning workspace.</p>
+
+        {callbackMessage && <p className="mt-4 rounded-md border border-amber-700/60 bg-amber-950/30 px-3 py-2 text-sm text-amber-300" role="alert">{callbackMessage}</p>}
 
         <button type="button" onClick={() => void handleGoogleLogin()} disabled={loading} className="mt-6 w-full rounded-md border border-[#394252] px-4 py-2.5 text-sm font-semibold text-stone-200 transition hover:border-amber-500 hover:text-amber-300 disabled:cursor-wait disabled:opacity-60">
           Continue with Google

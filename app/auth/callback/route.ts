@@ -73,25 +73,29 @@ export async function GET(request: NextRequest) {
   }
 
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceRoleKey) {
-    console.error("Supabase allowlist lookup failed:", {
-      code: "MISSING_SERVICE_ROLE_KEY",
-      message: "SUPABASE_SERVICE_ROLE_KEY is not configured on the server",
-    });
+  const allowlistClient = serviceRoleKey
+    ? createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        serviceRoleKey,
+        { auth: { autoRefreshToken: false, persistSession: false } },
+      )
+    : supabase;
+
+  let data: { email: string } | null = null;
+  let error: { code?: string; message: string; details?: string; hint?: string } | null = null;
+  try {
+    const result = await allowlistClient
+      .from("allowed_users")
+      .select("email")
+      .ilike("email", userEmail)
+      .maybeSingle();
+    data = result.data;
+    error = result.error;
+  } catch (queryError) {
+    console.error("Supabase allowlist query threw an error:", queryError);
     await supabase.auth.signOut();
     return NextResponse.redirect(new URL("/login?error=allowlist_check_failed", origin));
   }
-
-  const adminSupabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    serviceRoleKey,
-    { auth: { autoRefreshToken: false, persistSession: false } },
-  );
-  const { data, error } = await adminSupabase
-    .from("allowed_users")
-    .select("email")
-    .ilike("email", userEmail)
-    .maybeSingle();
 
   console.error('[AUTH CALLBACK] Step 6: Allowlist lookup completed', {
     matched: Boolean(data),
@@ -101,7 +105,7 @@ export async function GET(request: NextRequest) {
   if (error) {
     console.error("Supabase allowlist error object:", error);
     await supabase.auth.signOut();
-    return NextResponse.redirect(new URL("/login?error=not_invited", origin));
+    return NextResponse.redirect(new URL("/login?error=allowlist_check_failed", origin));
   }
 
   if (!data) {
@@ -109,6 +113,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/login?error=not_invited", origin));
   }
 
-  console.error('[AUTH CALLBACK] Step 7: Allowlist match succeeded; preserving session cookies and redirecting to dashboard');
+  let redirectPath = "/dashboard";
+  try {
+    const { data: instructorProfile, error: profileError } = await allowlistClient
+      .from("profiles")
+      .select("token")
+      .eq("id", user.id)
+      .eq("role", "instructor")
+      .maybeSingle();
+
+    if (profileError) {
+      console.error("Supabase instructor profile lookup failed:", profileError);
+    } else if (instructorProfile?.token?.trim()) {
+      redirectPath = `/instructor/${encodeURIComponent(instructorProfile.token.trim())}`;
+    }
+  } catch (profileError) {
+    console.error("Supabase instructor profile query threw an error:", profileError);
+  }
+
+  response.headers.set("Location", new URL(redirectPath, origin).toString());
+  console.error('[AUTH CALLBACK] Step 7: Allowlist match succeeded; preserving session cookies and redirecting', { redirectPath });
   return response;
 }
