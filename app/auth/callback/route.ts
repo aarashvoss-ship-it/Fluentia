@@ -35,5 +35,38 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error.message)}`, origin));
   }
 
-  return NextResponse.redirect(new URL("/", origin));
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData.user?.email) {
+    console.error("Supabase OAuth user lookup failed:", {
+      code: userError?.code,
+      message: userError?.message || "Authenticated user has no email address",
+    });
+    await supabase.auth.signOut();
+    return NextResponse.redirect(new URL("/login?error=allowlist_check_failed", origin));
+  }
+
+  const email = userData.user.email.toLowerCase();
+  const { data: allowedUser, error: allowlistError } = await supabase
+    .from("allowed_users")
+    .select("email")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (allowlistError) {
+    console.error("Supabase allowlist lookup failed:", {
+      code: allowlistError.code,
+      message: allowlistError.message,
+      details: allowlistError.details,
+      hint: allowlistError.hint,
+    });
+    await supabase.auth.signOut();
+    return NextResponse.redirect(new URL("/login?error=allowlist_check_failed", origin));
+  }
+
+  if (!allowedUser) {
+    await supabase.auth.signOut();
+    return NextResponse.redirect(new URL("/login?error=not_invited", origin));
+  }
+
+  return NextResponse.redirect(new URL("/dashboard", origin));
 }

@@ -1,21 +1,36 @@
 'use client';
 
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useSearchParams } from 'next/navigation';
+import { createBrowserClient } from '@supabase/ssr';
+import { AccessCard } from '@/components/access/access-card';
+
+const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  { auth: { flowType: 'pkce' } },
+);
 
 export default function LoginPage() {
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const notInvited = searchParams.get('error') === 'not_invited';
 
-  // Handle Google OAuth Authentication
+  // PKCE returns an authorization code for /auth/callback to exchange.
   const handleGoogleLogin = async () => {
     setLoading(true);
+    setMessage('');
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
       },
     });
     if (error) setMessage(error.message);
@@ -51,6 +66,7 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#0c1017] px-4 py-10 text-stone-100">
       <section className="w-full max-w-md rounded-xl border border-[#293343] bg-[#171d28] p-6 shadow-xl">
+        {notInvited && <AccessCard title="By Invitation Only" message="Your Google account is not on the Fluentia allowlist. Please contact your instructor for an invitation." />}
         <h1 className="text-2xl font-semibold">Sign in to Fluentia</h1>
         <p className="mt-2 text-sm text-stone-400">Continue your language learning workspace.</p>
 
