@@ -1,20 +1,47 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import { AccessCard } from "@/components/access/access-card";
+import { STUDENT_USERS } from "@/lib/users";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  { auth: { flowType: "pkce" } },
+  { auth: { flowType: "pkce", persistSession: true, autoRefreshToken: true } },
 );
 
 export default function RootPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    void supabase.auth.getUser().then(async ({ data, error }) => {
+      if (cancelled) return;
+      if (error || !data.user) {
+        setCheckingSession(false);
+        return;
+      }
+      const userEmail = data.user.email?.trim().toLowerCase() || "";
+      if (userEmail === "aarashvoss@gmail.com") {
+        router.replace("/instructor/avoss-9042");
+      } else if (STUDENT_USERS.some((student) => student.email?.toLowerCase() === userEmail)) {
+        router.replace("/dashboard");
+      } else {
+        await supabase.auth.signOut();
+        if (!cancelled) setCheckingSession(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   async function requestAccess(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -37,6 +64,8 @@ export default function RootPage() {
     }
     setIsSubmitting(false);
   }
+
+  if (checkingSession) return <main className="min-h-screen bg-[#0c1017]" />;
 
   return <AccessCard title="By Invitation Only" message="Access to Fluentia is currently reserved for private sessions and tailored learning environments. Please contact your instructor to receive your personal session pass.">
     <div className="mt-8 border-t border-[#29303c] pt-6 text-left">

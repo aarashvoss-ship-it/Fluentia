@@ -1,19 +1,22 @@
 'use client';
 
-import { Suspense, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
+import { STUDENT_USERS } from '@/lib/users';
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  { auth: { flowType: 'pkce' } },
+  { auth: { flowType: 'pkce', persistSession: true, autoRefreshToken: true } },
 );
 
 function LoginForm() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [checkingSession, setCheckingSession] = useState(true);
   const authError = searchParams.get('error');
   const callbackMessage = authError === 'not_invited'
     ? 'Your Google account is not on the Fluentia allowlist. Please contact your instructor for an invitation.'
@@ -24,6 +27,29 @@ function LoginForm() {
         : authError
           ? 'Sign-in could not be completed. Please try again.'
           : '';
+
+  useEffect(() => {
+    let cancelled = false;
+    void supabase.auth.getUser().then(async ({ data, error }) => {
+      if (cancelled) return;
+      if (error || !data.user) {
+        setCheckingSession(false);
+        return;
+      }
+      const userEmail = data.user.email?.trim().toLowerCase() || '';
+      if (userEmail === 'aarashvoss@gmail.com') {
+        router.replace('/instructor/avoss-9042');
+      } else if (STUDENT_USERS.some((student) => student.email?.toLowerCase() === userEmail)) {
+        router.replace('/dashboard');
+      } else {
+        await supabase.auth.signOut();
+        if (!cancelled) setCheckingSession(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   // PKCE returns an authorization code for /auth/callback to exchange.
   const handleGoogleLogin = async () => {
@@ -42,6 +68,8 @@ function LoginForm() {
     if (error) setMessage(error.message);
     setLoading(false);
   };
+
+  if (checkingSession) return <main className="min-h-screen bg-[#0c1017]" />;
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#0c1017] px-4 py-10 text-stone-100">
