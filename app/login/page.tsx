@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { AccessCard } from '@/components/access/access-card';
@@ -11,13 +11,17 @@ const supabase = createBrowserClient(
   { auth: { flowType: 'pkce' } },
 );
 
-export default function LoginPage() {
+function LoginForm() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const notInvited = searchParams.get('error') === 'not_invited';
+
+  if (notInvited) {
+    return <AccessCard title="By Invitation Only" message="Your Google account is not on the Fluentia allowlist. Please contact your instructor for an invitation." />;
+  }
 
   // PKCE returns an authorization code for /auth/callback to exchange.
   const handleGoogleLogin = async () => {
@@ -66,7 +70,6 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#0c1017] px-4 py-10 text-stone-100">
       <section className="w-full max-w-md rounded-xl border border-[#293343] bg-[#171d28] p-6 shadow-xl">
-        {notInvited && <AccessCard title="By Invitation Only" message="Your Google account is not on the Fluentia allowlist. Please contact your instructor for an invitation." />}
         <h1 className="text-2xl font-semibold">Sign in to Fluentia</h1>
         <p className="mt-2 text-sm text-stone-400">Continue your language learning workspace.</p>
 
@@ -85,5 +88,13 @@ export default function LoginPage() {
         {message && <p className="mt-4 rounded-md border border-[#394252] px-3 py-2 text-sm text-amber-300" role="status">{message}</p>}
       </section>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-[#0c1017]" />}>
+      <LoginForm />
+    </Suspense>
   );
 }
