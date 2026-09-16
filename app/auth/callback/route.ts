@@ -4,13 +4,20 @@ import { createClient } from "@supabase/supabase-js";
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
-  const origin = request.nextUrl.origin;
+  const origin = new URL(request.url).origin;
+
+  console.error("[AUTH CALLBACK] Step 1: Received OAuth callback", {
+    hasCode: Boolean(code),
+    origin,
+  });
 
   if (!code) {
+    console.error("[AUTH CALLBACK] Step 1 failed: OAuth code is missing");
     return NextResponse.redirect(new URL("/login?error=missing_oauth_code", origin));
   }
 
   const response = NextResponse.redirect(new URL("/dashboard", origin));
+  console.error("[AUTH CALLBACK] Step 2: Created dashboard redirect response for session cookies");
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -20,12 +27,16 @@ export async function GET(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+            console.error("[AUTH CALLBACK] Step 3: Attached Supabase cookie to dashboard response", { name });
+          });
         },
       },
     },
   );
 
+  console.error("[AUTH CALLBACK] Step 3: Exchanging OAuth code for session");
   const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
   if (exchangeError) {
     console.error("Supabase OAuth exchange error object:", exchangeError);
@@ -35,6 +46,7 @@ export async function GET(request: NextRequest) {
     });
     return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(exchangeError.message)}`, origin));
   }
+  console.error("[AUTH CALLBACK] Step 4: OAuth code exchanged successfully");
 
   const { data: userData, error: userError } = await supabase.auth.getUser();
   const user = userData.user;
@@ -44,12 +56,13 @@ export async function GET(request: NextRequest) {
       code: userError?.code,
       message: userError?.message || "Authenticated user was not returned",
     });
+    console.error("[AUTH CALLBACK] Step 5 failed: Authenticated user could not be read");
     await supabase.auth.signOut();
     return NextResponse.redirect(new URL("/login?error=allowlist_check_failed", origin));
   }
 
   const userEmail = (user?.email || user?.user_metadata?.email || '').trim().toLowerCase();
-  console.log('[AUTH CALLBACK] User Email:', userEmail);
+  console.error('[AUTH CALLBACK] Step 5: Authenticated user read', { userEmail });
   if (!userEmail) {
     console.error('[AUTH CALLBACK] Supabase Error:', {
       code: "MISSING_USER_EMAIL",
@@ -80,8 +93,10 @@ export async function GET(request: NextRequest) {
     .ilike("email", userEmail)
     .maybeSingle();
 
-  console.log('[AUTH CALLBACK] Allowlist Match:', data);
-  console.log('[AUTH CALLBACK] Supabase Error:', error);
+  console.error('[AUTH CALLBACK] Step 6: Allowlist lookup completed', {
+    matched: Boolean(data),
+    error: error ? { code: error.code, message: error.message } : null,
+  });
 
   if (error) {
     console.error("Supabase allowlist error object:", error);
@@ -94,6 +109,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/login?error=not_invited", origin));
   }
 
-  // Keep the exchanged session intact for approved users.
+  console.error('[AUTH CALLBACK] Step 7: Allowlist match succeeded; preserving session cookies and redirecting to dashboard');
   return response;
 }

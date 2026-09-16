@@ -120,7 +120,12 @@ function DashboardContent() {
     const loadAuthenticatedDashboard = async () => {
       const { data: userData, error: userError } = await supabase.auth.getUser();
       if (userError || !userData.user) {
-        window.location.replace("/login");
+        console.error("Dashboard client session lookup failed after server authentication:", {
+          code: userError?.code,
+          message: userError?.message || "No authenticated user was returned",
+        });
+        setAccessDenied(true);
+        setIsMounted(true);
         return;
       }
 
