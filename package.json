@@ -11,6 +11,7 @@
     "test:supabase": "node --no-warnings --experimental-strip-types scripts/test-supabase.ts"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.49.1",
     "clsx": "^2.1.1",
     "immer": "^11.1.18",
