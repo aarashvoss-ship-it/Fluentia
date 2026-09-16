@@ -510,9 +510,9 @@ export default function InstructorWorkstationPage({
         ]);
         const { data: studentRows, error: studentError } = await supabase
           .from("students")
-          .select("id, token, full_name, email, level, target_goal, avatar_url, banner_url")
+          .select("id, name, email, token")
           .in("email", STUDENT_USERS.map((student) => student.email))
-          .order("full_name", { ascending: true });
+          .order("name", { ascending: true });
         if (studentError) {
           console.error("Failed to load students:", { code: studentError.code, message: studentError.message, details: studentError.details, hint: studentError.hint });
           throw new Error(studentError.message || "Unable to load students");
@@ -524,16 +524,14 @@ export default function InstructorWorkstationPage({
         const nextStudents: StudentUser[] = (studentRows || []).map((student) => ({
           id: student.id,
           token: student.token,
-          name: student.full_name,
+          name: student.name,
           email: student.email,
           role: "student",
           profile: {
             id: student.id,
-            fullName: student.full_name,
-            level: student.level || "",
-            targetGoal: student.target_goal || "",
-            avatarUrl: student.avatar_url || undefined,
-            bannerUrl: student.banner_url || undefined,
+            fullName: student.name,
+            level: "",
+            targetGoal: "",
             weaknesses: [],
             teacherNotes: "",
             attendanceRate: 0,
