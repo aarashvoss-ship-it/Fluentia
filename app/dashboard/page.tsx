@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { BookOpen, CheckCircle2, Clock3, Flame, Layers3, MessageSquareText, PanelRight, Settings2, UserRound, X } from "lucide-react";
-import { DEFAULT_STUDENT, type StudentUser } from "@/lib/users";
-import { persistResolvedStudent, PublishedLessonState, resolveStudentAccess, writeLastAccessedLesson } from "@/lib/lesson-store";
-import { getLessons, getLessonsByStudentId, type LessonWithVersion } from "@/lib/lessons";
+import { type StudentUser } from "@/lib/users";
+import { persistResolvedStudent, PublishedLessonState, writeLastAccessedLesson } from "@/lib/lesson-store";
+import { getLessonsByStudentId, type LessonWithVersion } from "@/lib/lessons";
 import { FLUENTIA_DATA_UPDATED_EVENT, fetchChatMessages, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, removeVocabularyWord, saveChatMessage, saveStudentNote, saveVocabularyWord } from "@/services/storage-service";
 import { ChatMessage, SavedVocabularyWord, StudentNote } from "@/types/lesson";
 import { DictionaryModal } from "@/components/study-room/dictionary-modal";
@@ -14,6 +13,7 @@ import { LearningSidebar } from "@/components/study-room/learning-sidebar";
 import { ChatWidget } from "@/components/study-room/chat-widget";
 import { AccessCard } from "@/components/access/access-card";
 import { getStudentProfile, saveStudentProfile } from "@/lib/student-profiles";
+import { supabase } from "@/lib/supabase";
 
 type LessonStatus = "not-started" | "in-progress" | "pending-review" | "completed";
 
@@ -56,11 +56,9 @@ function isValidImageUrl(value: string) {
 }
 
 function DashboardContent() {
-  const searchParams = useSearchParams();
-  const studentId = searchParams.get("student") || searchParams.get("token") || "navid-3912";
   const [isMounted, setIsMounted] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
-  const [activeStudent, setActiveStudent] = useState(DEFAULT_STUDENT);
+  const [activeStudent, setActiveStudent] = useState<StudentUser | null>(null);
   const [lessons, setLessons] = useState<LessonWithVersion[]>([]);
   const [lessonStates, setLessonStates] = useState<Record<string, PublishedLessonState | null>>({});
   const [savedWords, setSavedWords] = useState<SavedVocabularyWord[]>([]);
@@ -79,68 +77,115 @@ function DashboardContent() {
   const [bannerLoadFailed, setBannerLoadFailed] = useState(false);
 
   useEffect(() => {
-    const loadDashboard = async (studentToken: string) => {
+    const loadDashboard = async (userId: string) => {
       const [lessonRows, savedProfile, savedWords, studentNotes, messages] = await Promise.all([
-        getLessonsByStudentId(studentToken),
-        getStudentProfile(studentToken).catch(() => null),
-        fetchSavedVocabulary(studentToken),
-        fetchStudentNotes(studentToken),
-        fetchChatMessages(studentToken),
+        getLessonsByStudentId(userId),
+        getStudentProfile(userId),
+        fetchSavedVocabulary(userId),
+        fetchStudentNotes(userId),
+        fetchChatMessages(userId),
       ]);
       const assignedLessons = lessonRows.filter((lesson) => lesson.status === "published");
-      const availableLessons = assignedLessons.length > 0
-        ? assignedLessons
-        : (await getLessons()).filter((lesson) => lesson.status === "published");
+      const availableLessons = assignedLessons;
       setLessons(availableLessons);
       if (savedProfile && Object.keys(savedProfile).length > 0) {
-        setActiveStudent((previous) => previous.profile
-          ? { ...previous, name: savedProfile.fullName || previous.name, profile: { ...previous.profile, ...savedProfile } }
-          : previous);
+        setActiveStudent((previous) => {
+          if (!previous) return previous;
+          return {
+            ...previous,
+            role: "student",
+            name: savedProfile.fullName || previous.name,
+            profile: { ...previous.profile, ...savedProfile },
+          };
+        });
         setCustomAvatarUrl((current) => current || savedProfile.avatarUrl || "");
         setCustomBannerUrl((current) => current || savedProfile.bannerUrl || "");
       }
-      const nextLessonStates = Object.fromEntries(await Promise.all(availableLessons.map(async (lesson) => [lesson.id, await fetchLessonState(lesson.id, studentToken)])));
+      const nextLessonStates = Object.fromEntries(await Promise.all(availableLessons.map(async (lesson) => [lesson.id, await fetchLessonState(lesson.id, userId)])));
       setLessonStates(nextLessonStates);
       const completedModulesCount = availableLessons.filter((lesson) => getLessonStatus(nextLessonStates[lesson.id]) === "completed").length;
-      setActiveStudent((previous) => ({
-        ...previous,
-        profile: previous.profile ? { ...previous.profile, completedModulesCount } : previous.profile,
-      }));
+      setActiveStudent((previous) => previous
+        ? { ...previous, role: "student", profile: { ...previous.profile, completedModulesCount } }
+        : previous);
       setSavedWords(savedWords);
       setNotes(studentNotes);
       setChatMessages(messages);
     };
-    const params = new URLSearchParams(window.location.search);
-    const active = resolveStudentAccess(studentId);
-    if (!active) {
-      setAccessDenied(true);
+    const loadAuthenticatedDashboard = async () => {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData.user) {
+        window.location.replace("/login");
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, token, full_name, role, level, target_goal, avatar_url, banner_url")
+        .eq("id", userData.user.id)
+        .maybeSingle();
+
+      if (profileError || !profile || profile.role !== "student") {
+        console.error("Authenticated dashboard profile lookup failed:", {
+          code: profileError?.code,
+          message: profileError?.message || "No student profile found for authenticated user",
+          details: profileError?.details,
+          hint: profileError?.hint,
+        });
+        setAccessDenied(true);
+        setIsMounted(true);
+        return;
+      }
+
+      const active: StudentUser = {
+        id: userData.user.id,
+        token: profile.token,
+        name: profile.full_name || userData.user.email || "Authenticated student",
+        role: "student",
+        profile: {
+          id: userData.user.id,
+          fullName: profile.full_name || userData.user.email || "Authenticated student",
+          level: profile.level || "",
+          targetGoal: profile.target_goal || "",
+          avatarUrl: profile.avatar_url || undefined,
+          bannerUrl: profile.banner_url || undefined,
+          weaknesses: [],
+          teacherNotes: "",
+          attendanceRate: 0,
+          completedModulesCount: 0,
+        },
+      };
+
+      setActiveStudent(active);
+      persistResolvedStudent(active);
+      const studentToken = userData.user.id;
+      const storedProfile = window.localStorage.getItem(`fluentia:profile:${studentToken}`);
+      let preferences: ProfilePreferences = {};
+      try {
+        preferences = storedProfile ? JSON.parse(storedProfile) as ProfilePreferences : {};
+      } catch {
+        window.localStorage.removeItem(`fluentia:profile:${studentToken}`);
+      }
+      setAvatarPreset(preferences.avatarPreset || "amber");
+      setCustomAvatarUrl(preferences.customAvatarUrl || active.profile.avatarUrl || "");
+      setBannerPreset(preferences.bannerPreset || "default-dark");
+      setCustomBannerUrl(preferences.customBannerUrl || active.profile.bannerUrl || "");
       setIsMounted(true);
-      return;
-    }
-    persistResolvedStudent(active);
-    const studentToken = active.token;
-    const storedProfile = window.localStorage.getItem(`fluentia:profile:${studentToken}`);
-    let preferences: ProfilePreferences = {};
-    try {
-      preferences = storedProfile ? JSON.parse(storedProfile) as ProfilePreferences : {};
-    } catch {
-      window.localStorage.removeItem(`fluentia:profile:${studentToken}`);
-    }
-    setActiveStudent(active);
-    setAvatarPreset(preferences.avatarPreset || "amber");
-    setCustomAvatarUrl(preferences.customAvatarUrl || "");
-    setBannerPreset(preferences.bannerPreset || "default-dark");
-    setCustomBannerUrl(preferences.customBannerUrl || "");
-    setIsMounted(true);
-    const refreshLessons = () => void loadDashboard(studentToken);
-    void loadDashboard(studentToken);
-    window.addEventListener("storage", refreshLessons);
-    window.addEventListener(FLUENTIA_DATA_UPDATED_EVENT, refreshLessons);
-    window.addEventListener("fluentia:lesson-updated", refreshLessons);
+      const refreshLessons = () => void loadDashboard(studentToken);
+      void loadDashboard(studentToken);
+      window.addEventListener("storage", refreshLessons);
+      window.addEventListener(FLUENTIA_DATA_UPDATED_EVENT, refreshLessons);
+      window.addEventListener("fluentia:lesson-updated", refreshLessons);
+      return () => {
+        window.removeEventListener("storage", refreshLessons);
+        window.removeEventListener(FLUENTIA_DATA_UPDATED_EVENT, refreshLessons);
+        window.removeEventListener("fluentia:lesson-updated", refreshLessons);
+      };
+    };
+
+    let cleanup: (() => void) | undefined;
+    void loadAuthenticatedDashboard().then((result) => { cleanup = result; });
     return () => {
-      window.removeEventListener("storage", refreshLessons);
-      window.removeEventListener(FLUENTIA_DATA_UPDATED_EVENT, refreshLessons);
-      window.removeEventListener("fluentia:lesson-updated", refreshLessons);
+      cleanup?.();
     };
   }, []);
 
@@ -148,11 +193,11 @@ function DashboardContent() {
     return <main className="min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
   }
 
-  if (accessDenied) {
+  if (accessDenied || !activeStudent) {
     return <AccessCard title="By Invitation Only" message="Access to Fluentia is reserved for private sessions. Please contact your instructor to receive a valid student session token." />;
   }
 
-  const token = activeStudent.token || activeStudent.id;
+  const token = activeStudent.id;
   const displayLessons = lessons;
   const completedLessons = displayLessons.filter(
     (lesson) => getLessonStatus(lessonStates[lesson.id]) === "completed"
@@ -170,7 +215,7 @@ function DashboardContent() {
   const inProgressLessons = displayLessons.filter((lesson) => getLessonStatus(lessonStates[lesson.id]) === "in-progress").length;
   const progressPercent = displayLessons.length ? Math.round((completedLessons / displayLessons.length) * 100) : 0;
   const nextLesson = displayLessons[0];
-  const displayName = activeStudent.name === "Arash Test" ? "Arash Vossoughi" : activeStudent.name;
+  const displayName = activeStudent.name;
   const profileInitials = displayName.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
   const selectedAvatar = AVATAR_PRESETS.find((preset) => preset.id === avatarPreset) || AVATAR_PRESETS[0];
   const selectedBanner = BANNER_PRESETS.find((preset) => preset.id === bannerPreset) || BANNER_PRESETS[0];
@@ -229,7 +274,7 @@ function DashboardContent() {
                     <div className="min-h-0 flex-1 overflow-y-auto p-4">
                       {profileTab === "profile" ? <div className="space-y-4 text-xs"><div className="grid grid-cols-2 gap-3"><div><p className="text-stone-500">Name</p><p className="mt-1 text-stone-200">{displayName}</p></div><div><p className="text-stone-500">Progress</p><p className="mt-1 text-stone-200">{completedLessons} / {displayLessons.length} lessons</p></div></div><div className="grid grid-cols-2 gap-3"><div><p className="text-stone-500">Level</p><p className="mt-1 rounded-md border border-[#394252] bg-[#0c1017] p-2 text-stone-200">{activeStudent.profile?.level || "Not set"}</p></div><div><p className="text-stone-500">Learning goal</p><p className="mt-1 rounded-md border border-[#394252] bg-[#0c1017] p-2 text-stone-200">{activeStudent.profile?.targetGoal || "Not set"}</p></div></div><div className="border-t border-[#29303c] pt-3"><p className="text-stone-500">Assigned instructor</p><p className="mt-1 rounded-md border border-[#394252] bg-[#0c1017] p-2 text-stone-200">Fluentia Instructor: AVoss</p></div></div> : <div className="space-y-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Student Avatar</p><div className="mt-2 grid grid-cols-3 gap-2">{AVATAR_PRESETS.map((preset) => <button key={preset.id} type="button" onClick={() => { setAvatarPreset(preset.id); setCustomAvatarUrl(""); }} aria-label={`Use ${preset.label} avatar`} className={`flex flex-col items-center gap-1 rounded-md border p-2 text-[10px] text-stone-400 transition ${avatarPreset === preset.id && !avatarImage ? "border-amber-500 bg-amber-500/10 text-amber-300" : "border-[#394252] hover:border-amber-500/50"}`}><span style={{ backgroundColor: preset.backgroundColor }} className={`flex h-8 w-8 items-center justify-center rounded-full text-[10px] font-bold ${preset.className}`}>{profileInitials}</span>{preset.label}</button>)}</div><div className="mt-3 flex items-center gap-2 rounded-md border border-[#29303c] bg-[#0c1017] p-2"><span style={!avatarImage ? { backgroundColor: selectedAvatar.backgroundColor } : undefined} className={`flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-bold ${avatarImage ? "bg-[#283344]" : selectedAvatar.className}`}>{avatarImage ? <img src={avatarImage} alt="Custom avatar preview" className="h-full w-full object-cover" /> : profileInitials}</span><span className="text-xs text-stone-400">Live avatar preview</span></div><label className="mt-2 block text-xs text-stone-400">Custom Avatar URL<input value={customAvatarUrl} onChange={(event) => setCustomAvatarUrl(event.target.value)} placeholder="https://..." className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2 text-xs text-stone-200" /></label></div><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Dashboard Hero Banner</p><div className="mt-2 grid grid-cols-3 gap-2">{BANNER_PRESETS.map((preset) => <button key={preset.id} type="button" onClick={() => { setBannerPreset(preset.id); setCustomBannerUrl(""); }} className={`overflow-hidden rounded-md border text-left transition ${bannerPreset === preset.id && !customBannerUrl ? "border-amber-500" : "border-[#394252] hover:border-amber-500/50"}`}><img src={preset.image} alt="" className="h-10 w-full object-cover opacity-75" /><span className="block truncate px-1.5 py-1 text-[9px] text-stone-400">{preset.label}</span></button>)}</div><label className="mt-2 block text-xs text-stone-400">Custom Banner URL<input value={customBannerUrl} onChange={(event) => setCustomBannerUrl(event.target.value)} placeholder="https://..." className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2 text-xs text-stone-200" /></label></div></div>}
                     </div>
-                    <div className="border-t border-[#29303c] bg-[#171d28] p-4"><button type="button" onClick={() => { const preferences = { avatarPreset, customAvatarUrl, bannerPreset, customBannerUrl }; void saveStudentProfile(token, { ...(activeStudent.profile || DEFAULT_STUDENT.profile), fullName: displayName, avatarUrl: customAvatarUrl, bannerUrl: customBannerUrl }).catch((error) => console.error("Failed to save student profile:", error)); window.localStorage.setItem(`fluentia:profile:${token}`, JSON.stringify(preferences)); window.dispatchEvent(new CustomEvent("fluentia:student-profile-updated", { detail: preferences })); setBannerLoadFailed(false); setProfileOpen(false); }} className="w-full rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-amber-400">Save settings</button></div>
+                    <div className="border-t border-[#29303c] bg-[#171d28] p-4"><button type="button" onClick={() => { const preferences = { avatarPreset, customAvatarUrl, bannerPreset, customBannerUrl }; void saveStudentProfile(token, { ...activeStudent.profile, fullName: displayName, avatarUrl: customAvatarUrl, bannerUrl: customBannerUrl }).catch((error) => console.error("Failed to save student profile:", error)); window.localStorage.setItem(`fluentia:profile:${token}`, JSON.stringify(preferences)); window.dispatchEvent(new CustomEvent("fluentia:student-profile-updated", { detail: preferences })); setBannerLoadFailed(false); setProfileOpen(false); }} className="w-full rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-amber-400">Save settings</button></div>
                   </div>
                 )}
               </div>
@@ -254,7 +299,7 @@ function DashboardContent() {
               <div className="flex items-center justify-between gap-3 border-b border-[#29303c] p-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Student profile</p><p className="mt-1 text-sm font-semibold text-stone-100">{displayName}</p></div><button type="button" onClick={() => setProfileOpen(false)} aria-label="Close profile" className="text-stone-500 hover:text-stone-200"><X className="h-4 w-4" /></button></div>
               <div className="grid grid-cols-2 border-b border-[#29303c] px-4 pt-3"><button type="button" onClick={() => setProfileTab("profile")} className={`border-b-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] ${profileTab === "profile" ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-300"}`}>Profile &amp; Preferences</button><button type="button" onClick={() => setProfileTab("customization")} className={`border-b-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] ${profileTab === "customization" ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-300"}`}>Customization</button></div>
               <div className="space-y-4 p-4 text-xs">{profileTab === "profile" ? <><div className="grid grid-cols-2 gap-3"><div><p className="text-stone-500">Name</p><p className="mt-1 text-stone-200">{displayName}</p></div><div><p className="text-stone-500">Progress</p><p className="mt-1 text-stone-200">{completedLessons} / {displayLessons.length} lessons</p></div></div><div className="grid grid-cols-2 gap-3"><div><p className="text-stone-500">Level</p><p className="mt-1 rounded-md border border-[#394252] bg-[#0c1017] p-2 text-stone-200">{activeStudent.profile?.level || "Not set"}</p></div><div><p className="text-stone-500">Learning goal</p><p className="mt-1 rounded-md border border-[#394252] bg-[#0c1017] p-2 text-stone-200">{activeStudent.profile?.targetGoal || "Not set"}</p></div></div><div className="border-t border-[#29303c] pt-3"><p className="text-stone-500">Assigned instructor</p><p className="mt-1 rounded-md border border-[#394252] bg-[#0c1017] p-2 text-stone-200">Fluentia Instructor: AVoss</p></div></> : <><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Theme options</p><div className="mt-2 flex gap-2"><button type="button" className="rounded-md border border-amber-500 bg-amber-500/10 px-2 py-1.5 text-[10px] text-amber-300">Dark</button><span className="rounded-md border border-[#394252] px-2 py-1.5 text-[10px] text-stone-500">Fluentia dark theme</span></div></div><label className="block text-stone-400">Custom Avatar URL<input value={customAvatarUrl} onChange={(event) => setCustomAvatarUrl(event.target.value)} placeholder="https://..." className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2 text-xs text-stone-200" /></label><label className="block text-stone-400">Custom Banner URL<input value={customBannerUrl} onChange={(event) => setCustomBannerUrl(event.target.value)} placeholder="https://..." className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2 text-xs text-stone-200" /></label></>}</div>
-              <div className="border-t border-[#29303c] bg-[#171d28] p-4"><button type="button" onClick={() => { const preferences = { avatarPreset, customAvatarUrl, bannerPreset, customBannerUrl }; void saveStudentProfile(token, { ...(activeStudent.profile || DEFAULT_STUDENT.profile), fullName: displayName, avatarUrl: customAvatarUrl, bannerUrl: customBannerUrl }).catch((error) => console.error("Failed to save student profile:", error)); window.localStorage.setItem(`fluentia:profile:${token}`, JSON.stringify(preferences)); window.dispatchEvent(new CustomEvent("fluentia:student-profile-updated", { detail: preferences })); setBannerLoadFailed(false); setProfileOpen(false); }} className="w-full rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-amber-400">Save settings</button></div>
+              <div className="border-t border-[#29303c] bg-[#171d28] p-4"><button type="button" onClick={() => { const preferences = { avatarPreset, customAvatarUrl, bannerPreset, customBannerUrl }; void saveStudentProfile(token, { ...activeStudent.profile, fullName: displayName, avatarUrl: customAvatarUrl, bannerUrl: customBannerUrl }).catch((error) => console.error("Failed to save student profile:", error)); window.localStorage.setItem(`fluentia:profile:${token}`, JSON.stringify(preferences)); window.dispatchEvent(new CustomEvent("fluentia:student-profile-updated", { detail: preferences })); setBannerLoadFailed(false); setProfileOpen(false); }} className="w-full rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-amber-400">Save settings</button></div>
             </div>}
           </div>
           <div className="rounded-xl border border-[#202631] bg-[#121721] p-4">
@@ -427,5 +472,5 @@ function DashboardContent() {
 }
 
 export default function DashboardPage() {
-  return <Suspense fallback={<main className="min-h-screen bg-[#0c1017]" />}><DashboardContent /></Suspense>;
+  return <DashboardContent />;
 }

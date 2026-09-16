@@ -284,16 +284,15 @@ export async function getLessonsByStudentId(studentId: string): Promise<LessonWi
 
   try {
     const studentUuid = await resolveUserUuid(studentId);
-    const [directResult, assignmentResult, allStudentsResult] = await Promise.all([
-      supabase.from("lessons").select("*").eq("status", "published").or(`student_id.eq.${studentUuid},student_token.eq.${studentId}`),
+    const [directResult, assignmentResult] = await Promise.all([
+      supabase.from("lessons").select("*").eq("status", "published").eq("student_id", studentUuid),
       supabase.from("lessons").select("*, lesson_assignments!inner(student_id)").eq("status", "published").eq("lesson_assignments.student_id", studentUuid),
-      supabase.from("lessons").select("*").eq("status", "published").eq("assigned_all_students", true),
     ]);
 
-    const firstError = directResult.error || assignmentResult.error || allStudentsResult.error;
+    const firstError = directResult.error || assignmentResult.error;
     if (firstError) throw firstError;
     const uniqueLessons = new Map<string, LessonRow>();
-    [...(directResult.data || []), ...(assignmentResult.data || []), ...(allStudentsResult.data || [])].forEach((lesson) => {
+    [...(directResult.data || []), ...(assignmentResult.data || [])].forEach((lesson) => {
       uniqueLessons.set(lesson.id, lesson as LessonRow);
     });
 
