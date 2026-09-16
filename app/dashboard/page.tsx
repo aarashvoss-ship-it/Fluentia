@@ -173,8 +173,7 @@ function DashboardContent() {
           logDashboardError("Dashboard student lookup threw an error; using session metadata:", error);
         }
 
-        const fallbackName = userData.user.user_metadata?.full_name
-          || userData.user.user_metadata?.name
+        const fallbackName = userData.user.user_metadata?.name
           || userEmail
           || "Student";
 

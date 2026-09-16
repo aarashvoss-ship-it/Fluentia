@@ -113,9 +113,36 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/login?error=not_invited", origin));
   }
 
-  const redirectPath = userEmail === "aarashvoss@gmail.com"
-    ? "/instructor/avoss-9042"
-    : "/dashboard";
+  let redirectPath = "/dashboard";
+  if (userEmail === "aarashvoss@gmail.com") {
+    redirectPath = "/instructor/avoss-9042";
+  } else {
+    try {
+      const { data: student, error: studentError } = await allowlistClient
+        .from("students")
+        .select("email")
+        .eq("email", userEmail)
+        .maybeSingle();
+      if (studentError) {
+        console.error("Supabase authorized-student lookup failed:", {
+          code: studentError.code,
+          message: studentError.message,
+          details: studentError.details,
+          hint: studentError.hint,
+        });
+        await supabase.auth.signOut();
+        return NextResponse.redirect(new URL("/login?error=allowlist_check_failed", origin));
+      }
+      if (!student) {
+        await supabase.auth.signOut();
+        return NextResponse.redirect(new URL("/login?error=not_invited", origin));
+      }
+    } catch (studentError) {
+      console.error("Authorized-student lookup threw an error:", studentError);
+      await supabase.auth.signOut();
+      return NextResponse.redirect(new URL("/login?error=allowlist_check_failed", origin));
+    }
+  }
 
   response.headers.set("Location", new URL(redirectPath, origin).toString());
   console.error('[AUTH CALLBACK] Step 7: Allowlist match succeeded; preserving session cookies and redirecting', { redirectPath });

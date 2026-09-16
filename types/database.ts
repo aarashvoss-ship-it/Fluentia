@@ -9,7 +9,7 @@ export type Json =
 export interface Profile {
   id: string;
   email: string;
-  full_name: string;
+  name: string;
   role: "student" | "instructor" | "admin";
   token: string | null;
   avatar_url: string | null;

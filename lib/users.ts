@@ -3,7 +3,6 @@ import { StudentProfile } from "@/types/lesson";
 export interface FluentiaUser {
   id: string;
   name: string;
-  full_name?: string;
   email?: string;
   role: "student" | "instructor";
   token?: string;

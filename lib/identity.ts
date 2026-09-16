@@ -8,13 +8,21 @@ export async function resolveUserUuid(token: string): Promise<string> {
   if (UUID_PATTERN.test(value)) return value;
   if (!isSupabaseConfigured()) throw new Error("Supabase is not configured");
 
-  const { data, error } = await supabase
-    .from("profiles")
+  const { data: student, error: studentError } = await supabase
+    .from("students")
     .select("id")
     .eq("token", value)
     .maybeSingle();
+  if (studentError) throw studentError;
+  if (student?.id) return student.id;
 
-  if (error) throw error;
-  if (!data?.id) throw new Error(`No profile found for token '${value}'`);
-  return data.id;
+  const { data: instructor, error: instructorError } = await supabase
+    .from("instructors")
+    .select("id")
+    .eq("token", value)
+    .maybeSingle();
+  if (instructorError) throw instructorError;
+  if (instructor?.id) return instructor.id;
+
+  throw new Error(`No student or instructor found for token '${value}'`);
 }

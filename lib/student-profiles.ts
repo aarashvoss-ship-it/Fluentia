@@ -4,7 +4,7 @@ import type { StudentProfile } from "@/types/lesson";
 
 export interface StudentProfileRecord {
   student_token: string;
-  full_name?: string;
+  name?: string;
   level: string;
   learning_goal: string;
   instructor_notes: string;
@@ -17,18 +17,11 @@ export async function saveStudentProfile(studentToken: string, profile: StudentP
   if (!isSupabaseConfigured()) return;
 
   const profileId = await resolveUserUuid(studentToken);
-  const profileRow = {
-    id: profileId,
-    token: studentToken,
-    full_name: profile.fullName,
-    level: profile.level,
-    target_goal: profile.targetGoal,
-    avatar_url: profile.avatarUrl || null,
-    banner_url: profile.bannerUrl || null,
-    updated_at: new Date().toISOString(),
-  };
-  const { error: profileError } = await supabase.from("profiles").upsert(profileRow, { onConflict: "token" });
-  if (profileError) throw profileError;
+  const { error: studentError } = await supabase
+    .from("students")
+    .update({ name: profile.fullName, updated_at: new Date().toISOString() })
+    .eq("id", profileId);
+  if (studentError) throw studentError;
 
   const { error } = await supabase.from("student_profiles").upsert({
     student_token: studentToken,
@@ -44,8 +37,8 @@ export async function saveStudentProfile(studentToken: string, profile: StudentP
 export async function getStudentProfile(studentToken: string): Promise<Partial<StudentProfile> | null> {
   if (!isSupabaseConfigured()) return null;
 
-  const [{ data: profile, error: profileError }, { data, error }] = await Promise.all([
-    supabase.from("profiles").select("full_name, level, target_goal, avatar_url, banner_url").eq("token", studentToken).maybeSingle(),
+  const [{ data: student, error: studentError }, { data, error }] = await Promise.all([
+    supabase.from("students").select("name, email, token").eq("token", studentToken).maybeSingle(),
     supabase
     .from("student_profiles")
     .select("level, learning_goal, instructor_notes")
@@ -53,16 +46,14 @@ export async function getStudentProfile(studentToken: string): Promise<Partial<S
     .maybeSingle(),
   ]);
 
-  if (profileError) throw profileError;
+  if (studentError) throw studentError;
   if (error) throw error;
-  if (!profile && !data) return null;
+  if (!student && !data) return null;
 
   return {
-    fullName: profile?.full_name || undefined,
-    level: profile?.level || data?.level || undefined,
-    targetGoal: profile?.target_goal || data?.learning_goal || undefined,
+    fullName: student?.name || undefined,
+    level: data?.level || undefined,
+    targetGoal: data?.learning_goal || undefined,
     teacherNotes: data?.instructor_notes || undefined,
-    avatarUrl: profile?.avatar_url || undefined,
-    bannerUrl: profile?.banner_url || undefined,
   };
 }
