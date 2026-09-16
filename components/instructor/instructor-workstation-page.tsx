@@ -10,7 +10,7 @@ import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/su
 import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
 import { assignLessonToAllActiveStudents, assignLessonToStudent, createLesson, deleteLesson, getLessons, unassignLesson, updateLesson, type LessonWithVersion } from "@/lib/lessons";
 import { INSTRUCTOR_TOKEN, PublishedLessonState } from "@/lib/lesson-store";
-import { DEFAULT_STUDENT, StudentUser } from "@/lib/users";
+import { STUDENT_USERS, StudentUser } from "@/lib/users";
 import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/storage-service";
 import { AccessCard } from "@/components/access/access-card";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
@@ -38,7 +38,7 @@ export default function InstructorWorkstationPage({
 
   const [isMounted, setIsMounted] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState(DEFAULT_STUDENT);
+  const [selectedStudent, setSelectedStudent] = useState<StudentUser | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
   const [students, setStudents] = useState<StudentUser[]>([]);
@@ -68,7 +68,15 @@ export default function InstructorWorkstationPage({
     content: {},
     bannerUrl: "",
     customBannerUrl: "",
-    studentProfile: DEFAULT_STUDENT.profile,
+    studentProfile: {
+      fullName: "",
+      level: "",
+      targetGoal: "",
+      weaknesses: [],
+      teacherNotes: "",
+      attendanceRate: 0,
+      completedModulesCount: 0,
+    },
     evaluation: {
       scores: { task: 4, coherence: 4, lexical: 3, grammar: 4 },
       comments: "Great work on incorporating specific behavioral terms.",
@@ -91,7 +99,7 @@ export default function InstructorWorkstationPage({
   const [lessonPendingDelete, setLessonPendingDelete] = useState<LessonWithVersion | null>(null);
   const [openLessonMenuId, setOpenLessonMenuId] = useState<string | null>(null);
   const [newLesson, setNewLesson] = useState({
-    studentId: DEFAULT_STUDENT.id,
+    studentId: "",
     title: "",
     slug: "",
     subtitle: "",
@@ -239,7 +247,7 @@ export default function InstructorWorkstationPage({
     hasLoadedLesson.current = false;
     setDatabaseLessonId(null);
     setSelectedStudentId(null);
-    setSelectedStudent(DEFAULT_STUDENT);
+    setSelectedStudent(null);
     setNewLesson((previous) => ({
       ...previous,
       studentId: "",
@@ -383,9 +391,9 @@ export default function InstructorWorkstationPage({
   }, [databaseLessonId, createdLessons, students]);
 
   async function handleCreateLesson() {
-    const draftStudentId = selectedStudentId || newLesson.studentId || selectedStudent.id;
+    const draftStudentId = selectedStudentId || newLesson.studentId || selectedStudent?.id || "";
     const student = students.find((item) => item.id === draftStudentId || item.token === draftStudentId)
-      || (selectedStudent.id === draftStudentId || selectedStudent.token === draftStudentId ? selectedStudent : null);
+      || (selectedStudent && (selectedStudent.id === draftStudentId || selectedStudent.token === draftStudentId) ? selectedStudent : null);
     if (!student) {
       setValidationErrors({ selectedStudentId: "Select a student before creating the draft." });
       setPublishStatus("Select a student before creating the draft.");
@@ -500,31 +508,32 @@ export default function InstructorWorkstationPage({
           supabase.from("lessons").select("id", { count: "exact", head: true }).eq("status", "published"),
           supabase.from("lessons").select("id", { count: "exact", head: true }).eq("status", "draft"),
         ]);
-        const { data: profileRows, error: profileError } = await supabase
-          .from("profiles")
-          .select("id, token, full_name, role, level, target_goal, avatar_url, banner_url")
-          .eq("role", "student")
+        const { data: studentRows, error: studentError } = await supabase
+          .from("students")
+          .select("id, token, full_name, email, level, target_goal, avatar_url, banner_url")
+          .in("email", STUDENT_USERS.map((student) => student.email))
           .order("full_name", { ascending: true });
-        if (profileError) {
-          console.error("Failed to load student profiles:", { code: profileError.code, message: profileError.message, details: profileError.details, hint: profileError.hint });
-          throw new Error(profileError.message || "Unable to load student profiles");
+        if (studentError) {
+          console.error("Failed to load students:", { code: studentError.code, message: studentError.message, details: studentError.details, hint: studentError.hint });
+          throw new Error(studentError.message || "Unable to load students");
         }
         if (cancelled) return;
         setPendingSubmissionCount(pendingResult.status === "fulfilled" ? pendingResult.value.count ?? 0 : 0);
         setPublishedLessonCount(publishedResult.status === "fulfilled" ? publishedResult.value.count ?? 0 : 0);
         setDraftLessonCount(draftsResult.status === "fulfilled" ? draftsResult.value.count ?? 0 : 0);
-        const nextStudents: StudentUser[] = (profileRows || []).map((profile) => ({
-          id: profile.id,
-          token: profile.token,
-          name: profile.full_name,
+        const nextStudents: StudentUser[] = (studentRows || []).map((student) => ({
+          id: student.id,
+          token: student.token,
+          name: student.full_name,
+          email: student.email,
           role: "student",
           profile: {
-            id: profile.id,
-            fullName: profile.full_name,
-            level: profile.level || "B1 Intermediate",
-            targetGoal: profile.target_goal || "",
-            avatarUrl: profile.avatar_url || undefined,
-            bannerUrl: profile.banner_url || undefined,
+            id: student.id,
+            fullName: student.full_name,
+            level: student.level || "",
+            targetGoal: student.target_goal || "",
+            avatarUrl: student.avatar_url || undefined,
+            bannerUrl: student.banner_url || undefined,
             weaknesses: [],
             teacherNotes: "",
             attendanceRate: 0,
@@ -532,7 +541,7 @@ export default function InstructorWorkstationPage({
           },
         }));
         setStudents(nextStudents);
-        if (nextStudents.length > 0 && !nextStudents.some((student) => student.id === selectedStudent.id)) {
+        if (nextStudents.length > 0 && (!selectedStudent || !nextStudents.some((student) => student.id === selectedStudent.id))) {
           setSelectedStudent(nextStudents[0]);
           setSelectedStudentId(nextStudents[0].id);
         }
@@ -592,7 +601,7 @@ export default function InstructorWorkstationPage({
         return;
       }
     }
-    const studentId = selectedStudentId || newLesson.studentId || selectedStudent.id;
+    const studentId = selectedStudentId || newLesson.studentId || selectedStudent?.id || "";
     if (!studentId) {
       setPublishStatus("Select a student before saving the lesson.");
       return;
@@ -602,7 +611,7 @@ export default function InstructorWorkstationPage({
     if (!isAutoSave) setIsPublishing(true);
     const assignedStudent = students.find(
       (student) => student.id === studentId || student.token === studentId
-    ) || (selectedStudent.id === studentId || selectedStudent.token === studentId ? selectedStudent : null);
+    ) || (selectedStudent && (selectedStudent.id === studentId || selectedStudent.token === studentId) ? selectedStudent : null);
     if (!assignedStudent?.id || !assignedStudent.token) {
       setSaveIndicator("error");
       setPublishStatus("Select a valid student before saving the lesson.");
@@ -809,7 +818,7 @@ export default function InstructorWorkstationPage({
 </div>
 <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
 <h2 className="font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Recent Activity</h2>
-<p className="mt-3 text-sm text-stone-400">{selectedStudent.name} is the active student workspace.</p>
+<p className="mt-3 text-sm text-stone-400">{selectedStudent ? `${selectedStudent.name} is the active student workspace.` : "Choose a student to open a workspace."}</p>
 <button type="button" onClick={() => setActiveTab("evaluation")} className="mt-4 text-xs font-semibold text-amber-300 hover:text-amber-200">Review student work</button>
 </div>
 </div>
@@ -902,7 +911,7 @@ export default function InstructorWorkstationPage({
 
         {activeTab === "evaluation" && <>
 <div className="mb-6">
-<StudentContextPanel studentName={selectedStudent?.name || "Selected Student"} profile={workstationState.studentProfile} onUpdateProfile={(studentProfile: StudentProfile) => setWorkstationState((previous) => ({ ...previous, studentProfile }))} onSaveProfile={async (studentProfile: StudentProfile) => { const studentToken = selectedStudent.token || selectedStudent.id; await saveStudentProfile(studentToken, studentProfile); window.localStorage.setItem(`fluentia:student-profile-sync:${studentToken}`, new Date().toISOString()); window.dispatchEvent(new CustomEvent(FLUENTIA_DATA_UPDATED_EVENT, { detail: { type: "student-profile", studentToken } })); }} />
+<StudentContextPanel studentName={selectedStudent?.name || "Selected Student"} profile={workstationState.studentProfile} onUpdateProfile={(studentProfile: StudentProfile) => setWorkstationState((previous) => ({ ...previous, studentProfile }))} onSaveProfile={async (studentProfile: StudentProfile) => { if (!selectedStudent) return; const studentToken = selectedStudent.token || selectedStudent.id; await saveStudentProfile(studentToken, studentProfile); window.localStorage.setItem(`fluentia:student-profile-sync:${studentToken}`, new Date().toISOString()); window.dispatchEvent(new CustomEvent(FLUENTIA_DATA_UPDATED_EVENT, { detail: { type: "student-profile", studentToken } })); }} />
 </div>
 <section className="mt-8 grid grid-cols-1 items-start gap-6 lg:grid-cols-12" aria-label="Student submission review workspace">
 <div className="space-y-5 lg:col-span-7">
@@ -920,7 +929,7 @@ export default function InstructorWorkstationPage({
 </div>
 </div>
 <div className="lg:col-span-5 lg:sticky lg:top-6">
-<SubmissionEvaluator lessonId={databaseLessonId || newLesson.slug || lessonId} studentId={selectedStudent.id} instructorId={instructorToken} studentName={selectedStudent?.name || "Selected Student"} useSupabase evaluation={workstationState.evaluation} onUpdateEvaluation={(evaluation: LessonEvaluation) => setWorkstationState((previous) => ({ ...previous, evaluation }))} onSubmitFeedback={async (feedback: FeedbackPayload) => { const evaluation = { ...workstationState.evaluation, scores: feedback.scores, comments: feedback.comments, criterionFeedback: feedback.criterionFeedback, published: true }; setWorkstationState((previous) => ({ ...previous, evaluation })); await saveInstructorFeedback(newLesson.slug || lessonId, selectedStudent.token, evaluation); setPublishStatus("Strengths, study plan, and evaluation synced with student view!"); }} />
+<SubmissionEvaluator lessonId={databaseLessonId || newLesson.slug || lessonId} studentId={selectedStudent?.id} instructorId={instructorToken} studentName={selectedStudent?.name || "Selected Student"} useSupabase evaluation={workstationState.evaluation} onUpdateEvaluation={(evaluation: LessonEvaluation) => setWorkstationState((previous) => ({ ...previous, evaluation }))} onSubmitFeedback={async (feedback: FeedbackPayload) => { if (!selectedStudent) return; const evaluation = { ...workstationState.evaluation, scores: feedback.scores, comments: feedback.comments, criterionFeedback: feedback.criterionFeedback, published: true }; setWorkstationState((previous) => ({ ...previous, evaluation })); await saveInstructorFeedback(newLesson.slug || lessonId, selectedStudent.token, evaluation); setPublishStatus("Strengths, study plan, and evaluation synced with student view!"); }} />
 </div>
 </section>
 </>}

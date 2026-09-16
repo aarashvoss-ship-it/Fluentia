@@ -113,23 +113,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/login?error=not_invited", origin));
   }
 
-  let redirectPath = "/dashboard";
-  try {
-    const { data: instructorProfile, error: profileError } = await allowlistClient
-      .from("profiles")
-      .select("token")
-      .eq("id", user.id)
-      .eq("role", "instructor")
-      .maybeSingle();
-
-    if (profileError) {
-      console.error("Supabase instructor profile lookup failed:", profileError);
-    } else if (instructorProfile?.token?.trim()) {
-      redirectPath = `/instructor/${encodeURIComponent(instructorProfile.token.trim())}`;
-    }
-  } catch (profileError) {
-    console.error("Supabase instructor profile query threw an error:", profileError);
-  }
+  const redirectPath = userEmail === "aarashvoss@gmail.com"
+    ? "/instructor/avoss-9042"
+    : "/dashboard";
 
   response.headers.set("Location", new URL(redirectPath, origin).toString());
   console.error('[AUTH CALLBACK] Step 7: Allowlist match succeeded; preserving session cookies and redirecting', { redirectPath });
