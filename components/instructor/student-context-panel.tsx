@@ -16,7 +16,7 @@ interface StudentContextPanelProps {
 }
 
 export function StudentContextPanel({
-  studentName = "Arash",
+  studentName = "Student",
   profile,
   onUpdateProfile,
   onSaveProfile,
@@ -25,15 +25,15 @@ export function StudentContextPanel({
   useSupabase = true,
 }: StudentContextPanelProps) {
   const displayProfile: StudentProfile = profile || {
-    id: "demo",
-    fullName: studentName,
+    id: studentId,
+    fullName: studentName || "Student",
     avatarUrl: "",
-    level: "B2 Intermediate",
-    targetGoal: "Fluency & Professional Presentation",
-    weaknesses: ["Complex Tenses", "Hedging Expressions", "Passive Voice"],
-    teacherNotes: "Responds very well to reflective prompts. Needs more practice with natural transitional phrases.",
-    attendanceRate: 94,
-    completedModulesCount: 12,
+    level: "",
+    targetGoal: "",
+    weaknesses: [],
+    teacherNotes: "",
+    attendanceRate: 0,
+    completedModulesCount: 0,
   };
 
   const [submissionData, setSubmissionData] = useState<any>(null);

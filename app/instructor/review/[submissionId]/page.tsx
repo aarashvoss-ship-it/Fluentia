@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { Mic, Send, Save, Award, CheckCircle, ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { INSTRUCTOR_TOKEN } from "@/lib/lesson-store";
 
 export default function SubmissionReviewPage() {
   const [rubricScores, setRubricScores] = useState({
@@ -27,12 +28,12 @@ export default function SubmissionReviewPage() {
       {/* Top Bar */}
       <div className="max-w-7xl mx-auto flex items-center justify-between border-b border-[#273647] pb-4 mb-8">
         <div className="flex items-center gap-3">
-          <Link href="/instructor/avoss-9042/lessons/habits-01?token=avoss-9042" className="p-2 bg-[#122131] border border-[#273647] rounded-lg hover:bg-[#273647] transition">
+          <Link href={`/instructor/${INSTRUCTOR_TOKEN}/lessons/habits-01?token=${INSTRUCTOR_TOKEN}`} className="p-2 bg-[#122131] border border-[#273647] rounded-lg hover:bg-[#273647] transition">
             <ArrowLeft className="w-4 h-4 text-white" />
           </Link>
           <div>
             <h1 className="text-lg font-bold text-white">Submission Review Workspace</h1>
-            <p className="text-xs text-slate-400">Alex Rivera • Module 03 Submission (Speaking & Writing)</p>
+            <p className="text-xs text-slate-400">Selected student • Module 03 Submission (Speaking & Writing)</p>
           </div>
         </div>
         <span className="text-xs bg-[#ffc66b]/10 text-[#ffc66b] border border-[#ffc66b]/20 px-3 py-1 rounded-full font-mono">

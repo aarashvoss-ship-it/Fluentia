@@ -7,7 +7,7 @@ import { ChatMessage, ContentBlock, SavedVocabularyWord, StudentNote, StudyStepI
 import { getLessonById, type LessonWithVersion } from "@/lib/lessons";
 import { persistResolvedStudent, PublishedLessonState, resolveStudentAccess, writeLastAccessedLesson } from "@/lib/lesson-store";
 import { fetchChatMessages, fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, saveChatMessage, saveStudentNote, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
-import { type StudentUser } from "@/lib/users";
+import { INSTRUCTOR_USER, type StudentUser } from "@/lib/users";
 import { Stepper } from "@/components/study-room/stepper";
 import { CelebrationModal, StepResult } from "@/components/study-room/celebration-modal";
 import { DictionaryModal } from "@/components/study-room/dictionary-modal";
@@ -343,7 +343,7 @@ export default function LessonPage() {
       ? lesson.module_number
       : null;
   const lessonLevel = (lesson?.grade || "English B1").replace(/\s+Intermediate$/i, "").toUpperCase();
-  const instructor = { fullName: "AVoss", initials: "AV" };
+  const instructor = { fullName: INSTRUCTOR_USER.name, initials: "AV" };
   const lessonBanner = typeof lessonContent.coverImage === "string"
     ? lessonContent.coverImage
     : typeof lesson?.banner_url === "string"

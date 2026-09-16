@@ -59,7 +59,7 @@ function appendUnique(messages: ChatMessage[], message: ChatMessage) {
   return messages.some((item) => item.id === message.id) ? messages : [...messages, message];
 }
 
-export function ChatWidget({ messages, onSend, currentUserId = "student", studentId = currentUserId, instructorId = "instructor-avoss" }: ChatWidgetProps) {
+export function ChatWidget({ messages, onSend, currentUserId = "student", studentId = currentUserId, instructorId = "avoss-9042" }: ChatWidgetProps) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"instructor" | "support">("instructor");
   const [text, setText] = useState("");

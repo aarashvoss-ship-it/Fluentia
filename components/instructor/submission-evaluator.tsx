@@ -36,7 +36,7 @@ const RUBRIC_CRITERIA = [
 
 export function SubmissionEvaluator({
   lessonId,
-  studentName = "Arash",
+  studentName = "Student",
   studentId,
   instructorId,
   onSubmitFeedback,

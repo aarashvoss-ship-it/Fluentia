@@ -14,39 +14,43 @@ const student = (
   id: string,
   token: string,
   fullName: string,
+  email: string,
   level: string,
   targetGoal: string
 ): FluentiaUser => ({
   id,
   token,
   name: fullName,
+  email,
   role: "student",
   profile: {
     id,
     fullName,
     level,
     targetGoal,
-    weaknesses: ["Complex prepositions", "Nuanced idioms", "Tone consistency"],
-    teacherNotes: "Add instructor notes for this student.",
+    weaknesses: [],
+    teacherNotes: "",
     attendanceRate: 0,
     completedModulesCount: 0,
   },
 });
 
+export const INSTRUCTOR_USER: FluentiaUser = {
+  id: "avoss-9042",
+  token: "avoss-9042",
+  name: "AVoss",
+  email: "aarashvoss@gmail.com",
+  role: "instructor",
+};
+
 export const FLUENTIA_USERS: FluentiaUser[] = [
-  student("fatemeh-8421", "fatemeh-8421", "Fatemeh Soheilikia", "B2 Upper Intermediate", "Advanced fluency"),
-  student("navid-3912", "navid-3912", "Navid Khabazi", "B1 Intermediate", "Confident conversation"),
-  student("yasaman-5184", "yasaman-5184", "Yasaman Sheybani", "B2 Upper Intermediate", "Professional writing"),
-  student("arezo-7741", "arezo-7741", "Arezo Moghaddasi", "B1 Intermediate", "Academic vocabulary"),
-  student("arash-1024", "arash-1024", "Arash Test", "B2 Upper Intermediate", "C1 fluency and presentation"),
-  student("niki-4932", "niki-4932", "Niki Dahmardeh", "B2 Upper Intermediate", "Advanced fluency"),
-  student("nahal-6184", "nahal-6184", "Nahal Dahmardeh", "B1 Intermediate", "Confident conversation"),
-  student("morad-3529", "morad-3529", "Morad Abdi Varmazan", "B1 Intermediate", "Professional writing"),
-  student("test-1001", "test-1001", "ST Test01", "B1 Intermediate", "Fluency"),
-  student("test-1002", "test-1002", "ST Test02", "B1 Intermediate", "Fluency"),
-  student("termeh-5823", "termeh-5823", "Termeh Besharati", "B1 Intermediate", "Fluency"),
-  student("ryan-9147", "ryan-9147", "Ryan Rezaie", "B1 Intermediate", "Fluency"),
-  { id: "instructor-avoss", token: "avoss-9042", name: "AVoss", role: "instructor" },
+  student("fatemeh-8421", "fatemeh-8421", "Fatemeh Soheilikia", "f.soheilikia.lastqueen2002@gmail.com", "B2 Upper Intermediate", "Advanced fluency"),
+  student("navid-3912", "navid-3912", "Navid Kabazi", "navidws@gmail.com", "B1 Intermediate", "Confident conversation"),
+  student("yasaman-5184", "yasaman-5184", "Yasaman Shebani", "yasamansheybani7192@gmail.com", "B2 Upper Intermediate", "Professional writing"),
+  student("arezo-7741", "arezo-7741", "Arezo Moghadasi", "arezomoghadasi1996@gmail.com", "B1 Intermediate", "Academic vocabulary"),
+  student("morad-3529", "morad-3529", "Morad Abdi Varmazan", "moradabdi@gmail.com", "B1 Intermediate", "Professional writing"),
+  student("arash-1024", "arash-1024", "Arash Vossoughi", "aarashvossoughi@gmail.com", "B2 Upper Intermediate", "C1 fluency and presentation"),
+  INSTRUCTOR_USER,
 ];
 
 export interface StudentUser extends FluentiaUser {
@@ -67,5 +71,5 @@ export function findUser(value?: string | null) {
 }
 
 export const DEFAULT_STUDENT = STUDENT_USERS.find(
-  (user) => user.token === "arash-1024"
+  (user) => user.email === "aarashvossoughi@gmail.com"
 ) || STUDENT_USERS[0];

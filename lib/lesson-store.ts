@@ -1,12 +1,12 @@
 import type { LessonEvaluation, PublishedLessonState, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
-import { findUser, STUDENT_USERS, type StudentUser } from "@/lib/users";
+import { findUser, INSTRUCTOR_USER, STUDENT_USERS, type StudentUser } from "@/lib/users";
 
 export type { PublishedLessonState } from "@/types/lesson";
 
 export const LESSON_STATE_PREFIX = "fluentia:published-lesson:";
 export const LAST_ACCESSED_LESSON_KEY = "fluentia:last-accessed-lesson";
 export const ACTIVE_STUDENT_TOKEN_KEY = "fluentia:active-student-token";
-export const INSTRUCTOR_TOKEN = "avoss-9042";
+export const INSTRUCTOR_TOKEN = INSTRUCTOR_USER.token!;
 
 function normalizeStudentToken(value?: string | null) {
   const token = value?.trim();
@@ -69,10 +69,7 @@ export function readPublishedLessonState(slug: string, studentToken?: string): P
   if (typeof window === "undefined") return null;
 
   try {
-    const stored = window.localStorage.getItem(getLessonStateKey(slug, studentToken))
-      || (studentToken === "arash-1024"
-        ? window.localStorage.getItem(`${LESSON_STATE_PREFIX}${slug}`)
-        : null);
+    const stored = window.localStorage.getItem(getLessonStateKey(slug, studentToken));
     return stored ? (JSON.parse(stored) as PublishedLessonState) : null;
   } catch {
     return null;

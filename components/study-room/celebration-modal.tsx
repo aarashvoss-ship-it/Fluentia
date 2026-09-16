@@ -27,7 +27,7 @@ export function CelebrationModal({
   onClose,
   onSubmit,
   onReview,
-  studentName = "Arash",
+  studentName = "Student",
   dashboardHref = "/dashboard",
   stepResults = [],
 }: CelebrationModalProps) {
