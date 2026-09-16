@@ -161,31 +161,42 @@ function DashboardContent() {
           return;
         }
 
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("id, token, full_name, role, level, target_goal, avatar_url, banner_url")
-          .eq("id", userData.user.id)
-          .maybeSingle();
+        const userEmail = (userData.user.email || userData.user.user_metadata?.email || "").trim().toLowerCase();
+        let student: { id: string; name: string; email: string; token: string } | null = null;
+        try {
+          const { data: studentRow, error: studentError } = await supabase
+            .from("students")
+            .select("id, name, email, token")
+            .eq("email", userEmail)
+            .maybeSingle();
 
-        if (profileError || !profile || profile.role !== "student") {
-          logDashboardError("Authenticated dashboard profile lookup failed:", profileError || new Error("No student profile found for authenticated user"));
-          setAccessDenied(true);
-          setIsMounted(true);
-          return;
+          if (studentError) {
+            logDashboardError("Dashboard student lookup unavailable; using session metadata:", studentError);
+          } else {
+            student = studentRow;
+          }
+        } catch (error) {
+          logDashboardError("Dashboard student lookup threw an error; using session metadata:", error);
         }
 
+        const fallbackName = userData.user.user_metadata?.full_name
+          || userData.user.user_metadata?.name
+          || userEmail
+          || "Student";
+
       const active: StudentUser = {
-        id: userData.user.id,
-        token: profile.token,
-        name: profile.full_name || userData.user.email || "Authenticated student",
+        id: student?.id || userData.user.id,
+        token: student?.token || userData.user.id,
+        name: student?.name || fallbackName,
+        email: student?.email || userEmail || undefined,
         role: "student",
         profile: {
-          id: userData.user.id,
-          fullName: profile.full_name || userData.user.email || "Authenticated student",
-          level: profile.level || "",
-          targetGoal: profile.target_goal || "",
-          avatarUrl: profile.avatar_url || undefined,
-          bannerUrl: profile.banner_url || undefined,
+          id: student?.id || userData.user.id,
+          fullName: student?.name || fallbackName,
+          level: "",
+          targetGoal: "",
+          avatarUrl: undefined,
+          bannerUrl: undefined,
           weaknesses: [],
           teacherNotes: "",
           attendanceRate: 0,
