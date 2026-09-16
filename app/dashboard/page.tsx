@@ -12,7 +12,7 @@ import { DictionaryModal } from "@/components/study-room/dictionary-modal";
 import { LearningSidebar } from "@/components/study-room/learning-sidebar";
 import { ChatWidget } from "@/components/study-room/chat-widget";
 import { AccessCard } from "@/components/access/access-card";
-import { getStudentProfile, saveStudentProfile } from "@/lib/student-profiles";
+import { saveStudentProfile } from "@/lib/student-profiles";
 import { createBrowserClient } from "@supabase/ssr";
 
 const supabase = createBrowserClient(
@@ -52,10 +52,20 @@ type DashboardError = {
 };
 
 function logDashboardError(context: string, error: unknown) {
+  if (error instanceof Error) {
+    console.error(context, {
+      name: error.name,
+      message: error.message,
+      details: (error as Error & { details?: string }).details,
+      hint: (error as Error & { hint?: string }).hint,
+      stack: error.stack,
+    });
+    return;
+  }
   const details = error && typeof error === "object" ? error as DashboardError : undefined;
   console.error(context, {
     code: details?.code,
-    message: details?.message || (error instanceof Error ? error.message : String(error)),
+    message: details?.message || String(error),
     details: details?.details,
     hint: details?.hint,
   });
@@ -101,37 +111,21 @@ function DashboardContent() {
 
   useEffect(() => {
     const loadDashboard = async (userId: string) => {
-      const [lessonResult, profileResult, vocabularyResult, notesResult] = await Promise.allSettled([
+      const [lessonResult, vocabularyResult, notesResult] = await Promise.allSettled([
         getLessonsByStudentId(userId),
-        getStudentProfile(userId),
         fetchSavedVocabulary(userId),
         fetchStudentNotes(userId),
       ]);
       if (lessonResult.status === "rejected") logDashboardError("Dashboard lesson loading failed:", lessonResult.reason);
-      if (profileResult.status === "rejected") logDashboardError("Dashboard profile loading failed:", profileResult.reason);
       if (vocabularyResult.status === "rejected") logDashboardError("Dashboard vocabulary loading failed:", vocabularyResult.reason);
       if (notesResult.status === "rejected") logDashboardError("Dashboard notes loading failed:", notesResult.reason);
 
       const lessonRows = lessonResult.status === "fulfilled" ? lessonResult.value : [];
-      const savedProfile = profileResult.status === "fulfilled" ? profileResult.value : null;
       const savedWords = vocabularyResult.status === "fulfilled" ? vocabularyResult.value : [];
       const studentNotes = notesResult.status === "fulfilled" ? notesResult.value : [];
       const assignedLessons = lessonRows.filter((lesson) => lesson.status === "published");
       const availableLessons = assignedLessons;
       setLessons(availableLessons);
-      if (savedProfile && Object.keys(savedProfile).length > 0) {
-        setActiveStudent((previous) => {
-          if (!previous) return previous;
-          return {
-            ...previous,
-            role: "student",
-            name: savedProfile.fullName || previous.name,
-            profile: { ...previous.profile, ...savedProfile },
-          };
-        });
-        setCustomAvatarUrl((current) => current || savedProfile.avatarUrl || "");
-        setCustomBannerUrl((current) => current || savedProfile.bannerUrl || "");
-      }
       const lessonStateResults = await Promise.allSettled(
         availableLessons.map(async (lesson) => [lesson.id, await fetchLessonState(lesson.id, userId)] as const),
       );
@@ -161,18 +155,18 @@ function DashboardContent() {
           return;
         }
 
-        const userEmail = (userData.user.email || userData.user.user_metadata?.email || "").trim().toLowerCase();
+        const userEmail = userData.user.email?.trim().toLowerCase() || "";
         let student: { id: string; name: string; email: string; token: string } | null = null;
-        try {
+        if (userEmail) try {
           const { data: studentRow, error: studentError } = await supabase
             .from("students")
             .select("id, name, email, token")
             .eq("email", userEmail)
-            .maybeSingle();
+            .single();
 
-          if (studentError) {
+          if (studentError && studentError.code !== "PGRST116") {
             logDashboardError("Dashboard student lookup unavailable; using session metadata:", studentError);
-          } else {
+          } else if (!studentError) {
             student = studentRow;
           }
         } catch (error) {
