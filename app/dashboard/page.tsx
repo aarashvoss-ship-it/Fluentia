@@ -13,7 +13,13 @@ import { LearningSidebar } from "@/components/study-room/learning-sidebar";
 import { ChatWidget } from "@/components/study-room/chat-widget";
 import { AccessCard } from "@/components/access/access-card";
 import { getStudentProfile, saveStudentProfile } from "@/lib/student-profiles";
-import { supabase } from "@/lib/supabase";
+import { createBrowserClient } from "@supabase/ssr";
+
+const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  { auth: { flowType: "pkce" } },
+);
 
 type LessonStatus = "not-started" | "in-progress" | "pending-review" | "completed";
 
