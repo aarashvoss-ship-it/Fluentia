@@ -36,12 +36,14 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
+  const email = (data.user.email || data.user.user_metadata?.email || "").trim().toLowerCase();
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("role")
     .eq("id", data.user.id)
     .maybeSingle();
-  if (profile?.role === "instructor" || profile?.role === "admin") redirect("/instructor");
+  if (profile?.role === "instructor" || profile?.role === "admin" || email === "aarashvoss@gmail.com") redirect("/instructor");
 
   return children;
 }

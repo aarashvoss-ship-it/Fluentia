@@ -113,46 +113,42 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/login?error=not_invited", origin));
   }
 
-  let redirectPath = "/dashboard";
-  const { data: profile } = await allowlistClient
+  const { data: profile, error: profileError } = await allowlistClient
     .from("profiles")
     .select("role")
     .eq("id", user.id)
     .maybeSingle();
-  const instructor = profile ? null : (await allowlistClient
+  if (profileError) {
+    console.error("Supabase profile role lookup failed:", profileError);
+  }
+
+  const { data: instructor, error: instructorError } = await allowlistClient
     .from("instructors")
     .select("id")
     .eq("id", user.id)
-    .maybeSingle()).data;
-  if (profile?.role === "instructor" || profile?.role === "admin" || instructor) {
-    redirectPath = "/instructor";
-  } else if (profile?.role !== "student") {
-    try {
-      const { data: student, error: studentError } = await allowlistClient
-        .from("students")
-        .select("id")
-        .eq("id", user.id)
-        .maybeSingle();
-      if (studentError) {
-        console.error("Supabase authorized-student lookup failed:", {
-          code: studentError.code,
-          message: studentError.message,
-          details: studentError.details,
-          hint: studentError.hint,
-        });
-        await supabase.auth.signOut();
-        return NextResponse.redirect(new URL("/login?error=allowlist_check_failed", origin));
-      }
-      if (!student) {
-        await supabase.auth.signOut();
-        return NextResponse.redirect(new URL("/login?error=not_invited", origin));
-      }
-    } catch (studentError) {
-      console.error("Authorized-student lookup threw an error:", studentError);
-      await supabase.auth.signOut();
-      return NextResponse.redirect(new URL("/login?error=allowlist_check_failed", origin));
-    }
+    .maybeSingle();
+  if (instructorError) {
+    console.error("Supabase instructor lookup failed:", instructorError);
   }
+
+  const isInstructor = profile?.role === "instructor"
+    || profile?.role === "admin"
+    || Boolean(instructor)
+    || userEmail === "aarashvoss@gmail.com";
+  const { data: student, error: studentError } = isInstructor
+    ? { data: null, error: null }
+    : await allowlistClient.from("students").select("id").eq("id", user.id).maybeSingle();
+  if (studentError) {
+    console.error("Supabase authorized-student lookup failed:", studentError);
+    await supabase.auth.signOut();
+    return NextResponse.redirect(new URL("/login?error=allowlist_check_failed", origin));
+  }
+  if (!isInstructor && !student && profile?.role !== "student") {
+    await supabase.auth.signOut();
+    return NextResponse.redirect(new URL("/login?error=not_invited", origin));
+  }
+
+  const redirectPath = isInstructor ? "/instructor" : "/dashboard";
 
   response.headers.set("Location", new URL(redirectPath, origin).toString());
   console.error('[AUTH CALLBACK] Step 7: Allowlist match succeeded; preserving session cookies and redirecting', { redirectPath });

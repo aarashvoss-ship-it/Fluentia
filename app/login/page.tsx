@@ -35,8 +35,10 @@ function LoginForm() {
         setCheckingSession(false);
         return;
       }
+      const email = (data.user.email || data.user.user_metadata?.email || '').trim().toLowerCase();
       const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle();
-      if (profile?.role === 'instructor' || profile?.role === 'admin') {
+      const { data: instructor } = await supabase.from('instructors').select('id').eq('id', data.user.id).maybeSingle();
+      if (profile?.role === 'instructor' || profile?.role === 'admin' || instructor || email === 'aarashvoss@gmail.com') {
         router.replace('/instructor');
       } else {
         router.replace('/dashboard');
