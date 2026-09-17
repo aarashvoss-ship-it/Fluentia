@@ -366,10 +366,12 @@ export default function LessonPage() {
 
   async function persistSubmission(nextSubmission: StudentSubmission, nextProgress?: { currentStep?: StudyStepId; completedSteps?: StudyStepId[]; status?: "not_started" | "in_progress" | "submitted" | "reviewed" }) {
     if (!lesson) return;
+    const studentToken = activeStudent?.token ?? lesson.student_token ?? lesson.student_id ?? "student";
+    if (!studentToken) return;
     setSubmission(nextSubmission);
     setSubmissionSaveError(null);
     try {
-      await submitStudentLesson(lesson.id, activeStudent!.token, nextSubmission, {
+      await submitStudentLesson(lesson.id, studentToken, nextSubmission, {
         currentStep: nextProgress?.currentStep || currentStep,
         completedSteps: nextProgress?.completedSteps || completedSteps,
         status: nextProgress?.status || (nextSubmission.status === "submitted" ? "submitted" : "in_progress"),
@@ -508,6 +510,8 @@ export default function LessonPage() {
     || submission.status === "reviewed"
     || completedSteps.includes("results")
     || isResultsStep;
+  const lessonStudentToken = activeStudent?.token ?? lesson?.student_token ?? lesson?.student_id ?? "student";
+  const studentDisplayName = activeStudent?.name || "Student";
 
   if (!isMounted) {
     return <div className="fluentia-study-room min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
@@ -584,7 +588,7 @@ export default function LessonPage() {
             <AmbientMusicPlayer src={lessonContent.ambientMusicUrl} tracks={lessonContent.ambientTracks} />
             <button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs transition ${sidebarOpen ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#171d28]/90 text-amber-300 hover:border-amber-500"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button>
             <button type="button" onClick={() => setDictionaryWord("")} aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28]/90 text-stone-400 transition hover:border-amber-500 hover:text-amber-300"><BookOpen className="w-4 h-4" /></button>
-            <Link href={`/dashboard?student=${encodeURIComponent(activeStudent!.token)}`} className="flex items-center gap-1 rounded-md border border-[#394252] bg-[#171d28]/90 px-3 py-2 text-xs text-[#b5bac2] transition-colors hover:border-amber-500/50 hover:text-amber-300"><ChevronRight className="h-3 w-3 rotate-180" />Course overview</Link>
+            <Link href={`/dashboard?student=${encodeURIComponent(lessonStudentToken)}`} className="flex items-center gap-1 rounded-md border border-[#394252] bg-[#171d28]/90 px-3 py-2 text-xs text-[#b5bac2] transition-colors hover:border-amber-500/50 hover:text-amber-300"><ChevronRight className="h-3 w-3 rotate-180" />Course overview</Link>
           </div>
           <div className="relative z-10 mx-auto flex h-full w-full max-w-5xl flex-col justify-end px-0 pb-2">
             <span className="mb-4 w-fit rounded-full border border-amber-500/40 bg-[#332713]/85 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e4ae45]">{lessonLevel} - MODULE {lessonModuleNumber ?? 1}</span>
@@ -600,7 +604,7 @@ export default function LessonPage() {
             <div className="mx-auto max-w-5xl px-4 py-8">
             <header>
         <div className="flex items-center justify-between text-[12px]">
-                <p className="text-[#aeb2b9]">Welcome back, <span className="text-[#e6e4e0]">{activeStudent!.name}</span>.</p>
+          <p className="text-[#aeb2b9]">Welcome back, <span className="text-[#e6e4e0]">{studentDisplayName}</span>.</p>
         </div>
         <div className="mt-8">
           <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#556078]">Your journey</p>
@@ -906,7 +910,7 @@ export default function LessonPage() {
               </div>
 
               <div className="text-center">
-                <Link href={`/dashboard?student=${encodeURIComponent(activeStudent!.token)}`} className="inline-flex items-center gap-2 rounded-full border border-stone-700 bg-stone-800 px-5 py-2.5 text-sm text-stone-200 transition-colors hover:bg-stone-700">
+                <Link href={`/dashboard?student=${encodeURIComponent(lessonStudentToken)}`} className="inline-flex items-center gap-2 rounded-full border border-stone-700 bg-stone-800 px-5 py-2.5 text-sm text-stone-200 transition-colors hover:bg-stone-700">
                   Return to Dashboard
                 </Link>
               </div>
@@ -954,8 +958,8 @@ export default function LessonPage() {
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleSubmitFinal}
         onReview={handleReviewAnswers}
-        studentName={activeStudent!.name}
-        dashboardHref={`/dashboard?student=${encodeURIComponent(activeStudent!.token)}`}
+        studentName={studentDisplayName}
+        dashboardHref={`/dashboard?student=${encodeURIComponent(lessonStudentToken)}`}
         stepResults={stepResults}
       />
       <LearningSidebar
@@ -966,18 +970,18 @@ export default function LessonPage() {
         resource={evaluation?.studyHubPrescription}
         onSaveNote={(note) => {
           setNotes([note, ...notes.filter((item) => item.id !== note.id)]);
-          void saveStudentNote(activeStudent!.token, note);
+          void saveStudentNote(lessonStudentToken, note);
         }}
         onRemoveWord={(word) => {
           setSavedWords(savedWords.filter((item) => item.word.toLowerCase() !== word.toLowerCase()));
-          void removeVocabularyWord(activeStudent!.token, word);
+          void removeVocabularyWord(lessonStudentToken, word);
         }}
       />
       <ChatWidget
         messages={chatMessages}
         onSend={(message) => {
           setChatMessages([...chatMessages, message]);
-          void saveChatMessage(activeStudent!.token, message);
+          void saveChatMessage(lessonStudentToken, message);
         }}
       />
       {dictionaryWord !== null && (
@@ -987,7 +991,7 @@ export default function LessonPage() {
           onClose={() => setDictionaryWord(null)}
           onSave={(word) => {
             setSavedWords([word, ...savedWords.filter((item) => item.word.toLowerCase() !== word.word.toLowerCase())]);
-            void saveVocabularyWord(activeStudent!.token, word);
+            void saveVocabularyWord(lessonStudentToken, word);
           }}
         />
       )}
