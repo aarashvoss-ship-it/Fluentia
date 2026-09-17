@@ -188,17 +188,28 @@ export default function LessonPage() {
           return;
         }
 
-        const [{ data: studentProfile }, { data: profile }] = await Promise.all([
+        const [{ data: studentRecord, error: studentError }, { data: profile, error: profileError }] = await Promise.all([
           supabase.from("students").select("name, email, token").eq("id", data.user.id).maybeSingle(),
           supabase.from("profiles").select("full_name").eq("id", data.user.id).maybeSingle(),
         ]);
         if (cancelled) return;
 
-        const email = studentProfile?.email || data.user.email || "";
-        const name = studentProfile?.name || profile?.full_name || data.user.user_metadata?.full_name || data.user.user_metadata?.name || email || "Student";
+        if (studentError) console.warn("Unable to load canonical student profile:", studentError);
+        if (profileError) console.warn("Unable to load user profile:", profileError);
+
+        const firstNonEmpty = (...values: unknown[]) => values.find(
+          (value): value is string => typeof value === "string" && value.trim().length > 0,
+        )?.trim() || "Student";
+        const email = firstNonEmpty(studentRecord?.email, data.user.email, "");
+        const name = firstNonEmpty(
+          studentRecord?.name,
+          profile?.full_name,
+          data.user.user_metadata?.full_name,
+          email,
+        );
         const student: StudentUser = {
           id: data.user.id,
-          token: studentProfile?.token || data.user.id,
+          token: studentRecord?.token || data.user.id,
           name,
           email,
           role: "student",
