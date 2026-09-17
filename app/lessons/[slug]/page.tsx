@@ -169,38 +169,61 @@ export default function LessonPage() {
   useEffect(() => {
     let cancelled = false;
     const loadAuthenticatedStudent = async () => {
-      const { data, error } = await supabase.auth.getUser();
-      if (cancelled) return;
-      if (error || !data.user) {
-        if (error) console.error("Unable to resolve authenticated student:", error);
-        setAccessDenied(true);
-        setStudentReady(true);
-        setIsMounted(true);
-        return;
-      }
+      try {
+        const { data, error } = await supabase.auth.getUser();
+        if (cancelled) return;
 
-      const email = data.user.email || "";
-      const name = data.user.user_metadata?.full_name || data.user.user_metadata?.name || email || "Student";
-      const student: StudentUser = {
-        id: data.user.id,
-        token: data.user.id,
-        name,
-        email,
-        role: "student",
-        profile: {
+        const isSessionMissing = Boolean(error && (error.name === "AuthSessionMissingError" || /Auth session missing/i.test(error.message || "")));
+        if (error && !isSessionMissing) {
+          console.error("Unable to resolve authenticated student:", error);
+          setAccessDenied(true);
+          setStudentReady(true);
+          setIsMounted(true);
+          return;
+        }
+
+        if (!data.user) {
+          setStudentReady(true);
+          setIsMounted(true);
+          return;
+        }
+
+        const email = data.user.email || "";
+        const name = data.user.user_metadata?.full_name || data.user.user_metadata?.name || email || "Student";
+        const student: StudentUser = {
           id: data.user.id,
-          fullName: name,
-          level: "",
-          targetGoal: "",
-          weaknesses: [],
-          teacherNotes: "",
-          attendanceRate: 0,
-          completedModulesCount: 0,
-        },
-      };
-      setActiveStudent(student);
-      setStudentReady(true);
-      setIsMounted(true);
+          token: data.user.id,
+          name,
+          email,
+          role: "student",
+          profile: {
+            id: data.user.id,
+            fullName: name,
+            level: "",
+            targetGoal: "",
+            weaknesses: [],
+            teacherNotes: "",
+            attendanceRate: 0,
+            completedModulesCount: 0,
+          },
+        };
+        setActiveStudent(student);
+      } catch (error) {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : String(error);
+        if (/Auth session missing/i.test(message)) {
+          setStudentReady(true);
+          setIsMounted(true);
+          return;
+        }
+        console.error("Unable to resolve authenticated student:", error);
+        setAccessDenied(true);
+      } finally {
+        if (!cancelled) {
+          setStudentReady(true);
+          setIsMounted(true);
+        }
+      }
     };
 
     void loadAuthenticatedStudent();
@@ -285,13 +308,14 @@ export default function LessonPage() {
 
   useEffect(() => {
     if (!lessonReady || !studentReady || lessonNotFound || !lesson) return;
+    const activeToken = activeStudent?.token || lesson.student_token || lesson.student_id || "student";
     setCurrentStep("warm_up");
     const params = new URLSearchParams(window.location.search);
     const requestedStep = getRequestedStep(params.get("step"));
     const startStep = params.get("start");
     void Promise.all([
-      fetchLessonState(lesson.id, activeStudent!.token),
-      fetchStudentProgress(lesson.id, activeStudent!.token),
+      fetchLessonState(lesson.id, activeToken),
+      fetchStudentProgress(lesson.id, activeToken),
     ]).then(([state, progress]) => {
       const hydratedSubmission = state?.submission;
       const canShowResults = hydratedSubmission?.status === "submitted" || hydratedSubmission?.status === "reviewed";
@@ -310,20 +334,21 @@ export default function LessonPage() {
       setCompletedSteps([]);
       setLessonStateHydrated(true);
     });
-  }, [activeStudent?.token, lessonReady, lessonNotFound, lesson?.id, studentReady]);
+  }, [activeStudent?.token, lessonReady, lessonNotFound, lesson, studentReady]);
 
   useEffect(() => {
     if (!studentReady || accessDenied) return;
+    const activeToken = activeStudent?.token || lesson?.student_token || lesson?.student_id || "student";
     void Promise.all([
-      fetchSavedVocabulary(activeStudent!.token),
-      fetchStudentNotes(activeStudent!.token),
+      fetchSavedVocabulary(activeToken),
+      fetchStudentNotes(activeToken),
     ]).then(([words, savedNotes]) => {
       setSavedWords(words);
       setNotes(savedNotes);
     }).catch((error) => {
       console.error("Failed to load student resources:", error);
     });
-  }, [accessDenied, activeStudent?.token, studentReady]);
+  }, [accessDenied, activeStudent?.token, lesson?.student_id, lesson?.student_token, studentReady]);
 
   useEffect(() => {
     function handleDoubleClick(event: MouseEvent) {
