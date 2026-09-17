@@ -188,11 +188,17 @@ export default function LessonPage() {
           return;
         }
 
-        const email = data.user.email || "";
-        const name = data.user.user_metadata?.full_name || data.user.user_metadata?.name || email || "Student";
+        const [{ data: studentProfile }, { data: profile }] = await Promise.all([
+          supabase.from("students").select("name, email, token").eq("id", data.user.id).maybeSingle(),
+          supabase.from("profiles").select("full_name").eq("id", data.user.id).maybeSingle(),
+        ]);
+        if (cancelled) return;
+
+        const email = studentProfile?.email || data.user.email || "";
+        const name = studentProfile?.name || profile?.full_name || data.user.user_metadata?.full_name || data.user.user_metadata?.name || email || "Student";
         const student: StudentUser = {
           id: data.user.id,
-          token: data.user.id,
+          token: studentProfile?.token || data.user.id,
           name,
           email,
           role: "student",

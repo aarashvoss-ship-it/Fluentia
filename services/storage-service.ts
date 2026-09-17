@@ -215,6 +215,36 @@ async function fetchStudentLesson(slug: string, studentIdentifier?: string) {
     : { data: null, error: null };
   if (!tokenLessonBySlug.error && tokenLessonBySlug.data) return tokenLessonBySlug.data;
 
+  const assignmentStudentId = uniqueIds.find((value) => /^[0-9a-f-]{36}$/i.test(value));
+  if (assignmentStudentId) {
+    const { data: assignments, error: assignmentError } = await supabase
+      .from("lesson_assignments")
+      .select("lesson_id")
+      .eq("student_id", assignmentStudentId)
+      .eq("status", "assigned");
+
+    if (!assignmentError && assignments?.length) {
+      const assignedLessonIds = assignments.map((assignment) => assignment.lesson_id).filter(Boolean);
+      const assignedLesson = await supabase
+        .from("lessons")
+        .select("*")
+        .in("id", assignedLessonIds)
+        .or(`id.eq.${slug},slug.eq.${slug}`)
+        .maybeSingle();
+      if (!assignedLesson.error && assignedLesson.data) return assignedLesson.data;
+
+      if (/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(slug)) {
+        const assignedLessonById = await supabase
+          .from("lessons")
+          .select("*")
+          .eq("id", slug)
+          .in("id", assignedLessonIds)
+          .maybeSingle();
+        if (!assignedLessonById.error && assignedLessonById.data) return assignedLessonById.data;
+      }
+    }
+  }
+
   return null;
 }
 
@@ -436,7 +466,8 @@ export async function submitStudentLesson(
   if (isSupabaseConfigured()) {
     try {
       const lesson = await fetchStudentLesson(slug, studentToken);
-      const studentId = lesson?.student_id || await getStudentId(studentToken);
+      const authenticatedStudentId = await getStudentId();
+      const studentId = authenticatedStudentId || lesson?.student_id;
       if (lesson && studentId) {
         const { data: existingSubmission, error: lookupError } = await supabase.from("submissions").select("id").eq("lesson_id", lesson.id).eq("student_id", studentId).maybeSingle();
         if (lookupError) throw lookupError;
