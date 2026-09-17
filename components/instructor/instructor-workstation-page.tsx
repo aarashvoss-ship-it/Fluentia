@@ -686,7 +686,17 @@ export default function InstructorWorkstationPage({
       console.log("Lesson saved successfully", { lessonId: lesson.id, status });
       if (!isAutoSave) setPublishStatus(`Lesson saved as ${status} and synced with student view.`);
     } catch (error) {
-      console.error("Lesson save failed:", error);
+      const details = error && typeof error === "object"
+        ? error as { code?: string; message?: string; details?: string; hint?: string; status?: number }
+        : undefined;
+      console.error("Lesson save failed:", {
+        code: details?.code,
+        message: error instanceof Error ? error.message : details?.message || String(error),
+        details: details?.details,
+        hint: details?.hint,
+        status: details?.status,
+        raw: error,
+      });
       setSaveIndicator("error");
       if (!isAutoSave) setPublishStatus("Lesson save failed. Check the Supabase connection and try again.");
     } finally {

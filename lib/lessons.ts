@@ -26,6 +26,7 @@ export interface CreateLessonInput {
 }
 
 export interface UpdateLessonInput {
+  slug?: string;
   title?: string;
   banner_url?: string;
   student_id?: string;
@@ -106,6 +107,19 @@ function isMissingBannerColumn(error: { code?: string; message?: string } | null
 
 function isMissingStudentColumn(error: { code?: string; message?: string } | null) {
   return Boolean(error && (error.code === "42703" || error.code === "PGRST204") && /student_(id|token)/i.test(error.message || ""));
+}
+
+function isMissingPublishedColumn(error: { code?: string; message?: string } | null) {
+  return Boolean(error && (error.code === "42703" || error.code === "PGRST204") && /is_published/i.test(error.message || ""));
+}
+
+function describeSupabaseError(error: unknown) {
+  if (error instanceof Error) return { message: error.message, stack: error.stack };
+  if (error && typeof error === "object") {
+    const value = error as { code?: string; message?: string; details?: string; hint?: string; status?: number };
+    return { code: value.code, message: value.message, details: value.details, hint: value.hint, status: value.status };
+  }
+  return { message: String(error) };
 }
 
 // ============================================================================
@@ -343,10 +357,16 @@ export async function publishLessonAndAssign(lessonId: string, studentId: string
   const normalizedStudentId = studentId.trim();
   if (!normalizedLessonId || !normalizedStudentId || !instructorId.trim()) throw new Error("Lesson, student, and instructor are required to publish");
 
-  const { error: lessonError } = await supabase
+  let { error: lessonError } = await supabase
     .from("lessons")
     .update({ status: "published", is_published: true, instructor_id: instructorId })
     .eq("id", normalizedLessonId);
+  if (isMissingPublishedColumn(lessonError)) {
+    ({ error: lessonError } = await supabase
+      .from("lessons")
+      .update({ status: "published", instructor_id: instructorId })
+      .eq("id", normalizedLessonId));
+  }
   if (lessonError) throw lessonError;
 
   const { error: assignmentError } = await supabase
@@ -501,29 +521,40 @@ export async function updateLesson(
   }
 
   try {
-    const { content, changes_summary, banner_url, student_id, student_token, instructor_id, is_published, ...lessonData } = input;
+    const { content, changes_summary, banner_url, student_id, student_token, instructor_id, is_published, slug, ...lessonData } = input;
     const resolvedStudentId = student_id || undefined;
     const resolvedInstructorId = instructor_id || undefined;
     // Update the lesson metadata
     const hasStudentTokenUpdate = Object.prototype.hasOwnProperty.call(input, "student_token");
     if (Object.keys(lessonData).length > 0 || banner_url || resolvedStudentId || resolvedInstructorId || hasStudentTokenUpdate) {
-      const updatePayload = { ...lessonData, ...(banner_url ? { banner_url } : {}), ...(resolvedStudentId ? { student_id: resolvedStudentId } : {}), ...(resolvedInstructorId ? { instructor_id: resolvedInstructorId } : {}), ...(hasStudentTokenUpdate ? { student_token } : {}), ...(is_published !== undefined ? { is_published } : {}) };
-      let { error: updateError } = await supabase
+      const updatePayload = { ...lessonData, ...(slug ? { slug } : {}), ...(banner_url ? { banner_url } : {}), ...(resolvedStudentId ? { student_id: resolvedStudentId } : {}), ...(resolvedInstructorId ? { instructor_id: resolvedInstructorId } : {}), ...(hasStudentTokenUpdate ? { student_token } : {}), ...(is_published !== undefined ? { is_published } : {}) };
+      let { data: updatedRows, error: updateError } = await supabase
         .from("lessons")
         .update(updatePayload)
-        .eq("id", id);
-      if (isMissingBannerColumn(updateError) || isMissingStudentColumn(updateError)) {
+        .eq("id", id)
+        .select("id");
+      if (isMissingBannerColumn(updateError) || isMissingStudentColumn(updateError) || isMissingPublishedColumn(updateError)) {
+        const { banner_url: _ignoredBannerUrl, student_id: _ignoredStudentId, student_token: _ignoredStudentToken, is_published: _ignoredPublished, ...compatPayload } = updatePayload;
         if (Object.keys(lessonData).length > 0 || hasStudentTokenUpdate) {
-          ({ error: updateError } = await supabase
+          ({ data: updatedRows, error: updateError } = await supabase
             .from("lessons")
-            .update({ ...lessonData, ...(hasStudentTokenUpdate ? { student_token } : {}), ...(is_published !== undefined ? { is_published } : {}) })
-            .eq("id", id));
+            .update(compatPayload)
+            .eq("id", id)
+            .select("id"));
         } else {
           updateError = null;
         }
       }
 
       if (updateError) throw updateError;
+      if (!updatedRows?.length) {
+        const { data: existingLesson, error: existingError } = await supabase.from("lessons").select("id").eq("id", id).maybeSingle();
+        if (existingError) throw existingError;
+        if (!existingLesson) {
+          const { error: upsertError } = await supabase.from("lessons").upsert({ id, ...updatePayload }, { onConflict: "id" });
+          if (upsertError) throw upsertError;
+        }
+      }
     }
 
     // If content is provided, create a new version
@@ -565,7 +596,7 @@ export async function updateLesson(
       content: latestVersion?.content,
     };
   } catch (error) {
-    console.error(`Error updating lesson ${id}:`, error);
+    console.error(`Error updating lesson ${id}:`, describeSupabaseError(error), error);
     throw error;
   }
 }
