@@ -646,9 +646,10 @@ export default function InstructorWorkstationPage({
       const lesson = databaseLessonId
         ? await updateLesson(databaseLessonId, {
             title,
-          banner_url: workstationState.bannerUrl,
-          student_id: assignedStudent.id,
-          student_token: assignedStudent.token,
+            banner_url: workstationState.bannerUrl,
+            student_id: assignedStudent.id,
+            student_token: assignedStudent.token,
+            instructor_id: instructorToken,
             status,
             content,
             changes_summary: `Lesson updated as ${status}`,
@@ -658,6 +659,7 @@ export default function InstructorWorkstationPage({
             banner_url: workstationState.bannerUrl,
             student_id: assignedStudent.id,
             student_token: assignedStudent.token,
+            instructor_id: instructorToken,
             status,
             content,
             changes_summary: `Initial lesson created as ${status}`,
