@@ -680,11 +680,26 @@ export default function InstructorWorkstationPage({
       setLessonStatus(status);
       setSaveIndicator("saved");
       lastSavedDraftSignature.current = getDraftSignature(content, title, content.subtitle, String(moduleNumber));
+      let assignmentSyncWarning = "";
       if (status === "published") {
-        await publishLessonAndAssign(lesson.id, assignedStudent.id, instructorId);
+        try {
+          await publishLessonAndAssign(lesson.id, assignedStudent.id, instructorId);
+        } catch (assignmentError) {
+          const assignmentDetails = assignmentError && typeof assignmentError === "object"
+            ? assignmentError as { code?: string; message?: string; details?: string; hint?: string }
+            : undefined;
+          console.error("Lesson saved, but assignment sync failed:", {
+            code: assignmentDetails?.code,
+            message: assignmentError instanceof Error ? assignmentError.message : assignmentDetails?.message || String(assignmentError),
+            details: assignmentDetails?.details,
+            hint: assignmentDetails?.hint,
+            raw: assignmentError,
+          });
+          assignmentSyncWarning = " Assignment sync needs attention.";
+        }
       }
       console.log("Lesson saved successfully", { lessonId: lesson.id, status });
-      if (!isAutoSave) setPublishStatus(`Lesson saved as ${status} and synced with student view.`);
+      if (!isAutoSave) setPublishStatus(`Lesson saved as ${status}.${assignmentSyncWarning || " Synced with student view."}`);
     } catch (error) {
       const details = error && typeof error === "object"
         ? error as { code?: string; message?: string; details?: string; hint?: string; status?: number }

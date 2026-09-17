@@ -1,4 +1,5 @@
-import { supabase, type LessonRow, type LessonVersionRow, isSupabaseConfigured } from "@/lib/supabase";
+import { type LessonRow, type LessonVersionRow, isSupabaseConfigured } from "@/lib/supabase";
+import { supabase } from "@/lib/supabaseClient";
 import type { LessonContent, InstructorLessonMock } from "@/types/lesson";
 
 /**
@@ -483,8 +484,8 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
       .insert([lessonPayload])
       .select()
       .single();
-    if (isMissingBannerColumn(lessonError) || isMissingStudentColumn(lessonError)) {
-      const { banner_url: _ignoredBannerUrl, student_id: _ignoredStudentId, student_token: _ignoredStudentToken, instructor_id: _ignoredInstructorId, ...lessonPayloadWithoutOptionalColumns } = lessonPayload;
+    if (isMissingBannerColumn(lessonError) || isMissingStudentColumn(lessonError) || isMissingPublishedColumn(lessonError)) {
+      const { banner_url: _ignoredBannerUrl, student_id: _ignoredStudentId, student_token: _ignoredStudentToken, instructor_id: _ignoredInstructorId, is_published: _ignoredPublished, ...lessonPayloadWithoutOptionalColumns } = lessonPayload;
       ({ data: lesson, error: lessonError } = await supabase
         .from("lessons")
         .insert([lessonPayloadWithoutOptionalColumns])
