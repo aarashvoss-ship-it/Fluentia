@@ -495,7 +495,10 @@ export async function fetchSavedVocabulary(studentToken?: string): Promise<Saved
       if (!demoDataEnabled()) throw error;
     }
   }
-  if (isSupabaseConfigured() && !demoDataEnabled()) throw new Error("Vocabulary unavailable from Supabase");
+  if (isSupabaseConfigured() && !demoDataEnabled()) {
+    console.warn("Vocabulary unavailable from Supabase; using an empty vocabulary list.");
+    return [];
+  }
   return readJson<SavedVocabularyWord[]>(scopedKey(VOCAB_PREFIX, studentToken)) || [];
 }
 
@@ -548,7 +551,10 @@ export async function fetchStudentNotes(studentToken?: string): Promise<StudentN
       if (!demoDataEnabled()) throw error;
     }
   }
-  if (isSupabaseConfigured() && !demoDataEnabled()) throw new Error("Notes unavailable from Supabase");
+  if (isSupabaseConfigured() && !demoDataEnabled()) {
+    console.warn("Notes unavailable from Supabase; using an empty notes list.");
+    return [];
+  }
   return readJson<StudentNote[]>(scopedKey(NOTES_PREFIX, studentToken)) || [];
 }
 
