@@ -139,7 +139,7 @@ export default function InstructorWorkstationPage({
     const lessons = await getLessons();
     const loadedLesson = lessons.find((lesson) => {
       const lessonSlug = typeof lesson.content?.slug === "string" ? lesson.content.slug : lesson.id;
-      return (lesson.student_token === id || lesson.student_id === id) && (!requestedLessonSlug || lessonSlug === requestedLessonSlug || lesson.id === requestedLessonSlug);
+      return lesson.student_id === id && (!requestedLessonSlug || lessonSlug === requestedLessonSlug || lesson.id === requestedLessonSlug);
     });
     if (!loadedLesson) {
       resetNewLessonForm(id);
@@ -402,7 +402,7 @@ export default function InstructorWorkstationPage({
     const savedStudentId = getSavedStudentId(currentLesson);
     if (!savedStudentId) return;
     const matchingStudent = students.find(
-      (student) => student.id === savedStudentId || student.token === savedStudentId
+      (student) => student.id === savedStudentId
     );
     if (!matchingStudent) return;
     setSelectedStudentId(matchingStudent.id);
@@ -412,8 +412,8 @@ export default function InstructorWorkstationPage({
 
   async function handleCreateLesson() {
     const draftStudentId = selectedStudentId || newLesson.studentId || selectedStudent?.id || "";
-    const student = students.find((item) => item.id === draftStudentId || item.token === draftStudentId)
-      || (selectedStudent && (selectedStudent.id === draftStudentId || selectedStudent.token === draftStudentId) ? selectedStudent : null);
+    const student = students.find((item) => item.id === draftStudentId)
+      || (selectedStudent?.id === draftStudentId ? selectedStudent : null);
     if (!student) {
       setValidationErrors({ selectedStudentId: "Select a student before creating the draft." });
       setPublishStatus("Select a student before creating the draft.");
@@ -531,7 +531,20 @@ export default function InstructorWorkstationPage({
         setPendingSubmissionCount(pendingResult.status === "fulfilled" ? pendingResult.value.count ?? 0 : 0);
         setPublishedLessonCount(publishedResult.status === "fulfilled" ? publishedResult.value.count ?? 0 : 0);
         setDraftLessonCount(draftsResult.status === "fulfilled" ? draftsResult.value.count ?? 0 : 0);
-        const nextStudents: StudentUser[] = (studentRows || []).map((student) => ({
+        const uniqueStudents = new Map<string, (typeof studentRows)[number]>();
+        (studentRows || []).forEach((student) => {
+          const normalizedEmail = student.email?.trim().toLowerCase();
+          const identityKey = student.id || normalizedEmail;
+          if (!identityKey || uniqueStudents.has(identityKey)) return;
+          if (normalizedEmail) {
+            const existingEmailMatch = [...uniqueStudents.values()].find(
+              (existingStudent) => existingStudent.email?.trim().toLowerCase() === normalizedEmail,
+            );
+            if (existingEmailMatch) return;
+          }
+          uniqueStudents.set(identityKey, student);
+        });
+        const nextStudents: StudentUser[] = [...uniqueStudents.values()].map((student) => ({
           id: student.id,
           token: student.token,
           name: student.name,
@@ -618,9 +631,9 @@ export default function InstructorWorkstationPage({
     setSaveIndicator("saving");
     if (!isAutoSave) setIsPublishing(true);
     const assignedStudent = students.find(
-      (student) => student.id === studentId || student.token === studentId
-    ) || (selectedStudent && (selectedStudent.id === studentId || selectedStudent.token === studentId) ? selectedStudent : null);
-    if (!assignedStudent?.id || !assignedStudent.token) {
+      (student) => student.id === studentId
+    ) || (selectedStudent?.id === studentId ? selectedStudent : null);
+    if (!assignedStudent?.id) {
       setSaveIndicator("error");
       setPublishStatus("Select a valid student before saving the lesson.");
       if (!isAutoSave) setIsPublishing(false);
