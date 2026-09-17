@@ -8,7 +8,7 @@ import { LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor
 import { InstructorBannerManager } from "@/components/instructor/banner-manager";
 import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/submission-evaluator";
 import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
-import { assignLessonToAllActiveStudents, assignLessonToStudent, createLesson, deleteLesson, getLessons, unassignLesson, updateLesson, type LessonWithVersion } from "@/lib/lessons";
+import { assignLessonToAllActiveStudents, assignLessonToStudent, createLesson, deleteLesson, getLessons, publishLessonAndAssign, unassignLesson, updateLesson, type LessonWithVersion } from "@/lib/lessons";
 import { PublishedLessonState } from "@/lib/lesson-store";
 import { StudentUser } from "@/lib/users";
 import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/storage-service";
@@ -649,6 +649,7 @@ export default function InstructorWorkstationPage({
             student_token: assignedStudent.token,
             instructor_id: instructorId,
             status,
+            is_published: status === "published",
             content,
             changes_summary: `Lesson updated as ${status}`,
           })
@@ -659,6 +660,7 @@ export default function InstructorWorkstationPage({
             student_token: assignedStudent.token,
             instructor_id: instructorId,
             status,
+            is_published: status === "published",
             content,
             changes_summary: `Initial lesson created as ${status}`,
           });
@@ -678,6 +680,9 @@ export default function InstructorWorkstationPage({
       setLessonStatus(status);
       setSaveIndicator("saved");
       lastSavedDraftSignature.current = getDraftSignature(content, title, content.subtitle, String(moduleNumber));
+      if (status === "published") {
+        await publishLessonAndAssign(lesson.id, assignedStudent.id, instructorId);
+      }
       console.log("Lesson saved successfully", { lessonId: lesson.id, status });
       if (!isAutoSave) setPublishStatus(`Lesson saved as ${status} and synced with student view.`);
     } catch (error) {
@@ -691,11 +696,6 @@ export default function InstructorWorkstationPage({
 
   const handleSaveDraft = () => {
     console.log("Saving lesson...", { ...newLesson, content: workstationState.content });
-    void saveLessonChanges(newLesson.status === "published" ? "published" : "draft");
-  };
-
-  const handlePreviewPublish = () => {
-    setShowPreview(true);
     void saveLessonChanges("draft");
   };
 
@@ -758,17 +758,15 @@ export default function InstructorWorkstationPage({
 <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-400">Fluentia Instructor Studio</span>
 <h1 className="mt-2 font-[var(--font-fraunces)] text-2xl font-semibold text-[#f1eee8]">Instructor Workstation</h1>
 </div>
-          {activeTab === "builder" && <div className="flex flex-col items-end gap-2">
-            <div className="flex items-center gap-3">
-            <select value={databaseLessonId && createdLessons.some((lesson) => lesson.id === databaseLessonId && lesson.status === "draft") ? databaseLessonId : ""} onChange={(event) => { const draft = createdLessons.find((lesson) => lesson.id === event.target.value); if (draft) activateLesson(draft); }} aria-label="Drafts" className="min-w-[280px] max-w-[320px] truncate rounded-lg border border-amber-500/50 bg-[#171d28] px-3 py-2.5 text-xs font-semibold text-white outline-none transition-colors hover:bg-amber-500 hover:text-black [color-scheme:dark]"><option value="" className="bg-slate-900 text-white">Drafts</option>{createdLessons.filter((lesson) => lesson.status === "draft").slice(0, 8).map((lesson) => <option key={lesson.id} value={lesson.id} className="bg-slate-900 text-white">{lesson.title}</option>)}</select>
-            {databaseLessonId && <button type="button" onClick={() => { const currentLesson = createdLessons.find((lesson) => lesson.id === databaseLessonId); duplicateLesson(currentLesson); }} className="rounded-lg border border-sky-500/50 px-4 py-2.5 text-xs font-semibold text-sky-300 hover:bg-sky-500 hover:text-black">Duplicate / Save As</button>}
-            <button type="button" onClick={handleSaveDraft} className="rounded-lg border border-amber-500/50 px-4 py-2.5 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black">Save</button>
-            {newLesson.status === "published" && <><button type="button" onClick={() => void saveLessonChanges("published")} className="rounded-lg border border-emerald-500/50 px-4 py-2.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500 hover:text-black">Update Published Lesson</button><button type="button" onClick={() => duplicateLesson(createdLessons.find((lesson) => lesson.id === databaseLessonId))} className="rounded-lg border border-sky-500/50 px-4 py-2.5 text-xs font-semibold text-sky-300 hover:bg-sky-500 hover:text-black">Save as New Draft</button></>}
-            <button type="button" onClick={handlePreviewPublish} className="rounded-lg border border-amber-500/50 px-4 py-2.5 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black">Preview &amp; Publish</button>
+          {activeTab === "builder" && <div className="flex min-w-0 flex-col items-stretch gap-2 md:items-end">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <select value={databaseLessonId && createdLessons.some((lesson) => lesson.id === databaseLessonId && lesson.status === "draft") ? databaseLessonId : ""} onChange={(event) => { const draft = createdLessons.find((lesson) => lesson.id === event.target.value); if (draft) activateLesson(draft); }} aria-label="Drafts" className="min-w-[220px] max-w-[320px] truncate rounded-md border border-[#394252] bg-[#171d28] px-3 py-2 text-xs font-semibold text-white outline-none [color-scheme:dark]"><option value="" className="bg-slate-900 text-white">Drafts</option>{createdLessons.filter((lesson) => lesson.status === "draft").slice(0, 8).map((lesson) => <option key={lesson.id} value={lesson.id} className="bg-slate-900 text-white">{lesson.title}</option>)}</select>
+              <button type="button" onClick={handleSaveDraft} className="rounded-md border border-[#394252] px-3 py-2 text-xs font-semibold text-stone-300 transition hover:border-amber-500/60 hover:text-amber-300">Save Draft</button>
+              <button type="button" onClick={handleConfirmPublish} disabled={isPublishing} className="rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60">Publish to Student</button>
             </div>
-            <div className="flex min-h-5 items-center gap-3 text-xs" aria-live="polite">
-              {publishStatus !== null && publishStatus.trim().length > 0 && <span className="rounded-lg border border-[#202631] bg-[#171d28] px-3 py-1.5 font-medium text-amber-400">{publishStatus}</span>}
-              {databaseLessonId && <span className={saveIndicator === "error" ? "text-red-300" : "text-stone-400"}>{saveIndicator === "saving" ? "● Saving" : saveIndicator === "saved" ? "● Auto-saved" : saveIndicator === "error" ? "● Save failed" : "● Saved"}</span>}
+            <div className="flex min-h-5 w-full max-w-xl justify-end gap-3 text-xs" aria-live="polite">
+              {publishStatus && <span className="truncate text-amber-300">{publishStatus}</span>}
+              {databaseLessonId && <span className={saveIndicator === "error" ? "text-red-300" : "text-stone-500"}>{saveIndicator === "saving" ? "Saving" : saveIndicator === "saved" ? "Saved" : saveIndicator === "error" ? "Save failed" : "Ready"}</span>}
             </div>
           </div>}
         </header>

@@ -18,6 +18,7 @@ export interface CreateLessonInput {
   subject?: string;
   grade?: string;
   status?: "draft" | "published" | "evaluated";
+  is_published?: boolean;
   instructor_id?: string;
   assigned_all_students?: boolean;
   content: Record<string, any>;
@@ -34,6 +35,7 @@ export interface UpdateLessonInput {
   subject?: string;
   grade?: string;
   status?: "draft" | "published" | "evaluated";
+  is_published?: boolean;
   content?: Record<string, any>;
   changes_summary?: string;
 }
@@ -336,6 +338,23 @@ export async function assignLessonToStudent(lessonId: string, studentId: string)
   return updated;
 }
 
+export async function publishLessonAndAssign(lessonId: string, studentId: string, instructorId: string): Promise<void> {
+  const normalizedLessonId = lessonId.trim();
+  const normalizedStudentId = studentId.trim();
+  if (!normalizedLessonId || !normalizedStudentId || !instructorId.trim()) throw new Error("Lesson, student, and instructor are required to publish");
+
+  const { error: lessonError } = await supabase
+    .from("lessons")
+    .update({ status: "published", is_published: true, instructor_id: instructorId })
+    .eq("id", normalizedLessonId);
+  if (lessonError) throw lessonError;
+
+  const { error: assignmentError } = await supabase
+    .from("lesson_assignments")
+    .upsert({ lesson_id: normalizedLessonId, student_id: normalizedStudentId, status: "assigned", assigned_at: new Date().toISOString() }, { onConflict: "lesson_id,student_id" });
+  if (assignmentError) throw assignmentError;
+}
+
 export async function assignLessonToAllActiveStudents(lessonId: string): Promise<LessonWithVersion> {
   const lesson = await getLessonById(lessonId);
   if (!lesson) throw new Error("Lesson not found");
@@ -401,7 +420,7 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
   }
 
   try {
-    const { content, changes_summary, banner_url, student_id, student_token, instructor_id, ...lessonData } = input;
+    const { content, changes_summary, banner_url, student_id, student_token, instructor_id, is_published, ...lessonData } = input;
     const resolvedStudentId = student_id || undefined;
     const resolvedInstructorId = instructor_id || undefined;
     const hasTitle = typeof lessonData.title === "string" && lessonData.title.trim().length > 0;
@@ -421,6 +440,7 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
       title,
       slug,
       status: lessonData.status || "draft",
+      is_published: is_published ?? lessonData.status === "published",
       ...(banner_url ? { banner_url } : {}),
       ...(resolvedStudentId ? { student_id: resolvedStudentId } : {}),
       ...(student_token ? { student_token } : {}),
@@ -481,13 +501,13 @@ export async function updateLesson(
   }
 
   try {
-    const { content, changes_summary, banner_url, student_id, student_token, instructor_id, ...lessonData } = input;
+    const { content, changes_summary, banner_url, student_id, student_token, instructor_id, is_published, ...lessonData } = input;
     const resolvedStudentId = student_id || undefined;
     const resolvedInstructorId = instructor_id || undefined;
     // Update the lesson metadata
     const hasStudentTokenUpdate = Object.prototype.hasOwnProperty.call(input, "student_token");
     if (Object.keys(lessonData).length > 0 || banner_url || resolvedStudentId || resolvedInstructorId || hasStudentTokenUpdate) {
-      const updatePayload = { ...lessonData, ...(banner_url ? { banner_url } : {}), ...(resolvedStudentId ? { student_id: resolvedStudentId } : {}), ...(resolvedInstructorId ? { instructor_id: resolvedInstructorId } : {}), ...(hasStudentTokenUpdate ? { student_token } : {}) };
+      const updatePayload = { ...lessonData, ...(banner_url ? { banner_url } : {}), ...(resolvedStudentId ? { student_id: resolvedStudentId } : {}), ...(resolvedInstructorId ? { instructor_id: resolvedInstructorId } : {}), ...(hasStudentTokenUpdate ? { student_token } : {}), ...(is_published !== undefined ? { is_published } : {}) };
       let { error: updateError } = await supabase
         .from("lessons")
         .update(updatePayload)
@@ -496,7 +516,7 @@ export async function updateLesson(
         if (Object.keys(lessonData).length > 0 || hasStudentTokenUpdate) {
           ({ error: updateError } = await supabase
             .from("lessons")
-            .update({ ...lessonData, ...(hasStudentTokenUpdate ? { student_token } : {}) })
+            .update({ ...lessonData, ...(hasStudentTokenUpdate ? { student_token } : {}), ...(is_published !== undefined ? { is_published } : {}) })
             .eq("id", id));
         } else {
           updateError = null;
