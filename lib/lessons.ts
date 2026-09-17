@@ -310,7 +310,7 @@ export async function getLessonsByStudentId(studentId: string): Promise<LessonWi
     if (!studentUuid) return [];
     const [directResult, assignmentIdsResult, allStudentsResult] = await Promise.all([
       supabase.from("lessons").select("*").eq("status", "published").eq("student_id", studentUuid),
-      supabase.from("lesson_assignments").select("lesson_id").eq("student_id", studentUuid).eq("status", "assigned"),
+      supabase.from("lesson_assignments").select("lesson_id").eq("student_id", studentUuid),
       supabase.from("lessons").select("*").eq("status", "published").eq("assigned_all_students", true),
     ]);
 
@@ -351,7 +351,6 @@ export async function assignLessonToStudent(lessonId: string, studentId: string)
   const assignmentPayload = {
     lesson_id: normalizedLessonId,
     student_id: student.id,
-    status: "assigned",
     assigned_at: new Date().toISOString(),
   };
   const { error: assignmentError } = await supabase.from("lesson_assignments").upsert(assignmentPayload, { onConflict: "lesson_id,student_id" });
@@ -377,9 +376,14 @@ export async function publishLessonAndAssign(lessonId: string, studentId: string
   }
   if (lessonError) throw lessonError;
 
+  const assignmentPayload = {
+    lesson_id: normalizedLessonId,
+    student_id: normalizedStudentId,
+    assigned_at: new Date().toISOString(),
+  };
   const { error: assignmentError } = await supabase
     .from("lesson_assignments")
-    .upsert({ lesson_id: normalizedLessonId, student_id: normalizedStudentId, status: "assigned", assigned_at: new Date().toISOString() }, { onConflict: "lesson_id,student_id" });
+    .upsert(assignmentPayload, { onConflict: "lesson_id,student_id" });
   if (assignmentError) throw assignmentError;
 }
 
