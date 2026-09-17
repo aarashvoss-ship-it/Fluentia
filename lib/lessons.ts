@@ -300,6 +300,34 @@ export async function getLessonById(idOrSlug = BENCHMARK_LESSON_SLUG): Promise<L
 /**
  * Fetches lessons by student ID
  */
+async function resolveStudentLookupId(studentId: string): Promise<{ studentIds: string[]; studentTokens: string[] }> {
+  const normalizedStudentId = studentId.trim();
+  if (!normalizedStudentId) return { studentIds: [], studentTokens: [] };
+
+  const studentIds = new Set<string>([normalizedStudentId]);
+  const studentTokens = new Set<string>([normalizedStudentId]);
+
+  try {
+    const { data: studentRow, error } = await supabase
+      .from("students")
+      .select("id, token")
+      .or(`id.eq.${normalizedStudentId},token.eq.${normalizedStudentId}`)
+      .maybeSingle();
+
+    if (!error && studentRow) {
+      if (studentRow.id) studentIds.add(studentRow.id);
+      if (studentRow.token) studentTokens.add(studentRow.token);
+    }
+  } catch (error) {
+    console.warn("Student identity resolution failed:", error);
+  }
+
+  return {
+    studentIds: [...studentIds].filter(Boolean),
+    studentTokens: [...studentTokens].filter(Boolean),
+  };
+}
+
 export async function getLessonsByStudentId(studentId: string): Promise<LessonWithVersion[]> {
   if (!isSupabaseConfigured()) {
     console.warn("Supabase not configured");
@@ -307,22 +335,42 @@ export async function getLessonsByStudentId(studentId: string): Promise<LessonWi
   }
 
   try {
-    const studentUuid = studentId;
-    if (!studentUuid) return [];
-    const [directResult, assignmentIdsResult, allStudentsResult] = await Promise.all([
-      supabase.from("lessons").select("*").eq("status", "published").eq("student_id", studentUuid),
-      supabase.from("lesson_assignments").select("lesson_id").eq("student_id", studentUuid),
+    const normalizedStudentId = studentId?.trim();
+    if (!normalizedStudentId) return [];
+
+    const { studentIds, studentTokens } = await resolveStudentLookupId(normalizedStudentId);
+    const normalizedStudentIds = [...new Set(studentIds.filter(Boolean))];
+    const normalizedStudentTokens = [...new Set(studentTokens.filter(Boolean))];
+
+    const directQuery = normalizedStudentIds.length > 0
+      ? supabase.from("lessons").select("*").eq("status", "published").in("student_id", normalizedStudentIds)
+      : supabase.from("lessons").select("*").eq("status", "published").eq("student_id", normalizedStudentId);
+
+    const tokenQuery = normalizedStudentTokens.length > 0
+      ? supabase.from("lessons").select("*").eq("status", "published").in("student_token", normalizedStudentTokens)
+      : supabase.from("lessons").select("*").eq("status", "published").eq("student_token", normalizedStudentId);
+
+    const assignmentQuery = normalizedStudentIds.length > 0
+      ? supabase.from("lesson_assignments").select("lesson_id").in("student_id", normalizedStudentIds)
+      : supabase.from("lesson_assignments").select("lesson_id").eq("student_id", normalizedStudentId);
+
+    const [directResult, tokenResult, assignmentIdsResult, allStudentsResult] = await Promise.all([
+      directQuery,
+      tokenQuery,
+      assignmentQuery,
       supabase.from("lessons").select("*").eq("status", "published").eq("assigned_all_students", true),
     ]);
 
-    const assignmentLessonIds = (assignmentIdsResult.data || []).map((row) => row.lesson_id);
+    const assignmentLessonIds = [...new Set((assignmentIdsResult.data || []).map((row) => row.lesson_id))];
     const assignedResult = assignmentLessonIds.length > 0
       ? await supabase.from("lessons").select("*").eq("status", "published").in("id", assignmentLessonIds)
       : { data: [], error: null };
-    const firstError = directResult.error || assignmentIdsResult.error || assignedResult.error || allStudentsResult.error;
+
+    const firstError = directResult.error || tokenResult.error || assignmentIdsResult.error || assignedResult.error || allStudentsResult.error;
     if (firstError) throw firstError;
+
     const uniqueLessons = new Map<string, LessonRow>();
-    [...(directResult.data || []), ...(assignedResult.data || []), ...(allStudentsResult.data || [])].forEach((lesson) => {
+    [...(directResult.data || []), ...(tokenResult.data || []), ...(assignedResult.data || []), ...(allStudentsResult.data || [])].forEach((lesson) => {
       uniqueLessons.set(lesson.id, lesson as LessonRow);
     });
 

@@ -182,8 +182,8 @@ function DashboardContent() {
           const { data: studentRow, error: studentError } = await supabase
             .from("students")
             .select("id, name, email, token")
-            .eq("id", userData.user.id)
-            .single();
+            .or(`id.eq.${userData.user.id},email.eq.${userEmail}`)
+            .maybeSingle();
 
           if (studentError && studentError.code !== "PGRST116") {
             logDashboardError("Dashboard student lookup unavailable; using session metadata:", studentError);
@@ -194,18 +194,19 @@ function DashboardContent() {
           logDashboardError("Dashboard student lookup threw an error; using session metadata:", error);
         }
 
+        const resolvedStudentId = student?.id || userData.user.id;
         const fallbackName = userData.user.user_metadata?.name
           || userEmail
           || "Student";
 
       const active: StudentUser = {
-        id: student?.id || userData.user.id,
+        id: resolvedStudentId,
         token: student?.token || userData.user.id,
         name: student?.name || fallbackName,
         email: student?.email || userEmail || undefined,
         role: "student",
         profile: {
-          id: student?.id || userData.user.id,
+          id: resolvedStudentId,
           fullName: student?.name || fallbackName,
           level: "",
           targetGoal: "",
@@ -219,7 +220,7 @@ function DashboardContent() {
       };
 
         setActiveStudent(active);
-        const studentToken = userData.user.id;
+        const studentToken = resolvedStudentId;
         const storedProfile = window.localStorage.getItem(`fluentia:profile:${studentToken}`);
         let preferences: ProfilePreferences = {};
         try {
