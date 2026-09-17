@@ -199,7 +199,7 @@ function DashboardContent() {
 
         setActiveStudent(active);
         persistResolvedStudent(active);
-        const studentToken = userData.user.id;
+        const studentToken = student?.token || student?.id || userData.user.id;
         const storedProfile = window.localStorage.getItem(`fluentia:profile:${studentToken}`);
         let preferences: ProfilePreferences = {};
         try {
