@@ -333,23 +333,30 @@ export default function InstructorWorkstationPage({
   };
 
   const logAssignmentError = (context: string, error: unknown) => {
-    const supabaseError = error && typeof error === "object" ? error as { code?: string; message?: string; details?: string; hint?: string } : undefined;
+    const supabaseError = error && typeof error === "object" ? error as { code?: string; message?: string; details?: string; hint?: string; status?: number } : undefined;
+    const message = error instanceof Error
+      ? error.message
+      : supabaseError?.message
+        || supabaseError?.details
+        || (typeof error === "string" ? error : "Unknown assignment error");
     console.error(context, {
       code: supabaseError?.code,
-      message: supabaseError?.message || (error instanceof Error ? error.message : String(error)),
+      message,
       details: supabaseError?.details,
       hint: supabaseError?.hint,
+      status: supabaseError?.status,
+      raw: error,
     });
   };
 
-  const handleAssignStudent = async (lesson: LessonWithVersion, studentToken: string) => {
-    const normalizedStudentToken = studentToken.trim();
-    if (!lesson.id.trim() || !normalizedStudentToken) {
+  const handleAssignStudent = async (lesson: LessonWithVersion, studentId: string) => {
+    const normalizedStudentId = studentId.trim();
+    if (!lesson.id.trim() || !normalizedStudentId) {
       setPublishStatus("Select a valid lesson and student before assigning.");
       return;
     }
     try {
-      await refreshLessonListAfterAssignment(await assignLessonToStudent(lesson.id.trim(), normalizedStudentToken));
+      await refreshLessonListAfterAssignment(await assignLessonToStudent(lesson.id.trim(), normalizedStudentId));
       setPublishStatus("Lesson assigned to the selected student.");
     } catch (error) {
       logAssignmentError("Lesson assignment failed:", error);
@@ -849,7 +856,7 @@ export default function InstructorWorkstationPage({
                 <tbody className="divide-y divide-[#202631]">
                   {createdLessons.map((lesson) => <tr key={lesson.id} onClick={() => handleEditLesson(lesson)} className="cursor-pointer text-stone-300 transition hover:bg-[#202631]/30">
                     <td className="min-w-0 px-5 py-4"><button type="button" onClick={() => handleEditLesson(lesson)} className="block min-w-0 max-w-full text-left"><p className="truncate font-semibold text-stone-100" title={lesson.title}>{lesson.title}</p><p className="mt-1 truncate text-[11px] text-stone-400" title={lesson.content?.subtitle || lesson.subtitle || "No subtitle"}>{lesson.content?.subtitle || lesson.subtitle || "No subtitle"}</p><p className="mt-1 truncate text-[10px] text-stone-600" title={lesson.content?.slug || lesson.id}>{lesson.content?.slug || lesson.id}</p></button></td>
-                    <td className="min-w-0 px-4 py-4 text-stone-300" onClick={(event) => event.stopPropagation()}><div className="flex min-w-0 items-center gap-2">{renderAssignedStudents(lesson)}<select defaultValue="" onChange={(event) => void handleAssignmentChange(lesson, event.target.value)} aria-label={`Assign ${lesson.title} to a student`} className="w-[4.5rem] shrink-0 rounded-md border border-amber-500/40 bg-[#0c1017] px-2 py-1.5 text-[11px] text-white outline-none [color-scheme:dark]" title="Assign lesson"><option value="" className="bg-[#0c1017] text-white">Assign</option><option value="__all_active__" className="bg-[#0c1017] text-white">All active</option>{getAssignedStudentNames(lesson).length > 0 && <option value="__unassign__" className="bg-[#0c1017] text-white">Unassign</option>}{students.map((student) => <option key={student.token} value={student.token} className="bg-[#0c1017] text-white">{student.name}</option>)}</select></div></td>
+                    <td className="min-w-0 px-4 py-4 text-stone-300" onClick={(event) => event.stopPropagation()}><div className="flex min-w-0 items-center gap-2">{renderAssignedStudents(lesson)}<select defaultValue="" onChange={(event) => void handleAssignmentChange(lesson, event.target.value)} aria-label={`Assign ${lesson.title} to a student`} className="w-[4.5rem] shrink-0 rounded-md border border-amber-500/40 bg-[#0c1017] px-2 py-1.5 text-[11px] text-white outline-none [color-scheme:dark]" title="Assign lesson"><option value="" className="bg-[#0c1017] text-white">Assign</option><option value="__all_active__" className="bg-[#0c1017] text-white">All active</option>{getAssignedStudentNames(lesson).length > 0 && <option value="__unassign__" className="bg-[#0c1017] text-white">Unassign</option>}{students.map((student) => <option key={student.id} value={student.id} className="bg-[#0c1017] text-white">{student.name}</option>)}</select></div></td>
                     <td className="px-4 py-4"><span className={`rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${lesson.status === "published" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/30 bg-amber-500/10 text-amber-300"}`}>{lesson.status === "published" ? "Published" : "Draft"}</span></td>
                     <td className="px-4 py-4 text-stone-300">Module {lesson.content?.moduleNumber || lesson.module_number || 1}</td>
                     <td className="px-4 py-4"><div className="flex items-center justify-end gap-2" onClick={(event) => event.stopPropagation()}>

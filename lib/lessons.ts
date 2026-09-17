@@ -284,16 +284,20 @@ export async function getLessonsByStudentId(studentId: string): Promise<LessonWi
   try {
     const studentUuid = studentId;
     if (!studentUuid) return [];
-    const [directResult, assignmentResult, allStudentsResult] = await Promise.all([
+    const [directResult, assignmentIdsResult, allStudentsResult] = await Promise.all([
       supabase.from("lessons").select("*").eq("status", "published").eq("student_id", studentUuid),
-      supabase.from("lessons").select("*, lesson_assignments!inner(student_id)").eq("status", "published").eq("lesson_assignments.student_id", studentUuid),
+      supabase.from("lesson_assignments").select("lesson_id").eq("student_id", studentUuid),
       supabase.from("lessons").select("*").eq("status", "published").eq("assigned_all_students", true),
     ]);
 
-    const firstError = directResult.error || assignmentResult.error || allStudentsResult.error;
+    const assignmentLessonIds = (assignmentIdsResult.data || []).map((row) => row.lesson_id);
+    const assignedResult = assignmentLessonIds.length > 0
+      ? await supabase.from("lessons").select("*").eq("status", "published").in("id", assignmentLessonIds)
+      : { data: [], error: null };
+    const firstError = directResult.error || assignmentIdsResult.error || assignedResult.error || allStudentsResult.error;
     if (firstError) throw firstError;
     const uniqueLessons = new Map<string, LessonRow>();
-    [...(directResult.data || []), ...(assignmentResult.data || []), ...(allStudentsResult.data || [])].forEach((lesson) => {
+    [...(directResult.data || []), ...(assignedResult.data || []), ...(allStudentsResult.data || [])].forEach((lesson) => {
       uniqueLessons.set(lesson.id, lesson as LessonRow);
     });
 
@@ -307,16 +311,20 @@ export async function getLessonsByStudentId(studentId: string): Promise<LessonWi
   }
 }
 
-export async function assignLessonToStudent(lessonId: string, studentToken: string): Promise<LessonWithVersion> {
+export async function assignLessonToStudent(lessonId: string, studentId: string): Promise<LessonWithVersion> {
   const normalizedLessonId = lessonId.trim();
-  const normalizedStudentToken = studentToken.trim();
-  if (!normalizedLessonId || !normalizedStudentToken) throw new Error("A lesson and student are required for assignment");
+  const normalizedStudentId = studentId.trim();
+  if (!normalizedLessonId || !normalizedStudentId) throw new Error("A lesson and student are required for assignment");
   const lesson = await getLessonById(normalizedLessonId);
   if (!lesson) throw new Error("Lesson not found");
-  const studentUuid = normalizedStudentToken;
-  const content = { ...(lesson.content || {}), assignedAllStudents: false, assignedStudents: [normalizedStudentToken] };
-  const updated = await updateLesson(normalizedLessonId, { student_token: normalizedStudentToken, assigned_all_students: false, content, changes_summary: "Assigned to student" });
-  const assignmentPayload = { lesson_id: normalizedLessonId, student_id: studentUuid };
+  const { data: student, error: studentError } = await supabase.from("students").select("id, token").eq("id", normalizedStudentId).maybeSingle();
+  if (studentError) throw studentError;
+  if (!student) throw new Error(`Student ${normalizedStudentId} was not found`);
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError || !authData.user?.id) throw authError || new Error("No authenticated instructor session");
+  const content = { ...(lesson.content || {}), assignedAllStudents: false, assignedStudents: [student.id] };
+  const updated = await updateLesson(normalizedLessonId, { student_id: student.id, student_token: student.token, instructor_id: authData.user.id, assigned_all_students: false, content, changes_summary: "Assigned to student" });
+  const assignmentPayload = { lesson_id: normalizedLessonId, student_id: student.id, assigned_at: new Date().toISOString() };
   const { error: assignmentError } = await supabase.from("lesson_assignments").upsert(assignmentPayload, { onConflict: "lesson_id,student_id" });
   if (assignmentError) throw assignmentError;
   if (typeof window !== "undefined") window.dispatchEvent(new Event("fluentia:lesson-updated"));
