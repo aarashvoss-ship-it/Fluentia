@@ -16,14 +16,11 @@ interface ChatWidgetProps {
 
 interface MessageRow {
   id: string;
-  student_id: string | null;
-  instructor_id: string;
   sender_id: string;
   receiver_id: string;
   tab_type: "active" | "support";
   content: string;
   created_at: string;
-  read_at: string | null;
 }
 
 const triggerChime = () => {
@@ -45,12 +42,12 @@ const triggerChime = () => {
   }
 };
 
-function toChatMessage(row: MessageRow): ChatMessage {
+function toChatMessage(row: MessageRow, currentUserId: string): ChatMessage {
   return {
     id: row.id,
     tab: row.tab_type === "support" ? "support" : "instructor",
     text: row.content,
-    sender: row.sender_id === row.student_id ? "student" : "team",
+    sender: row.sender_id === currentUserId ? "student" : "team",
     createdAt: row.created_at,
   };
 }
@@ -87,18 +84,16 @@ export function ChatWidget({ messages, onSend, currentUserId = "student", studen
     let cancelled = false;
     const loadMessages = async () => {
       const { data, error } = await supabase.from("messages")
-        .select("id, student_id, instructor_id, sender_id, receiver_id, tab_type, content, created_at, read_at")
-        .eq("student_id", resolvedStudentId)
-        .in("tab_type", ["active", "support"])
+        .select("id, sender_id, receiver_id, tab_type, content, created_at")
         .order("created_at", { ascending: true });
-      if (!cancelled && !error && data) setRemoteMessages((data as MessageRow[]).map(toChatMessage));
+      if (!cancelled && !error && data) setRemoteMessages((data as MessageRow[]).map((row) => toChatMessage(row, resolvedStudentId)));
     };
     void loadMessages();
     const channel = supabase.channel("public:messages")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
         const row = payload.new as MessageRow;
-        if (row.student_id !== resolvedStudentId && row.tab_type !== "support") return;
-        const message = toChatMessage(row);
+        if (row.sender_id !== resolvedStudentId && row.receiver_id !== resolvedStudentId && row.tab_type !== "support") return;
+        const message = toChatMessage(row, resolvedStudentId);
         setRemoteMessages((current) => appendUnique(current, message));
         if (row.sender_id === resolvedStudentId) return;
         triggerChime();
@@ -123,15 +118,13 @@ export function ChatWidget({ messages, onSend, currentUserId = "student", studen
         resolveUserUuid(tab === "support" ? instructorId : instructorId),
       ]);
       const { data, error } = await supabase.from("messages").insert({
-        student_id: resolvedStudentId,
-        instructor_id: resolvedInstructorId,
         sender_id: senderUuid,
         receiver_id: receiverUuid,
         tab_type: tab === "support" ? "support" : "active",
         content: trimmedText,
-      }).select("id, student_id, instructor_id, sender_id, receiver_id, tab_type, content, created_at, read_at").single();
+      }).select("id, sender_id, receiver_id, tab_type, content, created_at").single();
       if (error || !data) return;
-      setRemoteMessages((current) => appendUnique(current, toChatMessage(data as MessageRow)));
+      setRemoteMessages((current) => appendUnique(current, toChatMessage(data as MessageRow, senderUuid)));
     } else {
       onSend({ id: `${Date.now()}`, tab, text: trimmedText, sender: "student", createdAt: new Date().toISOString() });
     }

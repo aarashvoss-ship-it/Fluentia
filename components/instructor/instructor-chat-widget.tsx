@@ -19,26 +19,23 @@ interface InstructorChatWidgetProps {
 
 interface MessageRow {
   id: string;
-  student_id: string | null;
-  instructor_id: string;
   sender_id: string;
   receiver_id: string;
   tab_type: "active" | "support";
   content: string;
   created_at: string;
-  read_at: string | null;
 }
 
 function studentKey(student: StudentUser) {
   return student.token || student.id;
 }
 
-function toChatMessage(row: MessageRow): ChatMessage {
+function toChatMessage(row: MessageRow, currentUserId: string): ChatMessage {
   return {
     id: row.id,
     tab: row.tab_type === "support" ? "support" : "instructor",
     text: row.content,
-    sender: row.sender_id === row.instructor_id ? "team" : "student",
+    sender: row.sender_id === currentUserId ? "team" : "student",
     createdAt: row.created_at,
   };
 }
@@ -103,35 +100,32 @@ export function InstructorChatWidget({ activeStudent, students, instructorId, le
     const loadMessages = async () => {
       const { data, error } = await supabase
         .from("messages")
-        .select("id, student_id, instructor_id, sender_id, receiver_id, tab_type, content, created_at, read_at")
-        .eq("instructor_id", resolvedInstructorId)
-        .in("tab_type", ["active", "support"])
+        .select("id, sender_id, receiver_id, tab_type, content, created_at")
         .order("created_at", { ascending: true });
       if (cancelled || error || !data) return;
       const rows = data as MessageRow[];
       const nextThreads: Record<string, ChatMessage[]> = {};
-      rows.filter((row) => row.tab_type === "active" && row.student_id).forEach((row) => {
-        const key = row.student_id!;
-        nextThreads[key] = [...(nextThreads[key] || []), toChatMessage(row)];
+      rows.filter((row) => row.tab_type === "active").forEach((row) => {
+        const key = row.sender_id === resolvedInstructorId ? row.receiver_id : row.sender_id;
+        nextThreads[key] = [...(nextThreads[key] || []), toChatMessage(row, resolvedInstructorId)];
       });
       setThreadMessages(nextThreads);
-      setSupportMessages(rows.filter((row) => row.tab_type === "support").map(toChatMessage));
-      const unreadRows = rows.filter((row) => row.receiver_id === instructorId && row.sender_id !== instructorId && !row.read_at);
-      setUnreadCount(unreadRows.length);
-      setUnreadByStudent(unreadRows.reduce<Record<string, number>>((counts, row) => {
-        if (row.student_id) counts[row.student_id] = (counts[row.student_id] || 0) + 1;
-        return counts;
-      }, {}));
+      setSupportMessages(rows.filter((row) => row.tab_type === "support").map((row) => toChatMessage(row, resolvedInstructorId)));
+      setUnreadCount(0);
+      setUnreadByStudent({});
     };
     void loadMessages();
     const channel = supabase
       .channel("public:messages")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
         const row = payload.new as MessageRow;
-        if (row.instructor_id !== resolvedInstructorId && row.tab_type !== "support") return;
-        const message = toChatMessage(row);
+        if (row.sender_id !== resolvedInstructorId && row.receiver_id !== resolvedInstructorId && row.tab_type !== "support") return;
+        const message = toChatMessage(row, resolvedInstructorId);
         if (row.tab_type === "support") setSupportMessages((current) => appendUnique(current, message));
-        else if (row.student_id) setThreadMessages((current) => ({ ...current, [row.student_id!]: appendUnique(current[row.student_id!] || [], message) }));
+        else {
+          const key = row.sender_id === resolvedInstructorId ? row.receiver_id : row.sender_id;
+          setThreadMessages((current) => ({ ...current, [key]: appendUnique(current[key] || [], message) }));
+        }
         const isIncoming = row.sender_id !== resolvedInstructorId;
         const shouldNotify = !openRef.current || row.tab_type !== tabRef.current;
         if (isIncoming) {
@@ -139,7 +133,8 @@ export function InstructorChatWidget({ activeStudent, students, instructorId, le
         }
         if (isIncoming && shouldNotify) {
           setUnreadCount((count) => count + 1);
-          if (row.student_id) setUnreadByStudent((counts) => ({ ...counts, [row.student_id!]: (counts[row.student_id!] || 0) + 1 }));
+          const studentKey = row.sender_id === resolvedInstructorId ? row.receiver_id : row.sender_id;
+          setUnreadByStudent((counts) => ({ ...counts, [studentKey]: (counts[studentKey] || 0) + 1 }));
         }
       })
       .subscribe();
@@ -213,15 +208,13 @@ export function InstructorChatWidget({ activeStudent, students, instructorId, le
       const senderUuid = await resolveUserUuid(instructorId);
       const receiverId = tab === "support" ? senderUuid : await resolveUserUuid(studentId!);
       const { data, error } = await supabase.from("messages").insert({
-        student_id: tab === "support" ? null : studentId,
-        instructor_id: senderUuid,
         sender_id: senderUuid,
         receiver_id: receiverId,
         tab_type: tab === "support" ? "support" : "active",
         content: trimmedText,
-      }).select("id, student_id, instructor_id, sender_id, receiver_id, tab_type, content, created_at, read_at").single();
+      }).select("id, sender_id, receiver_id, tab_type, content, created_at").single();
       if (error || !data) return;
-      const message = toChatMessage(data as MessageRow);
+      const message = toChatMessage(data as MessageRow, senderUuid);
       if (tab === "support") setSupportMessages((current) => appendUnique(current, message));
       else setThreadMessages((current) => ({ ...current, [studentId!]: appendUnique(current[studentId!] || [], message) }));
     } else {
