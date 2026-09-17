@@ -122,6 +122,17 @@ function defaultContent(): StrictStepContent {
 
 type SupabaseRow = Record<string, any>;
 
+function toStorageError(error: unknown, fallback: string) {
+  if (error && typeof error === "object") {
+    const details = error as { message?: string; details?: string; hint?: string; code?: string };
+    const message = [details.message, details.details, details.hint].filter(Boolean).join(" | ") || fallback;
+    const normalized = new Error(message);
+    if (details.code) normalized.name = details.code;
+    return normalized;
+  }
+  return new Error(error instanceof Error ? error.message : fallback);
+}
+
 async function getStudentId(_legacyIdentifier?: string) {
   if (!isSupabaseConfigured()) return null;
   try {
@@ -424,26 +435,27 @@ export async function submitStudentLesson(
   };
   if (isSupabaseConfigured()) {
     try {
-      const studentId = await getStudentId();
-      const lesson = studentId ? await fetchStudentLesson(slug, studentId) : null;
+      const lesson = await fetchStudentLesson(slug, studentToken);
+      const studentId = lesson?.student_id || await getStudentId(studentToken);
       if (lesson && studentId) {
-        const { data: existingSubmission } = await supabase.from("submissions").select("id").eq("lesson_id", lesson.id).eq("student_id", studentId).maybeSingle();
+        const { data: existingSubmission, error: lookupError } = await supabase.from("submissions").select("id").eq("lesson_id", lesson.id).eq("student_id", studentId).maybeSingle();
+        if (lookupError) throw lookupError;
         const submissionPayload = { answers: submission, status: submission.status, submitted_at: submission.submittedAt || new Date().toISOString() };
         const { error } = existingSubmission
           ? await supabase.from("submissions").update(submissionPayload).eq("id", existingSubmission.id)
           : await supabase.from("submissions").insert({ lesson_id: lesson.id, student_id: studentId, ...submissionPayload });
-        if (!error) {
-          if (progress) {
-            void saveStudentProgress(slug, { currentStep: progress.currentStep || "warm_up", completedSteps: progress.completedSteps || [], status: progress.status || (submission.status === "submitted" ? "submitted" : "in_progress"), updatedAt: new Date().toISOString() }, studentToken).catch((progressError) => {
-              console.error("Failed to save lesson progress:", progressError);
-            });
-          }
-          notifyDataUpdated({ type: "submission", slug, studentToken });
-          return nextState;
+        if (error) throw error;
+        if (progress) {
+          void saveStudentProgress(slug, { currentStep: progress.currentStep || "warm_up", completedSteps: progress.completedSteps || [], status: progress.status || (submission.status === "submitted" ? "submitted" : "in_progress"), updatedAt: new Date().toISOString() }, studentToken).catch((progressError) => {
+            console.error("Failed to save lesson progress:", progressError);
+          });
         }
+        notifyDataUpdated({ type: "submission", slug, studentToken });
+        return nextState;
       }
-      } catch (error) {
-        if (!demoDataEnabled()) throw error;
+      throw new Error(`No assigned lesson or authenticated student found for ${slug}`);
+    } catch (error) {
+      if (!demoDataEnabled()) throw toStorageError(error, `Unable to save submission for ${slug}`);
     }
   }
     if (isSupabaseConfigured() && !demoDataEnabled()) throw new Error(`Unable to save submission for ${slug}`);
