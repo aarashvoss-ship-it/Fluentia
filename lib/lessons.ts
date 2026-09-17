@@ -344,10 +344,7 @@ async function upsertLessonAssignment(lessonId: string, studentId: string) {
   };
   const { error } = await supabase
     .from("lesson_assignments")
-    .upsert(assignmentPayload, {
-      onConflict: "lesson_id,student_id",
-      ignoreDuplicates: false,
-    });
+    .upsert(assignmentPayload, { onConflict: "lesson_id,student_id" });
   if (error) {
     const details = describeSupabaseError(error);
     console.error("Supabase lesson assignment upsert failed:", details);
