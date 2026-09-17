@@ -284,7 +284,7 @@ function DashboardContent() {
   const getLessonHref = (lesson: LessonWithVersion, status: LessonStatus) => {
     const stepParam = status === "completed" ? "&step=7" : status === "pending-review" ? "&start=warm_up" : "";
     const lessonPath = lesson.content?.slug || lesson.slug || lesson.id;
-    return `/lessons/${lessonPath}?student=${encodeURIComponent(token)}${stepParam}`;
+    return `/lessons/${lessonPath}?student=${encodeURIComponent(activeStudent.token)}${stepParam}`;
   };
   const rememberLesson = (lessonId: string) => writeLastAccessedLesson(lessonId, token);
 
