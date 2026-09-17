@@ -213,7 +213,7 @@ export async function saveLesson(lesson: LessonContent): Promise<void> {
   let persistenceError: unknown;
   if (isSupabaseConfigured()) {
     try {
-      const resolvedStudentId = lesson.studentId ? await resolveUserUuid(String(lesson.studentId)) : null;
+      const resolvedStudentId = lesson.studentId || null;
       const payload = {
         id: String(lesson.id),
         slug: String(lesson.slug),

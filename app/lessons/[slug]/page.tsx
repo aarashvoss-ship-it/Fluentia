@@ -489,7 +489,7 @@ export default function LessonPage() {
   }
 
   if (accessDenied) {
-    return <AccessCard title="By Invitation Only" message="This lesson requires a valid student session token." />;
+    return <AccessCard title="Student access required" message="Sign in with an authorized student account to open this lesson." />;
   }
 
   if (loading || !lessonReady || !studentReady) {

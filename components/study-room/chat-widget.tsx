@@ -56,14 +56,14 @@ function appendUnique(messages: ChatMessage[], message: ChatMessage) {
   return messages.some((item) => item.id === message.id) ? messages : [...messages, message];
 }
 
-export function ChatWidget({ messages, onSend, currentUserId = "student", studentId = currentUserId, instructorId = "avoss-9042" }: ChatWidgetProps) {
+export function ChatWidget({ messages, onSend, currentUserId, studentId, instructorId }: ChatWidgetProps) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"instructor" | "support">("instructor");
   const [text, setText] = useState("");
   const [remoteMessages, setRemoteMessages] = useState<ChatMessage[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [resolvedStudentId, setResolvedStudentId] = useState(studentId);
-  const [resolvedInstructorId, setResolvedInstructorId] = useState(instructorId);
+  const [resolvedStudentId, setResolvedStudentId] = useState("");
+  const [resolvedInstructorId, setResolvedInstructorId] = useState(instructorId || "");
   const openRef = useRef(false);
   const tabRef = useRef(tab);
 
@@ -73,12 +73,17 @@ export function ChatWidget({ messages, onSend, currentUserId = "student", studen
 
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
-    void Promise.all([resolveUserUuid(studentId), resolveUserUuid(instructorId)]).then(([studentUuid, instructorUuid]) => {
-      if (!studentUuid || !instructorUuid) return;
+    void resolveUserUuid().then(async (studentUuid) => {
+      if (!studentUuid) return;
       setResolvedStudentId(studentUuid);
-      setResolvedInstructorId(instructorUuid);
+      if (instructorId) {
+        setResolvedInstructorId(instructorId);
+        return;
+      }
+      const { data } = await supabase.from("profiles").select("id").eq("role", "instructor").limit(1).maybeSingle();
+      if (data?.id) setResolvedInstructorId(data.id);
     }).catch((error) => console.error("Unable to resolve chat identities:", error));
-  }, [studentId, instructorId]);
+  }, [instructorId]);
 
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
@@ -105,7 +110,7 @@ export function ChatWidget({ messages, onSend, currentUserId = "student", studen
       cancelled = true;
       void supabase.removeChannel(channel);
     };
-  }, [currentUserId, resolvedStudentId, resolvedInstructorId]);
+  }, [resolvedStudentId]);
 
   const visible = (isSupabaseConfigured() ? remoteMessages : messages).filter((message) => message.tab === tab);
 
@@ -115,8 +120,8 @@ export function ChatWidget({ messages, onSend, currentUserId = "student", studen
     if (!trimmedText) return;
     if (isSupabaseConfigured()) {
       const [senderUuid, receiverUuid] = await Promise.all([
-        resolveUserUuid(currentUserId),
-        resolveUserUuid(tab === "support" ? instructorId : instructorId),
+        resolveUserUuid(),
+        Promise.resolve(resolvedInstructorId || null),
       ]);
       if (!senderUuid || !receiverUuid) return;
       const { data, error } = await supabase.from("messages").insert({

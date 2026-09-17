@@ -9,8 +9,8 @@ import { InstructorBannerManager } from "@/components/instructor/banner-manager"
 import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/submission-evaluator";
 import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
 import { assignLessonToAllActiveStudents, assignLessonToStudent, createLesson, deleteLesson, getLessons, unassignLesson, updateLesson, type LessonWithVersion } from "@/lib/lessons";
-import { INSTRUCTOR_TOKEN, PublishedLessonState } from "@/lib/lesson-store";
-import { STUDENT_USERS, StudentUser } from "@/lib/users";
+import { PublishedLessonState } from "@/lib/lesson-store";
+import { StudentUser } from "@/lib/users";
 import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/storage-service";
 import { AccessCard } from "@/components/access/access-card";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
@@ -21,7 +21,7 @@ import { MusicLibraryManager } from "@/components/instructor/music-library-manag
 import { InstructorChatWidget } from "@/components/instructor/instructor-chat-widget";
 
 interface InstructorWorkstationProps {
-  instructorToken: string;
+  instructorId: string;
   lessonSlug: string;
   allowStudentQuery?: boolean;
 }
@@ -30,7 +30,7 @@ type SidebarBlock = { id: string; title: string; body: string };
 type SidebarBlocksByStep = Partial<Record<"warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking", SidebarBlock[]>>;
 
 export default function InstructorWorkstationPage({
-  instructorToken,
+  instructorId,
   lessonSlug,
   allowStudentQuery = true,
 }: InstructorWorkstationProps) {
@@ -458,16 +458,7 @@ export default function InstructorWorkstationPage({
     }
   }
 
-  useEffect(() => {
-    void (async () => {
-      if (instructorToken !== INSTRUCTOR_TOKEN) {
-        setAccessDenied(true);
-        setIsMounted(true);
-        return;
-      }
-      setIsMounted(true);
-    })();
-  }, [instructorToken]);
+  useEffect(() => setIsMounted(true), []);
 
   useEffect(() => {
     void refreshCreatedLessons();
@@ -525,7 +516,6 @@ export default function InstructorWorkstationPage({
         const { data: studentRows, error: studentError } = await supabase
           .from("students")
           .select("id, name, email, token")
-          .in("email", STUDENT_USERS.map((student) => student.email))
           .order("name", { ascending: true });
         if (studentError) {
           console.error("Failed to load students:", { code: studentError.code, message: studentError.message, details: studentError.details, hint: studentError.hint });
@@ -649,7 +639,7 @@ export default function InstructorWorkstationPage({
             banner_url: workstationState.bannerUrl,
             student_id: assignedStudent.id,
             student_token: assignedStudent.token,
-            instructor_id: instructorToken,
+            instructor_id: instructorId,
             status,
             content,
             changes_summary: `Lesson updated as ${status}`,
@@ -659,7 +649,7 @@ export default function InstructorWorkstationPage({
             banner_url: workstationState.bannerUrl,
             student_id: assignedStudent.id,
             student_token: assignedStudent.token,
-            instructor_id: instructorToken,
+            instructor_id: instructorId,
             status,
             content,
             changes_summary: `Initial lesson created as ${status}`,
@@ -750,7 +740,7 @@ export default function InstructorWorkstationPage({
   );
 
   if (!isMounted) return null;
-  if (accessDenied) return <AccessCard title="Access Denied" message="This instructor workstation requires a valid instructor session token." />;
+  if (accessDenied) return <AccessCard title="Access Denied" message="Your instructor account does not have access to this workspace." />;
 
   return (
     <div className="min-h-screen bg-[#0c1017] font-sans text-[#e8e7e4]">
@@ -943,7 +933,7 @@ export default function InstructorWorkstationPage({
 </div>
 </div>
 <div className="lg:col-span-5 lg:sticky lg:top-6">
-<SubmissionEvaluator lessonId={databaseLessonId || newLesson.slug || lessonId} studentId={selectedStudent?.id} instructorId={instructorToken} studentName={selectedStudent?.name || "Selected Student"} useSupabase evaluation={workstationState.evaluation} onUpdateEvaluation={(evaluation: LessonEvaluation) => setWorkstationState((previous) => ({ ...previous, evaluation }))} onSubmitFeedback={async (feedback: FeedbackPayload) => { if (!selectedStudent) return; const evaluation = { ...workstationState.evaluation, scores: feedback.scores, comments: feedback.comments, criterionFeedback: feedback.criterionFeedback, published: true }; setWorkstationState((previous) => ({ ...previous, evaluation })); await saveInstructorFeedback(newLesson.slug || lessonId, selectedStudent.token, evaluation); setPublishStatus("Strengths, study plan, and evaluation synced with student view!"); }} />
+<SubmissionEvaluator lessonId={databaseLessonId || newLesson.slug || lessonId} studentId={selectedStudent?.id} instructorId={instructorId} studentName={selectedStudent?.name || "Selected Student"} useSupabase evaluation={workstationState.evaluation} onUpdateEvaluation={(evaluation: LessonEvaluation) => setWorkstationState((previous) => ({ ...previous, evaluation }))} onSubmitFeedback={async (feedback: FeedbackPayload) => { if (!selectedStudent) return; const evaluation = { ...workstationState.evaluation, scores: feedback.scores, comments: feedback.comments, criterionFeedback: feedback.criterionFeedback, published: true }; setWorkstationState((previous) => ({ ...previous, evaluation })); await saveInstructorFeedback(newLesson.slug || lessonId, selectedStudent.id, evaluation); setPublishStatus("Strengths, study plan, and evaluation synced with student view!"); }} />
 </div>
 </section>
 </>}
@@ -951,7 +941,7 @@ export default function InstructorWorkstationPage({
   <InstructorChatWidget
     activeStudent={selectedStudent}
     students={students}
-        instructorId={instructorToken}
+        instructorId={instructorId}
     lessonContext={newLesson.title || newLesson.slug || lessonId}
   />
       {showPreview && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="lesson-preview-title">

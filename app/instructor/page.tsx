@@ -27,5 +27,5 @@ export default async function InstructorPage() {
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) redirect("/login");
 
-  return <InstructorLessonWorkstationPage instructorToken={data.user.id} lessonSlug="" allowStudentQuery={false} />;
+  return <InstructorLessonWorkstationPage instructorId={data.user.id} lessonSlug="" allowStudentQuery={false} />;
 }

@@ -36,5 +36,12 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", data.user.id)
+    .maybeSingle();
+  if (profile?.role === "instructor" || profile?.role === "admin") redirect("/instructor");
+
   return children;
 }

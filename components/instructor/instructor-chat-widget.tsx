@@ -82,7 +82,7 @@ export function InstructorChatWidget({ activeStudent, students, instructorId, le
 
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
-    void resolveUserUuid(instructorId).then((resolvedId) => {
+    void resolveUserUuid().then((resolvedId) => {
       if (resolvedId) setResolvedInstructorId(resolvedId);
     }).catch((error) => console.error("Unable to resolve instructor identity:", error));
   }, [instructorId]);
@@ -207,9 +207,9 @@ export function InstructorChatWidget({ activeStudent, students, instructorId, le
     const studentId = conversationStudent ? studentKey(conversationStudent) : null;
     if (!trimmedText || (tab !== "support" && !studentId)) return;
     if (isSupabaseConfigured()) {
-      const senderUuid = await resolveUserUuid(instructorId);
+      const senderUuid = await resolveUserUuid();
       if (!senderUuid) return;
-      const receiverId = tab === "support" ? senderUuid : await resolveUserUuid(studentId!);
+      const receiverId = tab === "support" ? senderUuid : studentId;
       if (!receiverId) return;
       const { data, error } = await supabase.from("messages").insert({
         sender_id: senderUuid,

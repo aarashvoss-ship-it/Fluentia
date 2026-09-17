@@ -3,7 +3,6 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
-import { STUDENT_USERS } from '@/lib/users';
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -36,14 +35,11 @@ function LoginForm() {
         setCheckingSession(false);
         return;
       }
-      const userEmail = data.user.email?.trim().toLowerCase() || '';
-      if (userEmail === 'aarashvoss@gmail.com') {
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle();
+      if (profile?.role === 'instructor' || profile?.role === 'admin') {
         router.replace('/instructor');
-      } else if (STUDENT_USERS.some((student) => student.email?.toLowerCase() === userEmail)) {
-        router.replace('/dashboard');
       } else {
-        await supabase.auth.signOut();
-        if (!cancelled) setCheckingSession(false);
+        router.replace('/dashboard');
       }
     });
     return () => {

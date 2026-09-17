@@ -27,5 +27,5 @@ export default function InstructorDashboardPage() {
     return <AccessCard title="Checking authentication" message="Your instructor session is being verified." />;
   }
 
-  return <InstructorLessonWorkstationPage instructorToken={instructorId} lessonSlug="" allowStudentQuery={false} />;
+  return <InstructorLessonWorkstationPage instructorId={instructorId} lessonSlug="" allowStudentQuery={false} />;
 }

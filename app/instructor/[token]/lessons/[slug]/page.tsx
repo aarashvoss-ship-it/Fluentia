@@ -30,5 +30,5 @@ export default function InstructorLessonRoute() {
     return <main className="min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
   }
 
-  return <InstructorLessonWorkstationPage instructorToken={instructorId} lessonSlug={params.slug} />;
+  return <InstructorLessonWorkstationPage instructorId={instructorId} lessonSlug={params.slug} />;
 }

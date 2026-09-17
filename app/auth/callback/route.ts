@@ -114,14 +114,24 @@ export async function GET(request: NextRequest) {
   }
 
   let redirectPath = "/dashboard";
-  if (userEmail === "aarashvoss@gmail.com") {
+  const { data: profile } = await allowlistClient
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+  const instructor = profile ? null : (await allowlistClient
+    .from("instructors")
+    .select("id")
+    .eq("id", user.id)
+    .maybeSingle()).data;
+  if (profile?.role === "instructor" || profile?.role === "admin" || instructor) {
     redirectPath = "/instructor";
-  } else {
+  } else if (profile?.role !== "student") {
     try {
       const { data: student, error: studentError } = await allowlistClient
         .from("students")
-        .select("email")
-        .eq("email", userEmail)
+        .select("id")
+        .eq("id", user.id)
         .maybeSingle();
       if (studentError) {
         console.error("Supabase authorized-student lookup failed:", {

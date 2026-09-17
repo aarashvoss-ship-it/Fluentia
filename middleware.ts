@@ -20,7 +20,19 @@ export async function middleware(request: NextRequest) {
     },
   );
 
-  await supabase.auth.getUser();
+  const { data } = await supabase.auth.getUser();
+  const pathname = request.nextUrl.pathname;
+  const isProtectedRoute = pathname === "/dashboard"
+    || pathname.startsWith("/dashboard/")
+    || pathname === "/instructor"
+    || pathname.startsWith("/instructor/")
+    || pathname.startsWith("/lessons/");
+  if (isProtectedRoute && !data.user) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.search = "";
+    return NextResponse.redirect(loginUrl);
+  }
   return response;
 }
 

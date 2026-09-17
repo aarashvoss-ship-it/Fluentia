@@ -26,5 +26,17 @@ export default async function InstructorLayout({ children }: Readonly<{ children
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) redirect("/login");
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", data.user.id)
+    .maybeSingle();
+  const instructor = profile ? null : (await supabase
+    .from("instructors")
+    .select("id")
+    .eq("id", data.user.id)
+    .maybeSingle()).data;
+  if (profile?.role !== "instructor" && profile?.role !== "admin" && !instructor) redirect("/dashboard");
+
   return children;
 }

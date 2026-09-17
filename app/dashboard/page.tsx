@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { BookOpen, CheckCircle2, Clock3, Flame, Layers3, MessageSquareText, PanelRight, Settings2, UserRound, X } from "lucide-react";
 import { type StudentUser } from "@/lib/users";
-import { persistResolvedStudent, PublishedLessonState, writeLastAccessedLesson } from "@/lib/lesson-store";
+import { PublishedLessonState, writeLastAccessedLesson } from "@/lib/lesson-store";
 import { getLessonsByStudentId, type LessonWithVersion } from "@/lib/lessons";
 import { FLUENTIA_DATA_UPDATED_EVENT, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, removeVocabularyWord, saveChatMessage, saveStudentNote, saveVocabularyWord } from "@/services/storage-service";
 import { ChatMessage, SavedVocabularyWord, StudentNote } from "@/types/lesson";
@@ -89,6 +90,7 @@ function isValidImageUrl(value: string) {
 }
 
 function DashboardContent() {
+  const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
   const [activeStudent, setActiveStudent] = useState<StudentUser | null>(null);
@@ -155,13 +157,33 @@ function DashboardContent() {
           return;
         }
 
+        const { data: roleProfile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", userData.user.id)
+          .maybeSingle();
+        const instructorProfile = roleProfile ? null : (await supabase
+          .from("instructors")
+          .select("id")
+          .eq("id", userData.user.id)
+          .maybeSingle()).data;
+        if (roleProfile?.role === "instructor" || roleProfile?.role === "admin" || instructorProfile) {
+          router.replace("/instructor");
+          return;
+        }
+        if (roleProfile?.role && roleProfile.role !== "student") {
+          setAccessDenied(true);
+          setIsMounted(true);
+          return;
+        }
+
         const userEmail = userData.user.email?.trim().toLowerCase() || "";
         let student: { id: string; name: string; email: string; token: string } | null = null;
-        if (userEmail) try {
+        try {
           const { data: studentRow, error: studentError } = await supabase
             .from("students")
             .select("id, name, email, token")
-            .eq("email", userEmail)
+            .eq("id", userData.user.id)
             .single();
 
           if (studentError && studentError.code !== "PGRST116") {
@@ -198,8 +220,7 @@ function DashboardContent() {
       };
 
         setActiveStudent(active);
-        persistResolvedStudent(active);
-        const studentToken = student?.token || student?.id || userData.user.id;
+        const studentToken = userData.user.id;
         const storedProfile = window.localStorage.getItem(`fluentia:profile:${studentToken}`);
         let preferences: ProfilePreferences = {};
         try {
@@ -235,14 +256,14 @@ function DashboardContent() {
     return () => {
       cleanup?.();
     };
-  }, []);
+  }, [router]);
 
   if (!isMounted) {
     return <main className="min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
   }
 
   if (accessDenied || !activeStudent) {
-    return <AccessCard title="By Invitation Only" message="Access to Fluentia is reserved for private sessions. Please contact your instructor to receive a valid student session token." />;
+    return <AccessCard title="Student access required" message="Sign in with an authorized student account to open your dashboard." />;
   }
 
   const token = activeStudent.id;

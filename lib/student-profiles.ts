@@ -16,7 +16,8 @@ export interface StudentProfileRecord {
 export async function saveStudentProfile(studentToken: string, profile: StudentProfile): Promise<void> {
   if (!isSupabaseConfigured()) return;
 
-  const profileId = await resolveUserUuid(studentToken);
+  const profileId = await resolveUserUuid();
+  if (!profileId) return;
   const { error: studentError } = await supabase
     .from("students")
     .update({ name: profile.fullName, updated_at: new Date().toISOString() })

@@ -1,5 +1,4 @@
 import { supabase, type LessonRow, type LessonVersionRow, isSupabaseConfigured } from "@/lib/supabase";
-import { resolveUserUuid } from "@/lib/identity";
 import type { LessonContent, InstructorLessonMock } from "@/types/lesson";
 
 /**
@@ -283,7 +282,8 @@ export async function getLessonsByStudentId(studentId: string): Promise<LessonWi
   }
 
   try {
-    const studentUuid = await resolveUserUuid(studentId);
+    const studentUuid = studentId;
+    if (!studentUuid) return [];
     const [directResult, assignmentResult, allStudentsResult] = await Promise.all([
       supabase.from("lessons").select("*").eq("status", "published").eq("student_id", studentUuid),
       supabase.from("lessons").select("*, lesson_assignments!inner(student_id)").eq("status", "published").eq("lesson_assignments.student_id", studentUuid),
@@ -313,7 +313,7 @@ export async function assignLessonToStudent(lessonId: string, studentToken: stri
   if (!normalizedLessonId || !normalizedStudentToken) throw new Error("A lesson and student are required for assignment");
   const lesson = await getLessonById(normalizedLessonId);
   if (!lesson) throw new Error("Lesson not found");
-  const studentUuid = await resolveUserUuid(normalizedStudentToken);
+  const studentUuid = normalizedStudentToken;
   const content = { ...(lesson.content || {}), assignedAllStudents: false, assignedStudents: [normalizedStudentToken] };
   const updated = await updateLesson(normalizedLessonId, { student_token: normalizedStudentToken, assigned_all_students: false, content, changes_summary: "Assigned to student" });
   const assignmentPayload = { lesson_id: normalizedLessonId, student_id: studentUuid };
@@ -389,8 +389,8 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
 
   try {
     const { content, changes_summary, banner_url, student_id, student_token, instructor_id, ...lessonData } = input;
-    const resolvedStudentId = student_id ? await resolveUserUuid(student_id) : undefined;
-    const resolvedInstructorId = instructor_id ? await resolveUserUuid(instructor_id) : undefined;
+    const resolvedStudentId = student_id || undefined;
+    const resolvedInstructorId = instructor_id || undefined;
     const hasTitle = typeof lessonData.title === "string" && lessonData.title.trim().length > 0;
     const title = hasTitle ? lessonData.title.trim() : "Untitled Lesson";
     const slug = (title && title.trim() !== "")
@@ -469,8 +469,8 @@ export async function updateLesson(
 
   try {
     const { content, changes_summary, banner_url, student_id, student_token, instructor_id, ...lessonData } = input;
-    const resolvedStudentId = student_id ? await resolveUserUuid(student_id) : undefined;
-    const resolvedInstructorId = instructor_id ? await resolveUserUuid(instructor_id) : undefined;
+    const resolvedStudentId = student_id || undefined;
+    const resolvedInstructorId = instructor_id || undefined;
     // Update the lesson metadata
     const hasStudentTokenUpdate = Object.prototype.hasOwnProperty.call(input, "student_token");
     if (Object.keys(lessonData).length > 0 || banner_url || resolvedStudentId || resolvedInstructorId || hasStudentTokenUpdate) {
