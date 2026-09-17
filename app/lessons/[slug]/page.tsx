@@ -188,28 +188,45 @@ export default function LessonPage() {
           return;
         }
 
-        const [{ data: studentRecord, error: studentError }, { data: profile, error: profileError }] = await Promise.all([
-          supabase.from("students").select("name, email, token").eq("id", data.user.id).maybeSingle(),
-          supabase.from("profiles").select("full_name").eq("id", data.user.id).maybeSingle(),
+        const user = data.user;
+        console.log("Lesson student auth user:", { id: user.id, email: user.email });
+        const [studentResult, profileResult] = await Promise.all([
+          supabase.from("students").select("name, email, token").eq("id", user.id).maybeSingle(),
+          supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
         ]);
         if (cancelled) return;
 
+        const { data: studentRecord, error: studentError } = studentResult;
+        const { data: profile, error: profileError } = profileResult;
+        console.log("Lesson students query result:", { data: studentRecord, error: studentError });
+        console.log("Lesson profiles query result:", { data: profile, error: profileError });
         if (studentError) console.warn("Unable to load canonical student profile:", studentError);
         if (profileError) console.warn("Unable to load user profile:", profileError);
+        if (studentError?.code === "42501" || /permission|row-level security|rls/i.test(studentError?.message || "")) {
+          console.error("RLS or permission error reading students for authenticated user:", studentError);
+        }
+        if (profileError?.code === "42501" || /permission|row-level security|rls/i.test(profileError?.message || "")) {
+          console.error("RLS or permission error reading profiles for authenticated user:", profileError);
+        }
 
         const firstNonEmpty = (...values: unknown[]) => values.find(
           (value): value is string => typeof value === "string" && value.trim().length > 0,
         )?.trim() || "Student";
-        const email = firstNonEmpty(studentRecord?.email, data.user.email, "");
+        const email = firstNonEmpty(studentRecord?.email, user.email, "");
+        const emailName = email.includes("@")
+          ? email.split("@")[0].replace(/[._-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
+          : "";
         const name = firstNonEmpty(
           studentRecord?.name,
           profile?.full_name,
-          data.user.user_metadata?.full_name,
+          user.user_metadata?.full_name,
+          emailName,
           email,
         );
+        console.log("Final resolved lesson student name:", { userId: user.id, studentName: name, source: studentRecord?.name ? "students.name" : profile?.full_name ? "profiles.full_name" : user.user_metadata?.full_name ? "user.user_metadata.full_name" : emailName ? "email local-part" : email ? "user.email" : "fallback" });
         const student: StudentUser = {
-          id: data.user.id,
-          token: studentRecord?.token || data.user.id,
+          id: user.id,
+          token: studentRecord?.token || user.id,
           name,
           email,
           role: "student",
