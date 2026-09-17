@@ -125,8 +125,7 @@ function DashboardContent() {
       const lessonRows = lessonResult.status === "fulfilled" ? lessonResult.value : [];
       const savedWords = vocabularyResult.status === "fulfilled" ? vocabularyResult.value : [];
       const studentNotes = notesResult.status === "fulfilled" ? notesResult.value : [];
-      const assignedLessons = lessonRows.filter((lesson) => lesson.status === "published");
-      const availableLessons = assignedLessons;
+      const availableLessons = lessonRows;
       setLessons(availableLessons);
       const lessonStateResults = await Promise.allSettled(
         availableLessons.map(async (lesson) => [lesson.id, await fetchLessonState(lesson.id, userId)] as const),
@@ -297,7 +296,6 @@ function DashboardContent() {
     : typeof nextLesson?.module_number === "number"
     ? nextLesson.module_number
     : null;
-  const dashboardTopic = nextLesson?.title || (typeof lessonContent.title === "string" ? lessonContent.title : null);
   const instructorLessonBanner = typeof lessonRecord?.cover_image === "string"
     ? lessonRecord.cover_image
     : typeof lessonRecord?.banner_url === "string"
@@ -332,11 +330,7 @@ function DashboardContent() {
               <h1 className="font-[var(--font-fraunces)] text-3xl font-semibold text-[#f1eee8]">
                 Welcome back, {displayName}.
               </h1>
-              <p className="mt-2 text-sm text-[#b5bac2]">
-                {dashboardTopic
-                  ? `Continue your journey in ${dashboardTopic}.`
-                  : `Welcome back, ${displayName}. You have no active assigned lessons yet.`}
-              </p>
+              <p className="mt-2 text-sm text-[#b5bac2]">Seven stages. One connected journey.</p>
             </div>
             <div className="absolute top-6 right-8 z-10 flex items-center gap-2">
               <button type="button" onClick={() => setDictionaryOpen(true)} aria-label="Open dictionary" className={`group h-9 px-3 flex items-center gap-2 rounded-lg bg-slate-800/80 border text-xs font-medium transition-all cursor-pointer ${dictionaryOpen ? "border-amber-500/60 text-amber-400" : "border-slate-700/60 text-slate-300 hover:border-amber-500/60 hover:text-amber-400 hover:bg-slate-800"}`}><BookOpen className={`w-4 h-4 shrink-0 ${dictionaryOpen ? "text-amber-400" : "text-slate-400 group-hover:text-amber-400"}`} /></button>

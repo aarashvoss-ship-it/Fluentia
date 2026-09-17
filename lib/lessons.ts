@@ -292,7 +292,7 @@ export async function getLessonsByStudentId(studentId: string): Promise<LessonWi
 
     const assignmentLessonIds = (assignmentIdsResult.data || []).map((row) => row.lesson_id);
     const assignedResult = assignmentLessonIds.length > 0
-      ? await supabase.from("lessons").select("*").eq("status", "published").in("id", assignmentLessonIds)
+      ? await supabase.from("lessons").select("*").in("id", assignmentLessonIds)
       : { data: [], error: null };
     const firstError = directResult.error || assignmentIdsResult.error || assignedResult.error || allStudentsResult.error;
     if (firstError) throw firstError;
