@@ -356,7 +356,8 @@ export default function InstructorWorkstationPage({
       return;
     }
     try {
-      await refreshLessonListAfterAssignment(await assignLessonToStudent(lesson.id.trim(), normalizedStudentId));
+      const updatedLesson = await assignLessonToStudent(lesson.id.trim(), normalizedStudentId);
+      await refreshLessonListAfterAssignment(updatedLesson);
       setPublishStatus("Lesson assigned to the selected student.");
     } catch (error) {
       logAssignmentError("Lesson assignment failed:", error);
