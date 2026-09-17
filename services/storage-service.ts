@@ -564,7 +564,10 @@ export async function saveStudentNote(studentToken: string | undefined, note: St
 }
 
 export async function fetchChatMessages(studentToken?: string): Promise<ChatMessage[]> {
-  if (isSupabaseConfigured() && !demoDataEnabled()) throw new Error("Chat history is managed by the Supabase chat widgets");
+  if (isSupabaseConfigured() && !demoDataEnabled()) {
+    console.warn("Chat history is managed by the Supabase chat widgets; returning an empty fallback for legacy callers.");
+    return [];
+  }
   return readJson<ChatMessage[]>(scopedKey(CHAT_PREFIX, studentToken)) || [];
 }
 

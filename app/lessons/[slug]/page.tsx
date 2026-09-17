@@ -6,7 +6,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { ChatMessage, ContentBlock, SavedVocabularyWord, StudentNote, StudyStepId, STUDY_STEPS, LessonContent, StudentSubmission } from "@/types/lesson";
 import { getLessonById, type LessonWithVersion } from "@/lib/lessons";
 import { persistResolvedStudent, PublishedLessonState, resolveStudentAccess, writeLastAccessedLesson } from "@/lib/lesson-store";
-import { fetchChatMessages, fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, saveChatMessage, saveStudentNote, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
+import { fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, saveChatMessage, saveStudentNote, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
 import { INSTRUCTOR_USER, type StudentUser } from "@/lib/users";
 import { Stepper } from "@/components/study-room/stepper";
 import { CelebrationModal, StepResult } from "@/components/study-room/celebration-modal";
@@ -290,11 +290,11 @@ export default function LessonPage() {
     void Promise.all([
       fetchSavedVocabulary(activeStudent!.token),
       fetchStudentNotes(activeStudent!.token),
-      fetchChatMessages(activeStudent!.token),
-    ]).then(([words, savedNotes, messages]) => {
+    ]).then(([words, savedNotes]) => {
       setSavedWords(words);
       setNotes(savedNotes);
-      setChatMessages(messages);
+    }).catch((error) => {
+      console.error("Failed to load student resources:", error);
     });
   }, [accessDenied, activeStudent?.token, studentReady]);
 
