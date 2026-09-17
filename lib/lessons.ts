@@ -1,5 +1,6 @@
 import { type LessonRow, type LessonVersionRow, isSupabaseConfigured } from "@/lib/supabase";
 import { supabase } from "@/lib/supabaseClient";
+import type { StudentId } from "@/types/database";
 import type { LessonContent, InstructorLessonMock } from "@/types/lesson";
 
 /**
@@ -14,7 +15,8 @@ import type { LessonContent, InstructorLessonMock } from "@/types/lesson";
 export interface CreateLessonInput {
   title: string;
   banner_url?: string;
-  student_id?: string;
+  student_id?: StudentId;
+  /** @deprecated Use student_id. */
   student_token?: string;
   subject?: string;
   grade?: string;
@@ -30,7 +32,8 @@ export interface UpdateLessonInput {
   slug?: string;
   title?: string;
   banner_url?: string;
-  student_id?: string;
+  student_id?: StudentId;
+  /** @deprecated Use student_id. */
   student_token?: string | null;
   instructor_id?: string;
   assigned_all_students?: boolean;

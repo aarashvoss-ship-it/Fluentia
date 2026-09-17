@@ -1,3 +1,5 @@
+import type { StudentId } from "@/types/database";
+
 export type StudyStepId =
   | "warm_up"
   | "lesson"
@@ -188,7 +190,7 @@ export interface LessonContent {
   id: string;
   slug: string;
   title: string;
-  studentId?: string;
+  studentId?: StudentId;
   subtitle?: string;
   moduleNumber: number;
   coverImage?: string;

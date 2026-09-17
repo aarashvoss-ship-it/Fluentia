@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import type { LessonId, StudentId, SubmissionId } from "@/types/database";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-anon-key";
@@ -14,7 +15,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Type definitions for database tables
 export interface LessonRow {
-	id: string;
+	id: LessonId;
 	title: string;
 	subtitle?: string | null;
 	module_number?: number | null;
@@ -23,8 +24,9 @@ export interface LessonRow {
 	subject: string | null;
 	grade: string | null;
 	status: "draft" | "published" | "evaluated";
-	student_token: string | null;
-	student_id?: string | null;
+	student_id: StudentId | null;
+	/** @deprecated Use student_id and auth.uid() instead. */
+	student_token?: string | null;
 	instructor_id: string | null;
 	created_at: string;
 	updated_at: string;
@@ -49,9 +51,9 @@ export interface AmbientTrackRow {
 }
 
 export interface SubmissionRow {
-	id: string;
-	lesson_id: string;
-	student_id: string;
+	id: SubmissionId;
+	lesson_id: LessonId;
+	student_id: StudentId;
 	answers: Record<string, any>;
 	status: "submitted" | "in_progress" | "reviewed";
 	submitted_at: string;

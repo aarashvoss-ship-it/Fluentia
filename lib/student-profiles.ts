@@ -1,8 +1,11 @@
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { resolveUserUuid } from "@/lib/identity";
+import type { StudentId } from "@/types/database";
 import type { StudentProfile } from "@/types/lesson";
 
 export interface StudentProfileRecord {
+  student_id?: StudentId;
+  /** @deprecated Legacy student_profiles lookup key. */
   student_token: string;
   name?: string;
   level: string;

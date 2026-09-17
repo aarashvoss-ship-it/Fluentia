@@ -6,6 +6,10 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
+export type StudentId = string;
+export type LessonId = string;
+export type SubmissionId = string;
+
 export interface Profile {
   id: string;
   email: string;
@@ -18,8 +22,8 @@ export interface Profile {
 }
 
 export interface Lesson {
-  id: string;
-  student_id: string;
+  id: LessonId;
+  student_id: StudentId | null;
   title: string;
   subtitle?: string | null;
   module_number: number;
@@ -31,9 +35,9 @@ export interface Lesson {
 }
 
 export interface Submission {
-  id: string;
-  student_id: string;
-  lesson_id: string;
+  id: SubmissionId;
+  student_id: StudentId;
+  lesson_id: LessonId;
   step_key: string;
   content: Record<string, any>;
   audio_url?: string | null;
@@ -44,9 +48,9 @@ export interface Submission {
 
 export interface Feedback {
   id: string;
-  submission_id?: string | null;
-  lesson_id: string;
-  student_id: string;
+  submission_id?: SubmissionId | null;
+  lesson_id: LessonId;
+  student_id: StudentId;
   instructor_id?: string | null;
   score?: number | null;
   is_published: boolean;
@@ -56,8 +60,8 @@ export interface Feedback {
 
 export interface TelemetryEvent {
   id: string;
-  student_id?: string | null;
-  lesson_id?: string | null;
+  student_id?: StudentId | null;
+  lesson_id?: LessonId | null;
   event_name: string;
   metadata: Record<string, any>;
   created_at: string;
@@ -65,10 +69,17 @@ export interface TelemetryEvent {
 
 export interface StudentProgress {
   id: string;
-  student_id: string;
-  lesson_id: string;
+  student_id: StudentId;
+  lesson_id: LessonId;
   current_step: number;
   completed_steps: number[];
   is_completed: boolean;
   updated_at: string;
+}
+
+export interface LessonAssignmentRow {
+  lesson_id: LessonId;
+  student_id: StudentId;
+  assigned_at: string;
+  status?: "assigned" | "completed" | "revoked";
 }
