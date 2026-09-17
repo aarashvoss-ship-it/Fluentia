@@ -336,6 +336,25 @@ export async function getLessonsByStudentId(studentId: string): Promise<LessonWi
   }
 }
 
+async function upsertLessonAssignment(lessonId: string, studentId: string) {
+  const assignmentPayload = {
+    lesson_id: lessonId,
+    student_id: studentId,
+    assigned_at: new Date().toISOString(),
+  };
+  const { error } = await supabase
+    .from("lesson_assignments")
+    .upsert(assignmentPayload, {
+      onConflict: "lesson_id,student_id",
+      ignoreDuplicates: false,
+    });
+  if (error) {
+    const details = describeSupabaseError(error);
+    console.error("Supabase lesson assignment upsert failed:", details);
+    throw toSupabaseError(error, `Failed to assign lesson ${lessonId} to student ${studentId}`);
+  }
+}
+
 export async function assignLessonToStudent(lessonId: string, studentId: string): Promise<LessonWithVersion> {
   const normalizedLessonId = lessonId.trim();
   const normalizedStudentId = studentId.trim();
@@ -349,13 +368,7 @@ export async function assignLessonToStudent(lessonId: string, studentId: string)
   if (authError || !authData.user?.id) throw authError || new Error("No authenticated instructor session");
   const content = { ...(lesson.content || {}), assignedAllStudents: false, assignedStudents: [student.id] };
   const updated = await updateLesson(normalizedLessonId, { student_id: student.id, student_token: student.token, instructor_id: authData.user.id, assigned_all_students: false, content, changes_summary: "Assigned to student" });
-  const assignmentPayload = {
-    lesson_id: normalizedLessonId,
-    student_id: student.id,
-    assigned_at: new Date().toISOString(),
-  };
-  const { error: assignmentError } = await supabase.from("lesson_assignments").upsert(assignmentPayload, { onConflict: "lesson_id,student_id" });
-  if (assignmentError) throw assignmentError;
+  await upsertLessonAssignment(normalizedLessonId, student.id);
   if (typeof window !== "undefined") window.dispatchEvent(new Event("fluentia:lesson-updated"));
   return updated;
 }
@@ -377,15 +390,7 @@ export async function publishLessonAndAssign(lessonId: string, studentId: string
   }
   if (lessonError) throw lessonError;
 
-  const assignmentPayload = {
-    lesson_id: normalizedLessonId,
-    student_id: normalizedStudentId,
-    assigned_at: new Date().toISOString(),
-  };
-  const { error: assignmentError } = await supabase
-    .from("lesson_assignments")
-    .upsert(assignmentPayload, { onConflict: "lesson_id,student_id" });
-  if (assignmentError) throw assignmentError;
+  await upsertLessonAssignment(normalizedLessonId, normalizedStudentId);
 }
 
 export async function assignLessonToAllActiveStudents(lessonId: string): Promise<LessonWithVersion> {
