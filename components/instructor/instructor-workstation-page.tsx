@@ -23,7 +23,6 @@ import { InstructorChatWidget } from "@/components/instructor/instructor-chat-wi
 interface InstructorWorkstationProps {
   instructorId: string;
   lessonSlug: string;
-  allowStudentQuery?: boolean;
 }
 
 type SidebarBlock = { id: string; title: string; body: string };
@@ -32,7 +31,6 @@ type SidebarBlocksByStep = Partial<Record<"warm_up" | "lesson" | "listening" | "
 export default function InstructorWorkstationPage({
   instructorId,
   lessonSlug,
-  allowStudentQuery = true,
 }: InstructorWorkstationProps) {
   const lessonId = lessonSlug;
 

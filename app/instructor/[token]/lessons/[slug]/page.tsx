@@ -7,7 +7,7 @@ import InstructorLessonWorkstationPage from "@/components/instructor/instructor-
 import { supabase } from "@/lib/supabase";
 
 export default function InstructorLessonRoute() {
-  const params = useParams<{ token: string; slug: string }>();
+  const params = useParams<{ slug: string }>();
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [instructorId, setInstructorId] = useState<string | null>(null);

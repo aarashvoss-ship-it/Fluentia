@@ -525,8 +525,6 @@ function DashboardContent() {
       />
       <ChatWidget
         messages={chatMessages}
-        currentUserId={token}
-        studentId={token}
         onSend={(message) => {
           setChatMessages([...chatMessages, message]);
           void saveChatMessage(token, message);

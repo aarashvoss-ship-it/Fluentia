@@ -9,8 +9,6 @@ import { ChatMessage } from "@/types/lesson";
 interface ChatWidgetProps {
   messages: ChatMessage[];
   onSend: (message: ChatMessage) => void;
-  currentUserId?: string;
-  studentId?: string;
   instructorId?: string;
 }
 
@@ -56,7 +54,7 @@ function appendUnique(messages: ChatMessage[], message: ChatMessage) {
   return messages.some((item) => item.id === message.id) ? messages : [...messages, message];
 }
 
-export function ChatWidget({ messages, onSend, currentUserId, studentId, instructorId }: ChatWidgetProps) {
+export function ChatWidget({ messages, onSend, instructorId }: ChatWidgetProps) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"instructor" | "support">("instructor");
   const [text, setText] = useState("");

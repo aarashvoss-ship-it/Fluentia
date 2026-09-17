@@ -540,7 +540,7 @@ export default function LessonPage() {
       <div className="fluentia-study-room flex min-h-screen flex-col items-center justify-center bg-[#0c1017] px-5 py-16 text-center text-[#e8e7e4]">
         <h1 className="font-[var(--font-fraunces)] text-2xl text-[#f1eee8]">Lesson not found or still in draft</h1>
         <p className="mt-3 max-w-md text-sm text-[#8f98a8]">This lesson does not have a published version yet. Please return to your dashboard and try again later.</p>
-        <Link href={`/dashboard?student=${encodeURIComponent(activeStudent?.token || activeStudent?.id || "")}`} className="mt-6 inline-flex rounded-md bg-amber-500 px-4 py-2 text-xs font-semibold text-slate-950">Return to Dashboard</Link>
+        <Link href="/dashboard" className="mt-6 inline-flex rounded-md bg-amber-500 px-4 py-2 text-xs font-semibold text-slate-950">Return to Dashboard</Link>
       </div>
     );
   }
@@ -594,7 +594,7 @@ export default function LessonPage() {
             <AmbientMusicPlayer src={lessonContent.ambientMusicUrl} tracks={lessonContent.ambientTracks} />
             <button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs transition ${sidebarOpen ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#171d28]/90 text-amber-300 hover:border-amber-500"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button>
             <button type="button" onClick={() => setDictionaryWord("")} aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28]/90 text-stone-400 transition hover:border-amber-500 hover:text-amber-300"><BookOpen className="w-4 h-4" /></button>
-            <Link href={`/dashboard?student=${encodeURIComponent(lessonStudentToken)}`} className="flex items-center gap-1 rounded-md border border-[#394252] bg-[#171d28]/90 px-3 py-2 text-xs text-[#b5bac2] transition-colors hover:border-amber-500/50 hover:text-amber-300"><ChevronRight className="h-3 w-3 rotate-180" />Course overview</Link>
+            <Link href="/dashboard" className="flex items-center gap-1 rounded-md border border-[#394252] bg-[#171d28]/90 px-3 py-2 text-xs text-[#b5bac2] transition-colors hover:border-amber-500/50 hover:text-amber-300"><ChevronRight className="h-3 w-3 rotate-180" />Course overview</Link>
           </div>
           <div className="relative z-10 mx-auto flex h-full w-full max-w-5xl flex-col justify-end px-0 pb-2">
             <span className="mb-4 w-fit rounded-full border border-amber-500/40 bg-[#332713]/85 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e4ae45]">{lessonLevel} - MODULE {lessonModuleNumber ?? 1}</span>
@@ -916,7 +916,7 @@ export default function LessonPage() {
               </div>
 
               <div className="text-center">
-                <Link href={`/dashboard?student=${encodeURIComponent(lessonStudentToken)}`} className="inline-flex items-center gap-2 rounded-full border border-stone-700 bg-stone-800 px-5 py-2.5 text-sm text-stone-200 transition-colors hover:bg-stone-700">
+                <Link href="/dashboard" className="inline-flex items-center gap-2 rounded-full border border-stone-700 bg-stone-800 px-5 py-2.5 text-sm text-stone-200 transition-colors hover:bg-stone-700">
                   Return to Dashboard
                 </Link>
               </div>
@@ -965,7 +965,7 @@ export default function LessonPage() {
         onSubmit={handleSubmitFinal}
         onReview={handleReviewAnswers}
         studentName={studentDisplayName}
-        dashboardHref={`/dashboard?student=${encodeURIComponent(lessonStudentToken)}`}
+        dashboardHref="/dashboard"
         stepResults={stepResults}
       />
       <LearningSidebar
