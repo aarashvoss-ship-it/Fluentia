@@ -74,6 +74,7 @@ export function ChatWidget({ messages, onSend, currentUserId = "student", studen
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
     void Promise.all([resolveUserUuid(studentId), resolveUserUuid(instructorId)]).then(([studentUuid, instructorUuid]) => {
+      if (!studentUuid || !instructorUuid) return;
       setResolvedStudentId(studentUuid);
       setResolvedInstructorId(instructorUuid);
     }).catch((error) => console.error("Unable to resolve chat identities:", error));
@@ -117,6 +118,7 @@ export function ChatWidget({ messages, onSend, currentUserId = "student", studen
         resolveUserUuid(currentUserId),
         resolveUserUuid(tab === "support" ? instructorId : instructorId),
       ]);
+      if (!senderUuid || !receiverUuid) return;
       const { data, error } = await supabase.from("messages").insert({
         sender_id: senderUuid,
         receiver_id: receiverUuid,

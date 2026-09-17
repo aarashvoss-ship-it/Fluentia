@@ -38,7 +38,7 @@ function LoginForm() {
       }
       const userEmail = data.user.email?.trim().toLowerCase() || '';
       if (userEmail === 'aarashvoss@gmail.com') {
-        router.replace('/instructor/avoss-9042');
+        router.replace('/instructor');
       } else if (STUDENT_USERS.some((student) => student.email?.toLowerCase() === userEmail)) {
         router.replace('/dashboard');
       } else {

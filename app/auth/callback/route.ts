@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
 
   let redirectPath = "/dashboard";
   if (userEmail === "aarashvoss@gmail.com") {
-    redirectPath = "/instructor/avoss-9042";
+    redirectPath = "/instructor";
   } else {
     try {
       const { data: student, error: studentError } = await allowlistClient

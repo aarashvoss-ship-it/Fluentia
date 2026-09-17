@@ -1,11 +1,14 @@
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
-export async function resolveUserUuid(_legacyIdentifier?: string): Promise<string> {
-  if (!isSupabaseConfigured()) throw new Error("Supabase is not configured");
+export async function resolveUserUuid(_legacyIdentifier?: string): Promise<string | null> {
+  if (!isSupabaseConfigured()) return null;
 
-  const { data, error } = await supabase.auth.getUser();
-  if (error) throw error;
-  if (!data.user?.id) throw new Error("No authenticated Supabase user");
-
-  return data.user.id;
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    if (error || !data.session?.user?.id) return null;
+    return data.session.user.id;
+  } catch (error) {
+    console.warn("Unable to read the active Supabase session:", error);
+    return null;
+  }
 }
