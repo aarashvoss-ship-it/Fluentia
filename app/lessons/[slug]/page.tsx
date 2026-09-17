@@ -5,9 +5,10 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { ChatMessage, ContentBlock, SavedVocabularyWord, StudentNote, StudyStepId, STUDY_STEPS, LessonContent, StudentSubmission } from "@/types/lesson";
 import { getLessonById, type LessonWithVersion } from "@/lib/lessons";
-import { persistResolvedStudent, PublishedLessonState, resolveStudentAccess, writeLastAccessedLesson } from "@/lib/lesson-store";
+import { PublishedLessonState, writeLastAccessedLesson } from "@/lib/lesson-store";
 import { fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, saveChatMessage, saveStudentNote, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
 import { INSTRUCTOR_USER, type StudentUser } from "@/lib/users";
+import { supabase } from "@/lib/supabase";
 import { Stepper } from "@/components/study-room/stepper";
 import { CelebrationModal, StepResult } from "@/components/study-room/celebration-modal";
 import { DictionaryModal } from "@/components/study-room/dictionary-modal";
@@ -165,21 +166,47 @@ export default function LessonPage() {
   const [studentBannerUrl, setStudentBannerUrl] = useState<string | null>(null);
   const [bannerLoadFailed, setBannerLoadFailed] = useState(false);
 
-  // Initialize student access on mount
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const studentParam = params.get("student") || params.get("token");
-    const student = resolveStudentAccess(studentParam);
-    if (!student) {
-      setAccessDenied(true);
+    let cancelled = false;
+    const loadAuthenticatedStudent = async () => {
+      const { data, error } = await supabase.auth.getUser();
+      if (cancelled) return;
+      if (error || !data.user) {
+        if (error) console.error("Unable to resolve authenticated student:", error);
+        setAccessDenied(true);
+        setStudentReady(true);
+        setIsMounted(true);
+        return;
+      }
+
+      const email = data.user.email || "";
+      const name = data.user.user_metadata?.full_name || data.user.user_metadata?.name || email || "Student";
+      const student: StudentUser = {
+        id: data.user.id,
+        token: data.user.id,
+        name,
+        email,
+        role: "student",
+        profile: {
+          id: data.user.id,
+          fullName: name,
+          level: "",
+          targetGoal: "",
+          weaknesses: [],
+          teacherNotes: "",
+          attendanceRate: 0,
+          completedModulesCount: 0,
+        },
+      };
+      setActiveStudent(student);
       setStudentReady(true);
       setIsMounted(true);
-      return;
-    }
-    persistResolvedStudent(student);
-    setActiveStudent(student);
-    setStudentReady(true);
-    setIsMounted(true);
+    };
+
+    void loadAuthenticatedStudent();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Fetch lesson data asynchronously
