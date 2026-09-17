@@ -122,6 +122,14 @@ function describeSupabaseError(error: unknown) {
   return { message: String(error) };
 }
 
+function toSupabaseError(error: unknown, fallback: string) {
+  const details = describeSupabaseError(error);
+  const message = [details.message, details.details, details.hint].filter(Boolean).join(" | ") || fallback;
+  const normalized = new Error(message);
+  Object.assign(normalized, details);
+  return normalized;
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -521,13 +529,25 @@ export async function updateLesson(
   }
 
   try {
-    const { content, changes_summary, banner_url, student_id, student_token, instructor_id, is_published, slug, ...lessonData } = input;
+    const { content, changes_summary, banner_url, student_id, student_token, instructor_id, is_published, slug, title, status, subject, grade, assigned_all_students } = input;
     const resolvedStudentId = student_id || undefined;
     const resolvedInstructorId = instructor_id || undefined;
     // Update the lesson metadata
     const hasStudentTokenUpdate = Object.prototype.hasOwnProperty.call(input, "student_token");
-    if (Object.keys(lessonData).length > 0 || banner_url || resolvedStudentId || resolvedInstructorId || hasStudentTokenUpdate) {
-      const updatePayload = { ...lessonData, ...(slug ? { slug } : {}), ...(banner_url ? { banner_url } : {}), ...(resolvedStudentId ? { student_id: resolvedStudentId } : {}), ...(resolvedInstructorId ? { instructor_id: resolvedInstructorId } : {}), ...(hasStudentTokenUpdate ? { student_token } : {}), ...(is_published !== undefined ? { is_published } : {}) };
+    if (title !== undefined || slug !== undefined || status !== undefined || subject !== undefined || grade !== undefined || assigned_all_students !== undefined || banner_url !== undefined || resolvedStudentId || resolvedInstructorId || hasStudentTokenUpdate || is_published !== undefined) {
+      const updatePayload = {
+        ...(title !== undefined ? { title } : {}),
+        ...(slug !== undefined ? { slug } : {}),
+        ...(status !== undefined ? { status } : {}),
+        ...(subject !== undefined ? { subject } : {}),
+        ...(grade !== undefined ? { grade } : {}),
+        ...(assigned_all_students !== undefined ? { assigned_all_students } : {}),
+        ...(banner_url !== undefined ? { banner_url } : {}),
+        ...(resolvedStudentId ? { student_id: resolvedStudentId } : {}),
+        ...(resolvedInstructorId ? { instructor_id: resolvedInstructorId } : {}),
+        ...(hasStudentTokenUpdate ? { student_token } : {}),
+        ...(is_published !== undefined ? { is_published } : {}),
+      };
       let { data: updatedRows, error: updateError } = await supabase
         .from("lessons")
         .update(updatePayload)
@@ -535,7 +555,7 @@ export async function updateLesson(
         .select("id");
       if (isMissingBannerColumn(updateError) || isMissingStudentColumn(updateError) || isMissingPublishedColumn(updateError)) {
         const { banner_url: _ignoredBannerUrl, student_id: _ignoredStudentId, student_token: _ignoredStudentToken, is_published: _ignoredPublished, ...compatPayload } = updatePayload;
-        if (Object.keys(lessonData).length > 0 || hasStudentTokenUpdate) {
+        if (Object.keys(updatePayload).length > 0) {
           ({ data: updatedRows, error: updateError } = await supabase
             .from("lessons")
             .update(compatPayload)
@@ -546,13 +566,19 @@ export async function updateLesson(
         }
       }
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error("Supabase update error details:", describeSupabaseError(updateError));
+        throw toSupabaseError(updateError, `Failed to update lesson ${id}`);
+      }
       if (!updatedRows?.length) {
         const { data: existingLesson, error: existingError } = await supabase.from("lessons").select("id").eq("id", id).maybeSingle();
-        if (existingError) throw existingError;
+        if (existingError) throw toSupabaseError(existingError, `Failed to check lesson ${id}`);
         if (!existingLesson) {
           const { error: upsertError } = await supabase.from("lessons").upsert({ id, ...updatePayload }, { onConflict: "id" });
-          if (upsertError) throw upsertError;
+          if (upsertError) {
+            console.error("Supabase lesson upsert error details:", describeSupabaseError(upsertError));
+            throw toSupabaseError(upsertError, `Failed to upsert lesson ${id}`);
+          }
         }
       }
     }
@@ -575,7 +601,10 @@ export async function updateLesson(
         .select()
         .single();
 
-      if (versionError) throw versionError;
+      if (versionError) {
+        console.error("Supabase lesson version error details:", describeSupabaseError(versionError));
+        throw toSupabaseError(versionError, `Failed to save lesson version ${id}`);
+      }
       newVersion = version;
     }
 
@@ -586,7 +615,7 @@ export async function updateLesson(
       .eq("id", id)
       .single();
 
-    if (fetchError) throw fetchError;
+    if (fetchError) throw toSupabaseError(fetchError, `Failed to reload lesson ${id}`);
 
     const latestVersion = newVersion || (await getLatestLessonVersion(id));
 
@@ -596,8 +625,9 @@ export async function updateLesson(
       content: latestVersion?.content,
     };
   } catch (error) {
-    console.error(`Error updating lesson ${id}:`, describeSupabaseError(error), error);
-    throw error;
+    const normalizedError = error instanceof Error ? error : toSupabaseError(error, `Failed to update lesson ${id}`);
+    console.error(`Error updating lesson ${id}:`, describeSupabaseError(normalizedError));
+    throw normalizedError;
   }
 }
 
