@@ -7,7 +7,7 @@ import { ChatMessage, ContentBlock, SavedVocabularyWord, StudentNote, StudyStepI
 import { getLessonById, type LessonWithVersion } from "@/lib/lessons";
 import { PublishedLessonState, writeLastAccessedLesson } from "@/lib/lesson-store";
 import { fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, saveChatMessage, saveStudentNote, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
-import { INSTRUCTOR_USER, type StudentUser } from "@/lib/users";
+import { FLUENTIA_USERS, INSTRUCTOR_USER, type StudentUser } from "@/lib/users";
 import { supabase } from "@/lib/supabase";
 import { Stepper } from "@/components/study-room/stepper";
 import { CelebrationModal, StepResult } from "@/components/study-room/celebration-modal";
@@ -216,14 +216,18 @@ export default function LessonPage() {
         const emailName = email.includes("@")
           ? email.split("@")[0].replace(/[._-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
           : "";
+        const localUser = email
+          ? FLUENTIA_USERS.find((candidate) => candidate.email?.toLowerCase() === email.toLowerCase())
+          : undefined;
         const name = firstNonEmpty(
           studentRecord?.name,
           profile?.full_name,
           user.user_metadata?.full_name,
+          localUser?.name,
           emailName,
           email,
         );
-        console.log("Final resolved lesson student name:", { userId: user.id, studentName: name, source: studentRecord?.name ? "students.name" : profile?.full_name ? "profiles.full_name" : user.user_metadata?.full_name ? "user.user_metadata.full_name" : emailName ? "email local-part" : email ? "user.email" : "fallback" });
+        console.log("Final resolved lesson student name:", { userId: user.id, studentName: name, source: studentRecord?.name ? "students.name" : profile?.full_name ? "profiles.full_name" : user.user_metadata?.full_name ? "user.user_metadata.full_name" : localUser?.name ? "FLUENTIA_USERS" : emailName ? "email local-part" : email ? "user.email" : "fallback" });
         const student: StudentUser = {
           id: user.id,
           token: studentRecord?.token || user.id,
