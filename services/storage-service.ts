@@ -131,24 +131,80 @@ async function getStudentId(_legacyIdentifier?: string) {
   }
 }
 
-async function fetchStudentLesson(slug: string, studentId: string) {
-  const { data: lessonById, error: idError } = await supabase
-    .from("lessons")
-    .select("*")
-    .eq("id", slug)
-    .eq("student_id", studentId)
-    .maybeSingle();
-  if (!idError && lessonById) return lessonById;
+async function resolveStudentLookupValues(studentIdentifier?: string): Promise<{ ids: string[]; tokens: string[] }> {
+  const ids = new Set<string>();
+  const tokens = new Set<string>();
+  const fallbackId = await getStudentId();
+  const candidateValues = [studentIdentifier, fallbackId].filter((value): value is string => Boolean(value && value.trim()));
 
-  const { data, error } = await supabase
-    .from("lessons")
-    .select("*")
-    .eq("slug", slug)
-    .eq("student_id", studentId)
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return error ? null : data;
+  for (const value of candidateValues) {
+    ids.add(value);
+    tokens.add(value);
+  }
+
+  try {
+    const studentMatches = candidateValues.length > 0
+      ? await Promise.all(candidateValues.map(async (value) => supabase
+          .from("students")
+          .select("id, token")
+          .or(`id.eq.${value},token.eq.${value}`)
+          .maybeSingle()))
+      : [];
+
+    studentMatches.forEach(({ data }) => {
+      if (data?.id) ids.add(data.id);
+      if (data?.token) tokens.add(data.token);
+    });
+  } catch (error) {
+    console.warn("Student identity resolution for lesson state failed:", error);
+  }
+
+  return {
+    ids: [...ids].filter(Boolean),
+    tokens: [...tokens].filter(Boolean),
+  };
+}
+
+async function fetchStudentLesson(slug: string, studentIdentifier?: string) {
+  const { ids, tokens } = await resolveStudentLookupValues(studentIdentifier);
+  const uniqueIds = [...new Set(ids.filter(Boolean))];
+  const uniqueTokens = [...new Set(tokens.filter(Boolean))];
+
+  const directLessonById = uniqueIds.length > 0
+    ? await supabase
+        .from("lessons")
+        .select("*")
+        .eq("id", slug)
+        .in("student_id", uniqueIds)
+        .maybeSingle()
+    : { data: null, error: null };
+  if (!directLessonById.error && directLessonById.data) return directLessonById.data;
+
+  const directLessonBySlug = uniqueIds.length > 0
+    ? await supabase
+        .from("lessons")
+        .select("*")
+        .eq("slug", slug)
+        .in("student_id", uniqueIds)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : { data: null, error: null };
+  if (!directLessonBySlug.error && directLessonBySlug.data) return directLessonBySlug.data;
+
+  const tokenLessonBySlug = uniqueTokens.length > 0
+    ? await supabase
+        .from("lessons")
+        .select("*")
+        .eq("slug", slug)
+        .in("student_token", uniqueTokens)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : { data: null, error: null };
+  if (!tokenLessonBySlug.error && tokenLessonBySlug.data) return tokenLessonBySlug.data;
+
+  return null;
 }
 
 function mapLessonRow(row: SupabaseRow): LessonContent {
@@ -255,25 +311,28 @@ export async function updateLessonStatus(slug: string, status: LessonStatus): Pr
 export async function fetchLessonState(slug: string, studentToken?: string): Promise<PublishedLessonState | null> {
   if (isSupabaseConfigured()) {
     try {
-      const studentId = await getStudentId();
-      const lesson = studentId ? await fetchStudentLesson(slug, studentId) : null;
-      if (lesson && studentId) {
-        const { data: submission } = await supabase.from("submissions").select("*").eq("lesson_id", lesson.id).eq("student_id", studentId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
-        const { data: feedback } = await supabase.from("instructor_feedback").select("*").eq("lesson_id", lesson.id).eq("student_id", studentId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
-        return {
-          content: lesson.content || defaultContent(),
-          bannerUrl: lesson.coverImage || "",
-          studentProfile: defaultProfile(),
-          evaluation: feedback ? { scores: feedback.scores || (feedback.score ? { overall: feedback.score } : {}), comments: feedback.comments || feedback.comment || "", strengths: feedback.strengths, areasToImprove: feedback.areas_to_improve || feedback.areasToImprove, studyHubPrescription: feedback.study_hub_prescription || feedback.studyHubPrescription, voiceFeedbackUrl: feedback.voice_feedback_url || feedback.voiceFeedbackUrl, published: Boolean(feedback.is_published ?? feedback.published) } : emptyEvaluation(),
-          status: lesson.status === "draft" ? "draft" : "published",
-          submission: submission ? mapSubmission(submission) : undefined,
-        };
+      const lesson = await fetchStudentLesson(slug, studentToken);
+      if (lesson) {
+        const resolvedStudentId = lesson.student_id || studentToken || (await getStudentId());
+        if (resolvedStudentId) {
+          const { data: submission } = await supabase.from("submissions").select("*").eq("lesson_id", lesson.id).eq("student_id", resolvedStudentId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+          const { data: feedback } = await supabase.from("instructor_feedback").select("*").eq("lesson_id", lesson.id).eq("student_id", resolvedStudentId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+          return {
+            content: lesson.content || defaultContent(),
+            bannerUrl: lesson.coverImage || "",
+            studentProfile: defaultProfile(),
+            evaluation: feedback ? { scores: feedback.scores || (feedback.score ? { overall: feedback.score } : {}), comments: feedback.comments || feedback.comment || "", strengths: feedback.strengths, areasToImprove: feedback.areas_to_improve || feedback.areasToImprove, studyHubPrescription: feedback.study_hub_prescription || feedback.studyHubPrescription, voiceFeedbackUrl: feedback.voice_feedback_url || feedback.voiceFeedbackUrl, published: Boolean(feedback.is_published ?? feedback.published) } : emptyEvaluation(),
+            status: lesson.status === "draft" ? "draft" : "published",
+            submission: submission ? mapSubmission(submission) : undefined,
+          };
+        }
       }
+      return getState(slug, studentToken) || null;
     } catch {
-      // Use local state when Supabase is unavailable.
+      // Use local state when Supabase is unavailable or the lesson has no saved state yet.
+      return getState(slug, studentToken) || null;
     }
   }
-  if (isSupabaseConfigured() && !demoDataEnabled()) throw new Error(`Lesson state unavailable for ${slug}`);
   return getState(slug, studentToken);
 }
 
