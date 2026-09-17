@@ -303,12 +303,21 @@ export async function getLessonById(idOrSlug = BENCHMARK_LESSON_SLUG): Promise<L
 /**
  * Fetches lessons by student ID
  */
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 async function resolveStudentLookupId(studentId: string): Promise<{ studentIds: string[]; studentTokens: string[] }> {
   const normalizedStudentId = studentId.trim();
   if (!normalizedStudentId) return { studentIds: [], studentTokens: [] };
 
-  const studentIds = new Set<string>([normalizedStudentId]);
-  const studentTokens = new Set<string>([normalizedStudentId]);
+  const studentIds = new Set<string>();
+  const studentTokens = new Set<string>();
+  if (isUuid(normalizedStudentId)) {
+    studentIds.add(normalizedStudentId);
+  } else {
+    studentTokens.add(normalizedStudentId);
+  }
 
   try {
     const { data: studentRow, error } = await supabase
@@ -345,21 +354,14 @@ export async function getLessonsByStudentId(studentId: string): Promise<LessonWi
     const normalizedStudentIds = [...new Set(studentIds.filter(Boolean))];
     const normalizedStudentTokens = [...new Set(studentTokens.filter(Boolean))];
 
-    const directQuery = normalizedStudentIds.length > 0
-      ? supabase.from("lessons").select("*").eq("status", "published").in("student_id", normalizedStudentIds)
-      : supabase.from("lessons").select("*").eq("status", "published").eq("student_id", normalizedStudentId);
-
-    const tokenQuery = normalizedStudentTokens.length > 0
-      ? supabase.from("lessons").select("*").eq("status", "published").in("student_token", normalizedStudentTokens)
-      : supabase.from("lessons").select("*").eq("status", "published").eq("student_token", normalizedStudentId);
-
     const assignmentQuery = normalizedStudentIds.length > 0
       ? supabase.from("lesson_assignments").select("lesson_id").in("student_id", normalizedStudentIds)
-      : supabase.from("lesson_assignments").select("lesson_id").eq("student_id", normalizedStudentId);
+      : supabase.from("lesson_assignments").select("lesson_id").eq("student_id", "00000000-0000-0000-0000-000000000000");
 
-    const [directResult, tokenResult, assignmentIdsResult, allStudentsResult] = await Promise.all([
-      directQuery,
-      tokenQuery,
+    const [directResult, assignmentIdsResult, allStudentsResult] = await Promise.all([
+      normalizedStudentIds.length > 0
+        ? supabase.from("lessons").select("*").eq("status", "published").in("student_id", normalizedStudentIds)
+        : supabase.from("lessons").select("*").eq("status", "published").eq("student_id", normalizedStudentId),
       assignmentQuery,
       supabase.from("lessons").select("*").eq("status", "published").eq("assigned_all_students", true),
     ]);
@@ -367,6 +369,10 @@ export async function getLessonsByStudentId(studentId: string): Promise<LessonWi
     const assignmentLessonIds = [...new Set((assignmentIdsResult.data || []).map((row) => row.lesson_id))];
     const assignedResult = assignmentLessonIds.length > 0
       ? await supabase.from("lessons").select("*").eq("status", "published").in("id", assignmentLessonIds)
+      : { data: [], error: null };
+
+    const tokenResult = normalizedStudentTokens.length > 0
+      ? await supabase.from("lessons").select("*").eq("status", "published").in("student_token", normalizedStudentTokens)
       : { data: [], error: null };
 
     const firstError = directResult.error || tokenResult.error || assignmentIdsResult.error || assignedResult.error || allStudentsResult.error;
@@ -782,7 +788,7 @@ export function toLessonContent(
     title: lesson.title,
     subtitle: undefined,
     moduleNumber: 0,
-    studentId: lesson.student_token || undefined,
+    studentId: lesson.student_id || undefined,
     status: lesson.status === "draft" ? "draft" : "published",
     content: lesson.content,
     ...overrides,

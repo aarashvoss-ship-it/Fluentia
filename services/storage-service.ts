@@ -34,7 +34,7 @@ export interface StorageMediaAsset {
 
 export const LESSONS_MANIFEST_KEY = "fluentia:lessons-manifest";
 const PROGRESS_PREFIX = "fluentia:progress:";
-const DEFAULT_STUDENT_TOKEN = "default";
+const DEFAULT_STUDENT_SCOPE_KEY = "default";
 const VOCAB_PREFIX = "fluentia:vocab:";
 const NOTES_PREFIX = "fluentia:notes:";
 const CHAT_PREFIX = "fluentia:chat:";
@@ -67,16 +67,16 @@ function writeJson<T>(key: string, value: T) {
   window.localStorage.setItem(key, JSON.stringify(value));
 }
 
-function studentKey(studentToken?: string) {
-  return studentToken || DEFAULT_STUDENT_TOKEN;
+function studentScopeKey(legacyStudentToken?: string) {
+  return legacyStudentToken || DEFAULT_STUDENT_SCOPE_KEY;
 }
 
-function progressKey(slug: string, studentToken?: string) {
-  return `${PROGRESS_PREFIX}${slug}:${studentKey(studentToken)}`;
+function progressKey(slug: string, legacyStudentToken?: string) {
+  return `${PROGRESS_PREFIX}${slug}:${studentScopeKey(legacyStudentToken)}`;
 }
 
-function scopedKey(prefix: string, studentToken?: string) {
-  return `${prefix}${studentKey(studentToken)}`;
+function scopedKey(prefix: string, legacyStudentToken?: string) {
+  return `${prefix}${studentScopeKey(legacyStudentToken)}`;
 }
 
 function readManifest() {
@@ -145,8 +145,8 @@ async function getStudentId(_legacyIdentifier?: string) {
 async function resolveStudentLookupValues(studentIdentifier?: string): Promise<{ ids: string[]; tokens: string[] }> {
   const ids = new Set<string>();
   const tokens = new Set<string>();
-  const fallbackId = await getStudentId();
-  const candidateValues = [studentIdentifier, fallbackId].filter((value): value is string => Boolean(value && value.trim()));
+  const authenticatedStudentId = await getStudentId();
+  const candidateValues = [authenticatedStudentId, studentIdentifier].filter((value): value is string => Boolean(value && value.trim()));
 
   for (const value of candidateValues) {
     ids.add(value);
@@ -203,18 +203,6 @@ async function fetchStudentLesson(slug: string, studentIdentifier?: string) {
     : { data: null, error: null };
   if (!directLessonBySlug.error && directLessonBySlug.data) return directLessonBySlug.data;
 
-  const tokenLessonBySlug = uniqueTokens.length > 0
-    ? await supabase
-        .from("lessons")
-        .select("*")
-        .eq("slug", slug)
-        .in("student_token", uniqueTokens)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle()
-    : { data: null, error: null };
-  if (!tokenLessonBySlug.error && tokenLessonBySlug.data) return tokenLessonBySlug.data;
-
   const assignmentStudentId = uniqueIds.find((value) => /^[0-9a-f-]{36}$/i.test(value));
   if (assignmentStudentId) {
     const { data: assignments, error: assignmentError } = await supabase
@@ -244,6 +232,18 @@ async function fetchStudentLesson(slug: string, studentIdentifier?: string) {
       }
     }
   }
+
+  const tokenLessonBySlug = uniqueTokens.length > 0
+    ? await supabase
+        .from("lessons")
+        .select("*")
+        .eq("slug", slug)
+        .in("student_token", uniqueTokens)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : { data: null, error: null };
+  if (!tokenLessonBySlug.error && tokenLessonBySlug.data) return tokenLessonBySlug.data;
 
   return null;
 }
@@ -354,7 +354,7 @@ export async function fetchLessonState(slug: string, studentToken?: string): Pro
     try {
       const lesson = await fetchStudentLesson(slug, studentToken);
       if (lesson) {
-        const resolvedStudentId = lesson.student_id || studentToken || (await getStudentId());
+        const resolvedStudentId = await getStudentId() || lesson.student_id;
         if (resolvedStudentId) {
           const { data: submission } = await supabase.from("submissions").select("*").eq("lesson_id", lesson.id).eq("student_id", resolvedStudentId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
           const { data: feedback } = await supabase.from("instructor_feedback").select("*").eq("lesson_id", lesson.id).eq("student_id", resolvedStudentId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
