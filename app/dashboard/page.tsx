@@ -291,6 +291,13 @@ function DashboardContent() {
   const activeBannerUrl = isValidImageUrl(customBannerUrl.trim()) ? customBannerUrl.trim() : selectedBanner.image;
   const dashboardHeaderBanner = bannerLoadFailed ? BANNER_PRESETS[0].image : activeBannerUrl;
   const lessonRecord = nextLesson as (LessonWithVersion & { cover_image?: string | null; banner_url?: string | null }) | undefined;
+  const lessonContent = (nextLesson?.content || {}) as Record<string, unknown>;
+  const activeModuleNumber = typeof lessonContent.moduleNumber === "number"
+    ? lessonContent.moduleNumber
+    : typeof nextLesson?.module_number === "number"
+    ? nextLesson.module_number
+    : null;
+  const dashboardTopic = nextLesson?.title || (typeof lessonContent.title === "string" ? lessonContent.title : null);
   const instructorLessonBanner = typeof lessonRecord?.cover_image === "string"
     ? lessonRecord.cover_image
     : typeof lessonRecord?.banner_url === "string"
@@ -305,7 +312,7 @@ function DashboardContent() {
   const getLessonHref = (lesson: LessonWithVersion, status: LessonStatus) => {
     const stepParam = status === "completed" ? "&step=7" : status === "pending-review" ? "&start=warm_up" : "";
     const lessonPath = lesson.content?.slug || lesson.slug || lesson.id;
-    return `/lessons/${lessonPath}?student=${encodeURIComponent(activeStudent.token)}${stepParam}`;
+    return `/lessons/${lessonPath}?${stepParam.replace(/^&/, "")}`.replace(/\?$/, "");
   };
   const rememberLesson = (lessonId: string) => writeLastAccessedLesson(lessonId, token);
 
@@ -318,14 +325,18 @@ function DashboardContent() {
           <div className="z-10 mx-auto w-full max-w-5xl">
           {profileOpen && <button type="button" aria-label="Close student profile" onClick={() => setProfileOpen(false)} className="fixed inset-0 z-0 cursor-default bg-black/55" />}
           <span className="w-fit rounded-full border border-amber-500/40 bg-[#332713]/85 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e4ae45]">
-            ENGLISH B1 - ACTIVE MODULE
+            {nextLesson ? `ENGLISH - MODULE ${activeModuleNumber ?? 1}` : "ENGLISH - NO ACTIVE MODULE"}
           </span>
           <div className="mt-3 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
             <div>
               <h1 className="font-[var(--font-fraunces)] text-3xl font-semibold text-[#f1eee8]">
                 Welcome back, {displayName}.
               </h1>
-              <p className="mt-2 text-sm text-[#b5bac2]">Continue your journey in {nextLesson?.title || "Habits & Productivity"}.</p>
+              <p className="mt-2 text-sm text-[#b5bac2]">
+                {dashboardTopic
+                  ? `Continue your journey in ${dashboardTopic}.`
+                  : `Welcome back, ${displayName}. You have no active assigned lessons yet.`}
+              </p>
             </div>
             <div className="absolute top-6 right-8 z-10 flex items-center gap-2">
               <button type="button" onClick={() => setDictionaryOpen(true)} aria-label="Open dictionary" className={`group h-9 px-3 flex items-center gap-2 rounded-lg bg-slate-800/80 border text-xs font-medium transition-all cursor-pointer ${dictionaryOpen ? "border-amber-500/60 text-amber-400" : "border-slate-700/60 text-slate-300 hover:border-amber-500/60 hover:text-amber-400 hover:bg-slate-800"}`}><BookOpen className={`w-4 h-4 shrink-0 ${dictionaryOpen ? "text-amber-400" : "text-slate-400 group-hover:text-amber-400"}`} /></button>
