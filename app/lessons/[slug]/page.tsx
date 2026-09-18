@@ -967,7 +967,7 @@ export default function LessonPage() {
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
                         <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">Your response</p>
-                        {result.answer && (result.answer.startsWith("http") || result.answer.startsWith("blob:") || result.answer.endsWith(".webm") || result.answer.endsWith(".mp3") || result.answer.endsWith(".wav")) ? <audio controls src={result.answer} className="mt-2 w-full max-w-sm rounded-md" /> : <p className="mt-1 whitespace-pre-wrap text-sm text-stone-300">{result.answer || "No response submitted"}</p>}
+                        {result.answer && (result.answer.startsWith("http") || result.answer.startsWith("blob:") || result.answer.endsWith(".webm") || result.answer.endsWith(".mp3") || result.answer.endsWith(".wav")) ? <CustomAudioPlayer src={result.answer} label="Your speaking recording" /> : <p className="mt-1 whitespace-pre-wrap text-sm text-stone-300">{result.answer || "No response submitted"}</p>}
                       </div>
                       {result.referenceAnswer && <div>
                         <p className="text-[10px] uppercase tracking-[0.1em] text-amber-500/80">Reference / Correct Answer</p>
