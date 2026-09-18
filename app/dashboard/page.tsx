@@ -333,26 +333,21 @@ function DashboardContent() {
   return (
     <main className="min-h-screen bg-[#0c1017] text-[#e8e7e4] font-sans">
       <div className="mx-auto max-w-7xl px-4 pt-6 md:px-6">
-        <header style={{ backgroundImage: `linear-gradient(90deg, rgba(12,16,23,.96), rgba(12,16,23,.62)), url(${dashboardHeaderBanner})` }} className="relative flex min-h-[280px] w-full flex-col justify-end overflow-hidden rounded-xl bg-slate-950 bg-cover bg-center p-8 md:min-h-[300px]">
+        <header style={{ backgroundImage: `linear-gradient(90deg, rgba(12,16,23,.96), rgba(12,16,23,.62)), url(${dashboardHeaderBanner})` }} className="relative flex min-h-[280px] w-full items-start overflow-hidden rounded-xl bg-slate-950 bg-cover bg-center md:min-h-[300px]">
           <img src={dashboardHeaderBanner} alt="" onError={() => setBannerLoadFailed(true)} className="absolute inset-0 h-full w-full object-cover opacity-0" aria-hidden="true" />
           <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=1800&q=80')] bg-cover bg-center opacity-40" aria-hidden="true" />
           <div className="absolute inset-0 bg-[linear-gradient(0deg,rgba(12,16,23,.98),transparent_65%)]" aria-hidden="true" />
-          <div className="z-10 w-full">
+          <div className="relative z-10 flex w-full flex-col items-start px-4 pt-6 pb-8 md:px-6 text-left">
           {profileOpen && <button type="button" aria-label="Close student profile" onClick={() => setProfileOpen(false)} className="fixed inset-0 z-0 cursor-default bg-black/55" />}
           <span className="w-fit rounded-full border border-amber-500/40 bg-[#332713]/85 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e4ae45]">
             {nextLesson ? `ENGLISH - MODULE ${activeModuleNumber ?? 1}` : "ENGLISH - NO ACTIVE MODULE"}
           </span>
-          <div className="mt-3 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-            <div>
-              <h1 className="font-sans text-3xl font-semibold text-[#f1eee8]">
-                Welcome back, {displayName}.
-              </h1>
-              <p className="mt-2 text-sm text-[#b5bac2]">Seven stages. One connected journey.</p>
-            </div>
-            <div className="absolute top-6 right-8 z-10 flex items-center gap-2">
-              <button type="button" onClick={() => setDictionaryOpen(true)} aria-label="Open dictionary" className={`group h-9 px-3 flex items-center gap-2 rounded-lg bg-slate-800/80 border text-xs font-medium transition-all cursor-pointer ${dictionaryOpen ? "border-amber-500/60 text-amber-400" : "border-slate-700/60 text-slate-300 hover:border-amber-500/60 hover:text-amber-400 hover:bg-slate-800"}`}><BookOpen className={`w-4 h-4 shrink-0 ${dictionaryOpen ? "text-amber-400" : "text-slate-400 group-hover:text-amber-400"}`} /></button>
-              <button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`group h-9 px-3 flex items-center gap-2 rounded-lg bg-slate-800/80 border text-xs font-medium transition-all cursor-pointer ${sidebarOpen ? "border-amber-500/60 text-amber-400" : "border-slate-700/60 text-slate-300 hover:border-amber-500/60 hover:text-amber-400 hover:bg-slate-800"}`}><PanelRight className={`w-4 h-4 shrink-0 ${sidebarOpen ? "text-amber-400" : "text-slate-400 group-hover:text-amber-400"}`} />Learning Hub</button>
-              <div className="hidden" aria-label="Student profile">
+          <h1 className="mt-3 font-sans text-3xl font-semibold text-[#f1eee8]">
+            Welcome back, {displayName}.
+          </h1>
+          <p className="mt-2 text-sm text-[#b5bac2]">Seven stages. One connected journey.</p>
+          <div className="mt-3 flex items-center gap-2 text-xs text-[#667084]"><UserRound className="h-3.5 w-3.5" />{displayLessons.length} lessons available <span className="text-[#394252]">|</span> B2 Upper Intermediate</div>
+          <div className="hidden" aria-label="Student profile">
                 <button type="button" onClick={() => setProfileOpen((open) => !open)} aria-expanded={profileOpen} aria-controls="student-profile-flyout" style={!avatarImage ? { backgroundColor: selectedAvatar.backgroundColor } : undefined} className={`flex h-8 w-8 items-center justify-center overflow-hidden rounded-full text-xs font-bold transition hover:ring-2 hover:ring-amber-400/60 ${avatarImage ? "bg-[#283344]" : selectedAvatar.className}`}>
                   {avatarImage ? <img src={avatarImage} alt={`${displayName} avatar`} className="h-full w-full object-cover" /> : profileInitials}
                 </button>
@@ -369,11 +364,15 @@ function DashboardContent() {
                   </div>
                 )}
               </div>
-            </div>
-          </div>
-          <div className="mt-4 flex items-center gap-2 text-xs text-[#667084]"><UserRound className="h-3.5 w-3.5" />{displayLessons.length} lessons available <span className="text-[#394252]">|</span> B2 Upper Intermediate</div>
           </div>
         </header>
+        <div className="flex items-center justify-between w-full py-4">
+          <p className="text-[12px] text-[#aeb2b9]">Welcome back, <span className="text-[#e6e4e0]">{displayName}</span>.</p>
+          <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setDictionaryOpen(true)} aria-label="Open dictionary" className={`group h-9 px-3 flex items-center gap-2 rounded-lg bg-slate-800/80 border text-xs font-medium transition-all cursor-pointer ${dictionaryOpen ? "border-amber-500/60 text-amber-400" : "border-slate-700/60 text-slate-300 hover:border-amber-500/60 hover:text-amber-400 hover:bg-slate-800"}`}><BookOpen className={`w-4 h-4 shrink-0 ${dictionaryOpen ? "text-amber-400" : "text-slate-400 group-hover:text-amber-400"}`} /></button>
+              <button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`group h-9 px-3 flex items-center gap-2 rounded-lg bg-slate-800/80 border text-xs font-medium transition-all cursor-pointer ${sidebarOpen ? "border-amber-500/60 text-amber-400" : "border-slate-700/60 text-slate-300 hover:border-amber-500/60 hover:text-amber-400 hover:bg-slate-800"}`}><PanelRight className={`w-4 h-4 shrink-0 ${sidebarOpen ? "text-amber-400" : "text-slate-400 group-hover:text-amber-400"}`} />Learning Hub</button>
+          </div>
+        </div>
 
       <div className="py-8">
 
