@@ -86,7 +86,7 @@ export function AudioRecorder({
       <div className="flex w-full items-center gap-3 rounded-lg border border-red-500/30 bg-[#0c1017] px-3 py-1.5">
         <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500 animate-pulse" aria-hidden />
         <span className="text-xs font-mono text-red-300 tabular-nums">{fmt(elapsed)}</span>
-        <div className="flex items-end gap-[2px] h-6" aria-hidden>{levels.map((h,i)=><span key={i} className="w-[3px] rounded-full bg-amber-400/80" style={{height:h}} />)}</div>
+        <div className="flex flex-1 items-end justify-center gap-[2px] h-6" aria-hidden>{levels.map((h,i)=><span key={i} className="w-[3px] rounded-full bg-amber-400/80" style={{height:h}} />)}</div>
         <button type="button" onClick={stop} className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-red-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-400"><Square className="h-3 w-3 fill-current" />Stop</button>
       </div>
     );

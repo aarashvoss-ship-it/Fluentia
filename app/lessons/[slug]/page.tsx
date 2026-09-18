@@ -144,7 +144,7 @@ function AudioResponseBlock({ value, onChange, studentId }: { value?: string; on
           <div className="flex w-full flex-row items-center gap-3 rounded-lg border border-red-500/30 bg-[#171d28] px-3 py-1.5">
             <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500 animate-pulse" aria-hidden />
             <span className="text-xs font-mono tabular-nums text-red-300">{fmt(elapsed)}</span>
-            <div className="flex items-end gap-[2px] h-6" aria-hidden>{levels.map((h,i)=><span key={i} className="w-[3px] rounded-full bg-amber-400/80" style={{height:h}} />)}</div>
+            <div className="flex flex-1 items-end justify-center gap-[2px] h-6" aria-hidden>{levels.map((h,i)=><span key={i} className="w-[3px] rounded-full bg-amber-400/80" style={{height:h}} />)}</div>
             <button type="button" onClick={stopRecording} className="inline-flex items-center gap-1.5 rounded-md bg-red-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-400"><Square className="h-3 w-3 fill-current" />Stop</button>
           </div>
         )}
@@ -1061,7 +1061,7 @@ export default function LessonPage() {
       </main>
           </div>
           {(((lessonContent as Record<string, unknown>).sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep] || []).length > 0 && (
-            <aside className="space-y-4 lg:col-span-1">
+            <aside className="space-y-4 pt-8 lg:col-span-1">
               {((lessonContent as Record<string, unknown>).sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep]?.map((b) => (
                 <div key={b.id} className="rounded-xl border border-[#202631] bg-[#121721] p-4">
                   <p className="text-xs font-semibold text-amber-400">{b.title}</p>

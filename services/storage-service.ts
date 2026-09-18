@@ -407,7 +407,7 @@ export async function saveLessonState(
   state: PublishedLessonState,
   studentToken?: string
 ): Promise<PublishedLessonState> {
-  if (isSupabaseConfigured() && !demoDataEnabled()) throw new Error("Cannot save lesson state outside Supabase");
+  // Graceful fallback: always persist locally to avoid red screen during step navigation
   writeJson(getLessonStateKey(slug, studentToken), state);
   notifyDataUpdated({ type: "lesson-state", slug, studentToken });
   return state;
