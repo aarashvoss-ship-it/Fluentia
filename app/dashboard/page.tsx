@@ -332,11 +332,12 @@ function DashboardContent() {
 
   return (
     <main className="min-h-screen bg-[#0c1017] text-[#e8e7e4] font-sans">
-        <header style={{ backgroundImage: `linear-gradient(90deg, rgba(12,16,23,.96), rgba(12,16,23,.62)), url(${dashboardHeaderBanner})` }} className="relative flex min-h-[280px] w-full flex-col justify-end overflow-visible bg-slate-950 bg-cover bg-center p-8 md:min-h-[340px]">
+      <div className="mx-auto max-w-7xl px-4 pt-6 md:px-6">
+        <header style={{ backgroundImage: `linear-gradient(90deg, rgba(12,16,23,.96), rgba(12,16,23,.62)), url(${dashboardHeaderBanner})` }} className="relative flex min-h-[280px] w-full flex-col justify-end overflow-hidden rounded-xl bg-slate-950 bg-cover bg-center p-8 md:min-h-[300px]">
           <img src={dashboardHeaderBanner} alt="" onError={() => setBannerLoadFailed(true)} className="absolute inset-0 h-full w-full object-cover opacity-0" aria-hidden="true" />
           <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=1800&q=80')] bg-cover bg-center opacity-40" aria-hidden="true" />
           <div className="absolute inset-0 bg-[linear-gradient(0deg,rgba(12,16,23,.98),transparent_65%)]" aria-hidden="true" />
-          <div className="z-10 mx-auto w-full max-w-5xl">
+          <div className="z-10 w-full">
           {profileOpen && <button type="button" aria-label="Close student profile" onClick={() => setProfileOpen(false)} className="fixed inset-0 z-0 cursor-default bg-black/55" />}
           <span className="w-fit rounded-full border border-amber-500/40 bg-[#332713]/85 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e4ae45]">
             {nextLesson ? `ENGLISH - MODULE ${activeModuleNumber ?? 1}` : "ENGLISH - NO ACTIVE MODULE"}
@@ -374,7 +375,7 @@ function DashboardContent() {
           </div>
         </header>
 
-      <div className="mx-auto max-w-5xl px-4 py-8">
+      <div className="py-8">
 
         <section className="grid gap-3 border-b border-[#202631] py-6 sm:grid-cols-3" aria-label="Student progress overview">
           <div className="relative order-last rounded-xl border border-[#202631] bg-[#121721] p-4" aria-label="Student profile">
@@ -522,6 +523,7 @@ function DashboardContent() {
             );
           })}
         </section>
+      </div>
       </div>
       <LearningSidebar
         open={sidebarOpen}
