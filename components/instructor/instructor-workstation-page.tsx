@@ -138,7 +138,7 @@ export default function InstructorWorkstationPage({
     status: "draft" as "draft" | "published",
   });
 
-  const resetNewLessonForm = (studentId = "") =>
+  const resetNewLessonForm = (studentId = "") => {
     setNewLesson({
       studentId,
       title: "",
@@ -147,6 +147,8 @@ export default function InstructorWorkstationPage({
       moduleNumber: "",
       status: "draft",
     });
+    setLessonResources([]);
+  };
 
   const getDraftSignature = (content: StrictStepContent, title: string, subtitle: string, moduleNumber: string) =>
     JSON.stringify({
@@ -185,6 +187,7 @@ export default function InstructorWorkstationPage({
     if (loadedLesson) activateLesson(loadedLesson);
     else {
       setSidebarBlocksByStep({});
+      setLessonResources([]);
       setDatabaseLessonId(null);
     }
   }
@@ -252,6 +255,12 @@ export default function InstructorWorkstationPage({
       bannerUrl: typeof content.coverImage === "string" ? content.coverImage : lesson.banner_url || "",
     }));
     setSidebarBlocksByStep(normalizeSidebarBlocksByStep((content as Record<string, any>).sidebarBlocks));
+    const rawResources = (content as Record<string, any>).lessonResources;
+    setLessonResources(
+      Array.isArray(rawResources)
+        ? rawResources.filter((r: unknown): r is LessonResource => !!r && typeof (r as LessonResource).id === "string" && typeof (r as LessonResource).url === "string")
+        : []
+    );
     setDatabaseLessonId(lesson.id);
     setLessonStatus(lesson.status === "published" ? "published" : "draft");
     window.setTimeout(() => {
@@ -279,7 +288,10 @@ export default function InstructorWorkstationPage({
     };
     const nextSidebar = cloneSidebarBlocksByStep(normalizeSidebarBlocksByStep((sourceContent as Record<string, any>).sidebarBlocks));
     // Deep-copy sidebar blocks so mutating the duplicated draft cannot alias the source lesson.
-    copyContent = { ...copyContent, sidebarBlocks: nextSidebar };
+    const nextResources: LessonResource[] = Array.isArray(sourceContent.lessonResources)
+      ? (sourceContent.lessonResources as LessonResource[]).map((r) => ({ ...r }))
+      : [];
+    copyContent = { ...copyContent, sidebarBlocks: nextSidebar, lessonResources: nextResources };
     hasLoadedLesson.current = false;
     setDatabaseLessonId(null);
     setSelectedStudentId(null);
@@ -299,6 +311,7 @@ export default function InstructorWorkstationPage({
       bannerUrl: typeof copyContent.coverImage === "string" ? copyContent.coverImage : previous.bannerUrl,
     }));
     setSidebarBlocksByStep(nextSidebar);
+    setLessonResources(nextResources);
     setLessonStatus("draft");
     setSaveIndicator("idle");
     setPublishStatus("Copy ready. Select a student before saving the new draft.");
@@ -1010,6 +1023,26 @@ export default function InstructorWorkstationPage({
                 <div className="flex items-center justify-between gap-3"><h3 className="font-sans text-xl font-semibold text-stone-100">Step Sidebar</h3><button type="button" onClick={() => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: [...(current[sidebarStep] || []), { id: `sidebar-${Date.now()}`, title: "Sidebar note", body: "" }] }))} className="flex items-center gap-1.5 rounded-md border border-amber-500 px-3 py-2 text-sm text-amber-500"><Plus className="h-3.5 w-3.5" />Add Block</button></div>
                 <select value={sidebarStep} onChange={(event) => setSidebarStep(event.target.value as keyof SidebarBlocksByStep)} className="mt-3 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2 text-xs text-white [color-scheme:dark]" aria-label="Sidebar step"><option value="warm_up" className="bg-[#0c1017] text-white">Warm-up</option><option value="lesson" className="bg-[#0c1017] text-white">Lesson</option><option value="listening" className="bg-[#0c1017] text-white">Listening</option><option value="reading" className="bg-[#0c1017] text-white">Reading</option><option value="writing" className="bg-[#0c1017] text-white">Writing</option><option value="speaking" className="bg-[#0c1017] text-white">Speaking</option></select>
                 <div className="mt-4 space-y-3">{(sidebarBlocksByStep[sidebarStep] || []).map((block) => <div key={block.id} className="rounded-lg border border-[#202631] bg-[#0c1017] p-3"><div className="flex gap-2"><input value={block.title} onChange={(event) => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, title: event.target.value } : item) }))} className="min-w-0 flex-1 border-b border-[#394252] bg-transparent pb-1 text-xs font-semibold text-stone-200" aria-label="Sidebar block title" /><button type="button" onClick={() => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: (current[sidebarStep] || []).filter((item) => item.id !== block.id) }))} aria-label={`Delete ${block.title}`}><Trash2 className="h-3.5 w-3.5" /></button></div><textarea value={block.body} onChange={(event) => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, body: event.target.value } : item) }))} rows={3} className="mt-3 w-full resize-y rounded-md border border-[#202631] bg-[#171d28] p-2.5 text-xs text-stone-300" /></div>)}</div>
+              </section>
+              <section className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" aria-labelledby="lesson-resources-title">
+                <div className="flex items-center justify-between gap-3"><h3 id="lesson-resources-title" className="font-sans text-xl font-semibold text-stone-100">Lesson Resources</h3><button type="button" onClick={() => setLessonResources((prev) => [...prev, { id: `res-${Date.now()}`, title: "", url: "", type: "PDF" }])} className="flex items-center gap-1.5 rounded-md border border-amber-500 px-3 py-2 text-sm text-amber-500"><Plus className="h-3.5 w-3.5" />Add Resource</button></div>
+                <p className="mt-2 text-[11px] leading-relaxed text-stone-500">PDF links, articles, and videos appear in the student Study Hub &amp; Learning Hub. Empty titles show the URL as the label.</p>
+                {lessonResources.length === 0 ? (
+                  <p className="mt-4 rounded-lg border border-dashed border-[#202631] bg-[#0c1017] px-3 py-4 text-center text-xs text-stone-500">No resources yet. Add a PDF, Article, or Video link.</p>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {lessonResources.map((res) => (
+                      <div key={res.id} className="rounded-lg border border-[#202631] bg-[#0c1017] p-3">
+                        <div className="flex items-start gap-2">
+                          <input value={res.title} onChange={(e) => setLessonResources((prev) => prev.map((r) => r.id === res.id ? { ...r, title: e.target.value } : r))} placeholder="Title (e.g. Reading Guide PDF)" className="min-w-0 flex-1 rounded-md border border-[#202631] bg-[#171d28] px-2.5 py-1.5 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Resource title" />
+                          <select value={res.type} onChange={(e) => setLessonResources((prev) => prev.map((r) => r.id === res.id ? { ...r, type: e.target.value as LessonResource["type"] } : r))} className="shrink-0 rounded-md border border-[#202631] bg-[#171d28] px-2 py-1.5 text-xs text-white [color-scheme:dark]" aria-label="Resource type"><option value="PDF">PDF</option><option value="Article">Article</option><option value="Video">Video</option></select>
+                          <button type="button" onClick={() => setLessonResources((prev) => prev.filter((r) => r.id !== res.id))} aria-label={`Delete ${res.title || res.url || "resource"}`} className="shrink-0 rounded-md p-1.5 text-stone-500 hover:bg-red-500/10 hover:text-red-400"><Trash2 className="h-3.5 w-3.5" /></button>
+                        </div>
+                        <input value={res.url} onChange={(e) => setLessonResources((prev) => prev.map((r) => r.id === res.id ? { ...r, url: e.target.value } : r))} placeholder="https://…" className="mt-2 w-full rounded-md border border-[#202631] bg-[#171d28] px-2.5 py-1.5 text-xs text-stone-300 outline-none focus:border-amber-500" aria-label="Resource URL" />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </section>
             </aside>
           </main>
