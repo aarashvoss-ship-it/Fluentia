@@ -10,7 +10,7 @@
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: var(--font-inter), sans-serif;
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   min-height: 100vh;
 }
 

@@ -849,7 +849,7 @@ export default function InstructorWorkstationPage({
         <header className="mb-8 flex flex-col justify-between gap-4 border-b border-[#202631] pb-4 md:flex-row md:items-center">
           <div>
 <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-400">Fluentia Instructor Studio</span>
-<h1 className="mt-2 font-[var(--font-fraunces)] text-2xl font-semibold text-[#f1eee8]">Instructor Workstation</h1>
+<h1 className="mt-2 font-sans text-2xl font-semibold text-[#f1eee8]">Instructor Workstation</h1>
 </div>
           {activeTab === "builder" && <div className="flex min-w-0 flex-col items-stretch gap-2 md:items-end">
             <div className="flex flex-wrap items-center justify-end gap-2">
@@ -917,11 +917,11 @@ export default function InstructorWorkstationPage({
           </div>
           <div className="grid gap-6 lg:grid-cols-2">
 <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
-<h2 className="font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Pending Submissions</h2>
+<h2 className="font-sans text-xl font-semibold text-stone-100">Pending Submissions</h2>
 <p className="mt-3 text-sm text-stone-400">{pendingSubmissionCount > 0 ? "Submissions are awaiting review." : "No submissions are currently awaiting feedback."}</p>
 </div>
 <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
-<h2 className="font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Recent Activity</h2>
+<h2 className="font-sans text-xl font-semibold text-stone-100">Recent Activity</h2>
 <p className="mt-3 text-sm text-stone-400">{selectedStudent ? `${selectedStudent.name} is the active student workspace.` : "Choose a student to open a workspace."}</p>
 <button type="button" onClick={() => setActiveTab("evaluation")} className="mt-4 text-xs font-semibold text-amber-300 hover:text-amber-200">Review student work</button>
 </div>
@@ -930,7 +930,7 @@ export default function InstructorWorkstationPage({
             <div className="flex items-center justify-between gap-4 border-b border-[#202631] px-5 py-4">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Lesson Management</p>
-                <h2 id="lesson-management-title" className="mt-1 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">All Lessons</h2>
+                <h2 id="lesson-management-title" className="mt-1 font-sans text-xl font-semibold text-stone-100">All Lessons</h2>
               </div>
               <span className="text-xs text-stone-500">{createdLessons.length} lessons</span>
             </div>
@@ -977,7 +977,7 @@ export default function InstructorWorkstationPage({
                 {Object.keys(validationErrors).length > 0 && <div className="mb-4 space-y-1 rounded-md border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300" role="alert">{Object.entries(validationErrors).map(([field, message]) => <p key={field}>{message}</p>)}</div>}
             <div className="mb-4">
 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Lesson Builder</p>
-<h2 id="lesson-details-title" className="mt-1 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Lesson Details</h2>
+<h2 id="lesson-details-title" className="mt-1 font-sans text-xl font-semibold text-stone-100">Lesson Details</h2>
 </div>
             <div className="grid gap-3 md:grid-cols-4">
 <label className="text-xs text-stone-400">Lesson Title<input value={newLesson.title} onChange={(event) => setLessonTitle(event.target.value)} placeholder="A new lesson" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" />
@@ -1007,7 +1007,7 @@ export default function InstructorWorkstationPage({
                 <div className="mt-4"><InstructorBannerManager bannerUrl={workstationState.bannerUrl} customInput={workstationState.customBannerUrl} onUpdateBanner={(bannerUrl: string) => setWorkstationState((previous) => ({ ...previous, bannerUrl }))} onUpdateCustomInput={(customBannerUrl: string) => setWorkstationState((previous) => ({ ...previous, customBannerUrl }))} /></div>
               </details>
               <section className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
-                <div className="flex items-center justify-between gap-3"><h3 className="font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Step Sidebar</h3><button type="button" onClick={() => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: [...(current[sidebarStep] || []), { id: `sidebar-${Date.now()}`, title: "Sidebar note", body: "" }] }))} className="flex items-center gap-1.5 rounded-md border border-amber-500 px-3 py-2 text-sm text-amber-500"><Plus className="h-3.5 w-3.5" />Add Block</button></div>
+                <div className="flex items-center justify-between gap-3"><h3 className="font-sans text-xl font-semibold text-stone-100">Step Sidebar</h3><button type="button" onClick={() => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: [...(current[sidebarStep] || []), { id: `sidebar-${Date.now()}`, title: "Sidebar note", body: "" }] }))} className="flex items-center gap-1.5 rounded-md border border-amber-500 px-3 py-2 text-sm text-amber-500"><Plus className="h-3.5 w-3.5" />Add Block</button></div>
                 <select value={sidebarStep} onChange={(event) => setSidebarStep(event.target.value as keyof SidebarBlocksByStep)} className="mt-3 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2 text-xs text-white [color-scheme:dark]" aria-label="Sidebar step"><option value="warm_up" className="bg-[#0c1017] text-white">Warm-up</option><option value="lesson" className="bg-[#0c1017] text-white">Lesson</option><option value="listening" className="bg-[#0c1017] text-white">Listening</option><option value="reading" className="bg-[#0c1017] text-white">Reading</option><option value="writing" className="bg-[#0c1017] text-white">Writing</option><option value="speaking" className="bg-[#0c1017] text-white">Speaking</option></select>
                 <div className="mt-4 space-y-3">{(sidebarBlocksByStep[sidebarStep] || []).map((block) => <div key={block.id} className="rounded-lg border border-[#202631] bg-[#0c1017] p-3"><div className="flex gap-2"><input value={block.title} onChange={(event) => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, title: event.target.value } : item) }))} className="min-w-0 flex-1 border-b border-[#394252] bg-transparent pb-1 text-xs font-semibold text-stone-200" aria-label="Sidebar block title" /><button type="button" onClick={() => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: (current[sidebarStep] || []).filter((item) => item.id !== block.id) }))} aria-label={`Delete ${block.title}`}><Trash2 className="h-3.5 w-3.5" /></button></div><textarea value={block.body} onChange={(event) => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, body: event.target.value } : item) }))} rows={3} className="mt-3 w-full resize-y rounded-md border border-[#202631] bg-[#171d28] p-2.5 text-xs text-stone-300" /></div>)}</div>
               </section>
@@ -1024,7 +1024,7 @@ export default function InstructorWorkstationPage({
 <div className="flex justify-between border-b border-[#202631] pb-4">
 <div>
 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Submission Review Workspace</p>
-<h2 className="mt-1 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">{selectedStudent?.name || "Selected Student"}&apos;s answers</h2>
+<h2 className="mt-1 font-sans text-xl font-semibold text-stone-100">{selectedStudent?.name || "Selected Student"}&apos;s answers</h2>
 <p className="mt-1 text-xs text-amber-300">{workstationState.studentProfile.level}</p>
 </div>
 <span className={`w-fit rounded-sm border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${submissionStateClass}`}>{submissionState}</span>
@@ -1049,7 +1049,7 @@ export default function InstructorWorkstationPage({
       {showPreview && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="lesson-preview-title" onClick={(e)=>{ if(e.target===e.currentTarget) setShowPreview(false); }}>
         <div className="flex h-[88vh] max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-[#394252] bg-[#171d28] shadow-2xl" onClick={(e)=>e.stopPropagation()}>
           <div className="flex flex-col gap-4 border-b border-[#293343] p-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-4">{workstationState.bannerUrl && <img src={workstationState.bannerUrl} alt="" className="h-12 w-20 rounded object-cover" />}<div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Student View Preview</p><h2 id="lesson-preview-title" className="mt-1 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">{newLesson.title || "Untitled Lesson"}</h2><p className="mt-1 text-sm text-stone-400">{newLesson.subtitle || "Your instructor has prepared this lesson for you."}</p></div></div>
+            <div className="flex items-center gap-4">{workstationState.bannerUrl && <img src={workstationState.bannerUrl} alt="" className="h-12 w-20 rounded object-cover" />}<div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Student View Preview</p><h2 id="lesson-preview-title" className="mt-1 font-sans text-xl font-semibold text-stone-100">{newLesson.title || "Untitled Lesson"}</h2><p className="mt-1 text-sm text-stone-400">{newLesson.subtitle || "Your instructor has prepared this lesson for you."}</p></div></div>
             <div className="flex items-center gap-2">{workstationState.content.ambientMusicUrl && <AmbientMusicPlayer src={workstationState.content.ambientMusicUrl} />}<button type="button" onClick={() => setShowPreview(false)} aria-label="Close preview" className="rounded-md p-2 text-stone-400 hover:bg-white/10 hover:text-stone-100"><X className="h-4 w-4" /></button><button type="button" onClick={() => setShowPreview(false)} className="rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black">Back to Editing</button><button type="button" onClick={handleConfirmPublish} disabled={isPublishing} className="rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-black transition-colors hover:bg-amber-400 disabled:opacity-50">Publish Lesson</button></div>
           </div>
           <div className="grid min-h-0 flex-1 overflow-hidden md:grid-cols-[180px_1fr]">
@@ -1058,7 +1058,7 @@ export default function InstructorWorkstationPage({
           </div>
         </div>
       </div>}
-      {lessonPendingDelete && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-lesson-title"><div className="w-full max-w-md rounded-xl border border-[#394252] bg-[#171d28] p-6 shadow-2xl"><h2 id="delete-lesson-title" className="font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">Delete lesson?</h2><p className="mt-3 text-sm leading-relaxed text-stone-400">Are you sure you want to delete this lesson?</p><p className="mt-2 truncate text-xs text-amber-300">{lessonPendingDelete.title}</p><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setLessonPendingDelete(null)} className="rounded-md border border-[#394252] px-4 py-2 text-xs font-semibold text-stone-300 hover:border-stone-300">Cancel</button><button type="button" onClick={() => void handleDeleteLesson()} className="rounded-md bg-red-500 px-4 py-2 text-xs font-semibold text-white hover:bg-red-400">Delete lesson</button></div></div></div>}
+      {lessonPendingDelete && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-lesson-title"><div className="w-full max-w-md rounded-xl border border-[#394252] bg-[#171d28] p-6 shadow-2xl"><h2 id="delete-lesson-title" className="font-sans text-xl font-semibold text-stone-100">Delete lesson?</h2><p className="mt-3 text-sm leading-relaxed text-stone-400">Are you sure you want to delete this lesson?</p><p className="mt-2 truncate text-xs text-amber-300">{lessonPendingDelete.title}</p><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setLessonPendingDelete(null)} className="rounded-md border border-[#394252] px-4 py-2 text-xs font-semibold text-stone-300 hover:border-stone-300">Cancel</button><button type="button" onClick={() => void handleDeleteLesson()} className="rounded-md bg-red-500 px-4 py-2 text-xs font-semibold text-white hover:bg-red-400">Delete lesson</button></div></div></div>}
     </div>
   );
 }

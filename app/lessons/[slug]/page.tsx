@@ -634,7 +634,7 @@ export default function LessonPage() {
   if (lessonNotFound || !lesson) {
     return (
       <div className="fluentia-study-room flex min-h-screen flex-col items-center justify-center bg-[#0c1017] px-5 py-16 text-center text-[#e8e7e4]">
-        <h1 className="font-[var(--font-fraunces)] text-2xl text-[#f1eee8]">Lesson not found or still in draft</h1>
+        <h1 className="font-sans text-2xl text-[#f1eee8]">Lesson not found or still in draft</h1>
         <p className="mt-3 max-w-md text-sm text-[#8f98a8]">This lesson does not have a published version yet. Please return to your dashboard and try again later.</p>
         <Link href="/dashboard" className="mt-6 inline-flex rounded-md bg-amber-500 px-4 py-2 text-xs font-semibold text-slate-950">Return to Dashboard</Link>
       </div>
@@ -667,7 +667,7 @@ export default function LessonPage() {
     <div className="space-y-5">
       {blocks.filter((block) => block.enabled !== false).map((block) => (
         <article key={block.id} className="rounded-xl border border-[#202631] bg-[#121721] p-5">
-          {block.title && <h3 className="mb-3 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">{block.title}</h3>}
+          {block.title && <h3 className="mb-3 font-sans text-xl font-semibold text-stone-100">{block.title}</h3>}
           {block.type === "text" && <><MarkdownContent value={block.body} className="text-sm leading-relaxed text-stone-300" /><textarea value={submission.blockResponses?.[block.id] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [block.id]: event.target.value } })} rows={8} placeholder="Write your response here..." className="mt-4 w-full min-h-[200px] resize-y rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.title || "Text"} response`} /></>}
           {block.type === "audio" && <>{block.audioUrl ? <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio assignment"} /> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Audio assignment</div>}<AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} /><MediaTranscriptAccordion transcript={block.transcript} isUnlocked={areTranscriptsUnlocked} /></>}
           {block.type === "video" && <>{block.videoUrl ? <div className="aspect-video overflow-hidden rounded-lg border border-[#202631] bg-[#0c1017]"><iframe src={getVideoEmbedUrl(block.videoUrl)} title={block.title || "Lesson video"} className="h-full w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen /></div> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Video embed placeholder</div>}<MediaTranscriptAccordion transcript={block.transcript} isUnlocked={areTranscriptsUnlocked} /></>}
@@ -694,7 +694,7 @@ export default function LessonPage() {
           </div>
           <div className="relative z-10 mx-auto flex h-full w-full max-w-5xl flex-col justify-end px-0 pb-2">
             <span className="mb-4 w-fit rounded-full border border-amber-500/40 bg-[#332713]/85 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e4ae45]">{lessonLevel} - MODULE {lessonModuleNumber ?? 1}</span>
-            <h1 className="font-[var(--font-fraunces)] text-[38px] leading-[0.98] tracking-[-0.02em] text-[#f1eee8] sm:text-[42px]">
+            <h1 className="font-sans text-[38px] leading-[0.98] tracking-[-0.02em] text-[#f1eee8] sm:text-[42px]">
               {displayLessonTitle || lesson.title}
             </h1>
             {lessonSubtitle && <p className="mt-4 text-xs text-[#b5bac2]">{lessonSubtitle}</p>}
@@ -736,7 +736,7 @@ export default function LessonPage() {
                 <span className="text-[11px] font-semibold uppercase tracking-[0.14em]">Warm-up</span>
               </div>}
               {lessonContent.warm_up?.intro_narrative?.text && <p className="max-w-[570px] text-[16px] leading-[1.65] text-[#aeb3bb]">{lessonContent.warm_up.intro_narrative.text}</p>}
-              {lessonContent.warm_up?.quote?.text && <h3 className="pt-4 font-[var(--font-fraunces)] text-[27px] font-semibold leading-[1.18] text-[#eeeae3]">{lessonContent.warm_up.quote.text}</h3>}
+              {lessonContent.warm_up?.quote?.text && <h3 className="pt-4 font-sans text-[27px] font-semibold leading-[1.18] text-[#eeeae3]">{lessonContent.warm_up.quote.text}</h3>}
               <div className="space-y-2 text-sm text-[#aeb3bb]">
                 {(lessonContent.warm_up?.quick_prompts || []).map((prompt: { text: string }) => (
                   <p key={prompt.text}>{prompt.text}</p>
@@ -967,7 +967,7 @@ export default function LessonPage() {
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
                         <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">Your response</p>
-                        {result.answer && (result.answer.startsWith("http") || result.answer.startsWith("blob:") || result.answer.endsWith(".webm") || result.answer.endsWith(".mp3") || result.answer.endsWith(".wav")) ? <audio controls src={result.answer} className="mt-2 w-full max-w-sm rounded-md" /> : <p className="mt-1 whitespace-pre-wrap text-sm text-stone-300">{result.answer || "No response submitted"}</p>}
+                        {result.answer && (result.answer.startsWith("http") || result.answer.startsWith("blob:") || result.answer.endsWith(".webm") || result.answer.endsWith(".mp3") || result.answer.endsWith(".wav")) ? <CustomAudioPlayer src={result.answer} label="Your speaking recording" /> : <p className="mt-1 whitespace-pre-wrap text-sm text-stone-300">{result.answer || "No response submitted"}</p>}
                       </div>
                       {result.referenceAnswer && <div>
                         <p className="text-[10px] uppercase tracking-[0.1em] text-amber-500/80">Reference / Correct Answer</p>

@@ -110,7 +110,7 @@ export default function InstantDictionaryLookup({
         <div className="mt-5 space-y-4 border-t border-[#29303c] pt-4">
           <div>
             <div className="flex items-center gap-3">
-              <h2 className="font-[var(--font-fraunces)] text-2xl text-stone-100">{result.word}</h2>
+              <h2 className="font-sans text-2xl text-stone-100">{result.word}</h2>
               {result.partOfSpeech && <span className="text-xs italic text-amber-400">{result.partOfSpeech}</span>}
             </div>
             {result.phonetic && <p className="mt-1 text-xs text-stone-500">{result.phonetic}</p>}

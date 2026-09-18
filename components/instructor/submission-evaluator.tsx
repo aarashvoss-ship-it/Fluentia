@@ -160,7 +160,7 @@ ${comments}
   return (
     <div className="bg-[#171d28]/60 border border-[#202631] rounded-xl p-5 text-[#d9dce0] space-y-4">
       <div className="flex items-center justify-between border-b border-[#202631] pb-3">
-        <h3 className="font-[var(--font-fraunces)] text-xl font-semibold flex items-center gap-2">
+        <h3 className="font-sans text-xl font-semibold flex items-center gap-2">
           <Award className="w-5 h-5 text-amber-400" />
           Submission Evaluation & Rubric
         </h3>

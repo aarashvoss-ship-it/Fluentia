@@ -62,7 +62,7 @@ export default function SubmissionReviewPage() {
           {/* Student Essay Viewport */}
           <div className="bg-[#122131] border border-[#273647] rounded-xl p-5">
             <h3 className="text-sm font-bold text-white mb-3">Written Response (165 words)</h3>
-            <div className="bg-[#09131e] p-4 rounded-lg border border-[#273647] font-serif text-sm leading-relaxed text-slate-200">
+            <div className="bg-[#09131e] p-4 rounded-lg border border-[#273647] font-sans text-sm leading-relaxed text-slate-200">
               "Building robust daily habits requires minimizing cognitive friction. When I structure my morning routine beforehand, I notice a compound interest effect on my focus..."
             </div>
           </div>

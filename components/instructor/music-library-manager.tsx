@@ -103,7 +103,7 @@ export function MusicLibraryManager() {
 
   return <section className="space-y-5" aria-labelledby="music-library-title">
     <div className="flex flex-col justify-between gap-4 border-b border-[#202631] pb-5 sm:flex-row sm:items-end">
-      <div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Shared Student Audio</p><h2 id="music-library-title" className="mt-1 font-[var(--font-fraunces)] text-2xl font-semibold text-stone-100">Music Library</h2><p className="mt-2 text-sm text-stone-500">Every active track here appears in student lesson headers.</p></div>
+      <div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Shared Student Audio</p><h2 id="music-library-title" className="mt-1 font-sans text-2xl font-semibold text-stone-100">Music Library</h2><p className="mt-2 text-sm text-stone-500">Every active track here appears in student lesson headers.</p></div>
       <label className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-amber-500 px-4 py-2.5 text-xs font-semibold text-slate-950 transition hover:bg-amber-400"><Upload className="h-4 w-4" /> Upload New Track<input type="file" accept="audio/mpeg,.mp3" className="sr-only" onChange={(event) => void uploadTrack(event.target.files?.[0])} /></label>
     </div>
     {status && <p className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300" role="status">{status}</p>}

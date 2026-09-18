@@ -101,7 +101,7 @@ export function StudentContextPanel({
             <input
               value={displayProfile.fullName}
               onChange={(e) => updateProfile("fullName", e.target.value)}
-              className="w-full bg-transparent font-[var(--font-fraunces)] font-semibold text-xl text-white focus:outline-none"
+              className="w-full bg-transparent font-sans font-semibold text-xl text-white focus:outline-none"
               aria-label="Student name"
             />
             <select

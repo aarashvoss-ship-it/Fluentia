@@ -77,7 +77,7 @@ export function InstructorLessonPage({ lessonId }: InstructorLessonPageProps) {
             <p className="text-sm text-stone-400 uppercase tracking-widest mb-1">
               Module 1
             </p>
-            <h1 className="text-2xl font-serif text-white">
+            <h1 className="text-2xl font-sans text-white">
               {lesson.title}
             </h1>
           </div>

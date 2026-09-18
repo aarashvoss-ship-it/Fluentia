@@ -1,16 +1,10 @@
 import type { Metadata } from "next";
-import { Inter, Fraunces } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
-  display: "swap",
-});
-
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  variable: "--font-fraunces",
   display: "swap",
 });
 
@@ -25,8 +19,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${fraunces.variable}`}>
-      <body suppressHydrationWarning className="bg-background text-text-primary antialiased selection:bg-accent/20 selection:text-accent">
+    <html lang="en" suppressHydrationWarning className={inter.variable}>
+      <body suppressHydrationWarning className="font-sans bg-background text-text-primary antialiased selection:bg-accent/20 selection:text-accent">
         {children}
       </body>
     </html>

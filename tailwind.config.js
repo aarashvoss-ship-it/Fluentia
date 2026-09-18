@@ -33,9 +33,7 @@ module.exports = {
         warning: "#F59E0B",
       },
       fontFamily: {
-        display: ["var(--font-fraunces)", "serif"],
-        serif:   ["var(--font-fraunces)", "serif"],
-        sans:    ["var(--font-inter)", "sans-serif"],
+        sans: ["var(--font-inter)", "ui-sans-serif", "system-ui", "sans-serif"],
       },
     },
   },

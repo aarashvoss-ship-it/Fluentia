@@ -523,7 +523,7 @@ export function LessonTailorEditor({
   return (
     <div className="bg-[#171d28]/60 border border-[#202631] rounded-xl p-5 text-[#d9dce0]">
       <div className="flex items-center justify-between mb-4 border-b border-[#202631] pb-3">
-        <h2 className="font-[var(--font-fraunces)] text-xl font-semibold flex items-center gap-2">
+        <h2 className="font-sans text-xl font-semibold flex items-center gap-2">
           <Layers className="w-5 h-5 text-amber-400" />
           Lesson Content Tailor
         </h2>

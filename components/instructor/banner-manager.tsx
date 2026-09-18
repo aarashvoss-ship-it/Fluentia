@@ -43,7 +43,7 @@ export function InstructorBannerManager({
   return (
     <div className="bg-[#171d28]/60 border border-[#202631] rounded-xl p-5 text-[#d9dce0]">
       <div className="mb-4 flex flex-nowrap items-center justify-between gap-3">
-        <h3 className="flex min-w-0 shrink items-center gap-2 whitespace-nowrap font-[var(--font-fraunces)] text-xl font-semibold">
+        <h3 className="flex min-w-0 shrink items-center gap-2 whitespace-nowrap font-sans text-xl font-semibold">
           <Image className="h-5 w-5 shrink-0 text-amber-400" />
           Hero Banner
         </h3>
