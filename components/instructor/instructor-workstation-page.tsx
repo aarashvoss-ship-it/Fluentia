@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronDown, MoreVertical, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, MoreVertical, Plus, Trash2, X } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { StudentContextPanel } from "@/components/instructor/student-context-panel";
 import { LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
@@ -116,7 +116,7 @@ export default function InstructorWorkstationPage({
 
   const [isPublishing, setIsPublishing] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
-  const [previewStep, setPreviewStep] = useState<"warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking">("warm_up");
+  const [previewStep, setPreviewStep] = useState<"warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking" | "results">("warm_up");
   const [saveIndicator, setSaveIndicator] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const hasLoadedLesson = useRef(false);
   const lastSavedDraftSignature = useRef<string | null>(null);
@@ -793,19 +793,34 @@ export default function InstructorWorkstationPage({
     ["reading", "Reading"],
     ["writing", "Writing"],
     ["speaking", "Speaking"],
+    ["results", "Results"],
   ] as const;
-  const previewContent = workstationState.content[previewStep] as Record<string, any> | undefined;
-  const previewBlocks = Array.isArray(previewContent?.blocks)
-    ? previewContent.blocks.filter((block: ContentBlock) => block.enabled !== false)
+  const previewContent = previewStep==="results" ? undefined : workstationState.content[previewStep as Exclude<typeof previewStep,"results">] as Record<string, any> | undefined;
+  const previewBlocks: ContentBlock[] = previewStep==="results" ? [] : Array.isArray(previewContent?.blocks)
+    ? (previewContent.blocks as ContentBlock[]).filter((block: ContentBlock) => block.enabled !== false)
     : [];
 
-  const renderPreviewStep = () => (
+  const renderPreviewStep = () => {
+    if (previewStep==="results") {
+      const answerKeys: Record<string,string> = {};
+      for (const k of ["warm_up","lesson","listening","reading"] as const) {
+        const bs=((workstationState.content[k] as {blocks?:ContentBlock[]}|undefined)?.blocks||[]) as ContentBlock[];
+        bs.forEach(b=>{ if(b.type==="question"&&b.correct_answer) answerKeys[b.id]=b.correct_answer; if(b.type==="quiz") (b.questions||[]).forEach(q=>{ const v=q.correct_answer||q.correctAnswer||""; if(v) answerKeys[q.id]=v; }); });
+      }
+      return (
+        <div className="space-y-4">
+          <div className="rounded-lg border border-amber-500/20 bg-[#0c1017] p-4 text-sm text-stone-400">Results — correct answers as the student will see after submission.</div>
+          {Object.keys(answerKeys).length? Object.entries(answerKeys).map(([id,ans])=><div key={id} className="rounded-lg border border-[#293343] bg-[#0c1017] p-3"><p className="text-xs text-stone-500">{id}</p><p className="text-sm text-amber-200">{ans}</p></div>) : <p className="text-xs text-stone-500">No answer keys configured.</p>}
+        </div>
+      );
+    }
+    return (
     <div className="space-y-4">
       {previewBlocks.map((block: ContentBlock) => (
         <article key={block.id} className="rounded-lg border border-[#293343] bg-[#0c1017] p-4">
           {block.title && <h4 className="mb-2 text-sm font-semibold text-stone-100">{block.title}</h4>}
           {block.type === "text" && <MarkdownContent value={block.body || "No text added yet."} className="text-sm leading-relaxed text-stone-300" />}
-          {block.type === "image" && <>{block.imageUrl ? <img src={block.imageUrl} alt={block.caption || block.title || "Lesson image"} className="max-h-72 w-full rounded-md object-cover" /> : <p className="text-xs text-stone-500">Image not configured.</p>}{block.caption && <p className="mt-2 text-xs text-stone-500">{block.caption}</p>}</>}
+          {block.type === "image" && <>{block.imageUrl ? <img src={block.imageUrl} alt={block.caption || block.title || "Lesson image"} className="max-h-72 w-full rounded-md object-cover" onError={(e)=>{(e.target as HTMLImageElement).style.display="none";}} /> : <p className="text-xs text-stone-500">Image not configured.</p>}{block.caption && <p className="mt-2 text-xs text-stone-500">{block.caption}</p>}</>}
           {block.type === "audio" && <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio lesson"} />}
           {block.type === "video" && <div className="rounded-md border border-dashed border-[#394252] p-4 text-xs text-stone-500">Video preview: {block.videoUrl || "URL not configured"}</div>}
           {block.type === "question" && <div className="space-y-2"><p className="text-sm text-stone-300">{block.prompt || "Question not configured."}</p><div className="flex flex-wrap gap-2">{block.options.filter(Boolean).map((option) => <span key={option} className="rounded border border-[#394252] px-2 py-1 text-xs text-stone-400">{option}</span>)}</div></div>}
@@ -814,7 +829,7 @@ export default function InstructorWorkstationPage({
       ))}
       {previewBlocks.length === 0 && <p className="rounded-lg border border-dashed border-[#394252] p-6 text-sm text-stone-500">This step has no content blocks yet.</p>}
     </div>
-  );
+  );};
 
   if (!isMounted) return null;
   if (accessDenied) return <AccessCard title="Access Denied" message="Your instructor account does not have access to this workspace." />;
@@ -830,6 +845,7 @@ export default function InstructorWorkstationPage({
           {activeTab === "builder" && <div className="flex min-w-0 flex-col items-stretch gap-2 md:items-end">
             <div className="flex flex-wrap items-center justify-end gap-2">
               <select value={databaseLessonId && createdLessons.some((lesson) => lesson.id === databaseLessonId && lesson.status === "draft") ? databaseLessonId : ""} onChange={(event) => { const draft = createdLessons.find((lesson) => lesson.id === event.target.value); if (draft) activateLesson(draft); }} aria-label="Drafts" className="min-w-[220px] max-w-[320px] truncate rounded-md border border-[#394252] bg-[#171d28] px-3 py-2 text-xs font-semibold text-white outline-none [color-scheme:dark]"><option value="" className="bg-slate-900 text-white">Drafts</option>{createdLessons.filter((lesson) => lesson.status === "draft").slice(0, 8).map((lesson) => <option key={lesson.id} value={lesson.id} className="bg-slate-900 text-white">{lesson.title}</option>)}</select>
+              <button type="button" onClick={()=>setShowPreview(true)} className="rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500 hover:text-black">Preview</button>
               <button type="button" onClick={handleSaveDraft} className="rounded-md border border-[#394252] px-3 py-2 text-xs font-semibold text-stone-300 transition hover:border-amber-500/60 hover:text-amber-300">Save Draft</button>
               <button type="button" onClick={handleConfirmPublish} disabled={isPublishing} className="rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60">Publish to Student</button>
             </div>
@@ -1019,11 +1035,11 @@ export default function InstructorWorkstationPage({
         instructorId={instructorId}
     lessonContext={newLesson.title || newLesson.slug || lessonId}
   />
-      {showPreview && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="lesson-preview-title">
-        <div className="flex h-[88vh] max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-[#394252] bg-[#171d28] shadow-2xl">
+      {showPreview && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="lesson-preview-title" onClick={(e)=>{ if(e.target===e.currentTarget) setShowPreview(false); }}>
+        <div className="flex h-[88vh] max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-[#394252] bg-[#171d28] shadow-2xl" onClick={(e)=>e.stopPropagation()}>
           <div className="flex flex-col gap-4 border-b border-[#293343] p-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">{workstationState.bannerUrl && <img src={workstationState.bannerUrl} alt="" className="h-12 w-20 rounded object-cover" />}<div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Student View Preview</p><h2 id="lesson-preview-title" className="mt-1 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">{newLesson.title || "Untitled Lesson"}</h2><p className="mt-1 text-sm text-stone-400">{newLesson.subtitle || "Your instructor has prepared this lesson for you."}</p></div></div>
-            <div className="flex items-center gap-2">{workstationState.content.ambientMusicUrl && <AmbientMusicPlayer src={workstationState.content.ambientMusicUrl} />}<button type="button" onClick={() => setShowPreview(false)} className="rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black">Back to Editing</button><button type="button" onClick={handleConfirmPublish} disabled={isPublishing} className="rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-black transition-colors hover:bg-amber-400 disabled:opacity-50">Publish Lesson</button></div>
+            <div className="flex items-center gap-2">{workstationState.content.ambientMusicUrl && <AmbientMusicPlayer src={workstationState.content.ambientMusicUrl} />}<button type="button" onClick={() => setShowPreview(false)} aria-label="Close preview" className="rounded-md p-2 text-stone-400 hover:bg-white/10 hover:text-stone-100"><X className="h-4 w-4" /></button><button type="button" onClick={() => setShowPreview(false)} className="rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black">Back to Editing</button><button type="button" onClick={handleConfirmPublish} disabled={isPublishing} className="rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-black transition-colors hover:bg-amber-400 disabled:opacity-50">Publish Lesson</button></div>
           </div>
           <div className="grid min-h-0 flex-1 overflow-hidden md:grid-cols-[180px_1fr]">
             <nav className="flex gap-2 overflow-x-auto border-b border-[#293343] p-3 md:block md:space-y-1 md:border-b-0 md:border-r" aria-label="Preview lesson steps">{previewSteps.map(([step, label]) => <button key={step} type="button" onClick={() => setPreviewStep(step)} className={`block shrink-0 rounded-md px-3 py-2 text-left text-xs transition-colors md:w-full ${previewStep === step ? "bg-amber-500 text-black" : "text-stone-400 hover:bg-amber-500/10 hover:text-amber-300"}`}>{label}</button>)}</nav>

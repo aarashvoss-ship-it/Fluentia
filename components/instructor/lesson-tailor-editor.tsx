@@ -41,11 +41,15 @@ export function LessonTailorEditor({
   const textAreaRefs = React.useRef<Record<string, HTMLTextAreaElement | null>>({});
   const [openTranscript, setOpenTranscript] = useState<Record<string, boolean>>({});
   const transcriptWrapRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
-  const [recordingByBlockId, setRecordingByBlockId] = useState<Record<string, { status: "recording" | "uploading" | "error"; error?: string }>>({});
+  const [recordingByBlockId, setRecordingByBlockId] = useState<Record<string, { status: "recording" | "uploading" | "error"; error?: string; elapsed?: number; levels?: number[] }>>({});
   const recorderRef = useRef<Map<string, MediaRecorder>>(new Map());
   const streamRef = useRef<Map<string, MediaStream>>(new Map());
   const chunksRef = useRef<Map<string, BlobPart[]>>(new Map());
   const discardOnStopRef = useRef<Set<string>>(new Set());
+  const timerById = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
+  const ctxById = useRef<Map<string, AudioContext>>(new Map());
+  const animById = useRef<Map<string, number>>(new Map());
+  const startAtById = useRef<Map<string, number>>(new Map());
   
   // Zustand store integration
   const {
@@ -124,9 +128,16 @@ export function LessonTailorEditor({
     }
   };
 
+  const fmt = (s:number)=> `${String(Math.floor(s/60)).padStart(2,"0")}:${String(Math.floor(s%60)).padStart(2,"0")}`;
   const stopTracks = (stream?: MediaStream | null) => {
     if (!stream) return;
     stream.getTracks().forEach((track) => track.stop());
+  };
+  const cleanupRecordingVisual = (blockId:string)=>{
+    const a=animById.current.get(blockId); if(a) cancelAnimationFrame(a); animById.current.delete(blockId);
+    const t=timerById.current.get(blockId); if(t) clearInterval(t); timerById.current.delete(blockId);
+    const c=ctxById.current.get(blockId); if(c) try{c.close();}catch{} ctxById.current.delete(blockId);
+    startAtById.current.delete(blockId);
   };
 
   const pickRecordingMimeType = () => {
@@ -141,7 +152,7 @@ export function LessonTailorEditor({
     return "";
   };
 
-  const setRecordingState = (blockId: string, next: { status: "recording" | "uploading" | "error"; error?: string } | null) => {
+  const setRecordingState = (blockId: string, next: { status: "recording" | "uploading" | "error"; error?: string; elapsed?: number; levels?: number[] } | null) => {
     setRecordingByBlockId((current) => {
       if (!next) {
         if (!current[blockId]) return current;
@@ -161,6 +172,7 @@ export function LessonTailorEditor({
     recorderRef.current.delete(blockId);
     streamRef.current.delete(blockId);
     discardOnStopRef.current.delete(blockId);
+    cleanupRecordingVisual(blockId);
     stopTracks(stream);
     if (shouldDiscard) {
       setRecordingState(blockId, null);
@@ -191,7 +203,7 @@ export function LessonTailorEditor({
       return;
     }
     if (recorderRef.current.get(blockId)?.state === "recording") return;
-    setRecordingState(blockId, { status: "recording" });
+    setRecordingState(blockId, { status: "recording", elapsed: 0, levels: Array(18).fill(5) });
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mimeType = pickRecordingMimeType();
@@ -199,6 +211,19 @@ export function LessonTailorEditor({
       chunksRef.current.set(blockId, []);
       streamRef.current.set(blockId, stream);
       recorderRef.current.set(blockId, recorder);
+      startAtById.current.set(blockId, Date.now());
+      timerById.current.set(blockId, setInterval(()=> {
+        const s=Math.floor((Date.now()-(startAtById.current.get(blockId)||Date.now()))/1000);
+        setRecordingByBlockId(c=> c[blockId]?.status==="recording"?{...c,[blockId]:{...c[blockId],elapsed:s}}:c);
+      },200));
+      try{
+        const Ctx=(window.AudioContext||(window as unknown as {webkitAudioContext:typeof AudioContext}).webkitAudioContext);
+        const ctx=new Ctx(); ctxById.current.set(blockId,ctx);
+        const src=ctx.createMediaStreamSource(stream); const an=ctx.createAnalyser(); an.fftSize=64; src.connect(an);
+        const arr=new Uint8Array(an.frequencyBinCount);
+        const tick=()=>{ an.getByteFrequencyData(arr); const bars=Array.from({length:18},(_,i)=>Math.max(4,Math.min(26,4+(arr[Math.floor(i/18*arr.length)]||0)*0.09))); setRecordingByBlockId(c=> c[blockId]?.status==="recording"?{...c,[blockId]:{...c[blockId],levels:bars}}:c); const id=requestAnimationFrame(tick); animById.current.set(blockId,id); };
+        tick();
+      }catch{}
       recorder.ondataavailable = (event: BlobEvent) => {
         if (event.data && event.data.size > 0) chunksRef.current.get(blockId)?.push(event.data);
       };
@@ -206,7 +231,7 @@ export function LessonTailorEditor({
         void finalizeRecordingUpload(blockId, step, index);
       };
       recorder.onerror = () => {
-        stopTracks(stream);
+        cleanupRecordingVisual(blockId); stopTracks(stream);
         chunksRef.current.delete(blockId);
         recorderRef.current.delete(blockId);
         streamRef.current.delete(blockId);
@@ -214,6 +239,7 @@ export function LessonTailorEditor({
       };
       recorder.start(200);
     } catch (error) {
+      cleanupRecordingVisual(blockId);
       const message = error instanceof DOMException && error.name === "NotAllowedError"
         ? "Microphone permission denied."
         : error instanceof DOMException && error.name === "NotFoundError"
@@ -272,6 +298,7 @@ export function LessonTailorEditor({
         }
       });
       streamRef.current.forEach((stream) => stopTracks(stream));
+      timerById.current.forEach(clearInterval); ctxById.current.forEach(c=>{try{c.close();}catch{}}); animById.current.forEach(cancelAnimationFrame);
     };
   }, []);
 
@@ -463,15 +490,17 @@ export function LessonTailorEditor({
                 <div className="space-y-2">
                   <input value={block.audioUrl.startsWith("data:") ? "" : block.audioUrl} onChange={(event) => updateDynamicBlock(step, index, { audioUrl: event.target.value })} placeholder="Audio URL" disabled={isRecording || isUploading} className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500 disabled:opacity-50" aria-label="Audio block URL" />
                   <label className="block text-xs text-stone-500">Or upload MP3/WAV<input type="file" accept="audio/mpeg,audio/wav,.mp3,.wav" onChange={(event) => void handleAudioUpload(step, index, event.target.files?.[0])} disabled={isRecording || isUploading} className="mt-1 block w-full text-xs text-stone-400 file:mr-3 file:rounded file:border-0 file:bg-amber-500 file:px-2 file:py-1 file:text-xs file:font-semibold file:text-black disabled:opacity-50" aria-label="Upload audio file" /></label>
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-row flex-wrap items-center gap-2">
                     {!isRecording ? (
                       <button type="button" onClick={() => void startRecording(block.id, step, index)} disabled={isUploading} className="inline-flex items-center gap-1.5 rounded-md border border-amber-500 px-2.5 py-1.5 text-xs font-semibold text-amber-500 transition hover:bg-amber-500 hover:text-black disabled:opacity-40" aria-label="Record voice for audio block"><Mic className="h-3.5 w-3.5" />{isUploading ? "Uploading…" : "Record voice"}</button>
                     ) : (
-                      <>
-                        <button type="button" onClick={() => stopRecording(block.id)} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-2.5 py-1.5 text-xs font-semibold text-black transition hover:bg-amber-400"><Square className="h-3 w-3 fill-current" />Stop & save</button>
-                        <button type="button" onClick={() => cancelRecording(block.id)} className="rounded-md border border-[#394252] px-2.5 py-1.5 text-xs text-stone-400 transition hover:border-red-400 hover:text-red-300">Cancel</button>
-                        <span className="text-[11px] text-amber-300">Recording…</span>
-                      </>
+                      <div className="flex flex-row items-center gap-3 rounded-lg border border-red-500/30 bg-[#0c1017] px-3 py-2">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500 animate-pulse" aria-hidden />
+                        <span className="text-xs font-mono tabular-nums text-red-300">{fmt(rec?.elapsed||0)}</span>
+                        <div className="flex items-end gap-[2px] h-6" aria-hidden>{(rec?.levels||Array(18).fill(5)).map((h,i)=><span key={i} className="w-[3px] rounded-full bg-amber-400/80" style={{height:h}} />)}</div>
+                        <button type="button" onClick={() => stopRecording(block.id)} className="inline-flex items-center gap-1.5 rounded-md bg-red-500 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-red-400"><Square className="h-3 w-3 fill-current" />Stop & save</button>
+                        <button type="button" onClick={() => cancelRecording(block.id)} className="rounded-md border border-[#394252] px-2.5 py-1.5 text-xs text-stone-400 hover:border-red-400 hover:text-red-300">Cancel</button>
+                      </div>
                     )}
                     {rec?.error && <span className="text-[11px] text-red-300" role="status">{rec.error}</span>}
                     {rec?.status === "error" && <button type="button" onClick={() => setRecordingState(block.id, null)} className="text-[11px] text-stone-400 underline hover:text-stone-200">Dismiss</button>}

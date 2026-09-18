@@ -30,6 +30,7 @@ import {
   Unlock,
   PenTool,
   Mic,
+  Square,
   Award,
   PanelRight,
 } from "lucide-react";
@@ -58,101 +59,97 @@ function getRequestedStep(value: string | null): StudyStepId | null {
 }
 
 function AudioResponseBlock({ value, onChange, studentId }: { value?: string; onChange: (value: string) => void; studentId?: string }) {
-  const [isRecording, setIsRecording] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const [levels, setLevels] = useState<number[]>(Array(20).fill(5));
   const [error, setError] = useState<string | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const ctxRef = useRef<AudioContext | null>(null);
+  const animRef = useRef(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const startAt = useRef(0);
 
-  const pickMimeType = () => {
-    const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
-    for (const type of candidates) {
-      try { if (typeof MediaRecorder !== "undefined" && (MediaRecorder as unknown as { isTypeSupported?: (t: string) => boolean }).isTypeSupported?.(type)) return type; } catch { /* ignore */ }
+  const fmt = (s: number) => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(Math.floor(s%60)).padStart(2,"0")}`;
+
+  const stopTracks = () => { streamRef.current?.getTracks().forEach(t=>t.stop()); streamRef.current=null; };
+  const cleanup = () => {
+    cancelAnimationFrame(animRef.current);
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current=null;
+    try{ ctxRef.current?.close(); }catch{}
+    ctxRef.current=null;
+  };
+  useEffect(()=>()=>{ try{recorderRef.current?.state==="recording"&&recorderRef.current.stop();}catch{} cleanup(); stopTracks(); },[]);
+
+  const uploadFile = async (file: File|Blob, name?: string) => {
+    setIsUploading(true); setError(null);
+    try {
+      const asset = await uploadStudentAudio(file, studentId?.trim()||"anonymous", name||`response-${Date.now()}.webm`);
+      onChange(asset.url);
+    } catch (err) { setError(err instanceof Error?err.message:"Upload failed"); }
+    finally { setIsUploading(false); }
+  };
+
+  const pickMime = () => {
+    for (const t of ["audio/webm;codecs=opus","audio/webm","audio/mp4","audio/ogg;codecs=opus"]) {
+      try{ if((MediaRecorder as unknown as {isTypeSupported?:(t:string)=>boolean}).isTypeSupported?.(t)) return t; }catch{}
     }
     return "";
   };
 
-  const stopTracks = () => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-  };
-
-  useEffect(() => () => { try { if (recorderRef.current && recorderRef.current.state !== "inactive") recorderRef.current.stop(); } catch { /* ignore */ } stopTracks(); }, []);
-
-  const uploadFile = async (file: File | Blob, name?: string) => {
-    setIsUploading(true);
-    setError(null);
-    try {
-      const safeId = studentId?.trim() || "anonymous";
-      const asset = await uploadStudentAudio(file, safeId, name || `response-${Date.now()}.webm`);
-      onChange(asset.url);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const handleFileUpload = async (file?: File) => {
-    if (!file) return;
-    await uploadFile(file, file.name);
-  };
-
   const startRecording = async () => {
-    if (!navigator.mediaDevices?.getUserMedia) { setError("Recording not supported in this browser"); return; }
+    if (!navigator.mediaDevices?.getUserMedia) { setError("Recording not supported"); return; }
     setError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      const mimeType = pickMimeType();
-      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } as MediaRecorderOptions : undefined);
-      chunksRef.current = [];
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-      recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || mimeType || "audio/webm" });
-        const ext = (recorder.mimeType || mimeType || "audio/webm").includes("mp4") ? "mp4" : "webm";
-        void uploadFile(blob, `voice-${Date.now()}.${ext}`).finally(() => { stopTracks(); setIsRecording(false); });
-      };
-      recorder.onerror = () => { setError("Recording failed"); stopTracks(); setIsRecording(false); };
-      recorderRef.current = recorder;
-      recorder.start(200);
-      setIsRecording(true);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (/permission|not allowed|denied/i.test(msg)) setError("Microphone permission denied");
-      else setError("Could not start recording");
+      streamRef.current=stream;
+      const mime = pickMime();
+      const rec = new MediaRecorder(stream, mime?{mimeType:mime} as MediaRecorderOptions:undefined);
+      chunksRef.current=[];
+      rec.ondataavailable=e=>{ if(e.data.size>0) chunksRef.current.push(e.data); };
+      rec.onstop=()=>{ const blob=new Blob(chunksRef.current,{type:rec.mimeType||mime||"audio/webm"}); const ext=(rec.mimeType||mime||"").includes("mp4")?"mp4":"webm"; cleanup(); stopTracks(); setIsRecording(false); setElapsed(0); void uploadFile(blob,`voice-${Date.now()}.${ext}`); };
+      rec.onerror=()=>{ cleanup(); stopTracks(); setIsRecording(false); setError("Recording failed"); };
+      recorderRef.current=rec; rec.start(200); setIsRecording(true); startAt.current=Date.now();
+      timerRef.current=setInterval(()=> setElapsed(Math.floor((Date.now()-startAt.current)/1000)),200);
+      try{
+        const Ctx=(window.AudioContext||(window as unknown as {webkitAudioContext:typeof AudioContext}).webkitAudioContext);
+        const ctx=new Ctx(); ctxRef.current=ctx;
+        const src=ctx.createMediaStreamSource(stream); const an=ctx.createAnalyser(); an.fftSize=64; src.connect(an);
+        const arr=new Uint8Array(an.frequencyBinCount);
+        const tick=()=>{ an.getByteFrequencyData(arr); setLevels(Array.from({length:20},(_,i)=>Math.max(4,Math.min(26,4+(arr[Math.floor(i/20*arr.length)]||0)*0.09)))); animRef.current=requestAnimationFrame(tick); };
+        tick();
+      }catch{}
+    } catch(err){
+      const m=err instanceof Error?err.message:String(err);
+      setError(/permission|not allowed|denied/i.test(m)?"Microphone permission denied":"Could not start recording");
     }
   };
-
-  const stopRecording = () => {
-    if (recorderRef.current?.state === "recording") recorderRef.current.stop();
-    else { stopTracks(); setIsRecording(false); }
-  };
+  const stopRecording=()=>{ if(recorderRef.current?.state==="recording") recorderRef.current.stop(); else { cleanup(); stopTracks(); setIsRecording(false); } };
 
   return (
     <div className="mt-4 space-y-3 rounded-lg border border-[#202631] bg-[#0c1017] p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <label className={`inline-flex cursor-pointer items-center rounded-md border px-3 py-2 text-xs font-medium transition ${isUploading || isRecording ? "border-[#202631] text-stone-500 opacity-50 pointer-events-none" : "border-[#394252] text-stone-300 hover:border-amber-500 hover:text-amber-300"}`}>
+      <div className="flex flex-row items-center gap-3">
+        <label className={`inline-flex cursor-pointer items-center rounded-md border px-3 py-2 text-xs font-medium transition ${isUploading||isRecording?"border-[#202631] text-stone-500 opacity-50 pointer-events-none":"border-[#394252] text-stone-300 hover:border-amber-500 hover:text-amber-300"}`}>
           Upload audio
-          <input type="file" accept="audio/*,audio/mpeg,audio/wav,audio/webm,audio/mp4,audio/ogg" onChange={(e) => void handleFileUpload(e.target.files?.[0])} disabled={isUploading || isRecording} className="sr-only" />
+          <input type="file" accept="audio/*,audio/mpeg,audio/wav,audio/webm,audio/mp4,audio/ogg" onChange={e=>void uploadFile(e.target.files?.[0] as File, (e.target.files?.[0] as File)?.name)} disabled={isUploading||isRecording} className="sr-only" />
         </label>
         {!isRecording ? (
-          <button type="button" onClick={() => void startRecording()} disabled={isUploading} className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 transition hover:bg-amber-500 hover:text-[#0c1017] disabled:opacity-40">
-            <Mic className="h-3.5 w-3.5" />
-            {isUploading ? "Uploading…" : "Record"}
+          <button type="button" onClick={()=>void startRecording()} disabled={isUploading} className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500 hover:text-[#0c1017] disabled:opacity-40">
+            <Mic className="h-3.5 w-3.5" />{isUploading?"Uploading…":"Record"}
           </button>
         ) : (
-          <>
-            <button type="button" onClick={stopRecording} className="inline-flex items-center gap-1.5 rounded-md bg-red-500/10 border border-red-400/40 px-3 py-2 text-xs font-semibold text-red-300 hover:bg-red-500/20">
-              <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />
-              Stop
-            </button>
-            <span className="text-[11px] text-amber-300">Recording…</span>
-          </>
+          <div className="flex flex-row items-center gap-3 rounded-lg border border-red-500/30 bg-[#171d28] px-3 py-2">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500 animate-pulse" aria-hidden />
+            <span className="text-xs font-mono tabular-nums text-red-300">{fmt(elapsed)}</span>
+            <div className="flex items-end gap-[2px] h-6" aria-hidden>{levels.map((h,i)=><span key={i} className="w-[3px] rounded-full bg-amber-400/80" style={{height:h}} />)}</div>
+            <button type="button" onClick={stopRecording} className="inline-flex items-center gap-1.5 rounded-md bg-red-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-400"><Square className="h-3 w-3 fill-current" />Stop</button>
+          </div>
         )}
-        {error && <span className="text-[11px] text-red-300">{error}</span>}
       </div>
+      {error && <p className="text-[11px] text-red-300">{error}</p>}
       {value && <CustomAudioPlayer src={value} label="Your recording" />}
     </div>
   );
@@ -669,7 +666,7 @@ export default function LessonPage() {
           {block.type === "text" && <><MarkdownContent value={block.body} className="text-sm leading-relaxed text-stone-300" /><textarea value={submission.blockResponses?.[block.id] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [block.id]: event.target.value } })} rows={3} placeholder="Write your response here..." className="mt-4 w-full resize-none rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.title || "Text"} response`} /></>}
           {block.type === "audio" && <>{block.audioUrl ? <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio assignment"} /> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Audio assignment</div>}<AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} /><MediaTranscriptAccordion transcript={block.transcript} isUnlocked={areTranscriptsUnlocked} /></>}
           {block.type === "video" && <>{block.videoUrl ? <div className="aspect-video overflow-hidden rounded-lg border border-[#202631] bg-[#0c1017]"><iframe src={getVideoEmbedUrl(block.videoUrl)} title={block.title || "Lesson video"} className="h-full w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen /></div> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Video embed placeholder</div>}<MediaTranscriptAccordion transcript={block.transcript} isUnlocked={areTranscriptsUnlocked} /></>}
-          {block.type === "image" && (block.imageUrl ? <figure><img src={block.imageUrl} alt={block.title} className="max-h-[420px] w-full rounded-lg object-cover" />{block.caption && <figcaption className="mt-2 text-xs text-stone-500">{block.caption}</figcaption>}</figure> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Image placeholder</div>)}
+          {block.type === "image" && (block.imageUrl ? <figure><img src={block.imageUrl} alt={block.caption || block.title || "Lesson image"} className="max-h-[420px] w-full rounded-lg object-cover" onError={(e)=>{ (e.target as HTMLImageElement).style.display="none"; (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden"); }} /><div className="hidden rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Image unavailable — {block.caption || block.title || "Lesson image"}</div>{block.caption && <figcaption className="mt-2 text-xs text-stone-500">{block.caption}</figcaption>}</figure> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Image placeholder</div>)}
           {block.type === "question" && <div className="space-y-2"><p className="text-sm text-stone-300">{block.prompt}</p><div className="grid gap-2 sm:grid-cols-2">{block.options.filter(Boolean).map((option) => <button key={option} type="button" onClick={() => void persistSubmission({ ...submission, quizSelections: { ...(submission.quizSelections || {}), [block.id]: option } })} className={`rounded-md border px-3 py-2 text-left text-xs transition ${submission.quizSelections?.[block.id] === option ? "border-amber-500 bg-amber-500/10 text-amber-300" : "border-[#202631] bg-[#0c1017] text-stone-400 hover:border-amber-500/50 hover:text-amber-300"}`}>{option}</button>)}</div></div>}
           {block.type === "quiz" && <div className="space-y-4">{block.questions.map((question) => <div key={question.id}><p className="text-sm text-stone-300">{question.prompt}</p><div className="mt-2 grid gap-2 sm:grid-cols-2">{question.options.map((option) => <button key={option} type="button" onClick={() => void persistSubmission({ ...submission, quizSelections: { ...(submission.quizSelections || {}), [question.id]: option } })} className={`rounded-md border px-3 py-2 text-left text-xs transition ${submission.quizSelections?.[question.id] === option ? "border-amber-500 bg-amber-500/10 text-amber-300" : "border-[#202631] bg-[#0c1017] text-stone-400 hover:border-amber-500/50 hover:text-amber-300"}`}>{option}</button>)}</div></div>)}</div>}
         </article>
@@ -701,7 +698,8 @@ export default function LessonPage() {
         </section>
       )}
 
-            <div className="mx-auto max-w-5xl px-4 py-8">
+            <div className="mx-auto max-w-6xl px-4 py-8 grid gap-6 lg:grid-cols-3">
+            <div className="lg:col-span-2 min-w-0">
             <header>
         <div className="flex items-center justify-between text-[12px]">
           <p className="text-[#aeb2b9]">Welcome back, <span className="text-[#e6e4e0]">{studentDisplayName}</span>.</p>
@@ -1057,6 +1055,19 @@ export default function LessonPage() {
           </div>
         )}
       </main>
+            </div>
+            <aside className="space-y-4 lg:col-span-1">
+              {(() => {
+                const blocks = ((lessonContent as Record<string,unknown>).sidebarBlocks as Record<string, {id:string;title:string;body:string}[]> | undefined)?.[currentStep] || [];
+                if (!blocks.length) return <div className="rounded-xl border border-dashed border-[#394252] p-4 text-xs text-stone-500">No sidebar notes for this step.</div>;
+                return blocks.map(b=>(
+                  <div key={b.id} className="rounded-xl border border-[#202631] bg-[#121721] p-4">
+                    <p className="text-xs font-semibold text-amber-400">{b.title}</p>
+                    <p className="mt-2 text-sm leading-relaxed text-stone-400 whitespace-pre-wrap">{b.body || "—"}</p>
+                  </div>
+                ));
+              })()}
+            </aside>
       </div>
 
       <CelebrationModal

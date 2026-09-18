@@ -111,6 +111,20 @@ function DashboardContent() {
   const [customBannerUrl, setCustomBannerUrl] = useState("");
   const [bannerLoadFailed, setBannerLoadFailed] = useState(false);
 
+  const [dictionaryWord, setDictionaryWord] = useState<string | null>(null);
+
+  useEffect(() => {
+    function onDblClick(e: MouseEvent) {
+      const t = e.target as HTMLElement | null;
+      if (t?.closest("input, textarea, button, a, [role=dialog]")) return;
+      const sel = window.getSelection()?.toString().trim() || "";
+      const w = sel.match(/^[a-zA-Z]+(?:[-'][a-zA-Z]+)*$/)?.[0];
+      if (w && w.length > 1) setDictionaryWord(w);
+    }
+    document.addEventListener("dblclick", onDblClick);
+    return () => document.removeEventListener("dblclick", onDblClick);
+  }, []);
+
   useEffect(() => {
     const loadDashboard = async (userId: string) => {
       const [lessonResult, vocabularyResult, notesResult] = await Promise.allSettled([
@@ -530,13 +544,14 @@ function DashboardContent() {
           void saveChatMessage(token, message);
         }}
       />
-      {dictionaryOpen && (
+      {(dictionaryOpen || dictionaryWord !== null) && (
         <DictionaryModal
+          initialWord={dictionaryWord || ""}
           savedWords={savedWords}
-          onClose={() => setDictionaryOpen(false)}
+          onClose={() => { setDictionaryOpen(false); setDictionaryWord(null); }}
           onSave={(word) => {
             setSavedWords([word, ...savedWords.filter((item) => item.word.toLowerCase() !== word.word.toLowerCase())]);
-            void saveVocabularyWord(token, word);
+            void saveVocabularyWord(token, word).catch(()=>{});
           }}
         />
       )}
