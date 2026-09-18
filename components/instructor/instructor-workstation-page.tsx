@@ -992,9 +992,10 @@ export default function InstructorWorkstationPage({
 </select>
 </label>
 </div>
-            <label className="mt-3 block text-xs text-stone-400">Instructor Guidance / Note<textarea value={workstationState.studentProfile.teacherNotes} onChange={(e) => setWorkstationState((prev) => ({ ...prev, studentProfile: { ...prev.studentProfile, teacherNotes: e.target.value } }))} placeholder="Guidance shown in &quot;A NOTE FROM YOUR INSTRUCTOR&quot; on the student dashboard" rows={3} className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
+            
             <label className="mt-3 block text-xs text-stone-400">Subtitle<input value={newLesson.subtitle} onChange={(event) => setNewLesson((previous) => ({ ...previous, subtitle: event.target.value }))} placeholder="Lesson summary" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" />
 </label>
+<label className="mt-3 block text-xs text-stone-400">Instructor Guidance / Note<textarea value={workstationState.studentProfile.teacherNotes} onChange={(e) => setWorkstationState((prev) => ({ ...prev, studentProfile: { ...prev.studentProfile, teacherNotes: e.target.value } }))} placeholder="Guidance shown in &quot;A NOTE FROM YOUR INSTRUCTOR&quot; on the student dashboard" rows={3} className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
           </section>
           <main className="grid grid-cols-1 gap-6 lg:grid-cols-12">
             <div className="min-w-0 lg:col-span-8">

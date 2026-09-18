@@ -483,7 +483,9 @@ export default function LessonPage() {
     }
   }
 
-  const lessonContent = lesson?.content || {};
+  const lessonContent = (lesson?.content || {}) as any;
+  const rawLessonContent = lessonContent as Record<string, unknown>;
+  const lessonPageResources = (rawLessonContent.lessonResources as { id: string; title: string; url: string; type: string }[] | undefined) || [];
   const lessonMetadata = lessonContent as LessonContent;
   const displayLessonTitle = lesson?.title.replace(/\s+\((?:A1|A2|B1|B2|C1|C2)\b[^)]*\)$/i, "");
   const lessonSubtitle = typeof lesson?.subtitle === "string"
@@ -553,7 +555,7 @@ export default function LessonPage() {
     { id: "listening", step: "Listening", prompt: (lessonContent.listening?.questions || []).map((question: { question: string }) => question.question).join("\n"), answer: Object.values(submission.listeningAnswers).join("\n"), referenceAnswer: getAnswerKeys("listening") || undefined },
     { id: "reading", step: "Reading", prompt: (lessonContent.reading?.analytical_questions || []).map((question: { question: string }) => question.question).join("\n"), answer: Object.values(submission.readingAnswers).join("\n"), referenceAnswer: getAnswerKeys("reading") || undefined },
     { id: "writing", step: "Writing", prompt: lessonContent.writing?.prompt?.text, answer: submission.writingText },
-    { id: "speaking", step: "Speaking", prompt: lessonContent.speaking?.scenario?.text, answer: submission.speakingAudioUrl || "" },
+    { id: "speaking", step: "Speaking", prompt: lessonContent.speaking?.scenario?.text, answer: submission.speakingAudioUrl || Object.values(submission.audioUploads || {})[0] || Object.values(submission.blockResponses || {}).find((v: string) => typeof v === "string" && (v.startsWith("http") || v.endsWith(".webm") || v.endsWith(".mp3") || v.includes("blob:"))) || "" },
   ];
 
   const currentIndex = STUDY_STEPS.findIndex((s) => s.id === currentStep);
@@ -666,7 +668,7 @@ export default function LessonPage() {
       {blocks.filter((block) => block.enabled !== false).map((block) => (
         <article key={block.id} className="rounded-xl border border-[#202631] bg-[#121721] p-5">
           {block.title && <h3 className="mb-3 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">{block.title}</h3>}
-          {block.type === "text" && <><MarkdownContent value={block.body} className="text-sm leading-relaxed text-stone-300" /><textarea value={submission.blockResponses?.[block.id] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [block.id]: event.target.value } })} rows={3} placeholder="Write your response here..." className="mt-4 w-full resize-none rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.title || "Text"} response`} /></>}
+          {block.type === "text" && <><MarkdownContent value={block.body} className="text-sm leading-relaxed text-stone-300" /><textarea value={submission.blockResponses?.[block.id] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [block.id]: event.target.value } })} rows={8} placeholder="Write your response here..." className="mt-4 w-full min-h-[200px] resize-y rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.title || "Text"} response`} /></>}
           {block.type === "audio" && <>{block.audioUrl ? <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio assignment"} /> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Audio assignment</div>}<AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} /><MediaTranscriptAccordion transcript={block.transcript} isUnlocked={areTranscriptsUnlocked} /></>}
           {block.type === "video" && <>{block.videoUrl ? <div className="aspect-video overflow-hidden rounded-lg border border-[#202631] bg-[#0c1017]"><iframe src={getVideoEmbedUrl(block.videoUrl)} title={block.title || "Lesson video"} className="h-full w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen /></div> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Video embed placeholder</div>}<MediaTranscriptAccordion transcript={block.transcript} isUnlocked={areTranscriptsUnlocked} /></>}
           {block.type === "image" && (block.imageUrl ? <figure><img src={block.imageUrl} alt={block.caption || block.title || "Lesson image"} className="max-h-[420px] w-full rounded-lg object-cover" onError={(e)=>{ (e.target as HTMLImageElement).style.display="none"; (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden"); }} /><div className="hidden rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Image unavailable — {block.caption || block.title || "Lesson image"}</div>{block.caption && <figcaption className="mt-2 text-xs text-stone-500">{block.caption}</figcaption>}</figure> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Image placeholder</div>)}
@@ -716,8 +718,8 @@ export default function LessonPage() {
           />
         </div>
       </header>
-      <div className={`grid gap-6 ${(((lessonContent as Record<string, unknown>).sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep] || []).length ? "lg:grid-cols-3" : ""}`}>
-      <div className={`${(((lessonContent as Record<string, unknown>).sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep] || []).length ? "lg:col-span-2" : "w-full"}`}>
+      <div className={`grid gap-6 ${(((rawLessonContent as Record<string, unknown>).sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep] || []).length ? "lg:grid-cols-3" : ""}`}>
+      <div className={`${(((rawLessonContent as Record<string, unknown>).sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep] || []).length ? "lg:col-span-2" : "w-full"}`}>
 
       <main className="pb-10 pt-8 text-[15px] leading-relaxed">
         {/* Hero Banner */}
@@ -743,8 +745,8 @@ export default function LessonPage() {
               <textarea
                 value={submission.blockResponses?.warm_up || ""}
                 onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), warm_up: event.target.value } })}
-                className="mt-2 w-full resize-none rounded-[10px] border border-[#29303c] bg-[#171d28] px-5 py-5 text-[15px] leading-relaxed text-[#d9dce0] placeholder-[#7b8290] shadow-[0_8px_24px_rgba(0,0,0,.12)] transition-colors placeholder:text-[13px] focus:border-[#8d702f] focus:outline-none focus:ring-1 focus:ring-[#8d702f]/30"
-                rows={4}
+                className="mt-2 w-full min-h-[200px] resize-y rounded-[10px] border border-[#29303c] bg-[#171d28] px-5 py-5 text-[15px] leading-relaxed text-[#d9dce0] placeholder-[#7b8290] shadow-[0_8px_24px_rgba(0,0,0,.12)] transition-colors placeholder:text-[13px] focus:border-[#8d702f] focus:outline-none focus:ring-1 focus:ring-[#8d702f]/30"
+                rows={8}
                 placeholder=""
               />
               {lessonContent.warm_up?.lexicon_notes?.text && (
@@ -875,8 +877,8 @@ export default function LessonPage() {
               <textarea
                 value={submission.writingText}
                 onChange={(event) => persistSubmission({ ...submission, writingText: event.target.value })}
-                className="w-full bg-stone-900 border border-stone-700/60 rounded-xl px-4 py-3 text-sm text-stone-200 placeholder-stone-600 resize-none focus:outline-none focus:ring-1 focus:ring-amber-500/40 focus:border-amber-500/40 transition-colors"
-                rows={6}
+                className="w-full min-h-[200px] bg-stone-900 border border-stone-700/60 rounded-xl px-4 py-3 text-sm text-stone-200 placeholder-stone-600 resize-y focus:outline-none focus:ring-1 focus:ring-amber-500/40 focus:border-amber-500/40 transition-colors"
+                rows={8}
                 placeholder={lessonContent.writing?.draft_editor?.placeholder || "Write your response here..."}
               />
               </>}
@@ -965,7 +967,7 @@ export default function LessonPage() {
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
                         <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">Your response</p>
-                        <p className="mt-1 whitespace-pre-wrap text-sm text-stone-300">{result.answer || "No response submitted"}</p>
+                        {result.answer && (result.answer.startsWith("http") || result.answer.startsWith("blob:") || result.answer.endsWith(".webm") || result.answer.endsWith(".mp3") || result.answer.endsWith(".wav")) ? <audio controls src={result.answer} className="mt-2 w-full max-w-sm rounded-md" /> : <p className="mt-1 whitespace-pre-wrap text-sm text-stone-300">{result.answer || "No response submitted"}</p>}
                       </div>
                       {result.referenceAnswer && <div>
                         <p className="text-[10px] uppercase tracking-[0.1em] text-amber-500/80">Reference / Correct Answer</p>
@@ -1060,9 +1062,9 @@ export default function LessonPage() {
         )}
       </main>
           </div>
-          {(((lessonContent as Record<string, unknown>).sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep] || []).length > 0 && (
+          {(((rawLessonContent as Record<string, unknown>).sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep] || []).length > 0 && (
             <aside className="space-y-4 pt-8 lg:col-span-1">
-              {((lessonContent as Record<string, unknown>).sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep]?.map((b) => (
+              {((rawLessonContent as Record<string, unknown>).sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep]?.map((b) => (
                 <div key={b.id} className="rounded-xl border border-[#202631] bg-[#121721] p-4">
                   <p className="text-xs font-semibold text-amber-400">{b.title}</p>
                   <p className="mt-2 text-sm leading-relaxed text-stone-400 whitespace-pre-wrap">{b.body || "—"}</p>
@@ -1087,7 +1089,7 @@ export default function LessonPage() {
         onClose={() => setSidebarOpen(false)}
         words={savedWords}
         notes={notes}
-        resource={evaluation?.studyHubPrescription}
+        resource={evaluation?.studyHubPrescription} resources={lessonPageResources}
         onSaveNote={(note) => {
           setNotes([note, ...notes.filter((item) => item.id !== note.id)]);
           void saveStudentNote(lessonStudentToken, note);
