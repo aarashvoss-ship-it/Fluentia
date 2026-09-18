@@ -494,7 +494,7 @@ export function LessonTailorEditor({
                     {!isRecording ? (
                       <button type="button" onClick={() => void startRecording(block.id, step, index)} disabled={isUploading} className="inline-flex items-center gap-1.5 rounded-md border border-amber-500 px-2.5 py-1.5 text-xs font-semibold text-amber-500 transition hover:bg-amber-500 hover:text-black disabled:opacity-40" aria-label="Record voice for audio block"><Mic className="h-3.5 w-3.5" />{isUploading ? "Uploading…" : "Record voice"}</button>
                     ) : (
-                      <div className="flex flex-row items-center gap-3 rounded-lg border border-red-500/30 bg-[#0c1017] px-3 py-2">
+                      <div className="flex w-full flex-row items-center gap-3 rounded-lg border border-red-500/30 bg-[#0c1017] px-3 py-1.5">
                         <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500 animate-pulse" aria-hidden />
                         <span className="text-xs font-mono tabular-nums text-red-300">{fmt(rec?.elapsed||0)}</span>
                         <div className="flex items-end gap-[2px] h-6" aria-hidden>{(rec?.levels||Array(18).fill(5)).map((h,i)=><span key={i} className="w-[3px] rounded-full bg-amber-400/80" style={{height:h}} />)}</div>

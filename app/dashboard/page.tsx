@@ -293,6 +293,7 @@ function DashboardContent() {
     lessonStates[displayLessons[0]?.id]?.studentProfile.teacherNotes ||
     activeStudent.profile?.teacherNotes ||
     "Your instructor will add personalized guidance here.";
+  const dashboardResources = ((lessonStates[displayLessons[0]?.id] as unknown as Record<string, unknown>)?.lessonResources as { id: string; title: string; url: string; type: string }[] | undefined) || [];
   const latestReport = lessonStates[displayLessons[0]?.id]?.evaluation;
   const currentCard = savedWords[cardIndex % Math.max(savedWords.length, 1)];
   const inProgressLessons = displayLessons.filter((lesson) => getLessonStatus(lessonStates[lesson.id]) === "in-progress").length;
@@ -527,7 +528,7 @@ function DashboardContent() {
         onClose={() => setSidebarOpen(false)}
         words={savedWords}
         notes={notes}
-        resource={latestReport?.studyHubPrescription}
+        resource={latestReport?.studyHubPrescription} resources={dashboardResources}
         onSaveNote={(note) => {
           setNotes([note, ...notes.filter((item) => item.id !== note.id)]);
           void saveStudentNote(token, note);

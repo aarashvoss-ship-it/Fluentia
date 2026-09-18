@@ -58,6 +58,8 @@ function cloneSidebarBlocksByStep(blocks: SidebarBlocksByStep): SidebarBlocksByS
   return out;
 }
 
+type LessonResource = { id: string; title: string; url: string; type: "PDF" | "Article" | "Video" };
+
 export default function InstructorWorkstationPage({
   instructorId,
   lessonSlug,
@@ -84,6 +86,7 @@ export default function InstructorWorkstationPage({
   const [activeStudentsOpen, setActiveStudentsOpen] = useState(false);
   const [sidebarStep, setSidebarStep] = useState<keyof SidebarBlocksByStep>("warm_up");
   const [sidebarBlocksByStep, setSidebarBlocksByStep] = useState<SidebarBlocksByStep>({});
+  const [lessonResources, setLessonResources] = useState<LessonResource[]>([]);
 
   const [workstationState, setWorkstationState] = useState<{
     content: StrictStepContent;
@@ -153,6 +156,8 @@ export default function InstructorWorkstationPage({
       moduleNumber: Number(moduleNumber) || 1,
       bannerUrl: workstationState.bannerUrl,
       sidebarBlocksByStep,
+      instructorNote: workstationState.studentProfile.teacherNotes,
+      lessonResources,
     });
 
   async function handleStudentChange(student: StudentUser, requestedLessonSlug = lessonId) {
@@ -470,6 +475,8 @@ export default function InstructorWorkstationPage({
         coverImage: workstationState.bannerUrl,
         bannerUrl: workstationState.bannerUrl,
         sidebarBlocks: sidebarBlocksByStep,
+      instructorNote: workstationState.studentProfile.teacherNotes,
+      lessonResources,
       };
       const created = await createLesson({
         title,
@@ -683,6 +690,8 @@ export default function InstructorWorkstationPage({
       coverImage: workstationState.bannerUrl,
       bannerUrl: workstationState.bannerUrl,
       sidebarBlocks: sidebarBlocksByStep,
+      instructorNote: workstationState.studentProfile.teacherNotes,
+      lessonResources,
     };
     try {
       const lesson = databaseLessonId

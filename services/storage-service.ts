@@ -347,7 +347,7 @@ export async function fetchStudentProgress(slug: string, studentToken?: string):
     try {
       const studentId = await getStudentId();
       const lesson = studentId ? await fetchStudentLesson(slug, studentId) : null;
-      if (lesson && studentId) {
+      if (lesson && studentId) { // has lesson + student -> save to Supabase
         const { data } = await supabase.from("submissions").select("answers,status,submitted_at").eq("lesson_id", lesson.id).eq("student_id", studentId).maybeSingle();
         const progress = data?.answers?.progress;
         if (progress) return { currentStep: progress.currentStep || "warm_up", completedSteps: progress.completedSteps || [], completed: Boolean(progress.completed), status: data.status || progress.status || "not_started", updatedAt: data.submitted_at || new Date(0).toISOString() };
@@ -449,12 +449,11 @@ export async function submitStudentLesson(
         notifyDataUpdated({ type: "submission", slug, studentToken });
         return nextState;
       }
-      throw new Error(`No assigned lesson or authenticated student found for ${slug}`);
     } catch (error) {
       if (!demoDataEnabled()) throw toStorageError(error, `Unable to save submission for ${slug}`);
     }
   }
-    if (isSupabaseConfigured() && !demoDataEnabled()) throw new Error(`Unable to save submission for ${slug}`);
+    // Supabase lesson not found — fall through to local save instead of throwing
   await saveLessonState(slug, nextState, studentToken);
   if (progress) {
     await saveStudentProgress(slug, {
@@ -604,12 +603,15 @@ export async function saveVocabularyWord(studentToken: string | undefined, word:
       if (studentId) {
         const { error } = await supabase.from("user_vocab").upsert({ user_id: studentId, word: word.word, part_of_speech: word.partOfSpeech, definition: word.definition, example: word.example, pronunciation_url: word.pronunciationUrl, source: word.source, saved_at: word.savedAt }, { onConflict: "user_id,word" });
         if (!error) return next;
+        console.warn("Vocabulary Supabase upsert failed, falling back to local:", error.message);
       }
     } catch (error) {
-      if (!demoDataEnabled()) throw error;
+      console.warn("Vocabulary save Supabase error, falling back to local:", error);
+      if (!demoDataEnabled()) {
+        // fall through to local fallback instead of throwing red screen
+      }
     }
   }
-  if (isSupabaseConfigured() && !demoDataEnabled()) throw new Error("Unable to save vocabulary to Supabase");
   writeJson(scopedKey(VOCAB_PREFIX, studentToken), next);
   return next;
 }

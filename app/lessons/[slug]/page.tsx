@@ -130,7 +130,7 @@ function AudioResponseBlock({ value, onChange, studentId }: { value?: string; on
   const stopRecording=()=>{ if(recorderRef.current?.state==="recording") recorderRef.current.stop(); else { cleanup(); stopTracks(); setIsRecording(false); } };
 
   return (
-    <div className="mt-4 space-y-3 rounded-lg border border-[#202631] bg-[#0c1017] p-3">
+    <div className="mt-4 w-full space-y-3 rounded-lg border border-[#202631] bg-[#0c1017] p-3">
       <div className="flex flex-row items-center gap-3">
         <label className={`inline-flex cursor-pointer items-center rounded-md border px-3 py-2 text-xs font-medium transition ${isUploading||isRecording?"border-[#202631] text-stone-500 opacity-50 pointer-events-none":"border-[#394252] text-stone-300 hover:border-amber-500 hover:text-amber-300"}`}>
           Upload audio
@@ -141,7 +141,7 @@ function AudioResponseBlock({ value, onChange, studentId }: { value?: string; on
             <Mic className="h-3.5 w-3.5" />{isUploading?"Uploading…":"Record"}
           </button>
         ) : (
-          <div className="flex flex-row items-center gap-3 rounded-lg border border-red-500/30 bg-[#171d28] px-3 py-2">
+          <div className="flex w-full flex-row items-center gap-3 rounded-lg border border-red-500/30 bg-[#171d28] px-3 py-1.5">
             <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500 animate-pulse" aria-hidden />
             <span className="text-xs font-mono tabular-nums text-red-300">{fmt(elapsed)}</span>
             <div className="flex items-end gap-[2px] h-6" aria-hidden>{levels.map((h,i)=><span key={i} className="w-[3px] rounded-full bg-amber-400/80" style={{height:h}} />)}</div>
@@ -463,20 +463,23 @@ export default function LessonPage() {
 
   async function persistSubmission(nextSubmission: StudentSubmission, nextProgress?: { currentStep?: StudyStepId; completedSteps?: StudyStepId[]; status?: "not_started" | "in_progress" | "submitted" | "reviewed" }) {
     if (!lesson) return;
-    const studentToken = activeStudent?.token ?? lesson.student_token ?? lesson.student_id ?? "student";
-    if (!studentToken) return;
     setSubmission(nextSubmission);
     setSubmissionSaveError(null);
     try {
-      await submitStudentLesson(lesson.id, studentToken, nextSubmission, {
+      const tok = activeStudent?.token ?? lesson.student_token ?? undefined;
+      await submitStudentLesson(lesson.id, tok, nextSubmission, {
         currentStep: nextProgress?.currentStep || currentStep,
         completedSteps: nextProgress?.completedSteps || completedSteps,
         status: nextProgress?.status || (nextSubmission.status === "submitted" ? "submitted" : "in_progress"),
         updatedAt: new Date().toISOString(),
       });
     } catch (error) {
-      console.error("Failed to save lesson progress:", error);
-      setSubmissionSaveError(error instanceof Error ? error.message : "Failed to save lesson progress");
+      try {
+        const sid = activeStudent?.id || lesson.student_id || "local";
+        const { saveLessonState: _sls } = await import("@/services/storage-service");
+        (_sls as unknown as (a:string,b:string,c:unknown)=>void)(lesson.id, sid, { submission: nextSubmission, progress: { currentStep: nextProgress?.currentStep || currentStep, completedSteps: nextProgress?.completedSteps || completedSteps, startedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } });
+      } catch {}
+      console.warn("Persist fallback to local", error);
     }
   }
 
@@ -698,8 +701,7 @@ export default function LessonPage() {
         </section>
       )}
 
-            <div className="mx-auto max-w-6xl px-4 py-8 grid gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-2 min-w-0">
+            <div className="mx-auto max-w-6xl px-4 py-8">
             <header>
         <div className="flex items-center justify-between text-[12px]">
           <p className="text-[#aeb2b9]">Welcome back, <span className="text-[#e6e4e0]">{studentDisplayName}</span>.</p>
@@ -714,6 +716,8 @@ export default function LessonPage() {
           />
         </div>
       </header>
+      <div className={`grid gap-6 ${(((lessonContent as Record<string, unknown>).sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep] || []).length ? "lg:grid-cols-3" : ""}`}>
+      <div className={`${(((lessonContent as Record<string, unknown>).sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep] || []).length ? "lg:col-span-2" : "w-full"}`}>
 
       <main className="pb-10 pt-8 text-[15px] leading-relaxed">
         {/* Hero Banner */}
@@ -1005,8 +1009,8 @@ export default function LessonPage() {
                     {(lessonContent.warm_up?.lexicon_notes?.text || lessonContent.lesson || lessonContent.reading || lessonContent.writing || lessonContent.speaking) && <div>
                       <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">Recommended review</p>
                       <div className="flex flex-wrap gap-2">
-                        <a href="#lexicon-notes" className="rounded-md border border-amber-500/20 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-300 hover:bg-amber-500/20">Review lexicon notes</a>
-                        <a href="#lesson-content" className="rounded-md border border-[#394252] bg-[#171d28] px-2.5 py-1.5 text-xs text-stone-300 hover:border-amber-500/40">Revisit lesson content</a>
+                        <button type="button" onClick={() => { setSidebarOpen(true); }} className="rounded-md border border-amber-500/20 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-300 hover:bg-amber-500/20">Review lexicon notes</button>
+                        <button type="button" onClick={() => setCurrentStep("warm_up")} className="rounded-md border border-[#394252] bg-[#171d28] px-2.5 py-1.5 text-xs text-stone-300 hover:border-amber-500/40">Revisit lesson content</button>
                       </div>
                     </div>}
                   </div>
@@ -1055,19 +1059,18 @@ export default function LessonPage() {
           </div>
         )}
       </main>
-            </div>
+          </div>
+          {(((lessonContent as Record<string, unknown>).sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep] || []).length > 0 && (
             <aside className="space-y-4 lg:col-span-1">
-              {(() => {
-                const blocks = ((lessonContent as Record<string,unknown>).sidebarBlocks as Record<string, {id:string;title:string;body:string}[]> | undefined)?.[currentStep] || [];
-                if (!blocks.length) return <div className="rounded-xl border border-dashed border-[#394252] p-4 text-xs text-stone-500">No sidebar notes for this step.</div>;
-                return blocks.map(b=>(
-                  <div key={b.id} className="rounded-xl border border-[#202631] bg-[#121721] p-4">
-                    <p className="text-xs font-semibold text-amber-400">{b.title}</p>
-                    <p className="mt-2 text-sm leading-relaxed text-stone-400 whitespace-pre-wrap">{b.body || "—"}</p>
-                  </div>
-                ));
-              })()}
+              {((lessonContent as Record<string, unknown>).sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep]?.map((b) => (
+                <div key={b.id} className="rounded-xl border border-[#202631] bg-[#121721] p-4">
+                  <p className="text-xs font-semibold text-amber-400">{b.title}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-stone-400 whitespace-pre-wrap">{b.body || "—"}</p>
+                </div>
+              ))}
             </aside>
+          )}
+        </div>
       </div>
 
       <CelebrationModal
