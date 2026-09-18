@@ -28,6 +28,36 @@ interface InstructorWorkstationProps {
 type SidebarBlock = { id: string; title: string; body: string };
 type SidebarBlocksByStep = Partial<Record<"warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking", SidebarBlock[]>>;
 
+const SIDEBAR_STEP_KEYS = ["warm_up", "lesson", "listening", "reading", "writing", "speaking"] as const;
+
+function normalizeSidebarBlocksByStep(raw: unknown): SidebarBlocksByStep {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const source = raw as Record<string, unknown>;
+  const out: SidebarBlocksByStep = {};
+  for (const key of SIDEBAR_STEP_KEYS) {
+    const value = source[key];
+    if (!Array.isArray(value)) continue;
+    const blocks: SidebarBlock[] = value
+      .filter((item): item is Record<string, unknown> => !!item && typeof item === "object" && !Array.isArray(item))
+      .map((item, index) => ({
+        id: typeof item.id === "string" && item.id.trim() ? item.id.trim() : `sidebar-${key}-${Date.now()}-${index}`,
+        title: typeof item.title === "string" ? item.title : typeof item.name === "string" ? item.name : "Sidebar note",
+        body: typeof item.body === "string" ? item.body : typeof item.text === "string" ? item.text : "",
+      }));
+    if (blocks.length) out[key] = blocks;
+  }
+  return out;
+}
+
+function cloneSidebarBlocksByStep(blocks: SidebarBlocksByStep): SidebarBlocksByStep {
+  const out: SidebarBlocksByStep = {};
+  for (const key of SIDEBAR_STEP_KEYS) {
+    const list = blocks[key];
+    if (list?.length) out[key] = list.map((block) => ({ ...block }));
+  }
+  return out;
+}
+
 export default function InstructorWorkstationPage({
   instructorId,
   lessonSlug,
@@ -216,7 +246,7 @@ export default function InstructorWorkstationPage({
       content,
       bannerUrl: typeof content.coverImage === "string" ? content.coverImage : lesson.banner_url || "",
     }));
-    setSidebarBlocksByStep((content as Record<string, any>).sidebarBlocks || {});
+    setSidebarBlocksByStep(normalizeSidebarBlocksByStep((content as Record<string, any>).sidebarBlocks));
     setDatabaseLessonId(lesson.id);
     setLessonStatus(lesson.status === "published" ? "published" : "draft");
     window.setTimeout(() => {
@@ -234,7 +264,7 @@ export default function InstructorWorkstationPage({
     const sourceTitle = lesson?.title || newLesson.title || "Untitled Lesson";
     const sourceSlug = typeof sourceContent.slug === "string" ? sourceContent.slug : createSlug(sourceTitle);
     const copySlug = `${sourceSlug.replace(/-copy(?:-\d+)?$/, "")}-copy-${Date.now()}`;
-    const copyContent: Record<string, any> = {
+    let copyContent: Record<string, any> = {
       ...sourceContent,
       slug: copySlug,
       title: `${sourceTitle} Copy`,
@@ -242,6 +272,9 @@ export default function InstructorWorkstationPage({
       student_token: undefined,
       status: "draft",
     };
+    const nextSidebar = cloneSidebarBlocksByStep(normalizeSidebarBlocksByStep((sourceContent as Record<string, any>).sidebarBlocks));
+    // Deep-copy sidebar blocks so mutating the duplicated draft cannot alias the source lesson.
+    copyContent = { ...copyContent, sidebarBlocks: nextSidebar };
     hasLoadedLesson.current = false;
     setDatabaseLessonId(null);
     setSelectedStudentId(null);
@@ -260,7 +293,7 @@ export default function InstructorWorkstationPage({
       content: copyContent,
       bannerUrl: typeof copyContent.coverImage === "string" ? copyContent.coverImage : previous.bannerUrl,
     }));
-    setSidebarBlocksByStep((copyContent as Record<string, any>).sidebarBlocks || {});
+    setSidebarBlocksByStep(nextSidebar);
     setLessonStatus("draft");
     setSaveIndicator("idle");
     setPublishStatus("Copy ready. Select a student before saving the new draft.");

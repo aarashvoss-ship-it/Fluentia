@@ -25,7 +25,7 @@ export interface StudentProgressRecord {
 }
 
 export interface StorageMediaAsset {
-  bucket: "audio-submissions" | "lesson-audio" | "lesson-media" | "voice-feedback";
+  bucket: "audio-submissions" | "lesson-audio" | "lesson-media" | "student-audio" | "voice-feedback";
   name: string;
   url: string;
   size?: number;
@@ -34,7 +34,6 @@ export interface StorageMediaAsset {
 
 export const LESSONS_MANIFEST_KEY = "fluentia:lessons-manifest";
 const PROGRESS_PREFIX = "fluentia:progress:";
-const DEFAULT_STUDENT_SCOPE_KEY = "default";
 const VOCAB_PREFIX = "fluentia:vocab:";
 const NOTES_PREFIX = "fluentia:notes:";
 const CHAT_PREFIX = "fluentia:chat:";
@@ -67,16 +66,16 @@ function writeJson<T>(key: string, value: T) {
   window.localStorage.setItem(key, JSON.stringify(value));
 }
 
-function studentScopeKey(legacyStudentToken?: string) {
-  return legacyStudentToken || DEFAULT_STUDENT_SCOPE_KEY;
+function studentScopeKey(studentId?: string) {
+  return studentId || "anonymous";
 }
 
-function progressKey(slug: string, legacyStudentToken?: string) {
-  return `${PROGRESS_PREFIX}${slug}:${studentScopeKey(legacyStudentToken)}`;
+function progressKey(slug: string, studentId?: string) {
+  return `${PROGRESS_PREFIX}${slug}:${studentScopeKey(studentId)}`;
 }
 
-function scopedKey(prefix: string, legacyStudentToken?: string) {
-  return `${prefix}${studentScopeKey(legacyStudentToken)}`;
+function scopedKey(prefix: string, studentId?: string) {
+  return `${prefix}${studentScopeKey(studentId)}`;
 }
 
 function readManifest() {
@@ -142,108 +141,74 @@ async function getStudentId(_legacyIdentifier?: string) {
   }
 }
 
-async function resolveStudentLookupValues(studentIdentifier?: string): Promise<{ ids: string[]; tokens: string[] }> {
-  const ids = new Set<string>();
-  const tokens = new Set<string>();
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Resolves the canonical Supabase student UUID for the current request.
+ * Identity is strictly auth.uid()-derived (see PROJECT_CONTEXT); an explicit
+ * studentId argument is only honoured when it is a valid UUID.
+ */
+async function resolveStudentId(explicitStudentId?: string): Promise<string | null> {
   const authenticatedStudentId = await getStudentId();
-  const candidateValues = [authenticatedStudentId, studentIdentifier].filter((value): value is string => Boolean(value && value.trim()));
-
-  for (const value of candidateValues) {
-    ids.add(value);
-    tokens.add(value);
-  }
-
-  try {
-    const studentMatches = candidateValues.length > 0
-      ? await Promise.all(candidateValues.map(async (value) => supabase
-          .from("students")
-          .select("id, token")
-          .or(`id.eq.${value},token.eq.${value}`)
-          .maybeSingle()))
-      : [];
-
-    studentMatches.forEach(({ data }) => {
-      if (data?.id) ids.add(data.id);
-      if (data?.token) tokens.add(data.token);
-    });
-  } catch (error) {
-    console.warn("Student identity resolution for lesson state failed:", error);
-  }
-
-  return {
-    ids: [...ids].filter(Boolean),
-    tokens: [...tokens].filter(Boolean),
-  };
+  if (authenticatedStudentId) return authenticatedStudentId;
+  if (explicitStudentId && UUID_PATTERN.test(explicitStudentId.trim())) return explicitStudentId.trim();
+  return null;
 }
 
-async function fetchStudentLesson(slug: string, studentIdentifier?: string) {
-  const { ids, tokens } = await resolveStudentLookupValues(studentIdentifier);
-  const uniqueIds = [...new Set(ids.filter(Boolean))];
-  const uniqueTokens = [...new Set(tokens.filter(Boolean))];
+async function fetchStudentLesson(slug: string, explicitStudentId?: string) {
+  const studentId = await resolveStudentId(explicitStudentId);
+  if (!studentId) return null;
 
-  const directLessonById = uniqueIds.length > 0
-    ? await supabase
-        .from("lessons")
-        .select("*")
-        .eq("id", slug)
-        .in("student_id", uniqueIds)
-        .maybeSingle()
-    : { data: null, error: null };
-  if (!directLessonById.error && directLessonById.data) return directLessonById.data;
+  const slugIsUuid = UUID_PATTERN.test(slug);
 
-  const directLessonBySlug = uniqueIds.length > 0
-    ? await supabase
-        .from("lessons")
-        .select("*")
-        .eq("slug", slug)
-        .in("student_id", uniqueIds)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle()
-    : { data: null, error: null };
+  if (slugIsUuid) {
+    const directLessonById = await supabase
+      .from("lessons")
+      .select("*")
+      .eq("id", slug)
+      .eq("student_id", studentId)
+      .maybeSingle();
+    if (!directLessonById.error && directLessonById.data) return directLessonById.data;
+  }
+
+  const directLessonBySlug = await supabase
+    .from("lessons")
+    .select("*")
+    .eq("slug", slug)
+    .eq("student_id", studentId)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
   if (!directLessonBySlug.error && directLessonBySlug.data) return directLessonBySlug.data;
 
-  const assignmentStudentId = uniqueIds.find((value) => /^[0-9a-f-]{36}$/i.test(value));
-  if (assignmentStudentId) {
-    const { data: assignments, error: assignmentError } = await supabase
-      .from("lesson_assignments")
-      .select("lesson_id")
-      .eq("student_id", assignmentStudentId)
-      .eq("status", "assigned");
+  const { data: assignments, error: assignmentError } = await supabase
+    .from("lesson_assignments")
+    .select("lesson_id")
+    .eq("student_id", studentId)
+    .eq("status", "assigned");
 
-    if (!assignmentError && assignments?.length) {
-      const assignedLessonIds = assignments.map((assignment) => assignment.lesson_id).filter(Boolean);
-      const assignedLesson = await supabase
+  if (!assignmentError && assignments?.length) {
+    const assignedLessonIds = assignments.map((assignment) => assignment.lesson_id).filter(Boolean);
+    if (assignedLessonIds.length > 0) {
+      const assignedLessonBySlug = await supabase
         .from("lessons")
         .select("*")
         .in("id", assignedLessonIds)
-        .or(`id.eq.${slug},slug.eq.${slug}`)
+        .eq("slug", slug)
         .maybeSingle();
-      if (!assignedLesson.error && assignedLesson.data) return assignedLesson.data;
+      if (!assignedLessonBySlug.error && assignedLessonBySlug.data) return assignedLessonBySlug.data;
 
-      if (/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(slug)) {
+      if (slugIsUuid) {
         const assignedLessonById = await supabase
           .from("lessons")
           .select("*")
-          .eq("id", slug)
           .in("id", assignedLessonIds)
+          .eq("id", slug)
           .maybeSingle();
         if (!assignedLessonById.error && assignedLessonById.data) return assignedLessonById.data;
       }
     }
   }
-
-  const tokenLessonBySlug = uniqueTokens.length > 0
-    ? await supabase
-        .from("lessons")
-        .select("*")
-        .eq("slug", slug)
-        .in("student_token", uniqueTokens)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle()
-    : { data: null, error: null };
-  if (!tokenLessonBySlug.error && tokenLessonBySlug.data) return tokenLessonBySlug.data;
 
   return null;
 }
@@ -575,6 +540,12 @@ export async function prepareMediaUrl(
 
 export async function uploadAudioSubmission(input: string | Blob, name?: string) {
   return prepareMediaUrl(input, "lesson-audio", name);
+}
+
+export async function uploadStudentAudio(input: string | Blob, studentId: string, name?: string) {
+  const safeId = studentId?.trim() || "anonymous";
+  const fileName = name ? `${safeId}/${Date.now()}-${name}` : `${safeId}/${Date.now()}-response.webm`;
+  return prepareMediaUrl(input, "student-audio", fileName);
 }
 
 export async function uploadLessonMedia(input: string | Blob, name?: string) {

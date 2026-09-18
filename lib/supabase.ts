@@ -1,8 +1,9 @@
-import { createClient } from "@supabase/supabase-js";
 import type { LessonId, StudentId, SubmissionId } from "@/types/database";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-anon-key";
+// Single unified Supabase client for the app. The SSR browser client in
+// lib/supabaseClient.ts owns session persistence (PKCE) so auth.uid() and RLS
+// resolve consistently across every caller.
+export { supabase } from "@/lib/supabaseClient";
 
 export const isSupabaseConfigured = () => {
 	return Boolean(
@@ -10,8 +11,6 @@ export const isSupabaseConfigured = () => {
 		process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 	);
 };
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Type definitions for database tables
 export interface LessonRow {

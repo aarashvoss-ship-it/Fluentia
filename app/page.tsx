@@ -3,15 +3,9 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createBrowserClient } from "@supabase/ssr";
 import { AccessCard } from "@/components/access/access-card";
-import { STUDENT_USERS } from "@/lib/users";
-
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  { auth: { flowType: "pkce", persistSession: true, autoRefreshToken: true } },
-);
+import { supabase } from "@/lib/supabase";
+import { getAuthenticatedRole } from "@/lib/identity";
 
 export default function RootPage() {
   const router = useRouter();
@@ -28,14 +22,16 @@ export default function RootPage() {
         setCheckingSession(false);
         return;
       }
-      const userEmail = data.user.email?.trim().toLowerCase() || "";
-      if (userEmail === "aarashvoss@gmail.com") {
-        router.replace("/instructor/avoss-9042");
-      } else if (STUDENT_USERS.some((student) => student.email?.toLowerCase() === userEmail)) {
+      const role = await getAuthenticatedRole();
+      if (cancelled) return;
+      if (role === "instructor" || role === "admin") {
+        router.replace("/instructor");
+      } else if (role === "student") {
         router.replace("/dashboard");
       } else {
-        await supabase.auth.signOut();
-        if (!cancelled) setCheckingSession(false);
+        // Authenticated but unprovisioned: no profile/role row yet. Leave the
+        // session intact and let the layouts gate access; do not force sign-out.
+        setCheckingSession(false);
       }
     });
     return () => {

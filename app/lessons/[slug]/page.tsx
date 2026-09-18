@@ -18,7 +18,7 @@ import { AccessCard } from "@/components/access/access-card";
 import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
-import { uploadAudioSubmission } from "@/services/storage-service";
+import { uploadStudentAudio } from "@/services/storage-service";
 import {
   ArrowRight,
   ChevronRight,
@@ -57,39 +57,105 @@ function getRequestedStep(value: string | null): StudyStepId | null {
     : null;
 }
 
-function AudioResponseBlock({ value, onChange, studentToken, lessonId }: { value?: string; onChange: (value: string) => void; studentToken?: string; lessonId?: string }) {
+function AudioResponseBlock({ value, onChange, studentId }: { value?: string; onChange: (value: string) => void; studentId?: string }) {
   const [isRecording, setIsRecording] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
-  const uploadAudio = async (file?: File) => {
-    if (!file) return;
-    const asset = await uploadAudioSubmission(file, `${studentToken || "student"}-${lessonId || "lesson"}`);
-    onChange(asset.url);
-  };
-
-  const toggleRecording = async () => {
-    if (isRecording) {
-      recorderRef.current?.stop();
-      return;
+  const pickMimeType = () => {
+    const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
+    for (const type of candidates) {
+      try { if (typeof MediaRecorder !== "undefined" && (MediaRecorder as unknown as { isTypeSupported?: (t: string) => boolean }).isTypeSupported?.(type)) return type; } catch { /* ignore */ }
     }
-    if (!navigator.mediaDevices?.getUserMedia) return;
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const recorder = new MediaRecorder(stream);
-    chunksRef.current = [];
-    recorder.ondataavailable = (event) => chunksRef.current.push(event.data);
-    recorder.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
-      void uploadAudioSubmission(blob, `${studentToken || "student"}-${lessonId || "lesson"}`).then((asset) => onChange(asset.url)).catch((error) => console.error("Audio upload failed:", error));
-      stream.getTracks().forEach((track) => track.stop());
-      setIsRecording(false);
-    };
-    recorderRef.current = recorder;
-    recorder.start();
-    setIsRecording(true);
+    return "";
   };
 
-  return <div className="mt-4 space-y-3 rounded-lg border border-amber-500/20 bg-[#0c1017] p-3"><div className="flex flex-wrap gap-2"><label className="cursor-pointer rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 hover:border-amber-500">Upload response<input type="file" accept="audio/*" onChange={(event) => uploadAudio(event.target.files?.[0])} className="sr-only" /></label><button type="button" onClick={() => void toggleRecording()} className={`rounded-md border px-3 py-2 text-xs ${isRecording ? "border-red-400 text-red-300" : "border-amber-500/50 text-amber-300"}`}>{isRecording ? "Stop recording" : "Record response"}</button></div>{value && <CustomAudioPlayer src={value} label="Recorded response" />}</div>;
+  const stopTracks = () => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+  };
+
+  useEffect(() => () => { try { if (recorderRef.current && recorderRef.current.state !== "inactive") recorderRef.current.stop(); } catch { /* ignore */ } stopTracks(); }, []);
+
+  const uploadFile = async (file: File | Blob, name?: string) => {
+    setIsUploading(true);
+    setError(null);
+    try {
+      const safeId = studentId?.trim() || "anonymous";
+      const asset = await uploadStudentAudio(file, safeId, name || `response-${Date.now()}.webm`);
+      onChange(asset.url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleFileUpload = async (file?: File) => {
+    if (!file) return;
+    await uploadFile(file, file.name);
+  };
+
+  const startRecording = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) { setError("Recording not supported in this browser"); return; }
+    setError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mimeType = pickMimeType();
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } as MediaRecorderOptions : undefined);
+      chunksRef.current = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || mimeType || "audio/webm" });
+        const ext = (recorder.mimeType || mimeType || "audio/webm").includes("mp4") ? "mp4" : "webm";
+        void uploadFile(blob, `voice-${Date.now()}.${ext}`).finally(() => { stopTracks(); setIsRecording(false); });
+      };
+      recorder.onerror = () => { setError("Recording failed"); stopTracks(); setIsRecording(false); };
+      recorderRef.current = recorder;
+      recorder.start(200);
+      setIsRecording(true);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/permission|not allowed|denied/i.test(msg)) setError("Microphone permission denied");
+      else setError("Could not start recording");
+    }
+  };
+
+  const stopRecording = () => {
+    if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+    else { stopTracks(); setIsRecording(false); }
+  };
+
+  return (
+    <div className="mt-4 space-y-3 rounded-lg border border-[#202631] bg-[#0c1017] p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <label className={`inline-flex cursor-pointer items-center rounded-md border px-3 py-2 text-xs font-medium transition ${isUploading || isRecording ? "border-[#202631] text-stone-500 opacity-50 pointer-events-none" : "border-[#394252] text-stone-300 hover:border-amber-500 hover:text-amber-300"}`}>
+          Upload audio
+          <input type="file" accept="audio/*,audio/mpeg,audio/wav,audio/webm,audio/mp4,audio/ogg" onChange={(e) => void handleFileUpload(e.target.files?.[0])} disabled={isUploading || isRecording} className="sr-only" />
+        </label>
+        {!isRecording ? (
+          <button type="button" onClick={() => void startRecording()} disabled={isUploading} className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 transition hover:bg-amber-500 hover:text-[#0c1017] disabled:opacity-40">
+            <Mic className="h-3.5 w-3.5" />
+            {isUploading ? "Uploading…" : "Record"}
+          </button>
+        ) : (
+          <>
+            <button type="button" onClick={stopRecording} className="inline-flex items-center gap-1.5 rounded-md bg-red-500/10 border border-red-400/40 px-3 py-2 text-xs font-semibold text-red-300 hover:bg-red-500/20">
+              <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />
+              Stop
+            </button>
+            <span className="text-[11px] text-amber-300">Recording…</span>
+          </>
+        )}
+        {error && <span className="text-[11px] text-red-300">{error}</span>}
+      </div>
+      {value && <CustomAudioPlayer src={value} label="Your recording" />}
+    </div>
+  );
 }
 
 function MediaTranscriptAccordion({ transcript, isUnlocked }: { transcript?: string; isUnlocked: boolean }) {
@@ -189,7 +255,6 @@ export default function LessonPage() {
         }
 
         const user = data.user;
-        console.log("Lesson student auth user:", { id: user.id, email: user.email });
         const [studentResult, profileResult] = await Promise.all([
           supabase.from("students").select("name, email, token").eq("id", user.id).maybeSingle(),
           supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
@@ -198,8 +263,6 @@ export default function LessonPage() {
 
         const { data: studentRecord, error: studentError } = studentResult;
         const { data: profile, error: profileError } = profileResult;
-        console.log("Lesson students query result:", { data: studentRecord, error: studentError });
-        console.log("Lesson profiles query result:", { data: profile, error: profileError });
         if (studentError) console.warn("Unable to load canonical student profile:", studentError);
         if (profileError) console.warn("Unable to load user profile:", profileError);
         if (studentError?.code === "42501" || /permission|row-level security|rls/i.test(studentError?.message || "")) {
@@ -227,7 +290,6 @@ export default function LessonPage() {
           emailName,
           email,
         );
-        console.log("Final resolved lesson student name:", { userId: user.id, studentName: name, source: studentRecord?.name ? "students.name" : profile?.full_name ? "profiles.full_name" : user.user_metadata?.full_name ? "user.user_metadata.full_name" : localUser?.name ? "FLUENTIA_USERS" : emailName ? "email local-part" : email ? "user.email" : "fallback" });
         const student: StudentUser = {
           id: user.id,
           token: studentRecord?.token || user.id,
@@ -605,7 +667,7 @@ export default function LessonPage() {
         <article key={block.id} className="rounded-xl border border-[#202631] bg-[#121721] p-5">
           {block.title && <h3 className="mb-3 font-[var(--font-fraunces)] text-xl font-semibold text-stone-100">{block.title}</h3>}
           {block.type === "text" && <><MarkdownContent value={block.body} className="text-sm leading-relaxed text-stone-300" /><textarea value={submission.blockResponses?.[block.id] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [block.id]: event.target.value } })} rows={3} placeholder="Write your response here..." className="mt-4 w-full resize-none rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.title || "Text"} response`} /></>}
-          {block.type === "audio" && <>{block.audioUrl ? <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio assignment"} /> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Audio assignment</div>}<AudioResponseBlock value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} /><MediaTranscriptAccordion transcript={block.transcript} isUnlocked={areTranscriptsUnlocked} /></>}
+          {block.type === "audio" && <>{block.audioUrl ? <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio assignment"} /> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Audio assignment</div>}<AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} /><MediaTranscriptAccordion transcript={block.transcript} isUnlocked={areTranscriptsUnlocked} /></>}
           {block.type === "video" && <>{block.videoUrl ? <div className="aspect-video overflow-hidden rounded-lg border border-[#202631] bg-[#0c1017]"><iframe src={getVideoEmbedUrl(block.videoUrl)} title={block.title || "Lesson video"} className="h-full w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen /></div> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Video embed placeholder</div>}<MediaTranscriptAccordion transcript={block.transcript} isUnlocked={areTranscriptsUnlocked} /></>}
           {block.type === "image" && (block.imageUrl ? <figure><img src={block.imageUrl} alt={block.title} className="max-h-[420px] w-full rounded-lg object-cover" />{block.caption && <figcaption className="mt-2 text-xs text-stone-500">{block.caption}</figcaption>}</figure> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Image placeholder</div>)}
           {block.type === "question" && <div className="space-y-2"><p className="text-sm text-stone-300">{block.prompt}</p><div className="grid gap-2 sm:grid-cols-2">{block.options.filter(Boolean).map((option) => <button key={option} type="button" onClick={() => void persistSubmission({ ...submission, quizSelections: { ...(submission.quizSelections || {}), [block.id]: option } })} className={`rounded-md border px-3 py-2 text-left text-xs transition ${submission.quizSelections?.[block.id] === option ? "border-amber-500 bg-amber-500/10 text-amber-300" : "border-[#202631] bg-[#0c1017] text-stone-400 hover:border-amber-500/50 hover:text-amber-300"}`}>{option}</button>)}</div></div>}
@@ -835,7 +897,13 @@ export default function LessonPage() {
                   <p key={point.text}>{point.text}</p>
                 ))}
               </div>
-              {lessonContent.speaking?.audio_capture?.enabled && <div className="bg-stone-900 border border-stone-800 rounded-xl p-5 flex items-center justify-center h-28"><button type="button" className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm hover:bg-amber-500/20 transition-colors"><Mic className="w-4 h-4" />Start Recording</button></div>}
+              {!lessonContent.speaking?.blocks?.length && (
+                <AudioResponseBlock
+                  studentId={activeStudent?.id}
+                  value={submission.speakingAudioUrl || submission.audioUploads?.speaking}
+                  onChange={(value) => void persistSubmission({ ...submission, speakingAudioUrl: value, audioUploads: { ...(submission.audioUploads || {}), speaking: value } })}
+                />
+              )}
               </>}
             </section>
           )}
