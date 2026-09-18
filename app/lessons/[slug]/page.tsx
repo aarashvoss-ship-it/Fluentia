@@ -1063,7 +1063,7 @@ export default function LessonPage() {
       </main>
           </div>
           {(((rawLessonContent as Record<string, unknown>).sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep] || []).length > 0 && (
-            <aside className="space-y-4 pt-8 lg:col-span-1">
+            <aside className="space-y-4 lg:col-span-1" style={{ paddingTop: "69px" }}>
               {((rawLessonContent as Record<string, unknown>).sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep]?.map((b) => (
                 <div key={b.id} className="rounded-xl border border-[#202631] bg-[#121721] p-4">
                   <p className="text-xs font-semibold text-amber-400">{b.title}</p>
