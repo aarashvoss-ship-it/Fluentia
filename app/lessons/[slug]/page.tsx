@@ -62,7 +62,7 @@ function AudioResponseBlock({ value, onChange, studentId }: { value?: string; on
   const [isUploading, setIsUploading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
-  const [levels, setLevels] = useState<number[]>(Array(20).fill(5));
+  const [levels, setLevels] = useState<number[]>(Array(48).fill(3));
   const [error, setError] = useState<string | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -72,7 +72,13 @@ function AudioResponseBlock({ value, onChange, studentId }: { value?: string; on
   const chunksRef = useRef<Blob[]>([]);
   const startAt = useRef(0);
 
-  const fmt = (s: number) => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(Math.floor(s%60)).padStart(2,"0")}`;
+  const fmt = (s: number) => {
+    const m = String(Math.floor(s / 60)).padStart(2, "0");
+    const sec = String(Math.floor(s % 60)).padStart(2, "0");
+    const cs = String(Math.floor((s % 1) * 100)).padStart(2, "0");
+    return `${m}:${sec}.${cs}`;
+  };
+  const fmtInt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}.00`;
 
   const stopTracks = () => { streamRef.current?.getTracks().forEach(t=>t.stop()); streamRef.current=null; };
   const cleanup = () => {
@@ -112,14 +118,14 @@ function AudioResponseBlock({ value, onChange, studentId }: { value?: string; on
       rec.ondataavailable=e=>{ if(e.data.size>0) chunksRef.current.push(e.data); };
       rec.onstop=()=>{ const blob=new Blob(chunksRef.current,{type:rec.mimeType||mime||"audio/webm"}); const ext=(rec.mimeType||mime||"").includes("mp4")?"mp4":"webm"; cleanup(); stopTracks(); setIsRecording(false); setElapsed(0); void uploadFile(blob,`voice-${Date.now()}.${ext}`); };
       rec.onerror=()=>{ cleanup(); stopTracks(); setIsRecording(false); setError("Recording failed"); };
-      recorderRef.current=rec; rec.start(200); setIsRecording(true); startAt.current=Date.now();
-      timerRef.current=setInterval(()=> setElapsed(Math.floor((Date.now()-startAt.current)/1000)),200);
+      recorderRef.current=rec; rec.start(100); setIsRecording(true); startAt.current=Date.now();
+      timerRef.current=setInterval(()=> setElapsed((Date.now()-startAt.current)/1000),80);
       try{
         const Ctx=(window.AudioContext||(window as unknown as {webkitAudioContext:typeof AudioContext}).webkitAudioContext);
         const ctx=new Ctx(); ctxRef.current=ctx;
-        const src=ctx.createMediaStreamSource(stream); const an=ctx.createAnalyser(); an.fftSize=64; src.connect(an);
+        const src=ctx.createMediaStreamSource(stream); const an=ctx.createAnalyser(); an.fftSize=128; src.connect(an);
         const arr=new Uint8Array(an.frequencyBinCount);
-        const tick=()=>{ an.getByteFrequencyData(arr); setLevels(Array.from({length:20},(_,i)=>Math.max(4,Math.min(26,4+(arr[Math.floor(i/20*arr.length)]||0)*0.09)))); animRef.current=requestAnimationFrame(tick); };
+        const tick=()=>{ an.getByteFrequencyData(arr); setLevels(Array.from({length:48},(_,i)=>Math.max(2,Math.min(24,2+(arr[Math.floor(i/48*arr.length)]||0)*0.09)))); animRef.current=requestAnimationFrame(tick); };
         tick();
       }catch{}
     } catch(err){
@@ -130,24 +136,32 @@ function AudioResponseBlock({ value, onChange, studentId }: { value?: string; on
   const stopRecording=()=>{ if(recorderRef.current?.state==="recording") recorderRef.current.stop(); else { cleanup(); stopTracks(); setIsRecording(false); } };
 
   return (
-    <div className="mt-4 w-full space-y-3 rounded-lg border border-[#202631] bg-[#0c1017] p-3">
-      <div className="flex flex-row items-center gap-3">
-        <label className={`inline-flex cursor-pointer items-center rounded-md border px-3 py-2 text-xs font-medium transition ${isUploading||isRecording?"border-[#202631] text-stone-500 opacity-50 pointer-events-none":"border-[#394252] text-stone-300 hover:border-amber-500 hover:text-amber-300"}`}>
+    <div className="mt-4 w-full min-w-0 space-y-3 rounded-lg border border-[#202631] bg-[#0c1017] p-3">
+      <div className="flex w-full min-w-0 items-center gap-3 rounded-lg border border-[#202631] bg-[#111620] px-3 py-2.5">
+        <button
+          type="button"
+          onClick={() => (isRecording ? stopRecording() : void startRecording())}
+          disabled={isUploading}
+          aria-label={isRecording ? "Stop recording" : "Start recording"}
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full shadow-sm transition active:scale-95 disabled:opacity-40 ${isRecording ? "bg-red-500 text-white hover:bg-red-400" : "bg-amber-500 text-[#0c1017] hover:bg-amber-400"}`}
+        >
+          {isRecording ? <Square className="h-3.5 w-3.5 fill-current" /> : <Mic className="h-4 w-4" />}
+        </button>
+        <div className="flex flex-1 items-center justify-center gap-px overflow-hidden" aria-hidden>
+          {isRecording ? (
+            levels.map((h, i) => <span key={i} className="w-px shrink-0 rounded-full bg-stone-400/70 sm:w-[2px]" style={{ height: h }} />)
+          ) : (
+            <span className="h-px w-full max-w-[220px] rounded bg-[#202631]" />
+          )}
+        </div>
+        <span className={`shrink-0 font-mono text-xs tabular-nums ${isRecording ? "text-stone-300" : "text-stone-500"}`}>{isRecording ? fmt(elapsed) : fmtInt(0)}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <label className={`inline-flex cursor-pointer items-center rounded-md border px-3 py-1.5 text-xs font-medium transition ${isUploading||isRecording?"pointer-events-none border-[#202631] text-stone-500 opacity-50":"border-[#394252] text-stone-300 hover:border-amber-500 hover:text-amber-300"}`}>
           Upload audio
           <input type="file" accept="audio/*,audio/mpeg,audio/wav,audio/webm,audio/mp4,audio/ogg" onChange={e=>void uploadFile(e.target.files?.[0] as File, (e.target.files?.[0] as File)?.name)} disabled={isUploading||isRecording} className="sr-only" />
         </label>
-        {!isRecording ? (
-          <button type="button" onClick={()=>void startRecording()} disabled={isUploading} className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500 hover:text-[#0c1017] disabled:opacity-40">
-            <Mic className="h-3.5 w-3.5" />{isUploading?"Uploading…":"Record"}
-          </button>
-        ) : (
-          <div className="flex w-full flex-row items-center gap-3 rounded-lg border border-red-500/30 bg-[#171d28] px-3 py-1.5">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500 animate-pulse" aria-hidden />
-            <span className="text-xs font-mono tabular-nums text-red-300">{fmt(elapsed)}</span>
-            <div className="flex flex-1 items-end justify-center gap-[2px] h-6" aria-hidden>{levels.map((h,i)=><span key={i} className="w-[3px] rounded-full bg-amber-400/80" style={{height:h}} />)}</div>
-            <button type="button" onClick={stopRecording} className="inline-flex items-center gap-1.5 rounded-md bg-red-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-400"><Square className="h-3 w-3 fill-current" />Stop</button>
-          </div>
-        )}
+        {isUploading && <span className="text-[11px] text-stone-500">Uploading…</span>}
       </div>
       {error && <p className="text-[11px] text-red-300">{error}</p>}
       {value && <CustomAudioPlayer src={value} label="Your recording" />}
