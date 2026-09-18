@@ -718,7 +718,7 @@ export default function LessonPage() {
           />
         </div>
       </header>
-      <div className={`grid gap-6 ${(((rawLessonContent as Record<string, unknown>).sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep] || []).length ? "lg:grid-cols-3" : ""}`}>
+      <div className={`grid items-start gap-6 ${(((rawLessonContent as Record<string, unknown>).sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep] || []).length ? "lg:grid-cols-3" : ""}`}>
       <div className={`${(((rawLessonContent as Record<string, unknown>).sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep] || []).length ? "lg:col-span-2" : "w-full"}`}>
 
       <main className="pb-10 pt-8 text-[15px] leading-relaxed">
