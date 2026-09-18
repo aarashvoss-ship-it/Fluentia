@@ -33,6 +33,7 @@ import {
   Square,
   Award,
   PanelRight,
+  Trash2,
 } from "lucide-react";
 
 function getLockedSteps(completedSteps: StudyStepId[]): StudyStepId[] {
@@ -164,7 +165,24 @@ function AudioResponseBlock({ value, onChange, studentId }: { value?: string; on
         {isUploading && <span className="text-[11px] text-stone-500">Uploading…</span>}
       </div>
       {error && <p className="text-[11px] text-red-300">{error}</p>}
-      {value && <CustomAudioPlayer src={value} label="Your recording" />}
+      {value && (
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <CustomAudioPlayer src={value} label="Your recording" />
+          </div>
+          <button
+            type="button"
+            onClick={() => { setError(null); onChange(""); }}
+            disabled={isUploading || isRecording}
+            aria-label="Clear recording"
+            title="Clear recording"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[#394252] bg-[#171d28] px-2.5 py-2 text-xs text-stone-400 transition hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-40"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Clear
+          </button>
+        </div>
+      )}
     </div>
   );
 }

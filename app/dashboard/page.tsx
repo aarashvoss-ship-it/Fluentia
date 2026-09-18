@@ -447,8 +447,13 @@ function DashboardContent() {
           </section>
         )}
 
-        <section className="grid gap-5 pt-8 md:grid-cols-2" aria-label="Available lessons">
-          {availableLessons.map((lesson) => {
+        <section className="pt-8" aria-label="Previous lessons">
+          {availableLessons.length > 0 && <h2 className="mb-4 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#667084]">Previous lessons</h2>}
+          <div className="grid gap-5 md:grid-cols-2">
+          {availableLessons.length === 0 ? (
+            <p className="col-span-full rounded-xl border border-dashed border-[#202631] bg-[#121721] p-6 text-center text-sm text-stone-500">No previous lessons yet. Your instructor will assign more lessons here.</p>
+          ) : (
+            availableLessons.map((lesson) => {
             const status = getLessonStatus(lessonStates[lesson.id]);
             const statusCopy = status === "completed"
               ? "COMPLETED"
@@ -520,7 +525,9 @@ function DashboardContent() {
               </div>
             </article>
             );
-          })}
+          })
+          )}
+          </div>
         </section>
       </div>
       </div>
