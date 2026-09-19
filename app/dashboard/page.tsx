@@ -370,7 +370,7 @@ function DashboardContent() {
               </div>
           </div>
         </header>
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-4 md:px-6">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between py-4">
           <p className="text-[12px] text-[#aeb2b9]">Welcome back, <span className="text-[#e6e4e0]">{displayName}</span>.</p>
           <div className="ml-auto flex items-center gap-2">
               <button type="button" onClick={() => setDictionaryOpen(true)} aria-label="Open dictionary" className={`group h-9 px-3 flex items-center gap-2 rounded-lg bg-slate-800/80 border text-xs font-medium transition-all cursor-pointer ${dictionaryOpen ? "border-amber-500/60 text-amber-400" : "border-slate-700/60 text-slate-300 hover:border-amber-500/60 hover:text-amber-400 hover:bg-slate-800"}`}><BookOpen className={`w-4 h-4 shrink-0 ${dictionaryOpen ? "text-amber-400" : "text-slate-400 group-hover:text-amber-400"}`} /></button>

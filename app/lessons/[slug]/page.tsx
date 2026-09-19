@@ -721,7 +721,7 @@ export default function LessonPage() {
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,11,17,.88),rgba(7,11,17,.22)_58%,rgba(7,11,17,.72)),linear-gradient(0deg,#0c1017_0%,transparent_62%)]" />
           <div className="relative z-10 flex w-full flex-col items-start gap-3 px-4 pb-8 pt-6 text-left md:px-6">
             <span className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/40 rounded-md">{lessonLevel} - MODULE {lessonModuleNumber ?? 1}</span>
-            <h1 className="font-sans text-[38px] leading-[0.98] tracking-[-0.02em] text-[#f1eee8] sm:text-[42px]">
+            <h1 className="font-sans text-2xl font-bold text-[#f1eee8] md:text-3xl">
               {displayLessonTitle || lesson.title}
             </h1>
             {lessonSubtitle && <p className="text-xs text-[#b5bac2]">{lessonSubtitle}</p>}
