@@ -89,10 +89,10 @@ export function InteractiveVideoBlock({
               key={`${line.seconds}-${line.text}`}
               type="button"
               onClick={() => seekToTimestamp(line.seconds)}
-              className="flex w-full items-start gap-2 rounded px-2 py-1.5 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-200"
+              className="flex w-full min-w-0 items-start gap-2 rounded px-2 py-1.5 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-200"
             >
               <span className="shrink-0 rounded border border-amber-500/40 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-amber-300">{line.timestamp}</span>
-              <span>{line.text}</span>
+              <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">{line.text}</span>
             </button>
           ))}
         </div>
