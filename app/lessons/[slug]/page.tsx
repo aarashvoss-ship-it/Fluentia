@@ -719,12 +719,12 @@ export default function LessonPage() {
           <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=1800&q=80')] bg-cover bg-center opacity-40" />
           {heroBanner && <img src={heroBanner} alt="" onError={() => setBannerLoadFailed(true)} className="absolute inset-0 h-full w-full object-cover opacity-40" />}
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,11,17,.88),rgba(7,11,17,.22)_58%,rgba(7,11,17,.72)),linear-gradient(0deg,#0c1017_0%,transparent_62%)]" />
-          <div className="relative z-10 flex w-full flex-col items-start px-4 pb-8 pt-6 text-left md:px-6">
-            <span className="w-fit rounded-full border border-amber-500/40 bg-[#332713]/85 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e4ae45]">{lessonLevel} - MODULE {lessonModuleNumber ?? 1}</span>
+          <div className="relative z-10 flex w-full flex-col items-start gap-3 px-4 pb-8 pt-6 text-left md:px-6">
+            <span className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/40 rounded-md">{lessonLevel} - MODULE {lessonModuleNumber ?? 1}</span>
             <h1 className="font-sans text-[38px] leading-[0.98] tracking-[-0.02em] text-[#f1eee8] sm:text-[42px]">
               {displayLessonTitle || lesson.title}
             </h1>
-            {lessonSubtitle && <p className="mt-4 text-xs text-[#b5bac2]">{lessonSubtitle}</p>}
+            {lessonSubtitle && <p className="text-xs text-[#b5bac2]">{lessonSubtitle}</p>}
             <div className="mt-7 flex items-center gap-2 text-[11px] text-[#9ba1aa]"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#283344] text-[9px] font-semibold text-[#d9a63b]">{instructor.initials}</span>Guided by {instructor.fullName}</div>
             <div className="w-12 h-12 rounded-full border-2 border-[#F59E0B] bg-transparent flex items-center justify-center p-1.5 mt-3"><img src="/logo.png" alt="Fluentia" className="w-full h-full object-contain" /></div>
           </div>

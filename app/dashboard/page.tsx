@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BookOpen, CheckCircle2, Clock3, Flame, Layers3, MessageSquareText, PanelRight, Settings2, UserRound, X } from "lucide-react";
-import { type StudentUser } from "@/lib/users";
+import { INSTRUCTOR_USER, type StudentUser } from "@/lib/users";
 import { PublishedLessonState, writeLastAccessedLesson } from "@/lib/lesson-store";
 import { getLessonsByStudentId, type LessonWithVersion } from "@/lib/lessons";
 import { FLUENTIA_DATA_UPDATED_EVENT, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, removeVocabularyWord, saveChatMessage, saveStudentNote, saveVocabularyWord } from "@/services/storage-service";
@@ -300,6 +300,7 @@ function DashboardContent() {
   const progressPercent = displayLessons.length ? Math.round((completedLessons / displayLessons.length) * 100) : 0;
   const nextLesson = displayLessons[0];
   const displayName = activeStudent.name;
+  const defaultInstructorInitials = INSTRUCTOR_USER.name.slice(0, 2).toUpperCase();
   const profileInitials = displayName.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
   const selectedAvatar = AVATAR_PRESETS.find((preset) => preset.id === avatarPreset) || AVATAR_PRESETS[0];
   const selectedBanner = BANNER_PRESETS.find((preset) => preset.id === bannerPreset) || BANNER_PRESETS[0];
@@ -339,7 +340,7 @@ function DashboardContent() {
           <div className="absolute inset-0 bg-[linear-gradient(0deg,rgba(12,16,23,.98),transparent_65%)]" aria-hidden="true" />
           <div className="relative z-10 flex w-full flex-col items-start px-4 pt-6 pb-8 md:px-6 text-left">
           {profileOpen && <button type="button" aria-label="Close student profile" onClick={() => setProfileOpen(false)} className="fixed inset-0 z-0 cursor-default bg-black/55" />}
-          <span className="w-fit rounded-full border border-amber-500/40 bg-[#332713]/85 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e4ae45]">
+          <span className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/40 rounded-md">
             {nextLesson ? `ENGLISH - MODULE ${activeModuleNumber ?? 1}` : "ENGLISH - NO ACTIVE MODULE"}
           </span>
           <h1 className="mt-3 font-sans text-3xl font-semibold text-[#f1eee8]">
@@ -369,9 +370,9 @@ function DashboardContent() {
               </div>
           </div>
         </header>
-        <div className="flex items-center justify-between w-full px-4 py-4 md:px-6">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-4 md:px-6">
           <p className="text-[12px] text-[#aeb2b9]">Welcome back, <span className="text-[#e6e4e0]">{displayName}</span>.</p>
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2">
               <button type="button" onClick={() => setDictionaryOpen(true)} aria-label="Open dictionary" className={`group h-9 px-3 flex items-center gap-2 rounded-lg bg-slate-800/80 border text-xs font-medium transition-all cursor-pointer ${dictionaryOpen ? "border-amber-500/60 text-amber-400" : "border-slate-700/60 text-slate-300 hover:border-amber-500/60 hover:text-amber-400 hover:bg-slate-800"}`}><BookOpen className={`w-4 h-4 shrink-0 ${dictionaryOpen ? "text-amber-400" : "text-slate-400 group-hover:text-amber-400"}`} /></button>
               <button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`group h-9 px-3 flex items-center gap-2 rounded-lg bg-slate-800/80 border text-xs font-medium transition-all cursor-pointer ${sidebarOpen ? "border-amber-500/60 text-amber-400" : "border-slate-700/60 text-slate-300 hover:border-amber-500/60 hover:text-amber-400 hover:bg-slate-800"}`}><PanelRight className={`w-4 h-4 shrink-0 ${sidebarOpen ? "text-amber-400" : "text-slate-400 group-hover:text-amber-400"}`} />Learning Hub</button>
           </div>
@@ -480,7 +481,7 @@ function DashboardContent() {
               <div className="relative h-44 overflow-hidden border-b border-[#202631]">
                 <img src={(typeof lesson.content?.coverImage === "string" ? lesson.content.coverImage : typeof lesson.content?.bannerUrl === "string" ? lesson.content.bannerUrl : undefined) || BANNER_PRESETS[0].image} alt="" className="h-full w-full object-cover opacity-70 transition duration-500 group-hover:scale-105 group-hover:opacity-85" />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#121721] via-transparent to-transparent" />
-                  <span className="absolute bottom-4 left-5 rounded-sm border border-[#a77b25] bg-[#332713]/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#dca42f]">
+                  <span className="absolute bottom-4 left-5 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/40 rounded-md">
                   Module {lesson.content?.moduleNumber || 1}
                 </span>
               </div>
@@ -505,7 +506,7 @@ function DashboardContent() {
                 <div>
                   <h2 className="mt-2 font-sans text-xl font-semibold text-stone-100">{lesson.title}</h2>
                   <p className="mt-2 text-sm leading-relaxed text-stone-400">{lesson.content?.subtitle || "Continue your personalized language practice."}</p>
-                  <p className="mt-3 flex items-center gap-2 text-[11px] text-stone-500"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#283344] text-[8px] font-semibold text-[#d9a63b]">{lesson.content?.instructor?.initials || ""}</span> Guided by {lesson.content?.instructor?.fullName || "Your instructor"}</p>
+                  <p className="mt-3 flex items-center gap-2 text-[11px] text-stone-500"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#283344] text-[8px] font-semibold text-[#d9a63b]">{lesson.content?.instructor?.initials || defaultInstructorInitials}</span> Guided by {lesson.content?.instructor?.fullName || INSTRUCTOR_USER.name}</p>
                 </div>
                 <Link href={getLessonHref(lesson, status)} onClick={() => rememberLesson(lesson.id)} className={`mt-5 inline-flex rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
                   status === "completed"
