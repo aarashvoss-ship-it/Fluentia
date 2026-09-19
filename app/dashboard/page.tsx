@@ -347,6 +347,9 @@ function DashboardContent() {
           </h1>
           <p className="mt-2 text-sm text-[#b5bac2]">Seven stages. One connected journey.</p>
           <div className="mt-3 flex items-center gap-2 text-xs text-[#667084]"><UserRound className="h-3.5 w-3.5" />{displayLessons.length} lessons available <span className="text-[#394252]">|</span> B2 Upper Intermediate</div>
+          <div className="mt-4 w-12 h-12 rounded-full border-2 border-[#F59E0B] bg-transparent flex items-center justify-center p-1.5">
+            <img src="/logo.png" alt="Fluentia" className="w-full h-full object-contain" />
+          </div>
           <div className="hidden" aria-label="Student profile">
                 <button type="button" onClick={() => setProfileOpen((open) => !open)} aria-expanded={profileOpen} aria-controls="student-profile-flyout" style={!avatarImage ? { backgroundColor: selectedAvatar.backgroundColor } : undefined} className={`flex h-8 w-8 items-center justify-center overflow-hidden rounded-full text-xs font-bold transition hover:ring-2 hover:ring-amber-400/60 ${avatarImage ? "bg-[#283344]" : selectedAvatar.className}`}>
                   {avatarImage ? <img src={avatarImage} alt={`${displayName} avatar`} className="h-full w-full object-cover" /> : profileInitials}
@@ -366,7 +369,7 @@ function DashboardContent() {
               </div>
           </div>
         </header>
-        <div className="flex items-center justify-between w-full py-4">
+        <div className="flex items-center justify-between w-full px-4 py-4 md:px-6">
           <p className="text-[12px] text-[#aeb2b9]">Welcome back, <span className="text-[#e6e4e0]">{displayName}</span>.</p>
           <div className="flex items-center gap-2">
               <button type="button" onClick={() => setDictionaryOpen(true)} aria-label="Open dictionary" className={`group h-9 px-3 flex items-center gap-2 rounded-lg bg-slate-800/80 border text-xs font-medium transition-all cursor-pointer ${dictionaryOpen ? "border-amber-500/60 text-amber-400" : "border-slate-700/60 text-slate-300 hover:border-amber-500/60 hover:text-amber-400 hover:bg-slate-800"}`}><BookOpen className={`w-4 h-4 shrink-0 ${dictionaryOpen ? "text-amber-400" : "text-slate-400 group-hover:text-amber-400"}`} /></button>

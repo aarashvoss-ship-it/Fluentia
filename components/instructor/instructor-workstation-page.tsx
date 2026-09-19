@@ -859,6 +859,9 @@ export default function InstructorWorkstationPage({
   return (
     <div className="min-h-screen bg-[#0c1017] font-sans text-[#e8e7e4]">
       <div className="mx-auto max-w-6xl px-6 py-6 md:py-8">
+        <div className="mb-6 flex items-center">
+          <img src="/logo.png" alt="Fluentia" className="h-10 w-auto object-contain" />
+        </div>
         <header className="mb-8 flex flex-col justify-between gap-4 border-b border-[#202631] pb-4 md:flex-row md:items-center">
           <div>
 <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-400">Fluentia Instructor Studio</span>
