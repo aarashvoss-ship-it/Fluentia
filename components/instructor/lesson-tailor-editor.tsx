@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { ContentBlock, ContentBlockType, STUDY_STEPS, StudyStepId, StrictStepContent } from "@/types/lesson";
 import { useLessonEditorStore } from "@/lib/lesson-editor-store";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
+import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { uploadLessonMedia } from "@/services/storage-service";
 import { Eye, Layers, MoveDown, MoveUp, Plus, Trash2, X, ChevronDown, Mic, Square } from "lucide-react";
 
@@ -12,25 +13,6 @@ interface LessonTailorEditorProps {
   onChange?: (updatedContent: StrictStepContent) => void;
   onPreview?: () => void;
 }
-
-const getVideoEmbedUrl = (url: string) => {
-  try {
-    const parsedUrl = new URL(url);
-    if (parsedUrl.hostname === "youtu.be") {
-      return `https://www.youtube.com/embed/${parsedUrl.pathname.slice(1)}`;
-    }
-    if (parsedUrl.hostname.endsWith("youtube.com") && parsedUrl.pathname === "/watch") {
-      const videoId = parsedUrl.searchParams.get("v");
-      return videoId ? `https://www.youtube.com/embed/${videoId}` : "";
-    }
-    if (parsedUrl.hostname.endsWith("youtube.com") && parsedUrl.pathname.startsWith("/embed/")) {
-      return url;
-    }
-  } catch {
-    return "";
-  }
-  return "";
-};
 
 export function LessonTailorEditor({
   content,
@@ -510,7 +492,7 @@ export function LessonTailorEditor({
                 </div>
               );
             })()}
-            {block.type === "video" && <div className="space-y-2"><input value={block.videoUrl} onChange={(event) => updateDynamicBlock(step, index, { videoUrl: event.target.value })} placeholder="YouTube or video embed URL" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Video block URL" />{getVideoEmbedUrl(block.videoUrl) ? <div className="aspect-video overflow-hidden rounded border border-[#202631] bg-[#0c1017]"><iframe src={getVideoEmbedUrl(block.videoUrl) || undefined} title={block.title || "Lesson video"} className="h-full w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen /></div> : null}{renderTranscriptField(step, index, block)}</div>}
+            {block.type === "video" && <div className="space-y-2"><input value={block.videoUrl} onChange={(event) => updateDynamicBlock(step, index, { videoUrl: event.target.value })} placeholder="YouTube or video embed URL" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Video block URL" /><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} editable onTranscriptChange={(value) => updateDynamicBlock(step, index, { transcript: value })} /></div>}
             {block.type === "image" && <div className="space-y-2"><input value={block.imageUrl} onChange={(event) => updateDynamicBlock(step, index, { imageUrl: event.target.value })} placeholder="Image URL" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Image block URL" /><input value={block.caption} onChange={(event) => updateDynamicBlock(step, index, { caption: event.target.value })} placeholder="Image caption" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Image block caption" /></div>}
             {block.type === "question" && <div className="space-y-2"><textarea value={block.prompt} onChange={(event) => updateDynamicBlock(step, index, { prompt: event.target.value })} placeholder="Question or task prompt" rows={3} className="w-full resize-none rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Question or task prompt" />{block.options.map((option, optionIndex) => <div key={`${block.id}-${optionIndex}`} className="flex gap-2"><input value={option} onChange={(event) => updateDynamicBlock(step, index, { options: block.options.map((value, valueIndex) => valueIndex === optionIndex ? event.target.value : value) })} placeholder={`Option ${optionIndex + 1} (optional)`} className="min-w-0 flex-1 rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`Question option ${optionIndex + 1}`} /><button type="button" onClick={() => updateDynamicBlock(step, index, { options: block.options.filter((_, valueIndex) => valueIndex !== optionIndex) })} disabled={block.options.length <= 1} aria-label={`Remove question option ${optionIndex + 1}`} className="rounded border border-[#394252] px-2 text-stone-500 hover:border-red-400 hover:text-red-300 disabled:opacity-30"><X className="h-3.5 w-3.5" /></button></div>)}<button type="button" onClick={() => updateDynamicBlock(step, index, { options: [...block.options, ""] })} className="flex items-center gap-1 text-xs text-amber-300 hover:text-amber-200"><Plus className="h-3 w-3" /> Add option</button><input value={block.correct_answer} onChange={(event) => updateDynamicBlock(step, index, { correct_answer: event.target.value })} placeholder="Correct Answer / Key" className="w-full rounded border border-amber-500/30 bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Correct Answer / Key" /></div>}
             {block.type === "quiz" && <div className="space-y-2"><div className="flex items-center justify-between text-xs text-stone-400"><span>Questions</span><button type="button" onClick={() => updateDynamicBlock(step, index, { questions: [...block.questions, { id: `${block.id}-q${block.questions.length + 1}`, prompt: "", options: ["", "", ""], correct_answer: "" }] })} className="flex items-center gap-1 text-amber-300 hover:text-amber-200"><Plus className="h-3 w-3" /> Add question</button></div>{block.questions.map((question, questionIndex) => <div key={question.id} className="space-y-2 rounded border border-[#202631] bg-[#0c1017] p-2"><input value={question.prompt} onChange={(event) => updateDynamicBlock(step, index, { questions: block.questions.map((item, itemIndex) => itemIndex === questionIndex ? { ...item, prompt: event.target.value } : item) })} placeholder={`Question ${questionIndex + 1}`} className="w-full rounded border border-[#202631] bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`Quiz question ${questionIndex + 1}`} />{question.options.map((option, optionIndex) => <input key={`${question.id}-${optionIndex}`} value={option} onChange={(event) => updateDynamicBlock(step, index, { questions: block.questions.map((item, itemIndex) => itemIndex === questionIndex ? { ...item, options: item.options.map((value, valueIndex) => valueIndex === optionIndex ? event.target.value : value) } : item) })} placeholder={`Option ${optionIndex + 1}`} className="w-full rounded border border-[#202631] bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`Quiz question ${questionIndex + 1} option ${optionIndex + 1}`} />)}<input value={question.correct_answer || question.correctAnswer || ""} onChange={(event) => updateDynamicBlock(step, index, { questions: block.questions.map((item, itemIndex) => itemIndex === questionIndex ? { ...item, correct_answer: event.target.value } : item) })} placeholder="Correct Answer / Key" className="w-full rounded border border-amber-500/30 bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`Quiz question ${questionIndex + 1} Correct Answer / Key`} /></div>)}</div>}
