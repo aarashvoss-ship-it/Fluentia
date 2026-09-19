@@ -5,6 +5,7 @@ import { ContentBlock, ContentBlockType, STUDY_STEPS, StudyStepId, StrictStepCon
 import { useLessonEditorStore } from "@/lib/lesson-editor-store";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
+import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { uploadLessonMedia } from "@/services/storage-service";
 import { Eye, Layers, MoveDown, MoveUp, Plus, Trash2, X, ChevronDown, Mic, Square } from "lucide-react";
 
@@ -22,6 +23,7 @@ export function LessonTailorEditor({
   const [activeStep, setActiveStep] = useState<StudyStepId>("warm_up");
   const textAreaRefs = React.useRef<Record<string, HTMLTextAreaElement | null>>({});
   const [openTranscript, setOpenTranscript] = useState<Record<string, boolean>>({});
+  const [openMarkdownGuide, setOpenMarkdownGuide] = useState<Record<string, boolean>>({});
   const transcriptWrapRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
   const [recordingByBlockId, setRecordingByBlockId] = useState<Record<string, { status: "recording" | "uploading" | "error"; error?: string; elapsed?: number; levels?: number[] }>>({});
   const recorderRef = useRef<Map<string, MediaRecorder>>(new Map());
@@ -370,6 +372,22 @@ export function LessonTailorEditor({
     requestAnimationFrame(() => textarea?.focus());
   };
 
+  const insertMarkdownSnippet = (step: StudyStepId, index: number, snippet: string) => {
+    const block = getBlocks(step)[index];
+    if (!block || block.type !== "text") return;
+    const textarea = textAreaRefs.current[block.id];
+    const value = block.body;
+    const start = textarea?.selectionStart ?? value.length;
+    const end = textarea?.selectionEnd ?? value.length;
+    const nextValue = `${value.slice(0, start)}${snippet}${value.slice(end)}`;
+    updateDynamicBlock(step, index, { body: nextValue });
+    requestAnimationFrame(() => {
+      textarea?.focus();
+      const cursor = start + snippet.length;
+      textarea?.setSelectionRange(cursor, cursor);
+    });
+  };
+
   const renderDynamicBuilder = (step: StudyStepId) => {
     const blocks = getBlocks(step);
     const moveBlock = (index: number, direction: -1 | 1) => {
@@ -463,7 +481,7 @@ export function LessonTailorEditor({
               </div>
             </div>
             <input value={block.title} onChange={(event) => updateDynamicBlock(step, index, { title: event.target.value })} placeholder="Block title" className="mb-2 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.type} block title`} />
-            {block.type === "text" && <div className="space-y-2"><div className="flex flex-wrap items-center gap-1 rounded border border-[#202631] bg-[#0c1017] p-1" role="toolbar" aria-label="Text formatting"><button type="button" onClick={() => prependMarkdownLine(step, index, "# ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]" aria-label="Heading 1">H1</button><button type="button" onClick={() => prependMarkdownLine(step, index, "## ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]" aria-label="Heading 2">H2</button><button type="button" onClick={() => applyMarkdown(step, index, "**", "**")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]" aria-label="Bold">B</button><button type="button" onClick={() => applyMarkdown(step, index, "*", "*")} className="rounded px-2 py-1 text-xs italic text-stone-300 hover:bg-[#293343]" aria-label="Italic">I</button><button type="button" onClick={() => prependMarkdownLine(step, index, "- ")} className="rounded px-2 py-1 text-xs text-stone-300 hover:bg-[#293343]" aria-label="Bullet list">- List</button></div><textarea ref={(element) => { textAreaRefs.current[block.id] = element; }} value={block.body} onChange={(event) => updateDynamicBlock(step, index, { body: event.target.value })} placeholder="Main body content" rows={4} className="w-full resize-y rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Text block body" /></div>}
+            {block.type === "text" && <div className="space-y-2"><details open={!!openMarkdownGuide[block.id]} onToggle={(event) => setOpenMarkdownGuide((current) => ({ ...current, [block.id]: event.currentTarget.open }))} className="rounded border border-[#202631] bg-[#0c1017]/70"><summary className="cursor-pointer list-none px-2 py-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-stone-400 hover:text-amber-300">Markdown Guide / Cheat Sheet</summary><div className="border-t border-[#202631] p-2"><p className="mb-2 text-[11px] text-stone-500">Use Markdown for structure, emphasis, quotes, code, lists, and formulas.</p><div className="flex flex-wrap gap-1.5"><button type="button" onClick={() => insertMarkdownSnippet(step, index, "# Heading 1\n")} className="rounded border border-[#394252] px-2 py-1 font-mono text-[11px] text-stone-300 hover:border-amber-500 hover:text-amber-300"># Heading 1</button><button type="button" onClick={() => insertMarkdownSnippet(step, index, "## Heading 2\n")} className="rounded border border-[#394252] px-2 py-1 font-mono text-[11px] text-stone-300 hover:border-amber-500 hover:text-amber-300">## Heading 2</button><button type="button" onClick={() => insertMarkdownSnippet(step, index, "**Bold**")} className="rounded border border-[#394252] px-2 py-1 font-mono text-[11px] text-stone-300 hover:border-amber-500 hover:text-amber-300">**Bold**</button><button type="button" onClick={() => insertMarkdownSnippet(step, index, "*Italic*")} className="rounded border border-[#394252] px-2 py-1 font-mono text-[11px] text-stone-300 hover:border-amber-500 hover:text-amber-300">*Italic*</button><button type="button" onClick={() => insertMarkdownSnippet(step, index, "- Bullet list\n")} className="rounded border border-[#394252] px-2 py-1 font-mono text-[11px] text-stone-300 hover:border-amber-500 hover:text-amber-300">- Bullet list</button><button type="button" onClick={() => insertMarkdownSnippet(step, index, "> Blockquote / Key Insight\n")} className="rounded border border-[#394252] px-2 py-1 font-mono text-[11px] text-stone-300 hover:border-amber-500 hover:text-amber-300">&gt; Blockquote</button><button type="button" onClick={() => insertMarkdownSnippet(step, index, "`code`")} className="rounded border border-[#394252] px-2 py-1 font-mono text-[11px] text-stone-300 hover:border-amber-500 hover:text-amber-300">`code`</button><button type="button" onClick={() => insertMarkdownSnippet(step, index, "$math$")} className="rounded border border-[#394252] px-2 py-1 font-mono text-[11px] text-stone-300 hover:border-amber-500 hover:text-amber-300">$math$</button><button type="button" onClick={() => insertMarkdownSnippet(step, index, "1.01^365")} className="rounded border border-[#394252] px-2 py-1 font-mono text-[11px] text-stone-300 hover:border-amber-500 hover:text-amber-300">1.01^365</button></div></div></details><div className="flex flex-wrap items-center gap-1 rounded border border-[#202631] bg-[#0c1017] p-1" role="toolbar" aria-label="Text formatting"><button type="button" onClick={() => prependMarkdownLine(step, index, "# ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]" aria-label="Heading 1">H1</button><button type="button" onClick={() => prependMarkdownLine(step, index, "## ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]" aria-label="Heading 2">H2</button><button type="button" onClick={() => applyMarkdown(step, index, "**", "**")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]" aria-label="Bold">B</button><button type="button" onClick={() => applyMarkdown(step, index, "*", "*")} className="rounded px-2 py-1 text-xs italic text-stone-300 hover:bg-[#293343]" aria-label="Italic">I</button><button type="button" onClick={() => prependMarkdownLine(step, index, "- ")} className="rounded px-2 py-1 text-xs text-stone-300 hover:bg-[#293343]" aria-label="Bullet list">- List</button></div><textarea ref={(element) => { textAreaRefs.current[block.id] = element; }} value={block.body} onChange={(event) => updateDynamicBlock(step, index, { body: event.target.value })} placeholder="Main body content" rows={4} className="w-full resize-y rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Text block body" /><div className="rounded border border-[#202631] bg-[#0c1017]/50 p-3"><p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400">Live Preview</p><MarkdownContent value={block.body || "Start typing to preview your text block."} className="text-sm leading-relaxed text-stone-300" /></div></div>}
             {block.type === "audio" && (() => {
               const rec = recordingByBlockId[block.id];
               const isRecording = rec?.status === "recording";
