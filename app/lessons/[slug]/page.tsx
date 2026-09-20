@@ -186,11 +186,11 @@ function AudioResponseBlock({ value, onChange, studentId }: { value?: string; on
             {isRecording ? <Square className="h-3.5 w-3.5 fill-current" /> : <Mic className="h-4 w-4" />}
           </button>
         </div>
-        <div className="flex flex-1 items-center justify-center gap-px overflow-hidden" aria-hidden>
+        <div className="mx-4 flex h-8 min-w-0 flex-1 items-center gap-px overflow-hidden rounded-full bg-slate-700/50 px-2" aria-hidden>
           {isRecording ? (
-            levels.map((h, i) => <span key={i} className="w-px shrink-0 rounded-full bg-stone-400/70 sm:w-[2px]" style={{ height: h }} />)
+            levels.map((h, i) => <span key={i} className="min-w-0 flex-1 rounded-full bg-amber-400/85 shadow-[0_0_8px_rgba(251,191,36,0.22)] transition-[height] duration-100 ease-linear" style={{ height: Math.max(4, h) }} />)
           ) : (
-            <span className="h-px w-full max-w-[220px] rounded bg-[#202631]" />
+            <span className="h-1.5 w-full rounded-full bg-slate-800/80" />
           )}
         </div>
         <span className={`shrink-0 font-mono text-xs tabular-nums ${isRecording ? "text-stone-300" : "text-stone-500"}`}>{isRecording ? fmt(elapsed) : fmtInt(0)}</span>
