@@ -7,7 +7,7 @@ import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { uploadLessonMedia } from "@/services/storage-service";
-import { Eye, Layers, MoveDown, MoveUp, Plus, Trash2, X, ChevronDown, ChevronUp, HelpCircle, Mic, Square } from "lucide-react";
+import { Eye, Layers, Lightbulb, MoveDown, MoveUp, Plus, Trash2, X, ChevronDown, ChevronUp, HelpCircle, Mic, Square } from "lucide-react";
 
 interface LessonTailorEditorProps {
   content: StrictStepContent;
@@ -57,6 +57,22 @@ function MarkdownEditor({
       selectionRef.current = { start: nextStart, end: nextEnd };
     });
   };
+  const insertCallout = () => {
+    const textarea = textareaRef.current;
+    const start = textarea?.selectionStart ?? selectionRef.current.start;
+    const end = textarea?.selectionEnd ?? selectionRef.current.end;
+    const selected = end > start ? value.slice(start, end) : "Replace this text with your executive template or key takeaway.";
+    const callout = `> **Executive Template**\n>\n> ${selected}`;
+    const nextValue = `${value.slice(0, start)}${callout}${value.slice(end)}`;
+    onChange(nextValue);
+    requestAnimationFrame(() => {
+      const placeholderStart = start + callout.lastIndexOf(selected);
+      const placeholderEnd = placeholderStart + selected.length;
+      textarea?.focus();
+      textarea?.setSelectionRange(placeholderStart, placeholderEnd);
+      selectionRef.current = { start: placeholderStart, end: placeholderEnd };
+    });
+  };
   const prependLine = (prefix: string) => {
     const textarea = document.activeElement instanceof HTMLTextAreaElement ? document.activeElement : null;
     const start = textarea?.selectionStart ?? value.length;
@@ -84,6 +100,7 @@ function MarkdownEditor({
             <button type="button" onClick={() => updateSelection("*", "*")} className="rounded px-2 py-1 text-xs italic text-stone-300 hover:bg-[#293343]">I</button>
             <button type="button" onClick={() => prependLine("- ")} className="rounded px-2 py-1 text-xs text-stone-300 hover:bg-[#293343]">List</button>
             <button type="button" onClick={() => onChange(`${value}\n---\n`)} className="rounded px-2 py-1 text-xs text-stone-300 hover:bg-[#293343]">HR</button>
+            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={insertCallout} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-amber-300 hover:bg-[#293343]" aria-label="Insert callout or executive template" title="Insert callout or executive template"><Lightbulb className="h-3.5 w-3.5" />Callout / Template</button>
             <span className="mx-1 h-4 w-px bg-[#394252]" aria-hidden="true" />
             <span className="sr-only">Text color</span>
             {colorPalette.map((color) => (
@@ -114,6 +131,7 @@ function MarkdownEditor({
             className="min-h-[100px] w-full resize-y overflow-auto rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500"
             aria-label={ariaLabel}
           />
+          <p className="text-[11px] leading-relaxed text-stone-500"><Lightbulb className="mr-1 inline h-3 w-3 text-amber-400" aria-hidden="true" />Tip: Wrap any word in brackets like [Micro-decisions] to automatically create a highlighted key-term badge for students.</p>
         </>
       ) : (
         <MarkdownContent value={value || "Nothing to preview yet."} className="min-h-[100px] rounded border border-[#202631] bg-[#0c1017]/50 p-3 text-sm leading-relaxed text-stone-300" />
