@@ -31,6 +31,14 @@ function MarkdownEditor({
   rows?: number;
 }) {
   const [mode, setMode] = useState<"write" | "preview">("write");
+  const colorPalette = [
+    { name: "Gray", value: "#9ca3af" },
+    { name: "Amber", value: "#f59e0b" },
+    { name: "Coral", value: "#ef4444" },
+    { name: "Emerald", value: "#10b981" },
+    { name: "Cyan", value: "#06b6d4" },
+    { name: "Purple", value: "#d946ef" },
+  ];
   const updateSelection = (prefix: string, suffix = "") => {
     const textarea = document.activeElement instanceof HTMLTextAreaElement ? document.activeElement : null;
     const start = textarea?.selectionStart ?? value.length;
@@ -65,6 +73,19 @@ function MarkdownEditor({
             <button type="button" onClick={() => updateSelection("*", "*")} className="rounded px-2 py-1 text-xs italic text-stone-300 hover:bg-[#293343]">I</button>
             <button type="button" onClick={() => prependLine("- ")} className="rounded px-2 py-1 text-xs text-stone-300 hover:bg-[#293343]">List</button>
             <button type="button" onClick={() => onChange(`${value}\n---\n`)} className="rounded px-2 py-1 text-xs text-stone-300 hover:bg-[#293343]">HR</button>
+            <span className="mx-1 h-4 w-px bg-[#394252]" aria-hidden="true" />
+            <span className="sr-only">Text color</span>
+            {colorPalette.map((color) => (
+              <button
+                key={color.value}
+                type="button"
+                onClick={() => updateSelection(`<span style="color: ${color.value}">`, "</span>")}
+                className="h-4 w-4 rounded-full border border-white/30 transition-transform hover:scale-125 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-1 focus:ring-offset-[#0c1017]"
+                style={{ backgroundColor: color.value }}
+                aria-label={`Apply ${color.name} text color`}
+                title={color.name}
+              />
+            ))}
           </div>
           <textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} rows={rows} className="min-h-[100px] w-full resize-y overflow-auto rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={ariaLabel} />
         </>
