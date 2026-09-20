@@ -15,6 +15,66 @@ interface LessonTailorEditorProps {
   onPreview?: () => void;
 }
 
+function MarkdownEditor({
+  value,
+  onChange,
+  onHelp,
+  placeholder,
+  ariaLabel,
+  rows = 4,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onHelp: () => void;
+  placeholder: string;
+  ariaLabel: string;
+  rows?: number;
+}) {
+  const [mode, setMode] = useState<"write" | "preview">("write");
+  const updateSelection = (prefix: string, suffix = "") => {
+    const textarea = document.activeElement instanceof HTMLTextAreaElement ? document.activeElement : null;
+    const start = textarea?.selectionStart ?? value.length;
+    const end = textarea?.selectionEnd ?? value.length;
+    const selected = value.slice(start, end) || "text";
+    onChange(`${value.slice(0, start)}${prefix}${selected}${suffix}${value.slice(end)}`);
+  };
+  const prependLine = (prefix: string) => {
+    const textarea = document.activeElement instanceof HTMLTextAreaElement ? document.activeElement : null;
+    const start = textarea?.selectionStart ?? value.length;
+    const lineStart = value.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
+    onChange(`${value.slice(0, lineStart)}${prefix}${value.slice(lineStart)}`);
+  };
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <button type="button" onClick={onHelp} className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.12em] text-stone-500 hover:text-amber-300" aria-label="Open Markdown help">
+          Markdown <HelpCircle className="h-3.5 w-3.5" />
+        </button>
+        <div className="flex rounded border border-[#394252] p-0.5" role="tablist" aria-label="Markdown editor mode">
+          <button type="button" role="tab" aria-selected={mode === "write"} onClick={() => setMode("write")} className={`px-2 py-1 text-[10px] ${mode === "write" ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-200"}`}>Write</button>
+          <button type="button" role="tab" aria-selected={mode === "preview"} onClick={() => setMode("preview")} className={`px-2 py-1 text-[10px] ${mode === "preview" ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-200"}`}>Preview</button>
+        </div>
+      </div>
+      {mode === "write" ? (
+        <>
+          <div className="flex flex-wrap items-center gap-1 rounded border border-[#202631] bg-[#0c1017] p-1" role="toolbar" aria-label="Markdown formatting">
+            <button type="button" onClick={() => prependLine("# ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]">H1</button>
+            <button type="button" onClick={() => prependLine("## ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]">H2</button>
+            <button type="button" onClick={() => prependLine("### ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]">H3</button>
+            <button type="button" onClick={() => updateSelection("**", "**")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]">B</button>
+            <button type="button" onClick={() => updateSelection("*", "*")} className="rounded px-2 py-1 text-xs italic text-stone-300 hover:bg-[#293343]">I</button>
+            <button type="button" onClick={() => prependLine("- ")} className="rounded px-2 py-1 text-xs text-stone-300 hover:bg-[#293343]">List</button>
+            <button type="button" onClick={() => onChange(`${value}\n---\n`)} className="rounded px-2 py-1 text-xs text-stone-300 hover:bg-[#293343]">HR</button>
+          </div>
+          <textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} rows={rows} className="min-h-[100px] w-full resize-y overflow-auto rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={ariaLabel} />
+        </>
+      ) : (
+        <MarkdownContent value={value || "Nothing to preview yet."} className="min-h-[100px] rounded border border-[#202631] bg-[#0c1017]/50 p-3 text-sm leading-relaxed text-stone-300" />
+      )}
+    </div>
+  );
+}
+
 export function LessonTailorEditor({
   content,
   onChange,
@@ -328,7 +388,6 @@ export function LessonTailorEditor({
 
   const renderTranscriptField = (step: StudyStepId, index: number, block: ContentBlock & { transcript?: string }) => {
     const isOpen = !!openTranscript[block.id];
-    const isPreviewOpen = !!openTranscriptPreview[block.id];
     const preview = (block.transcript || "").trim();
     return (
       <div
@@ -354,25 +413,7 @@ export function LessonTailorEditor({
         {!isOpen && preview ? <MarkdownContent value={preview} className="line-clamp-2 px-2 pb-1.5 text-[11px] leading-relaxed text-stone-500" /> : null}
         {isOpen && (
           <div id={`transcript-${block.id}`} className="border-t border-[#202631] p-2">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1"><span className="text-[10px] uppercase tracking-[0.12em] text-stone-500">Markdown transcript</span><button type="button" onClick={() => setMarkdownHelpBlock(block.id)} className="rounded-full text-stone-500 hover:text-amber-300" aria-label="Open Markdown help"><HelpCircle className="h-3.5 w-3.5" /></button></div>
-              <div className="flex rounded border border-[#394252] p-0.5" role="tablist" aria-label="Transcript editor mode">
-                <button type="button" role="tab" aria-selected={!isPreviewOpen} onClick={() => setOpenTranscriptPreview((current) => ({ ...current, [block.id]: false }))} className={`px-2 py-1 text-[10px] ${!isPreviewOpen ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-200"}`}>Write</button>
-                <button type="button" role="tab" aria-selected={isPreviewOpen} onClick={() => setOpenTranscriptPreview((current) => ({ ...current, [block.id]: true }))} className={`px-2 py-1 text-[10px] ${isPreviewOpen ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-200"}`}>Preview</button>
-              </div>
-            </div>
-            {isPreviewOpen ? (
-              <MarkdownContent value={preview || "Transcript preview will appear here."} className="min-h-20 rounded border border-[#202631] bg-[#0c1017] p-2 text-xs leading-relaxed text-stone-300" />
-            ) : (
-              <textarea
-                value={block.transcript || ""}
-                onChange={(event) => updateDynamicBlock(step, index, { transcript: event.target.value })}
-                placeholder="Paste script or audio/video transcript here..."
-                rows={4}
-                className="max-h-48 w-full resize-y overflow-auto rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500"
-                aria-label="Media Transcript (Optional)"
-              />
-            )}
+            <MarkdownEditor value={block.transcript || ""} onChange={(value) => updateDynamicBlock(step, index, { transcript: value })} onHelp={() => setMarkdownHelpBlock(block.id)} placeholder="Paste script or audio/video transcript here..." ariaLabel="Media Transcript (Optional)" />
           </div>
         )}
       </div>
@@ -529,9 +570,9 @@ export function LessonTailorEditor({
                 <button type="button" onClick={() => handleDeleteBlock(index, block.id)} className="rounded p-1 text-stone-400 hover:bg-[#0c1017] hover:text-red-300" aria-label="Delete block"><Trash2 className="h-3.5 w-3.5" /></button>
               </div>
             </div>
-            {isExpanded && <div id={`block-content-${block.id}`}>
+            <div id={`block-content-${block.id}`} className={`overflow-hidden transition-[max-height,opacity] duration-200 ${isExpanded ? "max-h-[5000px] opacity-100" : "max-h-0 opacity-0"}`} aria-hidden={!isExpanded}>
             <input value={block.title} onChange={(event) => updateDynamicBlock(step, index, { title: event.target.value })} placeholder="Block title" className="mb-2 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.type} block title`} />
-            {block.type === "text" && <div className="space-y-2"><div className="flex items-center gap-1"><span className="text-[11px] font-medium uppercase tracking-[0.08em] text-stone-400">Markdown content</span><button type="button" onClick={() => setMarkdownHelpBlock(block.id)} className="rounded-full text-stone-500 hover:text-amber-300" aria-label="Open Markdown help"><HelpCircle className="h-3.5 w-3.5" /></button></div><div className="flex flex-wrap items-center gap-1 rounded border border-[#202631] bg-[#0c1017] p-1" role="toolbar" aria-label="Text formatting"><button type="button" onClick={() => prependMarkdownLine(step, index, "# ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]" aria-label="Heading 1">H1</button><button type="button" onClick={() => prependMarkdownLine(step, index, "## ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]" aria-label="Heading 2">H2</button><button type="button" onClick={() => prependMarkdownLine(step, index, "### ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]" aria-label="Heading 3">H3</button><button type="button" onClick={() => applyMarkdown(step, index, "**", "**")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]" aria-label="Bold">B</button><button type="button" onClick={() => applyMarkdown(step, index, "*", "*")} className="rounded px-2 py-1 text-xs italic text-stone-300 hover:bg-[#293343]" aria-label="Italic">I</button><button type="button" onClick={() => prependMarkdownLine(step, index, "- ")} className="rounded px-2 py-1 text-xs text-stone-300 hover:bg-[#293343]" aria-label="Bullet list">- List</button><button type="button" onClick={() => insertMarkdownSnippet(step, index, "\n---\n")} className="rounded px-2 py-1 text-xs text-stone-300 hover:bg-[#293343]" aria-label="Horizontal rule">HR</button></div><textarea ref={(element) => { textAreaRefs.current[block.id] = element; }} value={block.body} onChange={(event) => updateDynamicBlock(step, index, { body: event.target.value })} placeholder="Main body content" rows={4} className="w-full resize-y rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Text block body" /><div className="rounded border border-[#202631] bg-[#0c1017]/50 p-3"><p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400">Live Preview</p><MarkdownContent value={block.body || "Start typing to preview your text block."} className="text-sm leading-relaxed text-stone-300" /></div></div>}
+            {block.type === "text" && <MarkdownEditor value={block.body} onChange={(value) => updateDynamicBlock(step, index, { body: value })} onHelp={() => setMarkdownHelpBlock(block.id)} placeholder="Main body content" ariaLabel="Text block body" />}
             {block.type === "audio" && (() => {
               const rec = recordingByBlockId[block.id];
               const isRecording = rec?.status === "recording";
@@ -562,9 +603,9 @@ export function LessonTailorEditor({
             })()}
             {block.type === "video" && <div className="space-y-2"><input value={block.videoUrl} onChange={(event) => updateDynamicBlock(step, index, { videoUrl: event.target.value })} placeholder="YouTube or video embed URL" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Video block URL" /><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} editable onTranscriptChange={(value) => updateDynamicBlock(step, index, { transcript: value })} /></div>}
             {block.type === "image" && <div className="space-y-2"><input value={block.imageUrl} onChange={(event) => updateDynamicBlock(step, index, { imageUrl: event.target.value })} placeholder="Image URL" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Image block URL" /><input value={block.caption} onChange={(event) => updateDynamicBlock(step, index, { caption: event.target.value })} placeholder="Image caption" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Image block caption" /></div>}
-            {block.type === "question" && <div className="space-y-2"><label className="block text-xs text-stone-500">Question type<select value={block.question_type || "multiple_choice"} onChange={(event) => updateDynamicBlock(step, index, { question_type: event.target.value as "multiple_choice" | "open_ended" })} className="mt-1 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 [color-scheme:dark]" aria-label="Question type"><option value="multiple_choice">Multiple Choice</option><option value="open_ended">Open-Ended Response</option></select></label><div className="flex items-center gap-1"><span className="text-xs text-stone-500">Question prompt</span><button type="button" onClick={() => setMarkdownHelpBlock(block.id)} className="rounded-full text-stone-500 hover:text-amber-300" aria-label="Open Markdown help"><HelpCircle className="h-3.5 w-3.5" /></button></div><textarea value={block.prompt} onChange={(event) => updateDynamicBlock(step, index, { prompt: event.target.value })} placeholder="Question or task prompt" rows={3} className="w-full resize-none rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Question or task prompt" /><MarkdownContent value={block.prompt || "Question preview"} className="rounded border border-[#202631] bg-[#0c1017]/50 p-2 text-xs text-stone-300" />{(block.question_type || "multiple_choice") === "open_ended" ? <><div className="flex items-center gap-1"><span className="text-xs text-stone-500">Sample answer / instructor guide</span><button type="button" onClick={() => setMarkdownHelpBlock(block.id)} className="rounded-full text-stone-500 hover:text-amber-300" aria-label="Open Markdown help"><HelpCircle className="h-3.5 w-3.5" /></button></div><textarea value={block.sample_answer || ""} onChange={(event) => updateDynamicBlock(step, index, { sample_answer: event.target.value })} placeholder="Optional model answer or evaluation guide" rows={4} className="w-full resize-y rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Sample answer or instructor guide" /><MarkdownContent value={block.sample_answer || "Sample answer preview"} className="rounded border border-[#202631] bg-[#0c1017]/50 p-2 text-xs text-stone-300" /></> : <>{block.options.map((option, optionIndex) => <div key={`${block.id}-${optionIndex}`} className="flex gap-2"><input value={option} onChange={(event) => updateDynamicBlock(step, index, { options: block.options.map((value, valueIndex) => valueIndex === optionIndex ? event.target.value : value) })} placeholder={`Option ${optionIndex + 1} (optional)`} className="min-w-0 flex-1 rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`Question option ${optionIndex + 1}`} /><button type="button" onClick={() => updateDynamicBlock(step, index, { options: block.options.filter((_, valueIndex) => valueIndex !== optionIndex) })} disabled={block.options.length <= 1} aria-label={`Remove question option ${optionIndex + 1}`} className="rounded border border-[#394252] px-2 text-stone-500 hover:border-red-400 hover:text-red-300 disabled:opacity-30"><X className="h-3.5 w-3.5" /></button></div>)}<button type="button" onClick={() => updateDynamicBlock(step, index, { options: [...block.options, ""] })} className="flex items-center gap-1 text-xs text-amber-300 hover:text-amber-200"><Plus className="h-3 w-3" /> Add option</button><input value={block.correct_answer} onChange={(event) => updateDynamicBlock(step, index, { correct_answer: event.target.value })} placeholder="Correct Answer / Key" className="w-full rounded border border-amber-500/30 bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Correct Answer / Key" /></>}</div>}
+            {block.type === "question" && <div className="space-y-2"><label className="block text-xs text-stone-500">Question type<select value={block.question_type || "multiple_choice"} onChange={(event) => updateDynamicBlock(step, index, { question_type: event.target.value as "multiple_choice" | "open_ended" })} className="mt-1 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 [color-scheme:dark]" aria-label="Question type"><option value="multiple_choice">Multiple Choice</option><option value="open_ended">Open-Ended Response</option></select></label><MarkdownEditor value={block.prompt} onChange={(value) => updateDynamicBlock(step, index, { prompt: value })} onHelp={() => setMarkdownHelpBlock(block.id)} placeholder="Question or task prompt" ariaLabel="Question or task prompt" rows={4} />{(block.question_type || "multiple_choice") === "open_ended" ? <MarkdownEditor value={block.sample_answer || ""} onChange={(value) => updateDynamicBlock(step, index, { sample_answer: value })} onHelp={() => setMarkdownHelpBlock(block.id)} placeholder="Optional model answer or evaluation guide" ariaLabel="Sample answer or instructor guide" rows={4} /> : <>{block.options.map((option, optionIndex) => <div key={`${block.id}-${optionIndex}`} className="flex gap-2"><input value={option} onChange={(event) => updateDynamicBlock(step, index, { options: block.options.map((value, valueIndex) => valueIndex === optionIndex ? event.target.value : value) })} placeholder={`Option ${optionIndex + 1} (optional)`} className="min-w-0 flex-1 rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`Question option ${optionIndex + 1}`} /><button type="button" onClick={() => updateDynamicBlock(step, index, { options: block.options.filter((_, valueIndex) => valueIndex !== optionIndex) })} disabled={block.options.length <= 1} aria-label={`Remove question option ${optionIndex + 1}`} className="rounded border border-[#394252] px-2 text-stone-500 hover:border-red-400 hover:text-red-300 disabled:opacity-30"><X className="h-3.5 w-3.5" /></button></div>)}<button type="button" onClick={() => updateDynamicBlock(step, index, { options: [...block.options, ""] })} className="flex items-center gap-1 text-xs text-amber-300 hover:text-amber-200"><Plus className="h-3 w-3" /> Add option</button><input value={block.correct_answer} onChange={(event) => updateDynamicBlock(step, index, { correct_answer: event.target.value })} placeholder="Correct Answer / Key" className="w-full rounded border border-amber-500/30 bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Correct Answer / Key" /></>}</div>}
             {block.type === "quiz" && <div className="space-y-2"><div className="flex items-center justify-between text-xs text-stone-400"><span>Questions</span><button type="button" onClick={() => updateDynamicBlock(step, index, { questions: [...block.questions, { id: `${block.id}-q${block.questions.length + 1}`, prompt: "", options: ["", "", ""], correct_answer: "" }] })} className="flex items-center gap-1 text-amber-300 hover:text-amber-200"><Plus className="h-3 w-3" /> Add question</button></div>{block.questions.map((question, questionIndex) => <div key={question.id} className="space-y-2 rounded border border-[#202631] bg-[#0c1017] p-2"><input value={question.prompt} onChange={(event) => updateDynamicBlock(step, index, { questions: block.questions.map((item, itemIndex) => itemIndex === questionIndex ? { ...item, prompt: event.target.value } : item) })} placeholder={`Question ${questionIndex + 1}`} className="w-full rounded border border-[#202631] bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`Quiz question ${questionIndex + 1}`} /><MarkdownContent value={question.prompt || "Question preview"} className="text-xs text-stone-300" />{question.options.map((option, optionIndex) => <input key={`${question.id}-${optionIndex}`} value={option} onChange={(event) => updateDynamicBlock(step, index, { questions: block.questions.map((item, itemIndex) => itemIndex === questionIndex ? { ...item, options: item.options.map((value, valueIndex) => valueIndex === optionIndex ? event.target.value : value) } : item) })} placeholder={`Option ${optionIndex + 1}`} className="w-full rounded border border-[#202631] bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`Quiz question ${questionIndex + 1} option ${optionIndex + 1}`} />)}<input value={question.correct_answer || question.correctAnswer || ""} onChange={(event) => updateDynamicBlock(step, index, { questions: block.questions.map((item, itemIndex) => itemIndex === questionIndex ? { ...item, correct_answer: event.target.value } : item) })} placeholder="Correct Answer / Key" className="w-full rounded border border-amber-500/30 bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`Quiz question ${questionIndex + 1} Correct Answer / Key`} /></div>)}</div>}
-            </div>}
+            </div>
           </div>
           );
         })}
