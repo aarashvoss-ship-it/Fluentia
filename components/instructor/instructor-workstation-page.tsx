@@ -123,6 +123,9 @@ export default function InstructorWorkstationPage({
   const [saveIndicator, setSaveIndicator] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const hasLoadedLesson = useRef(false);
   const lastSavedDraftSignature = useRef<string | null>(null);
+  const saveRequestId = useRef(0);
+  const saveInFlight = useRef(false);
+  const pendingAutoSave = useRef(false);
   const lastInputAt = useRef(0);
   const inputTimer = useRef<number | null>(null);
   const [validationErrors, setValidationErrors] = useState<Partial<Record<"selectedStudentId" | "title" | "slug" | "moduleNumber", string>>>({});
@@ -660,6 +663,11 @@ export default function InstructorWorkstationPage({
   };
 
   const saveLessonChanges = async (status: "draft" | "published", isAutoSave = false) => {
+    if (isAutoSave && saveInFlight.current) {
+      pendingAutoSave.current = true;
+      return;
+    }
+    saveInFlight.current = true;
     const title = newLesson.title.trim() || "Untitled Lesson";
     const slug = newLesson.slug.trim().toLowerCase() || createSlug(title);
     const moduleNumber = Number(newLesson.moduleNumber) || 1;
@@ -672,12 +680,14 @@ export default function InstructorWorkstationPage({
       if (Object.keys(errors).length > 0) {
         setValidationErrors(errors);
         setPublishStatus("Fix the highlighted fields before publishing.");
+        saveInFlight.current = false;
         return;
       }
     }
     const studentId = selectedStudentId || newLesson.studentId || selectedStudent?.id || "";
     if (!studentId) {
       setPublishStatus("Select a student before saving the lesson.");
+      saveInFlight.current = false;
       return;
     }
     setValidationErrors({});
@@ -690,6 +700,7 @@ export default function InstructorWorkstationPage({
       setSaveIndicator("error");
       setPublishStatus("Select a valid student before saving the lesson.");
       if (!isAutoSave) setIsPublishing(false);
+      saveInFlight.current = false;
       return;
     }
     const content = {
@@ -706,6 +717,7 @@ export default function InstructorWorkstationPage({
       instructorNote: workstationState.studentProfile.teacherNotes,
       lessonResources,
     };
+    const requestId = ++saveRequestId.current;
     try {
       const lesson = databaseLessonId
         ? await updateLesson(databaseLessonId, {
@@ -731,6 +743,7 @@ export default function InstructorWorkstationPage({
             changes_summary: `Initial lesson created as ${status}`,
           });
       const savedSlug = typeof lesson.content?.slug === "string" ? lesson.content.slug : slug;
+      if (requestId !== saveRequestId.current) return;
       setDatabaseLessonId(lesson.id);
       setNewLesson((previous) => ({
         ...previous,
@@ -740,7 +753,11 @@ export default function InstructorWorkstationPage({
         moduleNumber: String(moduleNumber),
         status,
       }));
-      setWorkstationState((previous) => ({ ...previous, content: lesson.content || content, bannerUrl: workstationState.bannerUrl }));
+      setWorkstationState((previous) => ({
+        ...previous,
+        content: JSON.stringify(previous.content) === JSON.stringify(workstationState.content) ? lesson.content || content : previous.content,
+        bannerUrl: workstationState.bannerUrl,
+      }));
       hasLoadedLesson.current = true;
       await refreshCreatedLessons();
       setLessonStatus(status);
@@ -781,7 +798,15 @@ export default function InstructorWorkstationPage({
       setSaveIndicator("error");
       if (!isAutoSave) setPublishStatus("Lesson save failed. Check the Supabase connection and try again.");
     } finally {
+      saveInFlight.current = false;
       if (!isAutoSave) setIsPublishing(false);
+      if (pendingAutoSave.current) {
+        pendingAutoSave.current = false;
+        const latestSignature = getDraftSignature(workstationState.content, newLesson.title, newLesson.subtitle, newLesson.moduleNumber);
+        if (latestSignature !== lastSavedDraftSignature.current) {
+          window.setTimeout(() => void saveLessonChanges(status, true), 0);
+        }
+      }
     }
   };
 
@@ -819,7 +844,7 @@ export default function InstructorWorkstationPage({
   ] as const;
   const previewContent = previewStep==="results" ? undefined : workstationState.content[previewStep as Exclude<typeof previewStep,"results">] as Record<string, any> | undefined;
   const previewBlocks: ContentBlock[] = previewStep==="results" ? [] : Array.isArray(previewContent?.blocks)
-    ? (previewContent.blocks as ContentBlock[]).filter((block: ContentBlock) => block.enabled !== false)
+    ? (previewContent.blocks as ContentBlock[]).filter((block: ContentBlock) => block.is_active !== false && block.enabled !== false)
     : [];
 
   const renderPreviewStep = () => {

@@ -7,7 +7,7 @@ import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { uploadLessonMedia } from "@/services/storage-service";
-import { Eye, Layers, MoveDown, MoveUp, Plus, Trash2, X, ChevronDown, Mic, Square } from "lucide-react";
+import { Eye, Layers, MoveDown, MoveUp, Plus, Trash2, X, ChevronDown, ChevronUp, HelpCircle, Mic, Square } from "lucide-react";
 
 interface LessonTailorEditorProps {
   content: StrictStepContent;
@@ -21,9 +21,15 @@ export function LessonTailorEditor({
   onPreview,
 }: LessonTailorEditorProps) {
   const [activeStep, setActiveStep] = useState<StudyStepId>("warm_up");
+  const [draftContent, setDraftContent] = useState(content);
+  const draftContentRef = useRef(content);
+  const lastEmittedContentRef = useRef(JSON.stringify(content));
+  const localUpdatePendingRef = useRef(false);
   const textAreaRefs = React.useRef<Record<string, HTMLTextAreaElement | null>>({});
   const [openTranscript, setOpenTranscript] = useState<Record<string, boolean>>({});
-  const [openMarkdownGuide, setOpenMarkdownGuide] = useState<Record<string, boolean>>({});
+  const [openTranscriptPreview, setOpenTranscriptPreview] = useState<Record<string, boolean>>({});
+  const [collapsedBlocks, setCollapsedBlocks] = useState<Record<string, boolean>>({});
+  const [markdownHelpBlock, setMarkdownHelpBlock] = useState<string | null>(null);
   const transcriptWrapRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
   const [recordingByBlockId, setRecordingByBlockId] = useState<Record<string, { status: "recording" | "uploading" | "error"; error?: string; elapsed?: number; levels?: number[] }>>({});
   const recorderRef = useRef<Map<string, MediaRecorder>>(new Map());
@@ -40,12 +46,28 @@ export function LessonTailorEditor({
     addBlock,
     updateBlock,
     deleteBlock,
-    toggleBlock: storeToggleBlock,
     reorderBlocks,
   } = useLessonEditorStore();
 
+  useEffect(() => {
+    const serializedContent = JSON.stringify(content);
+    if (localUpdatePendingRef.current) {
+      if (serializedContent === lastEmittedContentRef.current) localUpdatePendingRef.current = false;
+      return;
+    }
+    if (serializedContent !== lastEmittedContentRef.current) {
+      draftContentRef.current = content;
+      setDraftContent(content);
+      lastEmittedContentRef.current = serializedContent;
+    }
+  }, [content]);
+
   // Wrapper to handle both local state and Supabase sync
-  const handleChange = async (updatedContent: StrictStepContent) => {
+  const handleChange = (updatedContent: StrictStepContent) => {
+    localUpdatePendingRef.current = true;
+    draftContentRef.current = updatedContent;
+    lastEmittedContentRef.current = JSON.stringify(updatedContent);
+    setDraftContent(updatedContent);
     if (onChange) {
       onChange(updatedContent);
     }
@@ -53,9 +75,9 @@ export function LessonTailorEditor({
 
   const updateStepValue = (step: StudyStepId, field: string, value: unknown) => {
     handleChange({
-      ...content,
+      ...draftContentRef.current,
       [step]: {
-        ...(content[step] || {}),
+        ...(draftContentRef.current[step] || {}),
         [field]: value,
       },
     });
@@ -75,25 +97,28 @@ export function LessonTailorEditor({
   };
 
   const getBlocks = (step: StudyStepId): ContentBlock[] =>
-    (((content[step] || {}) as { blocks?: ContentBlock[] }).blocks || []);
+    (((draftContentRef.current[step] || {}) as { blocks?: ContentBlock[] }).blocks || []);
 
   const updateBlocks = (step: StudyStepId, blocks: ContentBlock[]) => updateStepValue(step, "blocks", blocks);
 
   const createBlock = (type: ContentBlockType): ContentBlock => {
-    const id = `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    if (type === "text") return { id, type, title: "Text block", body: "", enabled: true };
-    if (type === "audio") return { id, type, title: "Audio lesson", audioUrl: "", transcript: "", enabled: true };
-    if (type === "video") return { id, type, title: "Video lesson", videoUrl: "", transcript: "", enabled: true };
-    if (type === "image") return { id, type, title: "Image", imageUrl: "", caption: "", enabled: true };
-    if (type === "question") return { id, type, title: "Question", prompt: "", options: ["", "", ""], correct_answer: "", enabled: true };
-    return { id, type, title: "Task / Quiz", questions: [{ id: `${id}-q1`, prompt: "", options: ["", "", ""], correct_answer: "" }], enabled: true };
+    const id = typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    const base = { id, type, enabled: true, is_active: true };
+    if (type === "text") return { ...base, type: "text", title: "Text block", body: "" };
+    if (type === "audio") return { ...base, type: "audio", title: "Audio lesson", audioUrl: "", transcript: "" };
+    if (type === "video") return { ...base, type: "video", title: "Video lesson", videoUrl: "", transcript: "" };
+    if (type === "image") return { ...base, type: "image", title: "Image", imageUrl: "", caption: "" };
+    if (type === "question") return { ...base, type: "question", title: "Question", prompt: "", options: ["", "", ""], correct_answer: "" };
+    return { ...base, type: "quiz", title: "Task / Quiz", questions: [{ id: `${id}-q1`, prompt: "", options: ["", "", ""], correct_answer: "" }] };
   };
 
   const updateDynamicBlock = (step: StudyStepId, index: number, patch: Partial<ContentBlock>) => {
     const blocks = getBlocks(step).map((block, blockIndex) => blockIndex === index ? { ...block, ...patch } as ContentBlock : block);
     updateBlocks(step, blocks);
     
-    // Sync to Supabase
+    // Sync to Supabase after the local draft has rendered the change.
     const block = blocks[index];
     if (block) {
       updateBlock(step, block.id, patch).catch((error: any) => {
@@ -303,6 +328,7 @@ export function LessonTailorEditor({
 
   const renderTranscriptField = (step: StudyStepId, index: number, block: ContentBlock & { transcript?: string }) => {
     const isOpen = !!openTranscript[block.id];
+    const isPreviewOpen = !!openTranscriptPreview[block.id];
     const preview = (block.transcript || "").trim();
     return (
       <div
@@ -328,14 +354,24 @@ export function LessonTailorEditor({
         {!isOpen && preview ? <p className="px-2 pb-1.5 text-[11px] leading-relaxed text-stone-500 line-clamp-2">{preview}</p> : null}
         {isOpen && (
           <div id={`transcript-${block.id}`} className="border-t border-[#202631] p-2">
-            <textarea
-              value={block.transcript || ""}
-              onChange={(event) => updateDynamicBlock(step, index, { transcript: event.target.value })}
-              placeholder="Paste script or audio/video transcript here..."
-              rows={4}
-              className="max-h-48 w-full resize-y overflow-auto rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500"
-              aria-label="Media Transcript (Optional)"
-            />
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="text-[10px] uppercase tracking-[0.12em] text-stone-500">Markdown transcript</span>
+              <button type="button" onClick={() => setOpenTranscriptPreview((current) => ({ ...current, [block.id]: !isPreviewOpen }))} className="text-[11px] text-amber-300 hover:text-amber-200" aria-pressed={isPreviewOpen}>
+                {isPreviewOpen ? "Edit transcript" : "Live preview"}
+              </button>
+            </div>
+            {isPreviewOpen ? (
+              <MarkdownContent value={preview || "Transcript preview will appear here."} className="min-h-20 rounded border border-[#202631] bg-[#0c1017] p-2 text-xs leading-relaxed text-stone-300" />
+            ) : (
+              <textarea
+                value={block.transcript || ""}
+                onChange={(event) => updateDynamicBlock(step, index, { transcript: event.target.value })}
+                placeholder="Paste script or audio/video transcript here..."
+                rows={4}
+                className="max-h-48 w-full resize-y overflow-auto rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500"
+                aria-label="Media Transcript (Optional)"
+              />
+            )}
           </div>
         )}
       </div>
@@ -470,18 +506,28 @@ export function LessonTailorEditor({
         </div>
 
         {blocks.length === 0 && <p className="py-3 text-xs text-stone-500">No content blocks yet. Add a block to begin building this step.</p>}
-        {blocks.map((block, index) => (
-          <div key={block.id} className="rounded-md border border-[#202631] bg-[#171d28] p-3">
+        {blocks.map((block, index) => {
+          const isExpanded = !collapsedBlocks[block.id];
+          const isActive = block.is_active ?? block.enabled !== false;
+          return (
+          <div key={block.id} className={`rounded-md border border-[#202631] bg-[#171d28] p-3 transition-opacity ${isActive ? "opacity-100" : "opacity-55"}`}>
             <div className="mb-3 flex items-center justify-between gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400">{index + 1}. {block.type} block</span>
+              <button type="button" onClick={() => setCollapsedBlocks((current) => ({ ...current, [block.id]: isExpanded }))} className="flex min-w-0 items-center gap-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400 hover:text-amber-300" aria-expanded={isExpanded} aria-controls={`block-content-${block.id}`}>
+                {isExpanded ? <ChevronUp className="h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
+                <span className="truncate">{index + 1}. {block.type} block{!isActive ? " · Inactive" : ""}</span>
+              </button>
               <div className="flex items-center gap-1">
+                <button type="button" onClick={() => updateDynamicBlock(step, index, { is_active: !isActive, enabled: !isActive })} role="switch" aria-checked={isActive} className={`mr-1 inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] font-semibold transition ${isActive ? "border-emerald-500/50 text-emerald-300" : "border-[#394252] text-stone-500"}`}>
+                  <span className={`h-2 w-2 rounded-full ${isActive ? "bg-emerald-400" : "bg-stone-600"}`} />{isActive ? "Active" : "Inactive"}
+                </button>
                 <button type="button" onClick={() => moveBlock(index, -1)} disabled={index === 0} className="rounded p-1 text-stone-400 hover:bg-[#0c1017] hover:text-amber-300 disabled:opacity-30" aria-label="Move block up"><MoveUp className="h-3.5 w-3.5" /></button>
                 <button type="button" onClick={() => moveBlock(index, 1)} disabled={index === blocks.length - 1} className="rounded p-1 text-stone-400 hover:bg-[#0c1017] hover:text-amber-300 disabled:opacity-30" aria-label="Move block down"><MoveDown className="h-3.5 w-3.5" /></button>
                 <button type="button" onClick={() => handleDeleteBlock(index, block.id)} className="rounded p-1 text-stone-400 hover:bg-[#0c1017] hover:text-red-300" aria-label="Delete block"><Trash2 className="h-3.5 w-3.5" /></button>
               </div>
             </div>
+            {isExpanded && <div id={`block-content-${block.id}`}>
             <input value={block.title} onChange={(event) => updateDynamicBlock(step, index, { title: event.target.value })} placeholder="Block title" className="mb-2 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.type} block title`} />
-            {block.type === "text" && <div className="space-y-2"><details open={!!openMarkdownGuide[block.id]} onToggle={(event) => setOpenMarkdownGuide((current) => ({ ...current, [block.id]: event.currentTarget.open }))} className="rounded border border-[#202631] bg-[#0c1017]/70"><summary className="cursor-pointer list-none px-2 py-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-stone-400 hover:text-amber-300">Markdown Guide / Cheat Sheet</summary><div className="border-t border-[#202631] p-2"><p className="mb-2 text-[11px] text-stone-500">Use Markdown for structure, emphasis, quotes, code, lists, and formulas.</p><div className="flex flex-wrap gap-1.5"><button type="button" onClick={() => insertMarkdownSnippet(step, index, "# Heading 1\n")} className="rounded border border-[#394252] px-2 py-1 font-mono text-[11px] text-stone-300 hover:border-amber-500 hover:text-amber-300"># Heading 1</button><button type="button" onClick={() => insertMarkdownSnippet(step, index, "## Heading 2\n")} className="rounded border border-[#394252] px-2 py-1 font-mono text-[11px] text-stone-300 hover:border-amber-500 hover:text-amber-300">## Heading 2</button><button type="button" onClick={() => insertMarkdownSnippet(step, index, "**Bold**")} className="rounded border border-[#394252] px-2 py-1 font-mono text-[11px] text-stone-300 hover:border-amber-500 hover:text-amber-300">**Bold**</button><button type="button" onClick={() => insertMarkdownSnippet(step, index, "*Italic*")} className="rounded border border-[#394252] px-2 py-1 font-mono text-[11px] text-stone-300 hover:border-amber-500 hover:text-amber-300">*Italic*</button><button type="button" onClick={() => insertMarkdownSnippet(step, index, "- Bullet list\n")} className="rounded border border-[#394252] px-2 py-1 font-mono text-[11px] text-stone-300 hover:border-amber-500 hover:text-amber-300">- Bullet list</button><button type="button" onClick={() => insertMarkdownSnippet(step, index, "> Blockquote / Key Insight\n")} className="rounded border border-[#394252] px-2 py-1 font-mono text-[11px] text-stone-300 hover:border-amber-500 hover:text-amber-300">&gt; Blockquote</button><button type="button" onClick={() => insertMarkdownSnippet(step, index, "`code`")} className="rounded border border-[#394252] px-2 py-1 font-mono text-[11px] text-stone-300 hover:border-amber-500 hover:text-amber-300">`code`</button><button type="button" onClick={() => insertMarkdownSnippet(step, index, "$math$")} className="rounded border border-[#394252] px-2 py-1 font-mono text-[11px] text-stone-300 hover:border-amber-500 hover:text-amber-300">$math$</button><button type="button" onClick={() => insertMarkdownSnippet(step, index, "1.01^365")} className="rounded border border-[#394252] px-2 py-1 font-mono text-[11px] text-stone-300 hover:border-amber-500 hover:text-amber-300">1.01^365</button></div></div></details><div className="flex flex-wrap items-center gap-1 rounded border border-[#202631] bg-[#0c1017] p-1" role="toolbar" aria-label="Text formatting"><button type="button" onClick={() => prependMarkdownLine(step, index, "# ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]" aria-label="Heading 1">H1</button><button type="button" onClick={() => prependMarkdownLine(step, index, "## ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]" aria-label="Heading 2">H2</button><button type="button" onClick={() => applyMarkdown(step, index, "**", "**")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]" aria-label="Bold">B</button><button type="button" onClick={() => applyMarkdown(step, index, "*", "*")} className="rounded px-2 py-1 text-xs italic text-stone-300 hover:bg-[#293343]" aria-label="Italic">I</button><button type="button" onClick={() => prependMarkdownLine(step, index, "- ")} className="rounded px-2 py-1 text-xs text-stone-300 hover:bg-[#293343]" aria-label="Bullet list">- List</button></div><textarea ref={(element) => { textAreaRefs.current[block.id] = element; }} value={block.body} onChange={(event) => updateDynamicBlock(step, index, { body: event.target.value })} placeholder="Main body content" rows={4} className="w-full resize-y rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Text block body" /><div className="rounded border border-[#202631] bg-[#0c1017]/50 p-3"><p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400">Live Preview</p><MarkdownContent value={block.body || "Start typing to preview your text block."} className="text-sm leading-relaxed text-stone-300" /></div></div>}
+            {block.type === "text" && <div className="space-y-2"><div className="flex items-center gap-1"><span className="text-[11px] font-medium uppercase tracking-[0.08em] text-stone-400">Markdown content</span><button type="button" onClick={() => setMarkdownHelpBlock(block.id)} className="rounded-full text-stone-500 hover:text-amber-300" aria-label="Open Markdown help"><HelpCircle className="h-3.5 w-3.5" /></button></div><div className="flex flex-wrap items-center gap-1 rounded border border-[#202631] bg-[#0c1017] p-1" role="toolbar" aria-label="Text formatting"><button type="button" onClick={() => prependMarkdownLine(step, index, "# ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]" aria-label="Heading 1">H1</button><button type="button" onClick={() => prependMarkdownLine(step, index, "## ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]" aria-label="Heading 2">H2</button><button type="button" onClick={() => prependMarkdownLine(step, index, "### ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]" aria-label="Heading 3">H3</button><button type="button" onClick={() => applyMarkdown(step, index, "**", "**")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]" aria-label="Bold">B</button><button type="button" onClick={() => applyMarkdown(step, index, "*", "*")} className="rounded px-2 py-1 text-xs italic text-stone-300 hover:bg-[#293343]" aria-label="Italic">I</button><button type="button" onClick={() => prependMarkdownLine(step, index, "- ")} className="rounded px-2 py-1 text-xs text-stone-300 hover:bg-[#293343]" aria-label="Bullet list">- List</button><button type="button" onClick={() => insertMarkdownSnippet(step, index, "\n---\n")} className="rounded px-2 py-1 text-xs text-stone-300 hover:bg-[#293343]" aria-label="Horizontal rule">HR</button></div><textarea ref={(element) => { textAreaRefs.current[block.id] = element; }} value={block.body} onChange={(event) => updateDynamicBlock(step, index, { body: event.target.value })} placeholder="Main body content" rows={4} className="w-full resize-y rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Text block body" /><div className="rounded border border-[#202631] bg-[#0c1017]/50 p-3"><p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400">Live Preview</p><MarkdownContent value={block.body || "Start typing to preview your text block."} className="text-sm leading-relaxed text-stone-300" /></div></div>}
             {block.type === "audio" && (() => {
               const rec = recordingByBlockId[block.id];
               const isRecording = rec?.status === "recording";
@@ -514,8 +560,10 @@ export function LessonTailorEditor({
             {block.type === "image" && <div className="space-y-2"><input value={block.imageUrl} onChange={(event) => updateDynamicBlock(step, index, { imageUrl: event.target.value })} placeholder="Image URL" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Image block URL" /><input value={block.caption} onChange={(event) => updateDynamicBlock(step, index, { caption: event.target.value })} placeholder="Image caption" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Image block caption" /></div>}
             {block.type === "question" && <div className="space-y-2"><textarea value={block.prompt} onChange={(event) => updateDynamicBlock(step, index, { prompt: event.target.value })} placeholder="Question or task prompt" rows={3} className="w-full resize-none rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Question or task prompt" />{block.options.map((option, optionIndex) => <div key={`${block.id}-${optionIndex}`} className="flex gap-2"><input value={option} onChange={(event) => updateDynamicBlock(step, index, { options: block.options.map((value, valueIndex) => valueIndex === optionIndex ? event.target.value : value) })} placeholder={`Option ${optionIndex + 1} (optional)`} className="min-w-0 flex-1 rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`Question option ${optionIndex + 1}`} /><button type="button" onClick={() => updateDynamicBlock(step, index, { options: block.options.filter((_, valueIndex) => valueIndex !== optionIndex) })} disabled={block.options.length <= 1} aria-label={`Remove question option ${optionIndex + 1}`} className="rounded border border-[#394252] px-2 text-stone-500 hover:border-red-400 hover:text-red-300 disabled:opacity-30"><X className="h-3.5 w-3.5" /></button></div>)}<button type="button" onClick={() => updateDynamicBlock(step, index, { options: [...block.options, ""] })} className="flex items-center gap-1 text-xs text-amber-300 hover:text-amber-200"><Plus className="h-3 w-3" /> Add option</button><input value={block.correct_answer} onChange={(event) => updateDynamicBlock(step, index, { correct_answer: event.target.value })} placeholder="Correct Answer / Key" className="w-full rounded border border-amber-500/30 bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Correct Answer / Key" /></div>}
             {block.type === "quiz" && <div className="space-y-2"><div className="flex items-center justify-between text-xs text-stone-400"><span>Questions</span><button type="button" onClick={() => updateDynamicBlock(step, index, { questions: [...block.questions, { id: `${block.id}-q${block.questions.length + 1}`, prompt: "", options: ["", "", ""], correct_answer: "" }] })} className="flex items-center gap-1 text-amber-300 hover:text-amber-200"><Plus className="h-3 w-3" /> Add question</button></div>{block.questions.map((question, questionIndex) => <div key={question.id} className="space-y-2 rounded border border-[#202631] bg-[#0c1017] p-2"><input value={question.prompt} onChange={(event) => updateDynamicBlock(step, index, { questions: block.questions.map((item, itemIndex) => itemIndex === questionIndex ? { ...item, prompt: event.target.value } : item) })} placeholder={`Question ${questionIndex + 1}`} className="w-full rounded border border-[#202631] bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`Quiz question ${questionIndex + 1}`} />{question.options.map((option, optionIndex) => <input key={`${question.id}-${optionIndex}`} value={option} onChange={(event) => updateDynamicBlock(step, index, { questions: block.questions.map((item, itemIndex) => itemIndex === questionIndex ? { ...item, options: item.options.map((value, valueIndex) => valueIndex === optionIndex ? event.target.value : value) } : item) })} placeholder={`Option ${optionIndex + 1}`} className="w-full rounded border border-[#202631] bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`Quiz question ${questionIndex + 1} option ${optionIndex + 1}`} />)}<input value={question.correct_answer || question.correctAnswer || ""} onChange={(event) => updateDynamicBlock(step, index, { questions: block.questions.map((item, itemIndex) => itemIndex === questionIndex ? { ...item, correct_answer: event.target.value } : item) })} placeholder="Correct Answer / Key" className="w-full rounded border border-amber-500/30 bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`Quiz question ${questionIndex + 1} Correct Answer / Key`} /></div>)}</div>}
+            </div>}
           </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
@@ -571,6 +619,19 @@ export function LessonTailorEditor({
         {renderDynamicBuilder(activeStep)}
 
       </div>
+      {markdownHelpBlock && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="markdown-help-title" onMouseDown={(event) => { if (event.target === event.currentTarget) setMarkdownHelpBlock(null); }}>
+          <div className="w-full max-w-md rounded-lg border border-[#394252] bg-[#171d28] p-5 shadow-2xl">
+            <div className="flex items-center justify-between gap-3 border-b border-[#293343] pb-3">
+              <h3 id="markdown-help-title" className="text-sm font-semibold text-stone-100">Markdown quick guide</h3>
+              <button type="button" onClick={() => setMarkdownHelpBlock(null)} className="rounded p-1 text-stone-400 hover:bg-[#0c1017] hover:text-stone-100" aria-label="Close Markdown help"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-2 pt-4 text-xs text-stone-300">
+              <code># Heading 1</code><code>## Heading 2</code><code>### Heading 3</code><code>- Nested list item</code><code>**bold** and *italic*</code><code>&gt; Blockquote</code><code>---</code><code>`inline code`</code>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
