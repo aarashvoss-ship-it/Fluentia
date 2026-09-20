@@ -31,6 +31,8 @@ function MarkdownEditor({
   rows?: number;
 }) {
   const [mode, setMode] = useState<"write" | "preview">("write");
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const selectionRef = useRef({ start: value.length, end: value.length });
   const colorPalette = [
     { name: "Gray", value: "#9ca3af" },
     { name: "Amber", value: "#f59e0b" },
@@ -40,11 +42,20 @@ function MarkdownEditor({
     { name: "Purple", value: "#d946ef" },
   ];
   const updateSelection = (prefix: string, suffix = "") => {
-    const textarea = document.activeElement instanceof HTMLTextAreaElement ? document.activeElement : null;
-    const start = textarea?.selectionStart ?? value.length;
-    const end = textarea?.selectionEnd ?? value.length;
-    const selected = value.slice(start, end) || "text";
-    onChange(`${value.slice(0, start)}${prefix}${selected}${suffix}${value.slice(end)}`);
+    const textarea = textareaRef.current;
+    const start = textarea?.selectionStart ?? selectionRef.current.start;
+    const end = textarea?.selectionEnd ?? selectionRef.current.end;
+    const hasSelection = end > start;
+    const selected = hasSelection ? value.slice(start, end) : "Colored text";
+    const nextValue = `${value.slice(0, start)}${prefix}${selected}${suffix}${value.slice(end)}`;
+    onChange(nextValue);
+    requestAnimationFrame(() => {
+      const nextStart = start + prefix.length;
+      const nextEnd = nextStart + selected.length;
+      textarea?.focus();
+      textarea?.setSelectionRange(nextStart, nextEnd);
+      selectionRef.current = { start: nextStart, end: nextEnd };
+    });
   };
   const prependLine = (prefix: string) => {
     const textarea = document.activeElement instanceof HTMLTextAreaElement ? document.activeElement : null;
@@ -79,6 +90,7 @@ function MarkdownEditor({
               <button
                 key={color.value}
                 type="button"
+                onMouseDown={(event) => event.preventDefault()}
                 onClick={() => updateSelection(`<span style="color: ${color.value}">`, "</span>")}
                 className="h-4 w-4 rounded-full border border-white/30 transition-transform hover:scale-125 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-1 focus:ring-offset-[#0c1017]"
                 style={{ backgroundColor: color.value }}
@@ -87,7 +99,21 @@ function MarkdownEditor({
               />
             ))}
           </div>
-          <textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} rows={rows} className="min-h-[100px] w-full resize-y overflow-auto rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={ariaLabel} />
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={(event) => {
+              selectionRef.current = { start: event.target.selectionStart, end: event.target.selectionEnd };
+              onChange(event.target.value);
+            }}
+            onSelect={(event) => { selectionRef.current = { start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd }; }}
+            onKeyUp={(event) => { selectionRef.current = { start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd }; }}
+            onMouseUp={(event) => { selectionRef.current = { start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd }; }}
+            placeholder={placeholder}
+            rows={rows}
+            className="min-h-[100px] w-full resize-y overflow-auto rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500"
+            aria-label={ariaLabel}
+          />
         </>
       ) : (
         <MarkdownContent value={value || "Nothing to preview yet."} className="min-h-[100px] rounded border border-[#202631] bg-[#0c1017]/50 p-3 text-sm leading-relaxed text-stone-300" />
