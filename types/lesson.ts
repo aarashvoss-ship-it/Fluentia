@@ -46,6 +46,7 @@ export interface ContentBlockBase {
   title: string;
   enabled: boolean;
   is_active?: boolean;
+  hasStudentResponseInput?: boolean;
 }
 
 export interface TextContentBlock extends ContentBlockBase {

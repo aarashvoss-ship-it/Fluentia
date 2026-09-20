@@ -187,7 +187,7 @@ export function LessonTailorEditor({
       ? crypto.randomUUID()
       : `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const base = { id, type, enabled: true, is_active: true };
-    if (type === "text") return { ...base, type: "text", title: "Text block", body: "" };
+    if (type === "text") return { ...base, type: "text", title: "Text block", body: "", hasStudentResponseInput: false };
     if (type === "audio") return { ...base, type: "audio", title: "Audio lesson", audioUrl: "", transcript: "" };
     if (type === "video") return { ...base, type: "video", title: "Video lesson", videoUrl: "", transcript: "" };
     if (type === "image") return { ...base, type: "image", title: "Image", imageUrl: "", caption: "" };
@@ -593,7 +593,17 @@ export function LessonTailorEditor({
             </div>
             <div id={`block-content-${block.id}`} className={`overflow-hidden transition-[max-height,opacity] duration-200 ${isExpanded ? "max-h-[5000px] opacity-100" : "max-h-0 opacity-0"}`} aria-hidden={!isExpanded}>
             <input value={block.title} onChange={(event) => updateDynamicBlock(step, index, { title: event.target.value })} placeholder="Block title" className="mb-2 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.type} block title`} />
-            {block.type === "text" && <MarkdownEditor value={block.body} onChange={(value) => updateDynamicBlock(step, index, { body: value })} onHelp={() => setMarkdownHelpBlock(block.id)} placeholder="Main body content" ariaLabel="Text block body" />}
+            {block.type === "text" && <div className="space-y-3">
+              <label className="flex cursor-pointer items-start gap-3 rounded border border-[#202631] bg-[#0c1017]/60 p-3">
+                <input type="checkbox" checked={block.hasStudentResponseInput === true} onChange={(event) => updateDynamicBlock(step, index, { hasStudentResponseInput: event.target.checked })} className="mt-0.5 h-4 w-4 shrink-0 accent-amber-500" />
+                <span>
+                  <span className="block text-xs font-semibold text-stone-200">Enable Student Response Field</span>
+                  <span className="mt-1 block text-[11px] leading-relaxed text-stone-500">Allows students to submit notes or answers for this block.</span>
+                </span>
+              </label>
+              <MarkdownEditor value={block.body} onChange={(value) => updateDynamicBlock(step, index, { body: value })} onHelp={() => setMarkdownHelpBlock(block.id)} placeholder="Main body content" ariaLabel="Text block body" />
+              {block.hasStudentResponseInput === true && <textarea rows={6} placeholder="Write your response here..." readOnly className="min-h-[140px] w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" aria-label="Student response field preview" />}
+            </div>}
             {block.type === "audio" && (() => {
               const rec = recordingByBlockId[block.id];
               const isRecording = rec?.status === "recording";
