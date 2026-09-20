@@ -40,7 +40,7 @@ export interface QuizQuestion {
   correct_answer?: string;
 }
 
-export type StudentResponseType = "text" | "voice";
+export type StudentResponseType = "text" | "voice" | "audio" | "file";
 export type OptionIndexingStyle = "alphabetical" | "numeric" | "none";
 export type StudentResponseAllowedType = "text" | "audio" | "file";
 

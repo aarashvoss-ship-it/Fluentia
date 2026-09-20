@@ -67,6 +67,33 @@ function formatQuestionOption(option: string, index: number, style?: OptionIndex
   return option;
 }
 
+function getStudentResponseType(block: ContentBlock): "text" | "voice" | "audio" | "file" {
+  return block.studentResponseType || (block.studentResponseConfig?.allowedTypes.includes("audio") ? "audio" : "text");
+}
+
+function hasStudentResponse(block: ContentBlock) {
+  return block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true;
+}
+
+function FileResponseBlock({ value, onChange, studentId }: { value?: string; onChange: (value: string) => void; studentId?: string }) {
+  const [isUploading, setIsUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const upload = async (file?: File) => {
+    if (!file) return;
+    setIsUploading(true);
+    setError(null);
+    try {
+      const asset = await uploadStudentAudio(file, studentId?.trim() || "anonymous", file.name);
+      onChange(asset.url);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Upload failed");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+  return <div className="mt-4 rounded-lg border border-[#202631] bg-[#0c1017] p-3"><label className="inline-flex cursor-pointer items-center rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 hover:border-amber-500 hover:text-amber-300">{isUploading ? "Uploading..." : "Upload File"}<input type="file" onChange={(event) => void upload(event.target.files?.[0])} disabled={isUploading} className="sr-only" /></label>{value && <p className="mt-2 truncate text-xs text-emerald-300">File uploaded</p>}{error && <p className="mt-2 text-xs text-red-300">{error}</p>}</div>;
+}
+
 function AudioResponseBlock({ value, onChange, studentId }: { value?: string; onChange: (value: string) => void; studentId?: string }) {
   const [isUploading, setIsUploading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -147,16 +174,18 @@ function AudioResponseBlock({ value, onChange, studentId }: { value?: string; on
   return (
     <div className="mt-4 w-full min-w-0 space-y-3 rounded-lg border border-[#202631] bg-[#0c1017] p-3">
       <div className="flex w-full min-w-0 items-center gap-3 rounded-lg border border-[#202631] bg-[#111620] px-3 py-2.5">
-        <button
-          type="button"
-          onClick={() => (isRecording ? stopRecording() : void startRecording())}
-          disabled={isUploading}
-          aria-label={isRecording ? "Stop recording" : "Start recording"}
-          className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-semibold shadow-sm transition active:scale-95 disabled:opacity-40 ${isRecording ? "bg-red-500 text-white hover:bg-red-400" : "bg-amber-500 text-[#0c1017] hover:bg-amber-400"}`}
-        >
-          {isRecording ? <Square className="h-3.5 w-3.5 fill-current" /> : <Mic className="h-4 w-4" />}
-          {isRecording ? "Stop Recording" : "Record Voice Note"}
-        </button>
+        <div className="relative shrink-0">
+          {isRecording && <span className="absolute inset-0 animate-ping rounded-full bg-red-500/40" aria-hidden="true" />}
+          <button
+            type="button"
+            onClick={() => (isRecording ? stopRecording() : void startRecording())}
+            disabled={isUploading}
+            aria-label={isRecording ? "Stop recording" : "Start recording"}
+            className={`relative flex h-11 w-11 items-center justify-center rounded-full shadow-sm transition active:scale-95 disabled:opacity-40 ${isRecording ? "bg-red-500 text-white hover:bg-red-400" : "bg-amber-500 text-[#0c1017] hover:bg-amber-400"}`}
+          >
+            {isRecording ? <Square className="h-3.5 w-3.5 fill-current" /> : <Mic className="h-4 w-4" />}
+          </button>
+        </div>
         <div className="flex flex-1 items-center justify-center gap-px overflow-hidden" aria-hidden>
           {isRecording ? (
             levels.map((h, i) => <span key={i} className="w-px shrink-0 rounded-full bg-stone-400/70 sm:w-[2px]" style={{ height: h }} />)
@@ -696,7 +725,7 @@ export default function LessonPage() {
       {blocks.filter((block) => block.is_active !== false && block.enabled !== false).map((block) => (
         <article key={block.id} className="rounded-xl border border-[#202631] bg-[#121721] p-5">
           {block.title && <h3 className="mb-3 font-sans text-xl font-semibold text-stone-100">{block.title}</h3>}
-          {block.type === "text" && <><MarkdownContent value={block.body} className="text-sm leading-relaxed text-stone-300" />{block.hasStudentResponseInput === true && (block.studentResponseType === "voice" ? <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} /> : <textarea value={submission.blockResponses?.[block.id] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [block.id]: event.target.value } })} rows={8} placeholder="Write your response here..." className="mt-4 w-full min-h-[200px] resize-y rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.title || "Text"} response`} />)}</>}
+          {block.type === "text" && <><MarkdownContent value={block.body} className="text-sm leading-relaxed text-stone-300" />{hasStudentResponse(block) && (() => { const responseType = getStudentResponseType(block); if (responseType === "voice" || responseType === "audio") return <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />; if (responseType === "file") return <FileResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value } })} />; return <textarea value={submission.blockResponses?.[block.id] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [block.id]: event.target.value } })} rows={8} placeholder="Write your response here..." className="mt-4 w-full min-h-[200px] resize-y rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.title || "Text"} response`} />; })()}</>}
           {block.type === "audio" && <>{block.audioUrl ? <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio assignment"} /> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Audio assignment</div>}{block.allowStudentVoiceResponse === true && <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />}<MediaTranscriptAccordion transcript={block.transcript} isUnlocked={areTranscriptsUnlocked} /></>}
           {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} transcriptLocked={!areTranscriptsUnlocked} />{!areTranscriptsUnlocked && <MediaTranscriptAccordion transcript={block.transcript} isUnlocked={false} />}</>}
           {block.type === "image" && (block.imageUrl ? <figure><img src={block.imageUrl} alt={block.caption || block.title || "Lesson image"} className="max-h-[420px] w-full rounded-lg object-cover" onError={(e)=>{ (e.target as HTMLImageElement).style.display="none"; (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden"); }} /><div className="hidden rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Image unavailable — {block.caption || block.title || "Lesson image"}</div>{block.caption && <figcaption className="mt-2 text-xs text-stone-500">{block.caption}</figcaption>}</figure> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Image placeholder</div>)}
