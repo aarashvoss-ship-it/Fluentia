@@ -741,9 +741,12 @@ export default function LessonPage() {
       <div className="mx-auto max-w-7xl px-4 pt-6 md:px-6">
       {!isResultsStep && (
         <section className="relative flex min-h-[320px] w-full items-start overflow-hidden rounded-xl bg-slate-950 bg-cover bg-center md:min-h-[320px]">
-          <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=1800&q=80')] bg-cover bg-center opacity-40" />
-          {heroBanner && <img src={heroBanner} alt="" onError={() => setBannerLoadFailed(true)} className="absolute inset-0 h-full w-full object-cover opacity-40" />}
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,11,17,.88),rgba(7,11,17,.22)_58%,rgba(7,11,17,.72)),linear-gradient(0deg,#0c1017_0%,transparent_62%)]" />
+          {heroBanner ? (
+            <img src={heroBanner} alt="" onError={() => setBannerLoadFailed(true)} className="absolute inset-0 h-full w-full object-cover" />
+          ) : (
+            <div className="absolute inset-0 bg-slate-950" aria-hidden="true" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/60 to-transparent" aria-hidden="true" />
           <div className="relative z-10 flex w-full flex-col items-start gap-3 px-4 pb-8 pt-6 text-left md:px-6">
             <span className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/40 rounded-md">{lessonLevel} - MODULE {lessonModuleNumber ?? 1}</span>
             <h1 className="font-sans text-2xl font-bold text-[#f1eee8] md:text-3xl">
