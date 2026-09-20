@@ -9,9 +9,9 @@ export function MarkdownContent({ value, className = "" }: { value: string; clas
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          h1: ({ children }) => <h2 className="mt-4 text-2xl font-semibold text-stone-100">{children}</h2>,
-          h2: ({ children }) => <h3 className="mt-3 text-lg font-semibold text-stone-100">{children}</h3>,
-          h3: ({ children }) => <h4 className="mt-3 text-base font-semibold text-stone-100">{children}</h4>,
+          h1: ({ children }) => <h1 className="mt-4 text-2xl font-semibold text-stone-100">{children}</h1>,
+          h2: ({ children }) => <h2 className="mt-3 text-lg font-semibold text-stone-100">{children}</h2>,
+          h3: ({ children }) => <h3 className="mt-3 text-base font-semibold text-stone-100">{children}</h3>,
           p: ({ children }) => <p className="whitespace-pre-wrap">{children}</p>,
           ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>,
           ol: ({ children }) => <ol className="my-2 list-decimal space-y-1 pl-5">{children}</ol>,
