@@ -20,6 +20,18 @@ function getTextContent(children: ReactNode): string {
   return React.Children.toArray(children).map((child) => typeof child === "string" ? child : "").join("").trim();
 }
 
+function splitListMarker(children: ReactNode) {
+  const childNodes = React.Children.toArray(children);
+  const firstTextIndex = childNodes.findIndex((child) => typeof child === "string");
+  if (firstTextIndex < 0 || typeof childNodes[firstTextIndex] !== "string") return null;
+  const firstText = childNodes[firstTextIndex] as string;
+  const marker = firstText.match(/^(❌|✅)\s*/);
+  if (!marker) return null;
+  const isSuccess = marker[1] === "✅";
+  childNodes[firstTextIndex] = firstText.slice(marker[0].length);
+  return { isSuccess, children: childNodes };
+}
+
 function renderComparison(children: ReactNode) {
   const text = getTextContent(children);
   const match = text.match(/^(Before|Incorrect|After|Preferred)\s*:\s*/i);
@@ -55,12 +67,11 @@ export function MarkdownContent({ value, className = "" }: { value: string; clas
           ul: ({ children }) => <ul className="mb-4 mt-2 list-none space-y-1 pl-0 leading-7">{children}</ul>,
           ol: ({ children }) => <ol className="mb-4 mt-2 list-decimal space-y-1 pl-5 leading-7">{children}</ol>,
           li: ({ children }) => {
-            const text = getTextContent(children);
-            const marker = text.match(/^(❌|✅)\s*/);
-            if (!marker) return <li>{children}</li>;
-            const isSuccess = marker[1] === "✅";
+            const markedChildren = splitListMarker(children);
+            if (!markedChildren) return <li>{children}</li>;
+            const { isSuccess } = markedChildren;
             const Icon = isSuccess ? CheckCircle2 : XCircle;
-            return <li className="flex items-start gap-2"><Icon className={`mt-1 h-4 w-4 shrink-0 ${isSuccess ? "text-emerald-400" : "text-red-400"}`} aria-hidden="true" />{renderTextTokens(text.slice(marker[0].length))}</li>;
+            return <li className="flex items-start gap-2"><Icon className={`mt-1 h-4 w-4 shrink-0 ${isSuccess ? "text-emerald-400" : "text-red-400"}`} aria-hidden="true" /><span className="min-w-0">{markedChildren.children}</span></li>;
           },
           blockquote: ({ children }) => <blockquote className="my-4 border-l-4 border-amber-500/70 bg-amber-500/10 px-4 py-2 leading-7 italic text-amber-100/90">{children}</blockquote>,
           hr: () => <hr className="my-5 border-[#394252]" />,
