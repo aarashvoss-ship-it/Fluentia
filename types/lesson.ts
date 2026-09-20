@@ -42,6 +42,13 @@ export interface QuizQuestion {
 
 export type StudentResponseType = "text" | "voice";
 export type OptionIndexingStyle = "alphabetical" | "numeric" | "none";
+export type StudentResponseAllowedType = "text" | "audio" | "file";
+
+export interface StudentResponseConfig {
+  enabled: boolean;
+  allowedTypes: StudentResponseAllowedType[];
+  maxAudioDurationSeconds?: number;
+}
 
 export interface ContentBlockBase {
   id: string;
@@ -52,6 +59,7 @@ export interface ContentBlockBase {
   hasStudentResponseInput?: boolean;
   studentResponseType?: StudentResponseType;
   allowStudentVoiceResponse?: boolean;
+  studentResponseConfig?: StudentResponseConfig;
 }
 
 export interface TextContentBlock extends ContentBlockBase {

@@ -226,7 +226,7 @@ export function LessonTailorEditor({
       ? crypto.randomUUID()
       : `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const base = { id, type, enabled: true, is_active: true };
-    if (type === "text") return { ...base, type: "text", title: "Text block", body: "", hasStudentResponseInput: false, studentResponseType: "text" };
+    if (type === "text") return { ...base, type: "text", title: "Text block", body: "", hasStudentResponseInput: false, studentResponseType: "text", studentResponseConfig: { enabled: false, allowedTypes: ["text"] } };
     if (type === "audio") return { ...base, type: "audio", title: "Audio lesson", audioUrl: "", transcript: "", allowStudentVoiceResponse: false };
     if (type === "video") return { ...base, type: "video", title: "Video lesson", videoUrl: "", transcript: "" };
     if (type === "image") return { ...base, type: "image", title: "Image", imageUrl: "", caption: "" };
