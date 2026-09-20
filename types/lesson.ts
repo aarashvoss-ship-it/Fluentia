@@ -40,6 +40,9 @@ export interface QuizQuestion {
   correct_answer?: string;
 }
 
+export type StudentResponseType = "text" | "voice";
+export type OptionIndexingStyle = "alphabetical" | "numeric" | "none";
+
 export interface ContentBlockBase {
   id: string;
   type: ContentBlockType;
@@ -47,6 +50,8 @@ export interface ContentBlockBase {
   enabled: boolean;
   is_active?: boolean;
   hasStudentResponseInput?: boolean;
+  studentResponseType?: StudentResponseType;
+  allowStudentVoiceResponse?: boolean;
 }
 
 export interface TextContentBlock extends ContentBlockBase {
@@ -83,6 +88,7 @@ export interface QuestionContentBlock extends ContentBlockBase {
   options: string[];
   correct_answer: string;
   question_type?: "multiple_choice" | "open_ended";
+  optionIndexingStyle?: OptionIndexingStyle;
   sample_answer?: string;
 }
 

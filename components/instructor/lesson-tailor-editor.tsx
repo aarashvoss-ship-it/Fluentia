@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { ContentBlock, ContentBlockType, STUDY_STEPS, StudyStepId, StrictStepContent } from "@/types/lesson";
+import { ContentBlock, ContentBlockType, OptionIndexingStyle, STUDY_STEPS, StudyStepId, StrictStepContent } from "@/types/lesson";
 import { useLessonEditorStore } from "@/lib/lesson-editor-store";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
@@ -96,6 +96,19 @@ function MarkdownEditor({
   );
 }
 
+function QuestionSettings({ value, onChange }: { value?: OptionIndexingStyle; onChange: (value: OptionIndexingStyle) => void }) {
+  return (
+    <label className="block text-xs text-stone-500">
+      Option Indexing Style
+      <select value={value || "none"} onChange={(event) => onChange(event.target.value as OptionIndexingStyle)} className="mt-1 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 [color-scheme:dark]" aria-label="Option Indexing Style">
+        <option value="alphabetical">Alphabetical (A, B, C, D)</option>
+        <option value="numeric">Numeric (1, 2, 3, 4)</option>
+        <option value="none">None (Plain Buttons)</option>
+      </select>
+    </label>
+  );
+}
+
 export function LessonTailorEditor({
   content,
   onChange,
@@ -187,11 +200,11 @@ export function LessonTailorEditor({
       ? crypto.randomUUID()
       : `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const base = { id, type, enabled: true, is_active: true };
-    if (type === "text") return { ...base, type: "text", title: "Text block", body: "", hasStudentResponseInput: false };
-    if (type === "audio") return { ...base, type: "audio", title: "Audio lesson", audioUrl: "", transcript: "" };
+    if (type === "text") return { ...base, type: "text", title: "Text block", body: "", hasStudentResponseInput: false, studentResponseType: "text" };
+    if (type === "audio") return { ...base, type: "audio", title: "Audio lesson", audioUrl: "", transcript: "", allowStudentVoiceResponse: false };
     if (type === "video") return { ...base, type: "video", title: "Video lesson", videoUrl: "", transcript: "" };
     if (type === "image") return { ...base, type: "image", title: "Image", imageUrl: "", caption: "" };
-    if (type === "question") return { ...base, type: "question", title: "Question", prompt: "", options: ["", "", ""], correct_answer: "", question_type: "multiple_choice", sample_answer: "" };
+    if (type === "question") return { ...base, type: "question", title: "Question", prompt: "", options: ["", "", ""], correct_answer: "", question_type: "multiple_choice", optionIndexingStyle: "none", sample_answer: "" };
     return { ...base, type: "quiz", title: "Task / Quiz", questions: [{ id: `${id}-q1`, prompt: "", options: ["", "", ""], correct_answer: "" }] };
   };
 
@@ -601,6 +614,7 @@ export function LessonTailorEditor({
                   <span className="mt-1 block text-[11px] leading-relaxed text-stone-500">Allows students to submit notes or answers for this block.</span>
                 </span>
               </label>
+              {block.hasStudentResponseInput === true && <label className="block text-xs text-stone-500">Student response type<select value={block.studentResponseType || "text"} onChange={(event) => updateDynamicBlock(step, index, { studentResponseType: event.target.value as "text" | "voice" })} className="mt-1 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 [color-scheme:dark]" aria-label="Student response type"><option value="text">Text response</option><option value="voice">Voice response</option></select></label>}
               <MarkdownEditor value={block.body} onChange={(value) => updateDynamicBlock(step, index, { body: value })} onHelp={() => setMarkdownHelpBlock(block.id)} placeholder="Main body content" ariaLabel="Text block body" />
               {block.hasStudentResponseInput === true && <textarea rows={6} placeholder="Write your response here..." readOnly className="min-h-[140px] w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" aria-label="Student response field preview" />}
             </div>}
@@ -612,6 +626,10 @@ export function LessonTailorEditor({
                 <div className="space-y-2">
                   <input value={block.audioUrl.startsWith("data:") ? "" : block.audioUrl} onChange={(event) => updateDynamicBlock(step, index, { audioUrl: event.target.value })} placeholder="Audio URL" disabled={isRecording || isUploading} className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500 disabled:opacity-50" aria-label="Audio block URL" />
                   <label className="block text-xs text-stone-500">Or upload MP3/WAV<input type="file" accept="audio/mpeg,audio/wav,.mp3,.wav" onChange={(event) => void handleAudioUpload(step, index, event.target.files?.[0])} disabled={isRecording || isUploading} className="mt-1 block w-full text-xs text-stone-400 file:mr-3 file:rounded file:border-0 file:bg-amber-500 file:px-2 file:py-1 file:text-xs file:font-semibold file:text-black disabled:opacity-50" aria-label="Upload audio file" /></label>
+                  <label className="flex cursor-pointer items-start gap-3 rounded border border-[#202631] bg-[#0c1017]/60 p-3">
+                    <input type="checkbox" checked={block.allowStudentVoiceResponse === true} onChange={(event) => updateDynamicBlock(step, index, { allowStudentVoiceResponse: event.target.checked })} className="mt-0.5 h-4 w-4 shrink-0 accent-amber-500" />
+                    <span><span className="block text-xs font-semibold text-stone-200">Allow Student Voice Response / Shadowing Record</span><span className="mt-1 block text-[11px] leading-relaxed text-stone-500">Lets students record a response beneath this audio lesson.</span></span>
+                  </label>
                   <div className="flex flex-row flex-wrap items-center gap-2">
                     {!isRecording ? (
                       <button type="button" onClick={() => void startRecording(block.id, step, index)} disabled={isUploading} className="inline-flex items-center gap-1.5 rounded-md border border-amber-500 px-2.5 py-1.5 text-xs font-semibold text-amber-500 transition hover:bg-amber-500 hover:text-black disabled:opacity-40" aria-label="Record voice for audio block"><Mic className="h-3.5 w-3.5" />{isUploading ? "Uploading…" : "Record voice"}</button>
@@ -632,6 +650,7 @@ export function LessonTailorEditor({
                 </div>
               );
             })()}
+            {block.type === "question" && <QuestionSettings value={block.optionIndexingStyle} onChange={(value) => updateDynamicBlock(step, index, { optionIndexingStyle: value })} />}
             {block.type === "video" && <div className="space-y-2"><input value={block.videoUrl} onChange={(event) => updateDynamicBlock(step, index, { videoUrl: event.target.value })} placeholder="YouTube or video embed URL" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Video block URL" /><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} editable onTranscriptChange={(value) => updateDynamicBlock(step, index, { transcript: value })} /></div>}
             {block.type === "image" && <div className="space-y-2"><input value={block.imageUrl} onChange={(event) => updateDynamicBlock(step, index, { imageUrl: event.target.value })} placeholder="Image URL" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Image block URL" /><input value={block.caption} onChange={(event) => updateDynamicBlock(step, index, { caption: event.target.value })} placeholder="Image caption" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Image block caption" /></div>}
             {block.type === "question" && <div className="space-y-2"><label className="block text-xs text-stone-500">Question type<select value={block.question_type || "multiple_choice"} onChange={(event) => updateDynamicBlock(step, index, { question_type: event.target.value as "multiple_choice" | "open_ended" })} className="mt-1 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 [color-scheme:dark]" aria-label="Question type"><option value="multiple_choice">Multiple Choice</option><option value="open_ended">Open-Ended Response</option></select></label><MarkdownEditor value={block.prompt} onChange={(value) => updateDynamicBlock(step, index, { prompt: value })} onHelp={() => setMarkdownHelpBlock(block.id)} placeholder="Question or task prompt" ariaLabel="Question or task prompt" rows={4} />{(block.question_type || "multiple_choice") === "open_ended" ? <MarkdownEditor value={block.sample_answer || ""} onChange={(value) => updateDynamicBlock(step, index, { sample_answer: value })} onHelp={() => setMarkdownHelpBlock(block.id)} placeholder="Optional model answer or evaluation guide" ariaLabel="Sample answer or instructor guide" rows={4} /> : <>{block.options.map((option, optionIndex) => <div key={`${block.id}-${optionIndex}`} className="flex gap-2"><input value={option} onChange={(event) => updateDynamicBlock(step, index, { options: block.options.map((value, valueIndex) => valueIndex === optionIndex ? event.target.value : value) })} placeholder={`Option ${optionIndex + 1} (optional)`} className="min-w-0 flex-1 rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`Question option ${optionIndex + 1}`} /><button type="button" onClick={() => updateDynamicBlock(step, index, { options: block.options.filter((_, valueIndex) => valueIndex !== optionIndex) })} disabled={block.options.length <= 1} aria-label={`Remove question option ${optionIndex + 1}`} className="rounded border border-[#394252] px-2 text-stone-500 hover:border-red-400 hover:text-red-300 disabled:opacity-30"><X className="h-3.5 w-3.5" /></button></div>)}<button type="button" onClick={() => updateDynamicBlock(step, index, { options: [...block.options, ""] })} className="flex items-center gap-1 text-xs text-amber-300 hover:text-amber-200"><Plus className="h-3 w-3" /> Add option</button><input value={block.correct_answer} onChange={(event) => updateDynamicBlock(step, index, { correct_answer: event.target.value })} placeholder="Correct Answer / Key" className="w-full rounded border border-amber-500/30 bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Correct Answer / Key" /></>}</div>}
