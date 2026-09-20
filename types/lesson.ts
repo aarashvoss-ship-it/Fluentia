@@ -81,6 +81,8 @@ export interface QuestionContentBlock extends ContentBlockBase {
   prompt: string;
   options: string[];
   correct_answer: string;
+  question_type?: "multiple_choice" | "open_ended";
+  sample_answer?: string;
 }
 
 export type ContentBlock =
