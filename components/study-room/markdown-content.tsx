@@ -6,6 +6,14 @@ import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
 import { CheckCircle2, XCircle } from "lucide-react";
 
+const parseBracketsToBadges = (content: string) => {
+  if (!content) return "";
+  return content.replace(
+    /\[([^\]]+)\]/g,
+    '<span class="inline-flex items-center px-2 py-0.5 rounded text-sm font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono my-0.5">$1</span>'
+  );
+};
+
 function renderTextTokens(value: string): ReactNode {
   const tokenPattern = /\[(.*?)\]/g;
   const nodes: ReactNode[] = [];
@@ -91,7 +99,7 @@ export function MarkdownContent({ value, className = "" }: { value: string; clas
           },
         }}
       >
-        {value}
+        {parseBracketsToBadges(value)}
       </ReactMarkdown>
     </div>
   );
