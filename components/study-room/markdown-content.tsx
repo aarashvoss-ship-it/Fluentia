@@ -7,13 +7,18 @@ import remarkGfm from "remark-gfm";
 import { CheckCircle2, XCircle } from "lucide-react";
 
 function renderTextTokens(value: string): ReactNode {
-  const parts = value.split(/(\[[^\[\]\n]+\])/g);
-  return parts.map((part, index) => {
-    if (/^\[[^\[\]\n]+\]$/.test(part)) {
-      return <span key={`${part}-${index}`} className="mx-0.5 inline-flex rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-mono text-sm text-amber-300">{part}</span>;
-    }
-    return <React.Fragment key={`${part}-${index}`}>{part}</React.Fragment>;
-  });
+  const tokenPattern = /\[(.*?)\]/g;
+  const nodes: ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let tokenIndex = 0;
+  while ((match = tokenPattern.exec(value)) !== null) {
+    if (match.index > lastIndex) nodes.push(<React.Fragment key={`text-${tokenIndex++}`}>{value.slice(lastIndex, match.index)}</React.Fragment>);
+    nodes.push(<span key={`token-${tokenIndex++}`} className="mx-0.5 inline-block rounded border border-amber-500/30 bg-amber-400/20 px-1.5 py-0.5 font-semibold text-amber-300">{match[1]}</span>);
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < value.length) nodes.push(<React.Fragment key={`text-${tokenIndex}`}>{value.slice(lastIndex)}</React.Fragment>);
+  return nodes.length ? nodes : value;
 }
 
 function getTextContent(children: ReactNode): string {
