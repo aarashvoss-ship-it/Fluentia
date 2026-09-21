@@ -57,6 +57,14 @@ function renderComparison(children: ReactNode) {
   return { label, badgeClass, prefixLength: match[0].length };
 }
 
+function normalizeMarkdown(value: string) {
+  const normalized = value.replace(/\\n/g, "\n").trim();
+  if (normalized.startsWith('"') && normalized.endsWith('"')) {
+    return normalized.slice(1, -1).replace(/\\"/g, '"');
+  }
+  return normalized;
+}
+
 export function MarkdownContent({ value, className = "", plainCode = false }: { value: string; className?: string; plainCode?: boolean }) {
   const renderPlainCode = plainCode || className.includes("text-slate-300");
   return (
@@ -72,17 +80,18 @@ export function MarkdownContent({ value, className = "", plainCode = false }: { 
           h5: ({ children }) => <h5 className="mb-2 mt-3 text-sm font-semibold leading-snug text-stone-200">{children}</h5>,
           h6: ({ children }) => <h6 className="mb-2 mt-3 text-xs font-semibold leading-snug text-stone-300">{children}</h6>,
           text: ({ children }) => <>{renderTextTokens(String(children))}</>,
+          strong: ({ children }) => <strong className="font-semibold text-amber-400">{children}</strong>,
           p: ({ children }) => {
             const comparison = renderComparison(children);
             if (!comparison) return <p className="mb-4 whitespace-pre-wrap leading-7 last:mb-0">{children}</p>;
             const text = getTextContent(children);
             return <p className="mb-4 whitespace-pre-wrap leading-7 last:mb-0"><span className={`mr-2 inline-flex rounded px-2 py-0.5 text-xs font-semibold ${comparison.badgeClass}`}>{comparison.label}</span>{renderTextTokens(text.slice(comparison.prefixLength))}</p>;
           },
-          ul: ({ children }) => <ul className="mb-4 mt-2 list-none space-y-1 pl-0 leading-7">{children}</ul>,
+          ul: ({ children }) => <ul className="mb-4 mt-2 list-disc space-y-1 pl-5 leading-7">{children}</ul>,
           ol: ({ children }) => <ol className="mb-4 mt-2 list-decimal space-y-1 pl-5 leading-7">{children}</ol>,
           li: ({ children }) => {
             const markedChildren = splitListMarker(children);
-            if (!markedChildren) return <li>{children}</li>;
+            if (!markedChildren) return <li className="pl-1 text-slate-300">{children}</li>;
             const { isSuccess } = markedChildren;
             const Icon = isSuccess ? CheckCircle2 : XCircle;
             return <li className="flex items-start gap-2"><Icon className={`mt-1 h-4 w-4 shrink-0 ${isSuccess ? "text-emerald-400" : "text-red-400"}`} aria-hidden="true" /><span className="min-w-0">{markedChildren.children}</span></li>;
@@ -103,7 +112,7 @@ export function MarkdownContent({ value, className = "", plainCode = false }: { 
           },
         }}
       >
-        {parseBracketsToBadges(value)}
+        {parseBracketsToBadges(normalizeMarkdown(value))}
       </ReactMarkdown>
     </div>
   );
