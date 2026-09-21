@@ -57,7 +57,8 @@ function renderComparison(children: ReactNode) {
   return { label, badgeClass, prefixLength: match[0].length };
 }
 
-export function MarkdownContent({ value, className = "" }: { value: string; className?: string }) {
+export function MarkdownContent({ value, className = "", plainCode = false }: { value: string; className?: string; plainCode?: boolean }) {
+  const renderPlainCode = plainCode || className.includes("text-slate-300");
   return (
     <div className={className}>
       <ReactMarkdown
@@ -88,8 +89,11 @@ export function MarkdownContent({ value, className = "" }: { value: string; clas
           },
           blockquote: ({ children }) => <blockquote className="my-4 border-l-4 border-amber-500/70 bg-amber-500/10 px-4 py-2 leading-7 italic text-amber-100/90">{children}</blockquote>,
           hr: () => <hr className="my-5 border-[#394252]" />,
-          pre: ({ children }) => <pre className="mb-4 max-w-full overflow-x-auto rounded-lg border border-white/10 bg-black/30 p-3 text-sm leading-6 text-stone-200">{children}</pre>,
+          pre: ({ children }) => renderPlainCode
+            ? <p className="mb-4 whitespace-pre-wrap leading-7 last:mb-0">{children}</p>
+            : <pre className="mb-4 max-w-full overflow-x-auto rounded-lg border border-white/10 bg-black/30 p-3 text-sm leading-6 text-stone-200">{children}</pre>,
           code: ({ className, children, ...props }) => {
+            if (renderPlainCode) return <span {...props}>{children}</span>;
             const isBlock = Boolean(className) || String(children).includes("\n");
             return isBlock ? (
               <code className="block whitespace-pre-wrap break-words font-mono text-sm text-cyan-100" {...props}>{children}</code>
