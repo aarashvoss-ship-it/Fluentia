@@ -747,6 +747,7 @@ export default function LessonPage() {
           || (block.layoutMode === "inline-row" && block.sidebarBlockId
             ? currentStepSidebarBlocks.find((candidate) => candidate.id === block.sidebarBlockId)
             : undefined);
+        const expandsInlineRow = block.layoutMode === "inline-row" && !sidebarBlock && block.rowEmptyMode === "full";
         const article = (
         <article key={block.id} className="rounded-xl border border-[#202631] bg-[#121721] p-5">
           {block.title && <h3 className="mb-3 font-sans text-xl font-semibold text-stone-100">{block.title}</h3>}
@@ -766,9 +767,9 @@ export default function LessonPage() {
           </div>
         );
         return (
-          <div key={block.id} className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch my-6 w-full">
-            <div className="lg:col-span-2 h-full w-full">{article}</div>
-            {sidebarContent}
+          <div key={block.id} className={`grid grid-cols-1 gap-6 items-stretch my-6 w-full ${expandsInlineRow ? "lg:grid-cols-12" : "lg:grid-cols-3"}`}>
+            <div className={`${expandsInlineRow ? "lg:col-span-12" : "lg:col-span-2"} h-full w-full`}>{article}</div>
+            {!expandsInlineRow && sidebarContent}
           </div>
         );
       })}
