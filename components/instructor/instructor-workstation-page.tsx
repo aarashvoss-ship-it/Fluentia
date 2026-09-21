@@ -883,9 +883,9 @@ export default function InstructorWorkstationPage({
         );
         if (!(sidebarBlocksByStep[previewStep as keyof SidebarBlocksByStep] || []).length && block.layoutMode !== "inline-row") return article;
         return (
-          <div key={block.id} className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-2">{article}</div>
-            <aside className="lg:col-span-1">{sidebarBlock ? <div className="rounded-lg border border-[#293343] bg-[#171d28] p-3"><p className="text-xs font-semibold text-amber-400">{sidebarBlock.title}</p><p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-stone-400">{sidebarBlock.body || "—"}</p></div> : <div aria-hidden="true" />}</aside>
+          <div key={block.id} className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start my-6 w-full">
+            <div className="lg:col-span-2 w-full">{article}</div>
+            <aside className="lg:col-span-1 w-full">{sidebarBlock ? <div className="rounded-lg border border-[#293343] bg-[#171d28] p-3"><p className="text-xs font-semibold text-amber-400">{sidebarBlock.title}</p><p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-stone-400">{sidebarBlock.body || "—"}</p></div> : <div aria-hidden="true" />}</aside>
           </div>
         );
       })}

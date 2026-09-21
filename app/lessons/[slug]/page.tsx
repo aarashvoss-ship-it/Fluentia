@@ -752,9 +752,9 @@ export default function LessonPage() {
         );
         if (!currentStepSidebarBlocks.length && block.layoutMode !== "inline-row") return article;
         return (
-          <div key={block.id} className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-2">{article}</div>
-            <aside className="lg:col-span-1">{sidebarBlock ? renderSidebarBlock(sidebarBlock) : <div aria-hidden="true" />}</aside>
+          <div key={block.id} className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start my-6 w-full">
+            <div className="lg:col-span-2 w-full">{article}</div>
+            <aside className="lg:col-span-1 w-full">{sidebarBlock ? renderSidebarBlock(sidebarBlock) : <div aria-hidden="true" />}</aside>
           </div>
         );
       })}
