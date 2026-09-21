@@ -1053,11 +1053,11 @@ export default function InstructorWorkstationPage({
 </label>
 <label className="mt-3 block text-xs text-stone-400">Instructor Guidance / Note<textarea value={workstationState.studentProfile.teacherNotes} onChange={(e) => setWorkstationState((prev) => ({ ...prev, studentProfile: { ...prev.studentProfile, teacherNotes: e.target.value } }))} placeholder="Guidance shown in &quot;A NOTE FROM YOUR INSTRUCTOR&quot; on the student dashboard" rows={3} className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
           </section>
-          <main className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-            <div className="min-w-0 lg:col-span-8">
+          <main className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-12">
+            <div className="h-full min-w-0 lg:col-span-8">
               <LessonTailorEditor content={workstationState.content} sidebarBlocksByStep={sidebarBlocksByStep} onChange={(content: StrictStepContent) => setWorkstationState((previous) => ({ ...previous, content }))} />
             </div>
-            <aside className="space-y-6 lg:col-span-4">
+            <aside className="h-full space-y-6 lg:col-span-4">
               <details className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" open={heroBannerOpen} onToggle={(event) => setHeroBannerOpen(event.currentTarget.open)}>
                 <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-semibold text-stone-200"><span>Hero Banner</span><ChevronDown className={`h-4 w-4 text-amber-400 transition-transform ${heroBannerOpen ? "rotate-180" : ""}`} aria-hidden="true" /></summary>
                 <div className="mt-4"><InstructorBannerManager bannerUrl={workstationState.bannerUrl} customInput={workstationState.customBannerUrl} onUpdateBanner={(bannerUrl: string) => setWorkstationState((previous) => ({ ...previous, bannerUrl }))} onUpdateCustomInput={(customBannerUrl: string) => setWorkstationState((previous) => ({ ...previous, customBannerUrl }))} /></div>

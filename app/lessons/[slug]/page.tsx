@@ -724,19 +724,25 @@ export default function LessonPage() {
   const renderDynamicBlocks = (blocks: ContentBlock[]) => {
     const renderSidebarBlock = (sidebarBlock: { id: string; title: string; body: string }) => (
       <div className="rounded-xl border border-[#202631] bg-[#121721] p-4">
-        <p className="text-xs font-semibold text-amber-400">{sidebarBlock.title}</p>
+        {sidebarBlock.title.trim() && sidebarBlock.title.trim() !== "Sidebar note" && <MarkdownContent value={sidebarBlock.title} className="text-xs font-semibold text-amber-400 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-xs [&_p]:m-0" />}
         <MarkdownContent value={sidebarBlock.body || "—"} className="mt-2 text-sm leading-relaxed text-slate-300 [&_strong]:font-semibold [&_strong]:text-amber-400" />
       </div>
     );
     const visibleBlocks = blocks.filter((block) => block.is_active !== false && block.enabled !== false);
+    const questionBlocks = visibleBlocks.filter((block) => block.type === "question");
     const linkedSidebarIds = new Set([
       ...currentStepSidebarBlocks.filter((sidebarBlock) => sidebarBlock.parentMainBlockId).map((sidebarBlock) => sidebarBlock.id),
       ...visibleBlocks.filter((block) => block.layoutMode === "inline-row" && block.sidebarBlockId).map((block) => block.sidebarBlockId),
     ]);
     const topSidebarBlocks = currentStepSidebarBlocks.filter((sidebarBlock) => !linkedSidebarIds.has(sidebarBlock.id));
+    const questionSidebarBlocks = questionBlocks
+      .map((questionBlock) => currentStepSidebarBlocks.find((candidate) => candidate.parentMainBlockId === questionBlock.id))
+      .filter((sidebarBlock): sidebarBlock is (typeof currentStepSidebarBlocks)[number] => Boolean(sidebarBlock))
+      .filter((sidebarBlock, sidebarIndex, sidebarBlocks) => sidebarBlocks.findIndex((candidate) => candidate.id === sidebarBlock.id) === sidebarIndex);
     return (
     <div className="w-full space-y-6">
       {visibleBlocks.map((block, blockIndex) => {
+        if (block.type === "question" && block !== questionBlocks[0]) return null;
         const sidebarBlock = currentStepSidebarBlocks.find((candidate) => candidate.parentMainBlockId === block.id)
           || (block.layoutMode === "inline-row" && block.sidebarBlockId
             ? currentStepSidebarBlocks.find((candidate) => candidate.id === block.sidebarBlockId)
@@ -749,19 +755,19 @@ export default function LessonPage() {
           {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} transcriptLocked={!areTranscriptsUnlocked} />{!areTranscriptsUnlocked && <MediaTranscriptAccordion transcript={block.transcript} isUnlocked={false} />}</>}
           {block.type === "image" && (block.imageUrl ? <figure><img src={block.imageUrl} alt={block.caption || block.title || "Lesson image"} className="max-h-[420px] w-full rounded-lg object-cover" onError={(e)=>{ (e.target as HTMLImageElement).style.display="none"; (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden"); }} /><div className="hidden rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Image unavailable — {block.caption || block.title || "Lesson image"}</div>{block.caption && <figcaption className="mt-2 text-xs text-stone-500">{block.caption}</figcaption>}</figure> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Image placeholder</div>)}
           {block.type === "resource" && <a href={block.resourceUrl} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm text-amber-200 hover:border-amber-400">{block.description || "Open document"}<span aria-hidden="true">PDF</span></a>}
-          {block.type === "question" && <div className="space-y-2"><MarkdownContent value={block.prompt} className="text-sm text-stone-300" />{(block.question_type || "multiple_choice") === "open_ended" ? <><textarea value={submission.blockResponses?.[block.id] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [block.id]: event.target.value } })} rows={7} placeholder="Write your response here..." className="min-h-[160px] w-full resize-y rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.title || "Question"} response`} />{block.sample_answer?.trim() && <><button type="button" onClick={() => setVisibleSampleAnswers((current) => ({ ...current, [block.id]: !current[block.id] }))} className="text-xs text-amber-300 hover:text-amber-200">{visibleSampleAnswers[block.id] ? "Hide sample answer" : "Show sample answer"}</button>{visibleSampleAnswers[block.id] && <MarkdownContent value={block.sample_answer} className="rounded border border-amber-500/20 bg-amber-500/5 p-3 text-sm text-stone-300" />}</>}</> : <div className="grid gap-2 sm:grid-cols-2">{block.options.filter(Boolean).map((option, optionIndex) => <button key={option} type="button" onClick={() => void persistSubmission({ ...submission, quizSelections: { ...(submission.quizSelections || {}), [block.id]: option } })} className={`rounded-md border px-3 py-2 text-left text-xs transition ${submission.quizSelections?.[block.id] === option ? "border-amber-500 bg-amber-500/10 text-amber-300" : "border-[#202631] bg-[#0c1017] text-stone-400 hover:border-amber-500/50 hover:text-amber-300"}`}>{formatQuestionOption(option, optionIndex, block.optionIndexingStyle)}</button>)}</div>}</div>}
+          {block.type === "question" && <div className="space-y-5">{questionBlocks.map((questionBlock) => <div key={questionBlock.id} className="space-y-2">{questionBlock.title && <h4 className="text-sm font-semibold text-stone-100">{questionBlock.title}</h4>}<MarkdownContent value={questionBlock.prompt} className="text-sm text-stone-300" />{(questionBlock.question_type || "multiple_choice") === "open_ended" ? <><textarea value={submission.blockResponses?.[questionBlock.id] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [questionBlock.id]: event.target.value } })} rows={7} placeholder="Write your response here..." className="min-h-[160px] w-full resize-y rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500" aria-label={`${questionBlock.title || "Question"} response`} />{questionBlock.sample_answer?.trim() && <><button type="button" onClick={() => setVisibleSampleAnswers((current) => ({ ...current, [questionBlock.id]: !current[questionBlock.id] }))} className="text-xs text-amber-300 hover:text-amber-200">{visibleSampleAnswers[questionBlock.id] ? "Hide sample answer" : "Show sample answer"}</button>{visibleSampleAnswers[questionBlock.id] && <MarkdownContent value={questionBlock.sample_answer} className="rounded border border-amber-500/20 bg-amber-500/5 p-3 text-sm text-stone-300" />}</>}</> : <div className="grid gap-2 sm:grid-cols-2">{questionBlock.options.filter(Boolean).map((option, optionIndex) => <button key={option} type="button" onClick={() => void persistSubmission({ ...submission, quizSelections: { ...(submission.quizSelections || {}), [questionBlock.id]: option } })} className={`rounded-md border px-3 py-2 text-left text-xs transition ${submission.quizSelections?.[questionBlock.id] === option ? "border-amber-500 bg-amber-500/10 text-amber-300" : "border-[#202631] bg-[#0c1017] text-stone-400 hover:border-amber-500/50 hover:text-amber-300"}`}>{formatQuestionOption(option, optionIndex, questionBlock.optionIndexingStyle)}</button>)}</div>}</div>)}</div>}
           {block.type === "quiz" && <div className="space-y-4">{block.questions.map((question) => <div key={question.id}><MarkdownContent value={question.prompt} className="text-sm text-stone-300" /><div className="mt-2 grid gap-2 sm:grid-cols-2">{question.options.map((option) => <button key={option} type="button" onClick={() => void persistSubmission({ ...submission, quizSelections: { ...(submission.quizSelections || {}), [question.id]: option } })} className={`rounded-md border px-3 py-2 text-left text-xs transition ${submission.quizSelections?.[question.id] === option ? "border-amber-500 bg-amber-500/10 text-amber-300" : "border-[#202631] bg-[#0c1017] text-stone-400 hover:border-amber-500/50 hover:text-amber-300"}`}>{option}</button>)}</div></div>)}</div>}
         </article>
         );
         const sidebarContent = (
-          <div className="lg:col-span-1 w-full space-y-4">
+          <div className="lg:col-span-1 h-full w-full space-y-4">
             {blockIndex === 0 && topSidebarBlocks.map((topSidebarBlock) => <div key={topSidebarBlock.id}>{renderSidebarBlock(topSidebarBlock)}</div>)}
-            {sidebarBlock ? renderSidebarBlock(sidebarBlock) : null}
+            {(block.type === "question" ? questionSidebarBlocks : sidebarBlock ? [sidebarBlock] : []).map((sidebarItem) => <div key={sidebarItem.id}>{renderSidebarBlock(sidebarItem)}</div>)}
           </div>
         );
         return (
-          <div key={block.id} className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start my-6 w-full">
-            <div className="lg:col-span-2 w-full">{article}</div>
+          <div key={block.id} className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch my-6 w-full">
+            <div className="lg:col-span-2 h-full w-full">{article}</div>
             {sidebarContent}
           </div>
         );
