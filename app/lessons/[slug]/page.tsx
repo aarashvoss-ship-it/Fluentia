@@ -735,14 +735,8 @@ export default function LessonPage() {
     ]);
     const topSidebarBlocks = currentStepSidebarBlocks.filter((sidebarBlock) => !linkedSidebarIds.has(sidebarBlock.id));
     return (
-    <div className="w-full">
-      {topSidebarBlocks.map((sidebarBlock) => (
-        <div key={sidebarBlock.id} className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start my-6 w-full">
-          <div className="lg:col-span-2 w-full" />
-          <div className="lg:col-span-1 w-full">{renderSidebarBlock(sidebarBlock)}</div>
-        </div>
-      ))}
-      {visibleBlocks.map((block) => {
+    <div className="w-full space-y-6">
+      {visibleBlocks.map((block, blockIndex) => {
         const sidebarBlock = currentStepSidebarBlocks.find((candidate) => candidate.parentMainBlockId === block.id)
           || (block.layoutMode === "inline-row" && block.sidebarBlockId
             ? currentStepSidebarBlocks.find((candidate) => candidate.id === block.sidebarBlockId)
@@ -759,14 +753,20 @@ export default function LessonPage() {
           {block.type === "quiz" && <div className="space-y-4">{block.questions.map((question) => <div key={question.id}><MarkdownContent value={question.prompt} className="text-sm text-stone-300" /><div className="mt-2 grid gap-2 sm:grid-cols-2">{question.options.map((option) => <button key={option} type="button" onClick={() => void persistSubmission({ ...submission, quizSelections: { ...(submission.quizSelections || {}), [question.id]: option } })} className={`rounded-md border px-3 py-2 text-left text-xs transition ${submission.quizSelections?.[question.id] === option ? "border-amber-500 bg-amber-500/10 text-amber-300" : "border-[#202631] bg-[#0c1017] text-stone-400 hover:border-amber-500/50 hover:text-amber-300"}`}>{option}</button>)}</div></div>)}</div>}
         </article>
         );
+        const sidebarContent = (
+          <div className="lg:col-span-1 w-full space-y-4">
+            {blockIndex === 0 && topSidebarBlocks.map((topSidebarBlock) => <div key={topSidebarBlock.id}>{renderSidebarBlock(topSidebarBlock)}</div>)}
+            {sidebarBlock ? renderSidebarBlock(sidebarBlock) : null}
+          </div>
+        );
         return (
           <div key={block.id} className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start my-6 w-full">
             <div className="lg:col-span-2 w-full">{article}</div>
-            <div className="lg:col-span-1 w-full">{sidebarBlock ? renderSidebarBlock(sidebarBlock) : null}</div>
+            {sidebarContent}
           </div>
         );
       })}
-      {visibleBlocks.length === 0 && topSidebarBlocks.length === 0 && <p className="rounded-xl border border-dashed border-[#394252] p-6 text-sm text-stone-500">This step has no content blocks yet.</p>}
+      {visibleBlocks.length === 0 && <p className="rounded-xl border border-dashed border-[#394252] p-6 text-sm text-stone-500">This step has no content blocks yet.</p>}
     </div>
     );
   };
