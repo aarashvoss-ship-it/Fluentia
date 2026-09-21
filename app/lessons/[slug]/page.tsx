@@ -685,10 +685,7 @@ export default function LessonPage() {
     || isResultsStep;
   const lessonStudentToken = activeStudent?.token ?? lesson?.student_token ?? lesson?.student_id ?? "student";
   const studentDisplayName = activeStudent?.name || "Student";
-  const currentStepBlocks = ((lessonContent[currentStep] as { blocks?: ContentBlock[] } | undefined)?.blocks || []);
   const currentStepSidebarBlocks = ((rawLessonContent.sidebarBlocks as Record<string, { id: string; title: string; body: string; parentMainBlockId?: string }[]> | undefined)?.[currentStep] || []);
-  const inlineSidebarIds = new Set(currentStepSidebarBlocks.filter((block) => block.parentMainBlockId).map((block) => block.id));
-  const visibleGlobalSidebarBlocks = currentStepSidebarBlocks.filter((block) => !inlineSidebarIds.has(block.id));
 
   if (!isMounted) {
     return <div className="fluentia-study-room min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
@@ -731,9 +728,21 @@ export default function LessonPage() {
         <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-stone-400">{sidebarBlock.body || "—"}</p>
       </div>
     );
+    const visibleBlocks = blocks.filter((block) => block.is_active !== false && block.enabled !== false);
+    const linkedSidebarIds = new Set([
+      ...currentStepSidebarBlocks.filter((sidebarBlock) => sidebarBlock.parentMainBlockId).map((sidebarBlock) => sidebarBlock.id),
+      ...visibleBlocks.filter((block) => block.layoutMode === "inline-row" && block.sidebarBlockId).map((block) => block.sidebarBlockId),
+    ]);
+    const topSidebarBlocks = currentStepSidebarBlocks.filter((sidebarBlock) => !linkedSidebarIds.has(sidebarBlock.id));
     return (
-    <div className="space-y-5">
-      {blocks.filter((block) => block.is_active !== false && block.enabled !== false).map((block) => {
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start w-full">
+      {topSidebarBlocks.map((sidebarBlock, sidebarIndex) => (
+        <div key={sidebarBlock.id} className="lg:col-span-1 w-full" style={{ gridColumn: "3", gridRow: sidebarIndex + 1 }}>
+          {renderSidebarBlock(sidebarBlock)}
+        </div>
+      ))}
+      {visibleBlocks.map((block, blockIndex) => {
+        const rowIndex = topSidebarBlocks.length + blockIndex + 1;
         const sidebarBlock = currentStepSidebarBlocks.find((candidate) => candidate.parentMainBlockId === block.id)
           || (block.layoutMode === "inline-row" && block.sidebarBlockId
             ? currentStepSidebarBlocks.find((candidate) => candidate.id === block.sidebarBlockId)
@@ -750,14 +759,23 @@ export default function LessonPage() {
           {block.type === "quiz" && <div className="space-y-4">{block.questions.map((question) => <div key={question.id}><MarkdownContent value={question.prompt} className="text-sm text-stone-300" /><div className="mt-2 grid gap-2 sm:grid-cols-2">{question.options.map((option) => <button key={option} type="button" onClick={() => void persistSubmission({ ...submission, quizSelections: { ...(submission.quizSelections || {}), [question.id]: option } })} className={`rounded-md border px-3 py-2 text-left text-xs transition ${submission.quizSelections?.[question.id] === option ? "border-amber-500 bg-amber-500/10 text-amber-300" : "border-[#202631] bg-[#0c1017] text-stone-400 hover:border-amber-500/50 hover:text-amber-300"}`}>{option}</button>)}</div></div>)}</div>}
         </article>
         );
-        if (!currentStepSidebarBlocks.length && block.layoutMode !== "inline-row") return article;
         return (
-          <div key={block.id} className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start my-6 w-full">
-            <div className="lg:col-span-2 w-full">{article}</div>
-            <aside className="lg:col-span-1 w-full">{sidebarBlock ? renderSidebarBlock(sidebarBlock) : <div aria-hidden="true" />}</aside>
+          <div key={`${block.id}-main`} className="lg:col-span-2 w-full" style={{ gridColumn: "1 / span 2", gridRow: rowIndex }}>{article}</div>
+        );
+      })}
+      {visibleBlocks.map((block, blockIndex) => {
+        const rowIndex = topSidebarBlocks.length + blockIndex + 1;
+        const sidebarBlock = currentStepSidebarBlocks.find((candidate) => candidate.parentMainBlockId === block.id)
+          || (block.layoutMode === "inline-row" && block.sidebarBlockId
+            ? currentStepSidebarBlocks.find((candidate) => candidate.id === block.sidebarBlockId)
+            : undefined);
+        return (
+          <div key={`${block.id}-sidebar`} className="lg:col-span-1 w-full" style={{ gridColumn: "3", gridRow: rowIndex }}>
+            {sidebarBlock ? renderSidebarBlock(sidebarBlock) : <div aria-hidden="true" />}
           </div>
         );
       })}
+      {visibleBlocks.length === 0 && <p className="col-span-1 lg:col-span-3 w-full rounded-xl border border-dashed border-[#394252] p-6 text-sm text-stone-500">This step has no content blocks yet.</p>}
     </div>
     );
   };
@@ -806,8 +824,8 @@ export default function LessonPage() {
           />
         </div>
       </header>
-      <div className={`grid items-start gap-6 ${visibleGlobalSidebarBlocks.length ? "lg:grid-cols-3" : ""}`}>
-      <div className={`${visibleGlobalSidebarBlocks.length ? "lg:col-span-2" : "w-full"}`}>
+      <div className="w-full">
+      <div className="w-full">
 
       <main className="pb-10 pt-8 text-[15px] leading-relaxed">
         {/* Hero Banner */}
@@ -1150,16 +1168,6 @@ export default function LessonPage() {
         )}
       </main>
           </div>
-          {visibleGlobalSidebarBlocks.length > 0 && (
-            <aside className="space-y-4 lg:col-span-1" style={{ paddingTop: "69px" }}>
-              {visibleGlobalSidebarBlocks.map((b) => (
-                <div key={b.id} className="rounded-xl border border-[#202631] bg-[#121721] p-4">
-                  <p className="text-xs font-semibold text-amber-400">{b.title}</p>
-                  <p className="mt-2 text-sm leading-relaxed text-stone-400 whitespace-pre-wrap">{b.body || "—"}</p>
-                </div>
-              ))}
-            </aside>
-          )}
         </div>
       </div>
 
