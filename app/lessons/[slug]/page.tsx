@@ -725,7 +725,7 @@ export default function LessonPage() {
     const renderSidebarBlock = (sidebarBlock: { id: string; title: string; body: string }) => (
       <div className="rounded-xl border border-[#202631] bg-[#121721] p-4">
         <p className="text-xs font-semibold text-amber-400">{sidebarBlock.title}</p>
-        <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-stone-400">{sidebarBlock.body || "—"}</p>
+        <MarkdownContent value={sidebarBlock.body || "—"} className="mt-2 text-sm leading-relaxed text-slate-300 [&_strong]:font-semibold [&_strong]:text-amber-400" />
       </div>
     );
     const visibleBlocks = blocks.filter((block) => block.is_active !== false && block.enabled !== false);
