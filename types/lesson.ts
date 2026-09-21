@@ -56,6 +56,9 @@ export interface ContentBlockBase {
   title: string;
   enabled: boolean;
   is_active?: boolean;
+  layoutMode?: "global" | "inline-row";
+  sidebarBlockId?: string;
+  rowEmptyMode?: "full" | "empty";
   hasStudentResponseInput?: boolean;
   studentResponseType?: StudentResponseType;
   allowStudentVoiceResponse?: boolean;

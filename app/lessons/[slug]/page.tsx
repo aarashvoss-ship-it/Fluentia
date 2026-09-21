@@ -685,6 +685,10 @@ export default function LessonPage() {
     || isResultsStep;
   const lessonStudentToken = activeStudent?.token ?? lesson?.student_token ?? lesson?.student_id ?? "student";
   const studentDisplayName = activeStudent?.name || "Student";
+  const currentStepBlocks = ((lessonContent[currentStep] as { blocks?: ContentBlock[] } | undefined)?.blocks || []);
+  const currentStepSidebarBlocks = ((rawLessonContent.sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep] || []);
+  const inlineSidebarIds = new Set(currentStepBlocks.filter((block) => block.layoutMode === "inline-row" && block.sidebarBlockId).map((block) => block.sidebarBlockId));
+  const visibleGlobalSidebarBlocks = currentStepSidebarBlocks.filter((block) => !inlineSidebarIds.has(block.id));
 
   if (!isMounted) {
     return <div className="fluentia-study-room min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
@@ -720,9 +724,20 @@ export default function LessonPage() {
     );
   }
 
-  const renderDynamicBlocks = (blocks: ContentBlock[]) => (
+  const renderDynamicBlocks = (blocks: ContentBlock[]) => {
+    const renderSidebarBlock = (sidebarBlock: { id: string; title: string; body: string }) => (
+      <div className="rounded-xl border border-[#202631] bg-[#121721] p-4">
+        <p className="text-xs font-semibold text-amber-400">{sidebarBlock.title}</p>
+        <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-stone-400">{sidebarBlock.body || "—"}</p>
+      </div>
+    );
+    return (
     <div className="space-y-5">
-      {blocks.filter((block) => block.is_active !== false && block.enabled !== false).map((block) => (
+      {blocks.filter((block) => block.is_active !== false && block.enabled !== false).map((block) => {
+        const sidebarBlock = block.layoutMode === "inline-row" && block.sidebarBlockId
+          ? currentStepSidebarBlocks.find((candidate) => candidate.id === block.sidebarBlockId)
+          : undefined;
+        const article = (
         <article key={block.id} className="rounded-xl border border-[#202631] bg-[#121721] p-5">
           {block.title && <h3 className="mb-3 font-sans text-xl font-semibold text-stone-100">{block.title}</h3>}
           {block.type === "text" && <><MarkdownContent value={block.body} className="text-sm leading-relaxed text-stone-300" />{hasStudentResponse(block) && (() => { const responseType = getStudentResponseType(block); if (responseType === "voice" || responseType === "audio") return <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />; if (responseType === "file") return <FileResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value } })} />; return <textarea value={submission.blockResponses?.[block.id] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [block.id]: event.target.value } })} rows={8} placeholder="Write your response here..." className="mt-4 w-full min-h-[200px] resize-y rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.title || "Text"} response`} />; })()}</>}
@@ -733,9 +748,18 @@ export default function LessonPage() {
           {block.type === "question" && <div className="space-y-2"><MarkdownContent value={block.prompt} className="text-sm text-stone-300" />{(block.question_type || "multiple_choice") === "open_ended" ? <><textarea value={submission.blockResponses?.[block.id] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [block.id]: event.target.value } })} rows={7} placeholder="Write your response here..." className="min-h-[160px] w-full resize-y rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.title || "Question"} response`} />{block.sample_answer?.trim() && <><button type="button" onClick={() => setVisibleSampleAnswers((current) => ({ ...current, [block.id]: !current[block.id] }))} className="text-xs text-amber-300 hover:text-amber-200">{visibleSampleAnswers[block.id] ? "Hide sample answer" : "Show sample answer"}</button>{visibleSampleAnswers[block.id] && <MarkdownContent value={block.sample_answer} className="rounded border border-amber-500/20 bg-amber-500/5 p-3 text-sm text-stone-300" />}</>}</> : <div className="grid gap-2 sm:grid-cols-2">{block.options.filter(Boolean).map((option, optionIndex) => <button key={option} type="button" onClick={() => void persistSubmission({ ...submission, quizSelections: { ...(submission.quizSelections || {}), [block.id]: option } })} className={`rounded-md border px-3 py-2 text-left text-xs transition ${submission.quizSelections?.[block.id] === option ? "border-amber-500 bg-amber-500/10 text-amber-300" : "border-[#202631] bg-[#0c1017] text-stone-400 hover:border-amber-500/50 hover:text-amber-300"}`}>{formatQuestionOption(option, optionIndex, block.optionIndexingStyle)}</button>)}</div>}</div>}
           {block.type === "quiz" && <div className="space-y-4">{block.questions.map((question) => <div key={question.id}><MarkdownContent value={question.prompt} className="text-sm text-stone-300" /><div className="mt-2 grid gap-2 sm:grid-cols-2">{question.options.map((option) => <button key={option} type="button" onClick={() => void persistSubmission({ ...submission, quizSelections: { ...(submission.quizSelections || {}), [question.id]: option } })} className={`rounded-md border px-3 py-2 text-left text-xs transition ${submission.quizSelections?.[question.id] === option ? "border-amber-500 bg-amber-500/10 text-amber-300" : "border-[#202631] bg-[#0c1017] text-stone-400 hover:border-amber-500/50 hover:text-amber-300"}`}>{option}</button>)}</div></div>)}</div>}
         </article>
-      ))}
+        );
+        if (block.layoutMode !== "inline-row") return article;
+        return (
+          <div key={block.id} className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
+            <div className={sidebarBlock || block.rowEmptyMode === "empty" ? "lg:col-span-2" : "lg:col-span-3"}>{article}</div>
+            <aside className="lg:col-span-1">{sidebarBlock ? renderSidebarBlock(sidebarBlock) : block.rowEmptyMode === "empty" ? <div aria-hidden="true" /> : null}</aside>
+          </div>
+        );
+      })}
     </div>
-  );
+    );
+  };
 
   return (
     <div className="fluentia-study-room min-h-screen bg-[#0c1017] text-[#e8e7e4]">
@@ -781,8 +805,8 @@ export default function LessonPage() {
           />
         </div>
       </header>
-      <div className={`grid items-start gap-6 ${(((rawLessonContent as Record<string, unknown>).sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep] || []).length ? "lg:grid-cols-3" : ""}`}>
-      <div className={`${(((rawLessonContent as Record<string, unknown>).sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep] || []).length ? "lg:col-span-2" : "w-full"}`}>
+      <div className={`grid items-start gap-6 ${visibleGlobalSidebarBlocks.length ? "lg:grid-cols-3" : ""}`}>
+      <div className={`${visibleGlobalSidebarBlocks.length ? "lg:col-span-2" : "w-full"}`}>
 
       <main className="pb-10 pt-8 text-[15px] leading-relaxed">
         {/* Hero Banner */}
@@ -1125,9 +1149,9 @@ export default function LessonPage() {
         )}
       </main>
           </div>
-          {(((rawLessonContent as Record<string, unknown>).sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep] || []).length > 0 && (
+          {visibleGlobalSidebarBlocks.length > 0 && (
             <aside className="space-y-4 lg:col-span-1" style={{ paddingTop: "69px" }}>
-              {((rawLessonContent as Record<string, unknown>).sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep]?.map((b) => (
+              {visibleGlobalSidebarBlocks.map((b) => (
                 <div key={b.id} className="rounded-xl border border-[#202631] bg-[#121721] p-4">
                   <p className="text-xs font-semibold text-amber-400">{b.title}</p>
                   <p className="mt-2 text-sm leading-relaxed text-stone-400 whitespace-pre-wrap">{b.body || "—"}</p>

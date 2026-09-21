@@ -13,6 +13,7 @@ interface LessonTailorEditorProps {
   content: StrictStepContent;
   onChange?: (updatedContent: StrictStepContent) => void;
   onPreview?: () => void;
+  sidebarBlocksByStep?: Partial<Record<StudyStepId, { id: string; title: string; body: string }[]>>;
 }
 
 function MarkdownEditor({
@@ -236,6 +237,7 @@ export function LessonTailorEditor({
   content,
   onChange,
   onPreview,
+  sidebarBlocksByStep = {},
 }: LessonTailorEditorProps) {
   const [activeStep, setActiveStep] = useState<StudyStepId>("warm_up");
   const [draftContent, setDraftContent] = useState(content);
@@ -721,6 +723,26 @@ export function LessonTailorEditor({
             </div>
             <div id={`block-content-${block.id}`} className={`overflow-hidden transition-[max-height,opacity] duration-200 ${isExpanded ? "max-h-[5000px] opacity-100" : "max-h-0 opacity-0"}`} aria-hidden={!isExpanded}>
             <input value={block.title} onChange={(event) => updateDynamicBlock(step, index, { title: event.target.value })} placeholder="Block title" className="mb-2 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.type} block title`} />
+            <div className="mb-3 grid gap-2 sm:grid-cols-3">
+              <label className="text-[11px] text-stone-500">Layout mode
+                <select value={block.layoutMode || "global"} onChange={(event) => updateDynamicBlock(step, index, { layoutMode: event.target.value as "global" | "inline-row", sidebarBlockId: event.target.value === "global" ? undefined : block.sidebarBlockId })} className="mt-1 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 [color-scheme:dark]" aria-label={`${block.type} block layout mode`}>
+                  <option value="global">Global Column Mode</option>
+                  <option value="inline-row">Inline Row Section Mode</option>
+                </select>
+              </label>
+              {block.layoutMode === "inline-row" && <label className="text-[11px] text-stone-500">Sidebar block
+                <select value={block.sidebarBlockId || ""} onChange={(event) => updateDynamicBlock(step, index, { sidebarBlockId: event.target.value || undefined })} className="mt-1 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 [color-scheme:dark]" aria-label={`${block.type} block sidebar selection`}>
+                  <option value="">No sidebar block</option>
+                  {(sidebarBlocksByStep[step] || []).map((sidebarBlock) => <option key={sidebarBlock.id} value={sidebarBlock.id}>{sidebarBlock.title || "Untitled sidebar block"}</option>)}
+                </select>
+              </label>}
+              {block.layoutMode === "inline-row" && <label className="text-[11px] text-stone-500">When empty
+                <select value={block.rowEmptyMode || "full"} onChange={(event) => updateDynamicBlock(step, index, { rowEmptyMode: event.target.value as "full" | "empty" })} className="mt-1 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 [color-scheme:dark]" aria-label={`${block.type} block empty row mode`}>
+                  <option value="full">Expand main content</option>
+                  <option value="empty">Leave sidebar space</option>
+                </select>
+              </label>}
+            </div>
             {block.type === "text" && <div className="space-y-3">
               <label className="flex cursor-pointer items-start gap-3 rounded border border-[#202631] bg-[#0c1017]/60 p-3">
                 <input type="checkbox" checked={block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true} onChange={(event) => updateDynamicBlock(step, index, { hasStudentResponseInput: event.target.checked, studentResponseConfig: { ...(block.studentResponseConfig || { allowedTypes: ["text"] }), enabled: event.target.checked } })} className="mt-0.5 h-4 w-4 shrink-0 accent-amber-500" />

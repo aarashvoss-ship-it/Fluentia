@@ -863,7 +863,11 @@ export default function InstructorWorkstationPage({
     }
     return (
     <div className="space-y-4">
-      {previewBlocks.map((block: ContentBlock) => (
+      {previewBlocks.map((block: ContentBlock) => {
+        const sidebarBlock = block.layoutMode === "inline-row" && block.sidebarBlockId
+          ? (sidebarBlocksByStep[previewStep as keyof SidebarBlocksByStep] || []).find((candidate) => candidate.id === block.sidebarBlockId)
+          : undefined;
+        const article = (
         <article key={block.id} className="rounded-lg border border-[#293343] bg-[#0c1017] p-4">
           {block.title && <h4 className="mb-2 text-sm font-semibold text-stone-100">{block.title}</h4>}
           {block.type === "text" && <>{<MarkdownContent value={block.body || "No text added yet."} className="text-sm leading-relaxed text-stone-300" />}{block.hasStudentResponseInput === true && <textarea rows={6} placeholder="Write your response here..." readOnly className="mt-4 min-h-[140px] w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" aria-label="Student response field preview" />}</>}
@@ -874,7 +878,15 @@ export default function InstructorWorkstationPage({
           {block.type === "question" && <div className="space-y-2"><MarkdownContent value={block.prompt || "Question not configured."} className="text-sm text-stone-300" />{(block.question_type || "multiple_choice") === "open_ended" ? <><textarea rows={6} placeholder="Student response" readOnly className="min-h-[140px] w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" />{block.sample_answer && <MarkdownContent value={block.sample_answer} className="rounded border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-stone-300" />}</> : <div className="flex flex-wrap gap-2">{block.options.filter(Boolean).map((option) => <span key={option} className="rounded border border-[#394252] px-2 py-1 text-xs text-stone-400">{option}</span>)}</div>}</div>}
           {block.type === "quiz" && <div className="space-y-3">{(block.questions || []).map((question, index) => <div key={`${block.id}-${index}`}><MarkdownContent value={question.prompt || "Question not configured."} className="text-sm text-stone-300" /><div className="mt-2 flex flex-wrap gap-2">{question.options.map((option) => <span key={option} className="rounded border border-[#394252] px-2 py-1 text-xs text-stone-400">{option || "Option"}</span>)}</div></div>)}</div>}
         </article>
-      ))}
+        );
+        if (block.layoutMode !== "inline-row") return article;
+        return (
+          <div key={block.id} className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
+            <div className={sidebarBlock || block.rowEmptyMode === "empty" ? "lg:col-span-2" : "lg:col-span-3"}>{article}</div>
+            <aside className="lg:col-span-1">{sidebarBlock ? <div className="rounded-lg border border-[#293343] bg-[#171d28] p-3"><p className="text-xs font-semibold text-amber-400">{sidebarBlock.title}</p><p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-stone-400">{sidebarBlock.body || "—"}</p></div> : block.rowEmptyMode === "empty" ? <div aria-hidden="true" /> : null}</aside>
+          </div>
+        );
+      })}
       {previewBlocks.length === 0 && <p className="rounded-lg border border-dashed border-[#394252] p-6 text-sm text-stone-500">This step has no content blocks yet.</p>}
     </div>
   );};
@@ -1041,7 +1053,7 @@ export default function InstructorWorkstationPage({
           </section>
           <main className="grid grid-cols-1 gap-6 lg:grid-cols-12">
             <div className="min-w-0 lg:col-span-8">
-              <LessonTailorEditor content={workstationState.content} onChange={(content: StrictStepContent) => setWorkstationState((previous) => ({ ...previous, content }))} />
+              <LessonTailorEditor content={workstationState.content} sidebarBlocksByStep={sidebarBlocksByStep} onChange={(content: StrictStepContent) => setWorkstationState((previous) => ({ ...previous, content }))} />
             </div>
             <aside className="space-y-6 lg:col-span-4">
               <details className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" open={heroBannerOpen} onToggle={(event) => setHeroBannerOpen(event.currentTarget.open)}>
