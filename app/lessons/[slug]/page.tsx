@@ -686,8 +686,8 @@ export default function LessonPage() {
   const lessonStudentToken = activeStudent?.token ?? lesson?.student_token ?? lesson?.student_id ?? "student";
   const studentDisplayName = activeStudent?.name || "Student";
   const currentStepBlocks = ((lessonContent[currentStep] as { blocks?: ContentBlock[] } | undefined)?.blocks || []);
-  const currentStepSidebarBlocks = ((rawLessonContent.sidebarBlocks as Record<string, { id: string; title: string; body: string }[]> | undefined)?.[currentStep] || []);
-  const inlineSidebarIds = new Set(currentStepBlocks.filter((block) => block.layoutMode === "inline-row" && block.sidebarBlockId).map((block) => block.sidebarBlockId));
+  const currentStepSidebarBlocks = ((rawLessonContent.sidebarBlocks as Record<string, { id: string; title: string; body: string; parentMainBlockId?: string }[]> | undefined)?.[currentStep] || []);
+  const inlineSidebarIds = new Set(currentStepSidebarBlocks.filter((block) => block.parentMainBlockId).map((block) => block.id));
   const visibleGlobalSidebarBlocks = currentStepSidebarBlocks.filter((block) => !inlineSidebarIds.has(block.id));
 
   if (!isMounted) {
@@ -734,9 +734,10 @@ export default function LessonPage() {
     return (
     <div className="space-y-5">
       {blocks.filter((block) => block.is_active !== false && block.enabled !== false).map((block) => {
-        const sidebarBlock = block.layoutMode === "inline-row" && block.sidebarBlockId
-          ? currentStepSidebarBlocks.find((candidate) => candidate.id === block.sidebarBlockId)
-          : undefined;
+        const sidebarBlock = currentStepSidebarBlocks.find((candidate) => candidate.parentMainBlockId === block.id)
+          || (block.layoutMode === "inline-row" && block.sidebarBlockId
+            ? currentStepSidebarBlocks.find((candidate) => candidate.id === block.sidebarBlockId)
+            : undefined);
         const article = (
         <article key={block.id} className="rounded-xl border border-[#202631] bg-[#121721] p-5">
           {block.title && <h3 className="mb-3 font-sans text-xl font-semibold text-stone-100">{block.title}</h3>}
@@ -749,11 +750,11 @@ export default function LessonPage() {
           {block.type === "quiz" && <div className="space-y-4">{block.questions.map((question) => <div key={question.id}><MarkdownContent value={question.prompt} className="text-sm text-stone-300" /><div className="mt-2 grid gap-2 sm:grid-cols-2">{question.options.map((option) => <button key={option} type="button" onClick={() => void persistSubmission({ ...submission, quizSelections: { ...(submission.quizSelections || {}), [question.id]: option } })} className={`rounded-md border px-3 py-2 text-left text-xs transition ${submission.quizSelections?.[question.id] === option ? "border-amber-500 bg-amber-500/10 text-amber-300" : "border-[#202631] bg-[#0c1017] text-stone-400 hover:border-amber-500/50 hover:text-amber-300"}`}>{option}</button>)}</div></div>)}</div>}
         </article>
         );
-        if (block.layoutMode !== "inline-row") return article;
+        if (!currentStepSidebarBlocks.length && block.layoutMode !== "inline-row") return article;
         return (
           <div key={block.id} className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
-            <div className={sidebarBlock || block.rowEmptyMode === "empty" ? "lg:col-span-2" : "lg:col-span-3"}>{article}</div>
-            <aside className="lg:col-span-1">{sidebarBlock ? renderSidebarBlock(sidebarBlock) : block.rowEmptyMode === "empty" ? <div aria-hidden="true" /> : null}</aside>
+            <div className="lg:col-span-2">{article}</div>
+            <aside className="lg:col-span-1">{sidebarBlock ? renderSidebarBlock(sidebarBlock) : <div aria-hidden="true" />}</aside>
           </div>
         );
       })}

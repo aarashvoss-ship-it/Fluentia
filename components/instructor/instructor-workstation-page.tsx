@@ -25,7 +25,7 @@ interface InstructorWorkstationProps {
   lessonSlug: string;
 }
 
-type SidebarBlock = { id: string; title: string; body: string };
+type SidebarBlock = { id: string; title: string; body: string; parentMainBlockId?: string };
 type SidebarBlocksByStep = Partial<Record<"warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking", SidebarBlock[]>>;
 
 const SIDEBAR_STEP_KEYS = ["warm_up", "lesson", "listening", "reading", "writing", "speaking"] as const;
@@ -43,6 +43,7 @@ function normalizeSidebarBlocksByStep(raw: unknown): SidebarBlocksByStep {
         id: typeof item.id === "string" && item.id.trim() ? item.id.trim() : `sidebar-${key}-${Date.now()}-${index}`,
         title: typeof item.title === "string" ? item.title : typeof item.name === "string" ? item.name : "Sidebar note",
         body: typeof item.body === "string" ? item.body : typeof item.text === "string" ? item.text : "",
+        parentMainBlockId: typeof item.parentMainBlockId === "string" && item.parentMainBlockId.trim() ? item.parentMainBlockId.trim() : undefined,
       }));
     if (blocks.length) out[key] = blocks;
   }
@@ -864,9 +865,10 @@ export default function InstructorWorkstationPage({
     return (
     <div className="space-y-4">
       {previewBlocks.map((block: ContentBlock) => {
-        const sidebarBlock = block.layoutMode === "inline-row" && block.sidebarBlockId
-          ? (sidebarBlocksByStep[previewStep as keyof SidebarBlocksByStep] || []).find((candidate) => candidate.id === block.sidebarBlockId)
-          : undefined;
+        const sidebarBlock = (sidebarBlocksByStep[previewStep as keyof SidebarBlocksByStep] || []).find((candidate) => candidate.parentMainBlockId === block.id)
+          || (block.layoutMode === "inline-row" && block.sidebarBlockId
+            ? (sidebarBlocksByStep[previewStep as keyof SidebarBlocksByStep] || []).find((candidate) => candidate.id === block.sidebarBlockId)
+            : undefined);
         const article = (
         <article key={block.id} className="rounded-lg border border-[#293343] bg-[#0c1017] p-4">
           {block.title && <h4 className="mb-2 text-sm font-semibold text-stone-100">{block.title}</h4>}
@@ -879,11 +881,11 @@ export default function InstructorWorkstationPage({
           {block.type === "quiz" && <div className="space-y-3">{(block.questions || []).map((question, index) => <div key={`${block.id}-${index}`}><MarkdownContent value={question.prompt || "Question not configured."} className="text-sm text-stone-300" /><div className="mt-2 flex flex-wrap gap-2">{question.options.map((option) => <span key={option} className="rounded border border-[#394252] px-2 py-1 text-xs text-stone-400">{option || "Option"}</span>)}</div></div>)}</div>}
         </article>
         );
-        if (block.layoutMode !== "inline-row") return article;
+        if (!(sidebarBlocksByStep[previewStep as keyof SidebarBlocksByStep] || []).length && block.layoutMode !== "inline-row") return article;
         return (
           <div key={block.id} className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
-            <div className={sidebarBlock || block.rowEmptyMode === "empty" ? "lg:col-span-2" : "lg:col-span-3"}>{article}</div>
-            <aside className="lg:col-span-1">{sidebarBlock ? <div className="rounded-lg border border-[#293343] bg-[#171d28] p-3"><p className="text-xs font-semibold text-amber-400">{sidebarBlock.title}</p><p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-stone-400">{sidebarBlock.body || "—"}</p></div> : block.rowEmptyMode === "empty" ? <div aria-hidden="true" /> : null}</aside>
+            <div className="lg:col-span-2">{article}</div>
+            <aside className="lg:col-span-1">{sidebarBlock ? <div className="rounded-lg border border-[#293343] bg-[#171d28] p-3"><p className="text-xs font-semibold text-amber-400">{sidebarBlock.title}</p><p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-stone-400">{sidebarBlock.body || "—"}</p></div> : <div aria-hidden="true" />}</aside>
           </div>
         );
       })}
@@ -1063,7 +1065,7 @@ export default function InstructorWorkstationPage({
               <section className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
                 <div className="flex items-center justify-between gap-3"><h3 className="font-sans text-xl font-semibold text-stone-100">Step Sidebar</h3><button type="button" onClick={() => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: [...(current[sidebarStep] || []), { id: `sidebar-${Date.now()}`, title: "Sidebar note", body: "" }] }))} className="flex items-center gap-1.5 rounded-md border border-amber-500 px-3 py-2 text-sm text-amber-500"><Plus className="h-3.5 w-3.5" />Add Block</button></div>
                 <select value={sidebarStep} onChange={(event) => setSidebarStep(event.target.value as keyof SidebarBlocksByStep)} className="mt-3 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2 text-xs text-white [color-scheme:dark]" aria-label="Sidebar step"><option value="warm_up" className="bg-[#0c1017] text-white">Warm-up</option><option value="lesson" className="bg-[#0c1017] text-white">Lesson</option><option value="listening" className="bg-[#0c1017] text-white">Listening</option><option value="reading" className="bg-[#0c1017] text-white">Reading</option><option value="writing" className="bg-[#0c1017] text-white">Writing</option><option value="speaking" className="bg-[#0c1017] text-white">Speaking</option></select>
-                <div className="mt-4 space-y-3">{(sidebarBlocksByStep[sidebarStep] || []).map((block) => <div key={block.id} className="rounded-lg border border-[#202631] bg-[#0c1017] p-3"><div className="flex gap-2"><input value={block.title} onChange={(event) => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, title: event.target.value } : item) }))} className="min-w-0 flex-1 border-b border-[#394252] bg-transparent pb-1 text-xs font-semibold text-stone-200" aria-label="Sidebar block title" /><button type="button" onClick={() => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: (current[sidebarStep] || []).filter((item) => item.id !== block.id) }))} aria-label={`Delete ${block.title}`}><Trash2 className="h-3.5 w-3.5" /></button></div><textarea value={block.body} onChange={(event) => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, body: event.target.value } : item) }))} rows={3} className="mt-3 w-full resize-y rounded-md border border-[#202631] bg-[#171d28] p-2.5 text-xs text-stone-300" /></div>)}</div>
+                <div className="mt-4 space-y-3">{(sidebarBlocksByStep[sidebarStep] || []).map((block) => <div key={block.id} className="rounded-lg border border-[#202631] bg-[#0c1017] p-3"><div className="flex gap-2"><input value={block.title} onChange={(event) => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, title: event.target.value } : item) }))} className="min-w-0 flex-1 border-b border-[#394252] bg-transparent pb-1 text-xs font-semibold text-stone-200" aria-label="Sidebar block title" /><button type="button" onClick={() => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: (current[sidebarStep] || []).filter((item) => item.id !== block.id) }))} aria-label={`Delete ${block.title}`}><Trash2 className="h-3.5 w-3.5" /></button></div><label className="mt-3 block text-[11px] text-stone-500">Align Next To (Main Block):<select value={block.parentMainBlockId || ""} onChange={(event) => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, parentMainBlockId: event.target.value || undefined } : item) }))} className="mt-1 w-full rounded-md border border-[#202631] bg-[#171d28] p-2 text-xs text-stone-200 [color-scheme:dark]" aria-label={`Align ${block.title || "sidebar block"} next to main block`}><option value="">Top of Sidebar (Default Unlinked)</option>{((((workstationState.content[sidebarStep] as { blocks?: ContentBlock[] } | undefined)?.blocks || []) as ContentBlock[]).map((mainBlock, mainIndex) => <option key={mainBlock.id} value={mainBlock.id}>{mainIndex + 1}. {mainBlock.title || `${mainBlock.type} block`}</option>))}</select></label><textarea value={block.body} onChange={(event) => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, body: event.target.value } : item) }))} rows={3} className="mt-3 w-full resize-y rounded-md border border-[#202631] bg-[#171d28] p-2.5 text-xs text-stone-300" /></div>)}</div>
               </section>
               <section className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" aria-labelledby="lesson-resources-title">
                 <div className="flex items-center justify-between gap-3"><h3 id="lesson-resources-title" className="font-sans text-xl font-semibold text-stone-100">Lesson Resources</h3><button type="button" onClick={() => setLessonResources((prev) => [...prev, { id: `res-${Date.now()}`, title: "", url: "", type: "PDF" }])} className="flex items-center gap-1.5 rounded-md border border-amber-500 px-3 py-2 text-sm text-amber-500"><Plus className="h-3.5 w-3.5" />Add Resource</button></div>
