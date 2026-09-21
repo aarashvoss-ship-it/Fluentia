@@ -30,7 +30,7 @@ export interface BlockItem {
   enabled: boolean;
 }
 
-export type ContentBlockType = "text" | "audio" | "video" | "image" | "question" | "quiz";
+export type ContentBlockType = "text" | "audio" | "video" | "image" | "resource" | "question" | "quiz";
 
 export interface QuizQuestion {
   id: string;
@@ -85,6 +85,12 @@ export interface ImageContentBlock extends ContentBlockBase {
   caption: string;
 }
 
+export interface ResourceContentBlock extends ContentBlockBase {
+  type: "resource";
+  resourceUrl: string;
+  description?: string;
+}
+
 export interface QuizContentBlock extends ContentBlockBase {
   type: "quiz";
   questions: QuizQuestion[];
@@ -105,6 +111,7 @@ export type ContentBlock =
   | AudioContentBlock
   | VideoContentBlock
   | ImageContentBlock
+  | ResourceContentBlock
   | QuestionContentBlock
   | QuizContentBlock;
 

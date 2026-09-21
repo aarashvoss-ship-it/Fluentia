@@ -6,8 +6,8 @@ import { useLessonEditorStore } from "@/lib/lesson-editor-store";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
-import { uploadLessonMedia } from "@/services/storage-service";
-import { Eye, Layers, Lightbulb, MoveDown, MoveUp, Plus, Trash2, X, ChevronDown, ChevronUp, HelpCircle, Mic, Square } from "lucide-react";
+import { uploadLessonAsset, uploadLessonMedia } from "@/services/storage-service";
+import { Eye, FileText, Layers, Lightbulb, LoaderCircle, MoveDown, MoveUp, Plus, Trash2, UploadCloud, X, ChevronDown, ChevronUp, HelpCircle, Mic, Square } from "lucide-react";
 
 interface LessonTailorEditorProps {
   content: StrictStepContent;
@@ -153,6 +153,85 @@ function QuestionSettings({ value, onChange }: { value?: OptionIndexingStyle; on
   );
 }
 
+type MediaBlockType = "image" | "audio" | "video" | "resource";
+
+const mediaRules: Record<MediaBlockType, { accept: string; label: string; description: string }> = {
+  image: { accept: "image/*", label: "an image", description: "PNG, JPG, GIF, or WebP" },
+  audio: { accept: "audio/*", label: "an audio file", description: "MP3, WAV, OGG, or M4A" },
+  video: { accept: "video/*", label: "a video", description: "MP4, WebM, or MOV" },
+  resource: { accept: ".pdf,application/pdf", label: "a PDF", description: "PDF documents only" },
+};
+
+function MediaAssetInput({
+  kind,
+  value,
+  onChange,
+  disabled = false,
+}: {
+  kind: MediaBlockType;
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  const [mode, setMode] = useState<"upload" | "url">(value ? "url" : "upload");
+  const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const rules = mediaRules[kind];
+  const inputId = `media-upload-${kind}`;
+
+  const handleFile = async (file?: File) => {
+    if (!file || disabled || isUploading) return;
+    setError(null);
+    if (file.size > 15 * 1024 * 1024) {
+      setError("Files must be 15 MB or smaller.");
+      return;
+    }
+    const isPdf = kind === "resource" && (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf"));
+    if (kind === "resource" ? !isPdf : !file.type.startsWith(`${kind}/`)) {
+      setError(`Please choose ${rules.label} with a supported file type.`);
+      return;
+    }
+    setIsUploading(true);
+    try {
+      const asset = await uploadLessonAsset(file, kind);
+      onChange(asset.url);
+      setMode("upload");
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Upload failed. Check the Storage bucket and try again.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2 rounded border border-[#202631] bg-[#0c1017]/60 p-3">
+      <div className="flex rounded border border-[#394252] p-0.5" role="tablist" aria-label={`${kind} source`}>
+        <button type="button" role="tab" aria-selected={mode === "upload"} onClick={() => setMode("upload")} className={`flex-1 px-2 py-1.5 text-[11px] font-semibold ${mode === "upload" ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-200"}`}>Upload File</button>
+        <button type="button" role="tab" aria-selected={mode === "url"} onClick={() => setMode("url")} className={`flex-1 px-2 py-1.5 text-[11px] font-semibold ${mode === "url" ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-200"}`}>External URL</button>
+      </div>
+      {mode === "url" ? (
+        <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={`Paste ${kind} URL`} disabled={disabled} className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500 disabled:opacity-50" aria-label={`${kind} external URL`} />
+      ) : (
+        <>
+          <label htmlFor={inputId} onDragOver={(event) => { event.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} onDrop={(event) => { event.preventDefault(); setIsDragging(false); void handleFile(event.dataTransfer.files[0]); }} className={`flex cursor-pointer flex-col items-center justify-center rounded border border-dashed p-4 text-center transition ${isDragging ? "border-amber-400 bg-amber-500/10" : "border-[#394252] hover:border-amber-500/70"} ${disabled || isUploading ? "cursor-not-allowed opacity-60" : ""}`}>
+            {isUploading ? <LoaderCircle className="mb-2 h-5 w-5 animate-spin text-amber-400" /> : <UploadCloud className="mb-2 h-5 w-5 text-amber-400" />}
+            <span className="text-xs font-semibold text-stone-200">{isUploading ? "Uploading..." : `Drop ${rules.label} here or browse`}</span>
+            <span className="mt-1 text-[10px] text-stone-500">{rules.description} · Max 15 MB</span>
+            <input id={inputId} type="file" accept={rules.accept} className="sr-only" disabled={disabled || isUploading} onChange={(event) => void handleFile(event.target.files?.[0])} />
+          </label>
+          {value && <div className="flex items-center gap-3 rounded border border-emerald-500/30 bg-emerald-500/5 p-2">
+            {kind === "image" ? <img src={value} alt="Uploaded media preview" className="h-14 w-20 rounded object-cover" /> : kind === "audio" ? <audio controls src={value} className="h-8 min-w-0 flex-1" /> : kind === "video" ? <video controls src={value} className="h-14 w-24 rounded object-cover" /> : <FileText className="h-8 w-8 shrink-0 text-amber-400" />}
+            <span className="min-w-0 flex-1 truncate text-[11px] text-emerald-200">File uploaded</span>
+            <button type="button" onClick={() => onChange("")} disabled={disabled || isUploading} className="shrink-0 text-[11px] font-semibold text-stone-400 underline hover:text-red-300 disabled:opacity-50">Remove / Replace</button>
+          </div>}
+        </>
+      )}
+      {error && <p className="text-[11px] text-red-300" role="alert">{error}</p>}
+    </div>
+  );
+}
+
 export function LessonTailorEditor({
   content,
   onChange,
@@ -248,6 +327,7 @@ export function LessonTailorEditor({
     if (type === "audio") return { ...base, type: "audio", title: "Audio lesson", audioUrl: "", transcript: "", allowStudentVoiceResponse: false };
     if (type === "video") return { ...base, type: "video", title: "Video lesson", videoUrl: "", transcript: "" };
     if (type === "image") return { ...base, type: "image", title: "Image", imageUrl: "", caption: "" };
+    if (type === "resource") return { ...base, type: "resource", title: "Document", resourceUrl: "", description: "" };
     if (type === "question") return { ...base, type: "question", title: "Question", prompt: "", options: ["", "", ""], correct_answer: "", question_type: "multiple_choice", optionIndexingStyle: "none", sample_answer: "" };
     return { ...base, type: "quiz", title: "Task / Quiz", questions: [{ id: `${id}-q1`, prompt: "", options: ["", "", ""], correct_answer: "" }] };
   };
@@ -262,16 +342,6 @@ export function LessonTailorEditor({
       updateBlock(step, block.id, patch).catch((error: any) => {
         console.error("Failed to update block:", error);
       });
-    }
-  };
-
-  const handleAudioUpload = async (step: StudyStepId, index: number, file?: File) => {
-    if (!file) return;
-    try {
-      const asset = await uploadLessonMedia(file, `lesson-${step}-${Date.now()}`);
-      updateDynamicBlock(step, index, { audioUrl: asset.url });
-    } catch (error) {
-      console.error("Lesson audio upload failed:", error);
     }
   };
 
@@ -623,6 +693,7 @@ export function LessonTailorEditor({
             <option value="audio" className="bg-slate-900 text-slate-100">Audio Block</option>
             <option value="video" className="bg-slate-900 text-slate-100">Video Block</option>
             <option value="image" className="bg-slate-900 text-slate-100">Image Block</option>
+            <option value="resource" className="bg-slate-900 text-slate-100">Resource / Document Block</option>
             <option value="question" className="bg-slate-900 text-slate-100">Question Block</option>
             <option value="quiz" className="bg-slate-900 text-slate-100">Quiz Block</option>
           </select>
@@ -670,8 +741,7 @@ export function LessonTailorEditor({
               const isUploading = rec?.status === "uploading";
               return (
                 <div className="space-y-2">
-                  <input value={block.audioUrl.startsWith("data:") ? "" : block.audioUrl} onChange={(event) => updateDynamicBlock(step, index, { audioUrl: event.target.value })} placeholder="Audio URL" disabled={isRecording || isUploading} className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500 disabled:opacity-50" aria-label="Audio block URL" />
-                  <label className="block text-xs text-stone-500">Or upload MP3/WAV<input type="file" accept="audio/mpeg,audio/wav,.mp3,.wav" onChange={(event) => void handleAudioUpload(step, index, event.target.files?.[0])} disabled={isRecording || isUploading} className="mt-1 block w-full text-xs text-stone-400 file:mr-3 file:rounded file:border-0 file:bg-amber-500 file:px-2 file:py-1 file:text-xs file:font-semibold file:text-black disabled:opacity-50" aria-label="Upload audio file" /></label>
+                  <MediaAssetInput kind="audio" value={block.audioUrl.startsWith("data:") ? "" : block.audioUrl} onChange={(value) => updateDynamicBlock(step, index, { audioUrl: value })} disabled={isRecording || isUploading} />
                   <label className="flex cursor-pointer items-start gap-3 rounded border border-[#202631] bg-[#0c1017]/60 p-3">
                     <input type="checkbox" checked={block.allowStudentVoiceResponse === true} onChange={(event) => updateDynamicBlock(step, index, { allowStudentVoiceResponse: event.target.checked })} className="mt-0.5 h-4 w-4 shrink-0 accent-amber-500" />
                     <span><span className="block text-xs font-semibold text-stone-200">Allow Student Voice Response / Shadowing Record</span><span className="mt-1 block text-[11px] leading-relaxed text-stone-500">Lets students record a response beneath this audio lesson.</span></span>
@@ -697,8 +767,9 @@ export function LessonTailorEditor({
               );
             })()}
             {block.type === "question" && <QuestionSettings value={block.optionIndexingStyle} onChange={(value) => updateDynamicBlock(step, index, { optionIndexingStyle: value })} />}
-            {block.type === "video" && <div className="space-y-2"><input value={block.videoUrl} onChange={(event) => updateDynamicBlock(step, index, { videoUrl: event.target.value })} placeholder="YouTube or video embed URL" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Video block URL" /><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} editable onTranscriptChange={(value) => updateDynamicBlock(step, index, { transcript: value })} /></div>}
-            {block.type === "image" && <div className="space-y-2"><input value={block.imageUrl} onChange={(event) => updateDynamicBlock(step, index, { imageUrl: event.target.value })} placeholder="Image URL" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Image block URL" /><input value={block.caption} onChange={(event) => updateDynamicBlock(step, index, { caption: event.target.value })} placeholder="Image caption" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Image block caption" /></div>}
+            {block.type === "video" && <div className="space-y-2"><MediaAssetInput kind="video" value={block.videoUrl} onChange={(value) => updateDynamicBlock(step, index, { videoUrl: value })} /><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} editable onTranscriptChange={(value) => updateDynamicBlock(step, index, { transcript: value })} /></div>}
+            {block.type === "image" && <div className="space-y-2"><MediaAssetInput kind="image" value={block.imageUrl} onChange={(value) => updateDynamicBlock(step, index, { imageUrl: value })} /><input value={block.caption} onChange={(event) => updateDynamicBlock(step, index, { caption: event.target.value })} placeholder="Image caption" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Image block caption" /></div>}
+            {block.type === "resource" && <div className="space-y-2"><MediaAssetInput kind="resource" value={block.resourceUrl} onChange={(value) => updateDynamicBlock(step, index, { resourceUrl: value })} /><input value={block.description || ""} onChange={(event) => updateDynamicBlock(step, index, { description: event.target.value })} placeholder="Document description" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Document description" /></div>}
             {block.type === "question" && <div className="space-y-2"><label className="block text-xs text-stone-500">Question type<select value={block.question_type || "multiple_choice"} onChange={(event) => updateDynamicBlock(step, index, { question_type: event.target.value as "multiple_choice" | "open_ended" })} className="mt-1 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 [color-scheme:dark]" aria-label="Question type"><option value="multiple_choice">Multiple Choice</option><option value="open_ended">Open-Ended Response</option></select></label><MarkdownEditor value={block.prompt} onChange={(value) => updateDynamicBlock(step, index, { prompt: value })} onHelp={() => setMarkdownHelpBlock(block.id)} placeholder="Question or task prompt" ariaLabel="Question or task prompt" rows={4} />{(block.question_type || "multiple_choice") === "open_ended" ? <MarkdownEditor value={block.sample_answer || ""} onChange={(value) => updateDynamicBlock(step, index, { sample_answer: value })} onHelp={() => setMarkdownHelpBlock(block.id)} placeholder="Optional model answer or evaluation guide" ariaLabel="Sample answer or instructor guide" rows={4} /> : <>{block.options.map((option, optionIndex) => <div key={`${block.id}-${optionIndex}`} className="flex gap-2"><input value={option} onChange={(event) => updateDynamicBlock(step, index, { options: block.options.map((value, valueIndex) => valueIndex === optionIndex ? event.target.value : value) })} placeholder={`Option ${optionIndex + 1} (optional)`} className="min-w-0 flex-1 rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`Question option ${optionIndex + 1}`} /><button type="button" onClick={() => updateDynamicBlock(step, index, { options: block.options.filter((_, valueIndex) => valueIndex !== optionIndex) })} disabled={block.options.length <= 1} aria-label={`Remove question option ${optionIndex + 1}`} className="rounded border border-[#394252] px-2 text-stone-500 hover:border-red-400 hover:text-red-300 disabled:opacity-30"><X className="h-3.5 w-3.5" /></button></div>)}<button type="button" onClick={() => updateDynamicBlock(step, index, { options: [...block.options, ""] })} className="flex items-center gap-1 text-xs text-amber-300 hover:text-amber-200"><Plus className="h-3 w-3" /> Add option</button><input value={block.correct_answer} onChange={(event) => updateDynamicBlock(step, index, { correct_answer: event.target.value })} placeholder="Correct Answer / Key" className="w-full rounded border border-amber-500/30 bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Correct Answer / Key" /></>}</div>}
             {block.type === "quiz" && <div className="space-y-2"><div className="flex items-center justify-between text-xs text-stone-400"><span>Questions</span><button type="button" onClick={() => updateDynamicBlock(step, index, { questions: [...block.questions, { id: `${block.id}-q${block.questions.length + 1}`, prompt: "", options: ["", "", ""], correct_answer: "" }] })} className="flex items-center gap-1 text-amber-300 hover:text-amber-200"><Plus className="h-3 w-3" /> Add question</button></div>{block.questions.map((question, questionIndex) => <div key={question.id} className="space-y-2 rounded border border-[#202631] bg-[#0c1017] p-2"><input value={question.prompt} onChange={(event) => updateDynamicBlock(step, index, { questions: block.questions.map((item, itemIndex) => itemIndex === questionIndex ? { ...item, prompt: event.target.value } : item) })} placeholder={`Question ${questionIndex + 1}`} className="w-full rounded border border-[#202631] bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`Quiz question ${questionIndex + 1}`} /><MarkdownContent value={question.prompt || "Question preview"} className="text-xs text-stone-300" />{question.options.map((option, optionIndex) => <input key={`${question.id}-${optionIndex}`} value={option} onChange={(event) => updateDynamicBlock(step, index, { questions: block.questions.map((item, itemIndex) => itemIndex === questionIndex ? { ...item, options: item.options.map((value, valueIndex) => valueIndex === optionIndex ? event.target.value : value) } : item) })} placeholder={`Option ${optionIndex + 1}`} className="w-full rounded border border-[#202631] bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`Quiz question ${questionIndex + 1} option ${optionIndex + 1}`} />)}<input value={question.correct_answer || question.correctAnswer || ""} onChange={(event) => updateDynamicBlock(step, index, { questions: block.questions.map((item, itemIndex) => itemIndex === questionIndex ? { ...item, correct_answer: event.target.value } : item) })} placeholder="Correct Answer / Key" className="w-full rounded border border-amber-500/30 bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`Quiz question ${questionIndex + 1} Correct Answer / Key`} /></div>)}</div>}
             </div>

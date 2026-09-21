@@ -25,7 +25,7 @@ export interface StudentProgressRecord {
 }
 
 export interface StorageMediaAsset {
-  bucket: "audio-submissions" | "lesson-audio" | "lesson-media" | "student-audio" | "voice-feedback";
+  bucket: "audio-submissions" | "lesson-audio" | "lesson-media" | "lesson-assets" | "student-audio" | "voice-feedback";
   name: string;
   url: string;
   size?: number;
@@ -569,6 +569,19 @@ export async function uploadStudentAudio(input: string | Blob, studentId: string
 
 export async function uploadLessonMedia(input: string | Blob, name?: string) {
   return prepareMediaUrl(input, "lesson-media", name);
+}
+
+export async function uploadLessonAsset(file: File, blockType: "image" | "audio" | "video" | "resource") {
+  const fileExtension = file.name.includes(".") ? `.${file.name.split(".").pop()}` : "";
+  const fileName = `${crypto.randomUUID()}${fileExtension}`;
+  const path = `${blockType}/${fileName}`;
+  const { error } = await supabase.storage.from("lesson-assets").upload(path, file, {
+    contentType: file.type || undefined,
+    upsert: false,
+  });
+  if (error) throw error;
+  const { data } = supabase.storage.from("lesson-assets").getPublicUrl(path);
+  return { url: data.publicUrl, path };
 }
 
 export async function uploadVoiceFeedback(input: string | Blob, name?: string) {
