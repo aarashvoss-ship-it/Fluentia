@@ -735,14 +735,14 @@ export default function LessonPage() {
     ]);
     const topSidebarBlocks = currentStepSidebarBlocks.filter((sidebarBlock) => !linkedSidebarIds.has(sidebarBlock.id));
     return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start w-full">
-      {topSidebarBlocks.map((sidebarBlock, sidebarIndex) => (
-        <div key={sidebarBlock.id} className="lg:col-span-1 w-full" style={{ gridColumn: "3", gridRow: sidebarIndex + 1 }}>
-          {renderSidebarBlock(sidebarBlock)}
+    <div className="w-full">
+      {topSidebarBlocks.map((sidebarBlock) => (
+        <div key={sidebarBlock.id} className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start my-6 w-full">
+          <div className="lg:col-span-2 w-full" />
+          <div className="lg:col-span-1 w-full">{renderSidebarBlock(sidebarBlock)}</div>
         </div>
       ))}
-      {visibleBlocks.map((block, blockIndex) => {
-        const rowIndex = topSidebarBlocks.length + blockIndex + 1;
+      {visibleBlocks.map((block) => {
         const sidebarBlock = currentStepSidebarBlocks.find((candidate) => candidate.parentMainBlockId === block.id)
           || (block.layoutMode === "inline-row" && block.sidebarBlockId
             ? currentStepSidebarBlocks.find((candidate) => candidate.id === block.sidebarBlockId)
@@ -760,22 +760,13 @@ export default function LessonPage() {
         </article>
         );
         return (
-          <div key={`${block.id}-main`} className="lg:col-span-2 w-full" style={{ gridColumn: "1 / span 2", gridRow: rowIndex }}>{article}</div>
-        );
-      })}
-      {visibleBlocks.map((block, blockIndex) => {
-        const rowIndex = topSidebarBlocks.length + blockIndex + 1;
-        const sidebarBlock = currentStepSidebarBlocks.find((candidate) => candidate.parentMainBlockId === block.id)
-          || (block.layoutMode === "inline-row" && block.sidebarBlockId
-            ? currentStepSidebarBlocks.find((candidate) => candidate.id === block.sidebarBlockId)
-            : undefined);
-        return (
-          <div key={`${block.id}-sidebar`} className="lg:col-span-1 w-full" style={{ gridColumn: "3", gridRow: rowIndex }}>
-            {sidebarBlock ? renderSidebarBlock(sidebarBlock) : <div aria-hidden="true" />}
+          <div key={block.id} className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start my-6 w-full">
+            <div className="lg:col-span-2 w-full">{article}</div>
+            <div className="lg:col-span-1 w-full">{sidebarBlock ? renderSidebarBlock(sidebarBlock) : null}</div>
           </div>
         );
       })}
-      {visibleBlocks.length === 0 && <p className="col-span-1 lg:col-span-3 w-full rounded-xl border border-dashed border-[#394252] p-6 text-sm text-stone-500">This step has no content blocks yet.</p>}
+      {visibleBlocks.length === 0 && topSidebarBlocks.length === 0 && <p className="rounded-xl border border-dashed border-[#394252] p-6 text-sm text-stone-500">This step has no content blocks yet.</p>}
     </div>
     );
   };
