@@ -20,6 +20,7 @@ import {
 export interface LessonEditorState {
   // Lesson Data
   lesson: LessonWithVersion | null;
+  routeLessonId: string | null;
   content: StrictStepContent;
   bannerUrl: string;
 
@@ -66,6 +67,7 @@ export const useLessonEditorStore = create<LessonEditorState>()(
   immer((set, get) => ({
     // Initial State
     lesson: null,
+    routeLessonId: null,
     content: {},
     bannerUrl: "",
     isLoading: false,
@@ -78,6 +80,7 @@ export const useLessonEditorStore = create<LessonEditorState>()(
     // ========================================================================
 
     hydrateLessonFromDatabase: async (lessonId: string) => {
+      set({ routeLessonId: lessonId });
       set({ isLoading: true, error: null });
       try {
         const lesson = await getLessonBaseById(lessonId);
@@ -136,7 +139,10 @@ export const useLessonEditorStore = create<LessonEditorState>()(
         set({ isSaving: true, saveError: null });
         try {
           const currentState = get();
-          await updateLesson(state.lesson.id, {
+          if (!currentState.lesson || currentState.lesson.id !== currentState.routeLessonId) {
+            throw new Error("Cannot save lesson content: active route lesson changed");
+          }
+          await updateLesson(currentState.routeLessonId, {
             content: currentState.content,
             changes_summary: `Added block to ${stepId}: ${block.title}`,
           });
@@ -169,7 +175,10 @@ export const useLessonEditorStore = create<LessonEditorState>()(
         set({ isSaving: true, saveError: null });
         try {
           const currentState = get();
-          await updateLesson(state.lesson.id, {
+          if (!currentState.lesson || currentState.lesson.id !== currentState.routeLessonId) {
+            throw new Error("Cannot save lesson content: active route lesson changed");
+          }
+          await updateLesson(currentState.routeLessonId, {
             content: currentState.content,
             changes_summary: `Updated block ${blockId} in ${stepId}`,
           });
@@ -199,7 +208,10 @@ export const useLessonEditorStore = create<LessonEditorState>()(
         set({ isSaving: true, saveError: null });
         try {
           const currentState = get();
-          await updateLesson(state.lesson.id, {
+          if (!currentState.lesson || currentState.lesson.id !== currentState.routeLessonId) {
+            throw new Error("Cannot save lesson content: active route lesson changed");
+          }
+          await updateLesson(currentState.routeLessonId, {
             content: currentState.content,
             changes_summary: `Deleted block ${blockId} from ${stepId}`,
           });
@@ -232,7 +244,10 @@ export const useLessonEditorStore = create<LessonEditorState>()(
         set({ isSaving: true, saveError: null });
         try {
           const currentState = get();
-          await updateLesson(state.lesson.id, {
+          if (!currentState.lesson || currentState.lesson.id !== currentState.routeLessonId) {
+            throw new Error("Cannot save lesson content: active route lesson changed");
+          }
+          await updateLesson(currentState.routeLessonId, {
             content: currentState.content,
             changes_summary: `Toggled block ${blockId} in ${stepId}`,
           });
@@ -268,7 +283,10 @@ export const useLessonEditorStore = create<LessonEditorState>()(
         set({ isSaving: true, saveError: null });
         try {
           const currentState = get();
-          await updateLesson(state.lesson.id, {
+          if (!currentState.lesson || currentState.lesson.id !== currentState.routeLessonId) {
+            throw new Error("Cannot save lesson content: active route lesson changed");
+          }
+          await updateLesson(currentState.routeLessonId, {
             content: currentState.content,
             changes_summary: `Reordered blocks in ${stepId}`,
           });
@@ -297,7 +315,10 @@ export const useLessonEditorStore = create<LessonEditorState>()(
         set({ isSaving: true, saveError: null });
         try {
           const currentState = get();
-          await updateLesson(state.lesson.id, {
+          if (!currentState.lesson || currentState.lesson.id !== currentState.routeLessonId) {
+            throw new Error("Cannot save lesson content: active route lesson changed");
+          }
+          await updateLesson(currentState.routeLessonId, {
             banner_url: url,
             content: {
               ...currentState.content,
@@ -332,9 +353,12 @@ export const useLessonEditorStore = create<LessonEditorState>()(
         set({ isSaving: true, saveError: null });
         try {
           const currentState = get();
-          await updateLesson(state.lesson.id, {
-            title: title || state.lesson.title,
-            subject: subject || state.lesson.subject || undefined,
+          if (!currentState.lesson || currentState.lesson.id !== currentState.routeLessonId) {
+            throw new Error("Cannot save lesson content: active route lesson changed");
+          }
+          await updateLesson(currentState.routeLessonId, {
+            title: title || currentState.lesson.title,
+            subject: subject || currentState.lesson.subject || undefined,
             changes_summary: "Updated lesson metadata",
           });
           set({ isSaving: false });
@@ -361,7 +385,10 @@ export const useLessonEditorStore = create<LessonEditorState>()(
       set({ isSaving: true, saveError: null });
       try {
         const currentState = get();
-        const updated = await updateLesson(state.lesson.id, {
+        if (!currentState.lesson || currentState.lesson.id !== currentState.routeLessonId) {
+          throw new Error("Cannot save lesson content: active route lesson changed");
+        }
+        const updated = await updateLesson(currentState.routeLessonId, {
           status: "published",
           changes_summary: "Lesson published",
         });
@@ -385,6 +412,7 @@ export const useLessonEditorStore = create<LessonEditorState>()(
     reset: () => {
       set({
         lesson: null,
+        routeLessonId: null,
         content: {},
         bannerUrl: "",
         isLoading: false,
