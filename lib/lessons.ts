@@ -119,8 +119,38 @@ function isMissingPublishedColumn(error: { code?: string; message?: string } | n
   return Boolean(error && (error.code === "42703" || error.code === "PGRST204") && /is_published/i.test(error.message || ""));
 }
 
+function isMissingInstructorNoteColumn(error: { code?: string; message?: string } | null) {
+  return Boolean(error && (error.code === "42703" || error.code === "PGRST204") && /instructor_note/i.test(error.message || ""));
+}
+
+const LESSON_UPDATE_COLUMNS = [
+  "title",
+  "slug",
+  "status",
+  "subject",
+  "grade",
+  "assigned_all_students",
+  "banner_url",
+  "student_id",
+  "student_token",
+  "instructor_id",
+  "is_published",
+  "instructor_note",
+] as const;
+
+function sanitizeLessonUpdatePayload(payload: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    LESSON_UPDATE_COLUMNS
+      .filter((column) => payload[column] !== undefined)
+      .map((column) => [column, payload[column]]),
+  );
+}
+
 function describeSupabaseError(error: unknown) {
-  if (error instanceof Error) return { message: error.message, stack: error.stack };
+  if (error instanceof Error) {
+    const value = error as Error & { code?: string; details?: string; hint?: string; status?: number };
+    return { code: value.code, message: value.message, details: value.details, hint: value.hint, status: value.status, stack: value.stack };
+  }
   if (error && typeof error === "object") {
     const value = error as { code?: string; message?: string; details?: string; hint?: string; status?: number };
     return { code: value.code, message: value.message, details: value.details, hint: value.hint, status: value.status };
@@ -602,7 +632,7 @@ export async function updateLesson(
     // Update the lesson metadata
     const hasStudentTokenUpdate = Object.prototype.hasOwnProperty.call(input, "student_token");
     if (title !== undefined || slug !== undefined || status !== undefined || subject !== undefined || grade !== undefined || assigned_all_students !== undefined || banner_url !== undefined || resolvedStudentId || resolvedInstructorId || hasStudentTokenUpdate || is_published !== undefined || instructor_note !== undefined) {
-      const updatePayload = {
+      const updatePayload = sanitizeLessonUpdatePayload({
         ...(title !== undefined ? { title } : {}),
         ...(slug !== undefined ? { slug } : {}),
         ...(status !== undefined ? { status } : {}),
@@ -615,15 +645,15 @@ export async function updateLesson(
         ...(hasStudentTokenUpdate ? { student_token } : {}),
         ...(is_published !== undefined ? { is_published } : {}),
         ...(instructor_note !== undefined ? { instructor_note } : {}),
-      };
+      });
       let { data: updatedRows, error: updateError } = await supabase
         .from("lessons")
         .update(updatePayload)
         .eq("id", id)
         .select("id");
-      if (isMissingBannerColumn(updateError) || isMissingStudentColumn(updateError) || isMissingPublishedColumn(updateError)) {
-        const { banner_url: _ignoredBannerUrl, student_id: _ignoredStudentId, student_token: _ignoredStudentToken, is_published: _ignoredPublished, ...compatPayload } = updatePayload;
-        if (Object.keys(updatePayload).length > 0) {
+      if (isMissingBannerColumn(updateError) || isMissingStudentColumn(updateError) || isMissingPublishedColumn(updateError) || isMissingInstructorNoteColumn(updateError)) {
+        const { banner_url: _ignoredBannerUrl, student_id: _ignoredStudentId, student_token: _ignoredStudentToken, is_published: _ignoredPublished, instructor_note: _ignoredInstructorNote, ...compatPayload } = updatePayload;
+        if (Object.keys(compatPayload).length > 0) {
           ({ data: updatedRows, error: updateError } = await supabase
             .from("lessons")
             .update(compatPayload)
@@ -635,16 +665,30 @@ export async function updateLesson(
       }
 
       if (updateError) {
-        console.error("Supabase update error details:", describeSupabaseError(updateError));
+        const errorDetails = describeSupabaseError(updateError);
+        console.error("Supabase update error details:", {
+          code: errorDetails.code,
+          message: errorDetails.message,
+          details: errorDetails.details,
+          hint: errorDetails.hint,
+          status: errorDetails.status,
+        });
         throw toSupabaseError(updateError, `Failed to update lesson ${id}`);
       }
       if (!updatedRows?.length) {
         const { data: existingLesson, error: existingError } = await supabase.from("lessons").select("id").eq("id", id).maybeSingle();
         if (existingError) throw toSupabaseError(existingError, `Failed to check lesson ${id}`);
         if (!existingLesson) {
-          const { error: upsertError } = await supabase.from("lessons").upsert({ id, ...updatePayload }, { onConflict: "id" });
+          const { error: upsertError } = await supabase.from("lessons").upsert({ id, ...sanitizeLessonUpdatePayload(updatePayload) }, { onConflict: "id" });
           if (upsertError) {
-            console.error("Supabase lesson upsert error details:", describeSupabaseError(upsertError));
+            const errorDetails = describeSupabaseError(upsertError);
+            console.error("Supabase lesson upsert error details:", {
+              code: errorDetails.code,
+              message: errorDetails.message,
+              details: errorDetails.details,
+              hint: errorDetails.hint,
+              status: errorDetails.status,
+            });
             throw toSupabaseError(upsertError, `Failed to upsert lesson ${id}`);
           }
         }
@@ -670,7 +714,14 @@ export async function updateLesson(
         .single();
 
       if (versionError) {
-        console.error("Supabase lesson version error details:", describeSupabaseError(versionError));
+        const errorDetails = describeSupabaseError(versionError);
+        console.error("Supabase lesson version error details:", {
+          code: errorDetails.code,
+          message: errorDetails.message,
+          details: errorDetails.details,
+          hint: errorDetails.hint,
+          status: errorDetails.status,
+        });
         throw toSupabaseError(versionError, `Failed to save lesson version ${id}`);
       }
       newVersion = version;
@@ -694,7 +745,14 @@ export async function updateLesson(
     };
   } catch (error) {
     const normalizedError = error instanceof Error ? error : toSupabaseError(error, `Failed to update lesson ${id}`);
-    console.error(`Error updating lesson ${id}:`, describeSupabaseError(normalizedError));
+    const errorDetails = describeSupabaseError(normalizedError);
+    console.error(`Error updating lesson ${id}:`, {
+      code: errorDetails.code,
+      message: errorDetails.message,
+      details: errorDetails.details,
+      hint: errorDetails.hint,
+      status: errorDetails.status,
+    });
     throw normalizedError;
   }
 }

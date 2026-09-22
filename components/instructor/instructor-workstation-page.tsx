@@ -338,7 +338,14 @@ export default function InstructorWorkstationPage({
       await deleteLesson(lesson.id);
       setPublishStatus(`Lesson '${lesson.title}' deleted.`);
     } catch (error) {
-      console.error("Lesson deletion failed:", error);
+      const details = error && typeof error === "object" ? error as { code?: string; message?: string; details?: string; hint?: string; status?: number } : undefined;
+      console.error("Lesson deletion failed:", {
+        code: details?.code,
+        message: error instanceof Error ? error.message : details?.message || String(error),
+        details: details?.details,
+        hint: details?.hint,
+        status: details?.status,
+      });
       setCreatedLessons((current) => [lesson, ...current]);
       setPublishStatus("Lesson deletion failed. The lesson was restored in the table.");
     }
@@ -393,7 +400,6 @@ export default function InstructorWorkstationPage({
     const message = error instanceof Error
       ? error.message
       : supabaseError?.message
-        || supabaseError?.details
         || (typeof error === "string" ? error : "Unknown assignment error");
     console.error(context, {
       code: supabaseError?.code,
@@ -401,7 +407,6 @@ export default function InstructorWorkstationPage({
       details: supabaseError?.details,
       hint: supabaseError?.hint,
       status: supabaseError?.status,
-      raw: error,
     });
   };
 
@@ -520,7 +525,14 @@ export default function InstructorWorkstationPage({
       setLessonStatus(newLesson.status);
       setPublishStatus(`Lesson '${lesson.title}' created successfully as ${newLesson.status}.`);
     } catch (error) {
-      console.error("Lesson creation failed:", error);
+      const details = error && typeof error === "object" ? error as { code?: string; message?: string; details?: string; hint?: string; status?: number } : undefined;
+      console.error("Lesson creation failed:", {
+        code: details?.code,
+        message: error instanceof Error ? error.message : details?.message || String(error),
+        details: details?.details,
+        hint: details?.hint,
+        status: details?.status,
+      });
       setPublishStatus("Lesson creation failed. Check the Supabase connection and try again.");
     }
   }
@@ -783,7 +795,6 @@ export default function InstructorWorkstationPage({
             message: assignmentError instanceof Error ? assignmentError.message : assignmentDetails?.message || String(assignmentError),
             details: assignmentDetails?.details,
             hint: assignmentDetails?.hint,
-            raw: assignmentError,
           });
           assignmentSyncWarning = " Assignment sync needs attention.";
         }
@@ -800,7 +811,6 @@ export default function InstructorWorkstationPage({
         details: details?.details,
         hint: details?.hint,
         status: details?.status,
-        raw: error,
       });
       setSaveIndicator("error");
       if (!isAutoSave) setPublishStatus("Lesson save failed. Check the Supabase connection and try again.");
