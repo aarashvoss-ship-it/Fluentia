@@ -6,6 +6,7 @@ import { useLessonEditorStore } from "@/lib/lesson-editor-store";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
+import { parseFillInBlanks } from "@/lib/fill-in-blanks";
 import { uploadLessonAsset, uploadLessonMedia } from "@/services/storage-service";
 import { Eye, FileText, Layers, Lightbulb, LoaderCircle, MoveDown, MoveUp, Plus, Trash2, UploadCloud, X, ChevronDown, ChevronUp, HelpCircle, Mic, Square } from "lucide-react";
 
@@ -331,6 +332,7 @@ export function LessonTailorEditor({
     if (type === "image") return { ...base, type: "image", title: "Image", imageUrl: "", caption: "" };
     if (type === "resource") return { ...base, type: "resource", title: "Document", resourceUrl: "", description: "" };
     if (type === "question") return { ...base, type: "question", title: "Question", prompt: "", options: ["", "", ""], correct_answer: "", question_type: "multiple_choice", optionIndexingStyle: "none", sample_answer: "" };
+    if (type === "fill-in-the-blanks") return { ...base, type: "fill-in-the-blanks", title: "Fill in the Blanks", textWithBlanks: "", acceptableAnswers: [], caseSensitive: false };
     return { ...base, type: "quiz", title: "Task / Quiz", questions: [{ id: `${id}-q1`, prompt: "", options: ["", "", ""], correct_answer: "" }] };
   };
 
@@ -698,6 +700,7 @@ export function LessonTailorEditor({
             <option value="resource" className="bg-slate-900 text-slate-100">Resource / Document Block</option>
             <option value="question" className="bg-slate-900 text-slate-100">Question Block</option>
             <option value="quiz" className="bg-slate-900 text-slate-100">Quiz Block</option>
+            <option value="fill-in-the-blanks" className="bg-slate-900 text-slate-100">Fill in the Blanks Block</option>
           </select>
         </div>
 
@@ -789,6 +792,7 @@ export function LessonTailorEditor({
               );
             })()}
             {block.type === "question" && <QuestionSettings value={block.optionIndexingStyle} onChange={(value) => updateDynamicBlock(step, index, { optionIndexingStyle: value })} />}
+            {block.type === "fill-in-the-blanks" && <div className="space-y-2"><textarea value={block.textWithBlanks} onChange={(event) => { const textWithBlanks = event.target.value; const acceptableAnswers = parseFillInBlanks(textWithBlanks).map((blank) => [blank.answer]); updateDynamicBlock(step, index, { textWithBlanks, acceptableAnswers }); }} placeholder="The capital of France is [Paris]." rows={4} className="w-full resize-y rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Fill in the blanks text" /><p className="text-[11px] leading-relaxed text-stone-500">Use brackets for answers, for example [Paris] or [blank:Paris]. Each bracket creates one answer field.</p><label className="flex cursor-pointer items-center gap-2 text-xs text-stone-300"><input type="checkbox" checked={block.caseSensitive === true} onChange={(event) => updateDynamicBlock(step, index, { caseSensitive: event.target.checked })} className="h-4 w-4 accent-amber-500" />Case-sensitive answers</label>{parseFillInBlanks(block.textWithBlanks).length > 0 && <div className="rounded border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-stone-300"><p className="font-semibold text-amber-300">Answer preview</p><p className="mt-1">{parseFillInBlanks(block.textWithBlanks).map((blank, blankIndex) => `${blankIndex + 1}. ${blank.answer}`).join("  |  ")}</p></div>}</div>}
             {block.type === "video" && <div className="space-y-2"><MediaAssetInput kind="video" value={block.videoUrl} onChange={(value) => updateDynamicBlock(step, index, { videoUrl: value })} /><label className="flex cursor-pointer items-start gap-3 rounded border border-[#202631] bg-[#0c1017]/60 p-3"><input type="checkbox" checked={block.show_reflection_prompt !== false} onChange={(event) => updateDynamicBlock(step, index, { show_reflection_prompt: event.target.checked })} className="mt-0.5 h-4 w-4 shrink-0 accent-amber-500" /><span className="text-xs font-semibold text-stone-200">Include Reflection Question below video</span></label>{block.show_reflection_prompt !== false && <input value={block.reflection_prompt_text || ""} onChange={(event) => updateDynamicBlock(step, index, { reflection_prompt_text: event.target.value })} placeholder="Think of an everyday product or app you use that frustrates you..." className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Reflection question" /> }<InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} editable onTranscriptChange={(value) => updateDynamicBlock(step, index, { transcript: value })} /></div>}
             {block.type === "image" && <div className="space-y-2"><MediaAssetInput kind="image" value={block.imageUrl} onChange={(value) => updateDynamicBlock(step, index, { imageUrl: value })} /><input value={block.caption} onChange={(event) => updateDynamicBlock(step, index, { caption: event.target.value })} placeholder="Image caption" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Image block caption" /></div>}
             {block.type === "resource" && <div className="space-y-2"><MediaAssetInput kind="resource" value={block.resourceUrl} onChange={(value) => updateDynamicBlock(step, index, { resourceUrl: value })} /><input value={block.description || ""} onChange={(event) => updateDynamicBlock(step, index, { description: event.target.value })} placeholder="Document description" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Document description" /></div>}

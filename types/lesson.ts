@@ -30,7 +30,7 @@ export interface BlockItem {
   enabled: boolean;
 }
 
-export type ContentBlockType = "text" | "audio" | "video" | "image" | "resource" | "question" | "quiz";
+export type ContentBlockType = "text" | "audio" | "video" | "image" | "resource" | "question" | "quiz" | "fill-in-the-blanks";
 
 export interface QuizQuestion {
   id: string;
@@ -38,6 +38,13 @@ export interface QuizQuestion {
   options: string[];
   correctAnswer?: string;
   correct_answer?: string;
+}
+
+export interface FillInTheBlanksContentBlock extends ContentBlockBase {
+  type: "fill-in-the-blanks";
+  textWithBlanks: string;
+  acceptableAnswers: string[][];
+  caseSensitive?: boolean;
 }
 
 export type StudentResponseType = "text" | "voice" | "audio" | "file";
@@ -119,7 +126,8 @@ export type ContentBlock =
   | ImageContentBlock
   | ResourceContentBlock
   | QuestionContentBlock
-  | QuizContentBlock;
+  | QuizContentBlock
+  | FillInTheBlanksContentBlock;
 
 export type DynamicStepContent = { blocks?: ContentBlock[] };
 

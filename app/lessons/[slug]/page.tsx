@@ -20,6 +20,7 @@ import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { uploadStudentAudio } from "@/services/storage-service";
+import { isFillInBlankAnswerCorrect, parseFillInBlanks } from "@/lib/fill-in-blanks";
 import type { OptionIndexingStyle } from "@/types/lesson";
 import {
   ArrowRight,
@@ -619,6 +620,7 @@ export default function LessonPage() {
       if (block.type === "text") return submission.blockResponses?.[block.id];
       if (block.type === "question") return submission.quizSelections?.[block.id];
       if (block.type === "quiz") return block.questions.map((question) => `${question.prompt}: ${submission.quizSelections?.[question.id] || ""}`).filter(Boolean).join("\n");
+      if (block.type === "fill-in-the-blanks") return parseFillInBlanks(block.textWithBlanks).map((blank, blankIndex) => `${blank.answer}: ${submission.blockResponses?.[`${block.id}-blank-${blankIndex}`] || ""}`).join("\n");
       return "";
     }).filter(Boolean) || [];
     return submission.blockResponses?.[step] || responses.join("\n") || "";
@@ -629,6 +631,7 @@ export default function LessonPage() {
     return blocks.flatMap((block) => {
       if (block.type === "question") return block.correct_answer.trim();
       if (block.type === "quiz") return block.questions.map((question) => (question.correct_answer || question.correctAnswer || "").trim());
+      if (block.type === "fill-in-the-blanks") return block.acceptableAnswers.flatMap((answers) => answers).map((answer) => answer.trim());
       return [];
     }).filter(Boolean).join("\n");
   };
@@ -759,6 +762,20 @@ export default function LessonPage() {
         <MarkdownContent value={sidebarBlock.body || "—"} className="mt-2 text-sm leading-relaxed text-slate-300 [&_strong]:font-semibold [&_strong]:text-amber-400" />
       </div>
     );
+    const renderFillInTheBlanks = (block: Extract<ContentBlock, { type: "fill-in-the-blanks" }>) => {
+      const blanks = parseFillInBlanks(block.textWithBlanks);
+      if (blanks.length === 0) return <p className="text-sm text-stone-500">This activity has no blanks configured yet.</p>;
+      let cursor = 0;
+      return <p className="text-sm leading-relaxed text-stone-300">{blanks.map((blank, blankIndex) => {
+        const prefix = block.textWithBlanks.slice(cursor, blank.start);
+        cursor = blank.end;
+        const responseKey = `${block.id}-blank-${blankIndex}`;
+        const response = submission.blockResponses?.[responseKey] || "";
+        const acceptableAnswers = block.acceptableAnswers[blankIndex]?.length ? block.acceptableAnswers[blankIndex] : [blank.answer];
+        const isCorrect = response.trim().length > 0 && isFillInBlankAnswerCorrect(response, acceptableAnswers, block.caseSensitive === true);
+        return <span key={`${block.id}-blank-${blankIndex}`}>{prefix}<input value={response} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [responseKey]: event.target.value } })} aria-label={`Blank ${blankIndex + 1}`} className={`mx-1 inline-block w-32 border-b bg-transparent px-1 py-0.5 text-sm text-stone-100 outline-none ${isCorrect ? "border-emerald-400" : "border-amber-500/60 focus:border-amber-400"}`} />{isCorrect && <span className="text-xs text-emerald-300">Correct</span>}</span>;
+      })}{block.textWithBlanks.slice(cursor)}</p>;
+    };
     const visibleBlocks = blocks.filter((block) => block.is_active !== false && block.enabled !== false);
     const questionBlocks = visibleBlocks.filter((block) => block.type === "question");
     const linkedSidebarIds = new Set([
@@ -785,6 +802,7 @@ export default function LessonPage() {
           {block.type === "text" && <><MarkdownContent value={block.body} className="text-sm leading-relaxed text-stone-300" />{hasStudentResponse(block) && (() => { const responseType = getStudentResponseType(block); if (responseType === "voice" || responseType === "audio") return <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />; if (responseType === "file") return <FileResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value } })} />; return <textarea value={submission.blockResponses?.[block.id] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [block.id]: event.target.value } })} rows={8} placeholder="Write your response here..." className="mt-4 w-full min-h-[200px] resize-y rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.title || "Text"} response`} />; })()}</>}
           {block.type === "audio" && <>{block.audioUrl ? <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio assignment"} /> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Audio assignment</div>}{block.allowStudentVoiceResponse === true && <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />}<MediaTranscriptAccordion transcript={block.transcript} isUnlocked={areTranscriptsUnlocked} /></>}
           {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} transcriptLocked={!areTranscriptsUnlocked} />{!areTranscriptsUnlocked && <MediaTranscriptAccordion transcript={block.transcript} isUnlocked={false} />}{block.show_reflection_prompt !== false && <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-4"><p className="text-sm font-semibold text-amber-200">Reflection Question</p><p className="mt-2 text-sm leading-relaxed text-stone-300">{block.reflection_prompt_text?.trim() || "Think of an everyday product or app you use that frustrates you. Is it a problem of aesthetics or functionality? How would you redesign it?"}</p><textarea value={submission.blockResponses?.[`${block.id}-reflection`] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [`${block.id}-reflection`]: event.target.value } })} rows={5} placeholder="Write your reflection here..." className="mt-3 w-full resize-y rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500" aria-label="Reflection question response" /></div>}</>}
+          {block.type === "fill-in-the-blanks" && renderFillInTheBlanks(block)}
           {block.type === "image" && (block.imageUrl ? <figure><img src={block.imageUrl} alt={block.caption || block.title || "Lesson image"} className="max-h-[420px] w-full rounded-lg object-cover" onError={(e)=>{ (e.target as HTMLImageElement).style.display="none"; (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden"); }} /><div className="hidden rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Image unavailable — {block.caption || block.title || "Lesson image"}</div>{block.caption && <figcaption className="mt-2 text-xs text-stone-500">{block.caption}</figcaption>}</figure> : <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Image placeholder</div>)}
           {block.type === "resource" && <a href={block.resourceUrl} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm text-amber-200 hover:border-amber-400">{block.description || "Open document"}<span aria-hidden="true">PDF</span></a>}
           {block.type === "question" && <div className="space-y-5">{questionBlocks.map((questionBlock) => <div key={questionBlock.id} className="space-y-2">{questionBlock.title && <h4 className="text-sm font-semibold text-stone-100">{questionBlock.title}</h4>}<MarkdownContent value={questionBlock.prompt} className="text-sm text-stone-300" />{(questionBlock.question_type || "multiple_choice") === "open_ended" ? <><textarea value={submission.blockResponses?.[questionBlock.id] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [questionBlock.id]: event.target.value } })} rows={7} placeholder="Write your response here..." className="min-h-[160px] w-full resize-y rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500" aria-label={`${questionBlock.title || "Question"} response`} />{questionBlock.sample_answer?.trim() && <><button type="button" onClick={() => setVisibleSampleAnswers((current) => ({ ...current, [questionBlock.id]: !current[questionBlock.id] }))} className="text-xs text-amber-300 hover:text-amber-200">{visibleSampleAnswers[questionBlock.id] ? "Hide sample answer" : "Show sample answer"}</button>{visibleSampleAnswers[questionBlock.id] && <MarkdownContent value={questionBlock.sample_answer} className="rounded border border-amber-500/20 bg-amber-500/5 p-3 text-sm text-stone-300" />}</>}</> : <div className="grid gap-2 sm:grid-cols-2">{questionBlock.options.filter(Boolean).map((option, optionIndex) => <button key={option} type="button" onClick={() => void persistSubmission({ ...submission, quizSelections: { ...(submission.quizSelections || {}), [questionBlock.id]: option } })} className={`rounded-md border px-3 py-2 text-left text-xs transition ${submission.quizSelections?.[questionBlock.id] === option ? "border-amber-500 bg-amber-500/10 text-amber-300" : "border-[#202631] bg-[#0c1017] text-stone-400 hover:border-amber-500/50 hover:text-amber-300"}`}>{formatQuestionOption(option, optionIndex, questionBlock.optionIndexingStyle)}</button>)}</div>}</div>)}</div>}
