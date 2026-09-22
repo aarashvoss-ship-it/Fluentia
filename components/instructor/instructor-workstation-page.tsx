@@ -524,8 +524,8 @@ export default function InstructorWorkstationPage({
       setPublishStatus("Select a student before creating the draft.");
       return;
     }
-    const title = newLesson.title.trim() || "Untitled Lesson";
-    const slug = newLesson.slug.trim().toLowerCase() || createSlug(title);
+    const title = newLesson.title.trim() || "Untitled Draft";
+    const slug = newLesson.slug.trim().toLowerCase() || `draft-${Date.now()}`;
     const moduleNumber = Number(newLesson.moduleNumber) || 1;
     const assignedStudentId = student.id;
     const assignedStudentToken = student.token;
@@ -550,7 +550,8 @@ export default function InstructorWorkstationPage({
         banner_url: workstationState.bannerUrl,
         student_id: student.id,
         student_token: student.token,
-        status: newLesson.status,
+        instructor_id: instructorId,
+        status: "draft",
         instructor_note: newLesson.instructorGuidance,
         content,
         changes_summary: "Initial lesson created in Lesson Builder",
@@ -558,15 +559,15 @@ export default function InstructorWorkstationPage({
       const lesson = created;
       bindLesson(lesson);
       setSelectedStudentId(student.id);
-      setNewLesson((previous) => ({ ...previous, studentId: student.id, title: lesson.title, slug, moduleNumber: String(moduleNumber), status: newLesson.status }));
+      setNewLesson((previous) => ({ ...previous, studentId: student.id, title: lesson.title, slug, moduleNumber: String(moduleNumber), status: "draft" }));
       setWorkstationState((previous) => ({ ...previous, content: created.content || previous.content }));
       setDatabaseLessonId(created.id);
       hasLoadedLesson.current = true;
       setSaveIndicator("saved");
       await refreshCreatedLessons();
       setValidationErrors({});
-      setLessonStatus(newLesson.status);
-      setPublishStatus(`Lesson '${lesson.title}' created successfully as ${newLesson.status}.`);
+      setLessonStatus("draft");
+      setPublishStatus(`Lesson '${lesson.title}' created successfully as draft.`);
     } catch (error) {
       const details = error && typeof error === "object" ? error as { code?: string; message?: string; details?: string; hint?: string; status?: number } : undefined;
       console.error("Lesson creation failed:", {
@@ -728,8 +729,8 @@ export default function InstructorWorkstationPage({
       return;
     }
     saveInFlight.current = true;
-    const title = newLesson.title.trim() || "Untitled Lesson";
-    const slug = newLesson.slug.trim().toLowerCase() || createSlug(title);
+    const title = newLesson.title.trim() || "Untitled Draft";
+    const slug = newLesson.slug.trim().toLowerCase() || `draft-${Date.now()}`;
     const moduleNumber = Number(newLesson.moduleNumber) || 1;
     if (status === "published" && !isAutoSave) {
       const errors: typeof validationErrors = {};
@@ -852,6 +853,7 @@ export default function InstructorWorkstationPage({
       console.log("Lesson saved successfully", { lessonId: lesson.id, status });
       if (!isAutoSave) setPublishStatus(`Lesson saved as ${status}.${assignmentSyncWarning || " Synced with student view."}`);
     } catch (error) {
+      console.error("Lesson save failed raw:", JSON.stringify(error, Object.getOwnPropertyNames(error)), error);
       const details = error && typeof error === "object"
         ? error as { code?: string; message?: string; details?: string; hint?: string; status?: number }
         : undefined;

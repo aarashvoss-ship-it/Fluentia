@@ -573,9 +573,10 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
     const resolvedInstructorId = typeof instructor_id === "string" && instructor_id.trim() ? instructor_id.trim() : null;
     const title = typeof lessonData.title === "string" && lessonData.title.trim()
       ? lessonData.title.trim()
-      : "Untitled Lesson";
+      : "Untitled Draft";
     const slugBase = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
     const slug = `${slugBase || "lesson"}-${Date.now()}`;
+    const status = lessonData.status || "draft";
     const safeContent = sanitizeLessonContent(content) || {};
     const safeInstructorNote = typeof instructor_note === "string" && instructor_note.trim()
       ? instructor_note.trim()
@@ -590,8 +591,8 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
     const lessonPayload = {
       title,
       slug,
-      status: lessonData.status || "draft",
-      is_published: is_published ?? lessonData.status === "published",
+      status,
+      is_published: is_published ?? status === "published",
       ...(typeof banner_url === "string" && banner_url.trim() ? { banner_url: banner_url.trim() } : {}),
       ...(resolvedStudentId ? { student_id: resolvedStudentId } : {}),
       ...(typeof student_token === "string" && student_token.trim() ? { student_token: student_token.trim() } : {}),
@@ -639,6 +640,7 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
       content: version.content,
     };
   } catch (error) {
+    console.error("Error creating lesson raw:", JSON.stringify(error, Object.getOwnPropertyNames(error)), error);
     const details = describeSupabaseError(error);
     console.error("Error creating lesson:", {
       message: details.message,
