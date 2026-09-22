@@ -8,7 +8,6 @@ import { isFillInBlankAnswerCorrect } from "@/lib/fill-in-blanks";
 
 const DEFAULT_ANSWER = "";
 const BRACKET_PATTERN = /\[([^\]]+)\]/g;
-const BLANK_MARKER_PATTERN = /\[([^\]]+)\]|FILLINBLANKTOKEN(\d+)FILLIN/g;
 
 type FillInBlanksMarkdownProps = {
   blockId: string;
@@ -33,15 +32,10 @@ export function FillInBlanksMarkdown({
   showFeedback = false,
   className = "",
 }: FillInBlanksMarkdownProps) {
+  let globalBlankIndex = 0;
   const blankAnswers = Array.from(text.matchAll(BRACKET_PATTERN), (match) =>
     match[1].trim().replace(/^blank\s*:\s*/i, "").trim(),
   );
-  let replacementIndex = 0;
-  const markdownText = text.replace(BRACKET_PATTERN, () => {
-    const token = `FILLINBLANKTOKEN${replacementIndex}FILLIN`;
-    replacementIndex += 1;
-    return token;
-  });
 
   const renderInput = (blankIndex: number) => {
     const answer = blankAnswers[blankIndex] || "";
@@ -58,14 +52,11 @@ export function FillInBlanksMarkdown({
     let lastIndex = 0;
     let match: RegExpExecArray | null;
 
-    BLANK_MARKER_PATTERN.lastIndex = 0;
-    while ((match = BLANK_MARKER_PATTERN.exec(value)) !== null) {
+    BRACKET_PATTERN.lastIndex = 0;
+    while ((match = BRACKET_PATTERN.exec(value)) !== null) {
       if (match.index > lastIndex) nodes.push(value.slice(lastIndex, match.index));
-      const answer = match[1]?.trim().replace(/^blank\s*:\s*/i, "").trim();
-      const blankIndex = match[2] !== undefined
-        ? Number(match[2])
-        : blankAnswers.findIndex((candidate) => candidate === answer);
-      nodes.push(renderInput(blankIndex >= 0 ? blankIndex : 0));
+      nodes.push(renderInput(globalBlankIndex));
+      globalBlankIndex += 1;
       lastIndex = match.index + match[0].length;
     }
     if (lastIndex < value.length) nodes.push(value.slice(lastIndex));
@@ -89,9 +80,13 @@ export function FillInBlanksMarkdown({
 
   return (
     <div className={className}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={components}>
-        {markdownText || "Nothing to preview yet."}
-      </ReactMarkdown>
+      {text
+        ? text.split("\n").map((line, lineIndex) => (
+            <ReactMarkdown key={`fill-line-${lineIndex}`} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={components}>
+              {line || " "}
+            </ReactMarkdown>
+          ))
+        : <p className="text-stone-500">Nothing to preview yet.</p>}
     </div>
   );
 }
