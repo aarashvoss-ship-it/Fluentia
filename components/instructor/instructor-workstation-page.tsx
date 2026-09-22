@@ -19,6 +19,7 @@ import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player
 import { saveStudentProfile } from "@/lib/student-profiles";
 import { MusicLibraryManager } from "@/components/instructor/music-library-manager";
 import { InstructorChatWidget } from "@/components/instructor/instructor-chat-widget";
+import { useLessonEditorStore } from "@/lib/lesson-editor-store";
 
 interface InstructorWorkstationProps {
   instructorId: string;
@@ -66,6 +67,9 @@ export default function InstructorWorkstationPage({
   lessonSlug,
 }: InstructorWorkstationProps) {
   const lessonId = lessonSlug;
+  const resetStore = useLessonEditorStore((state) => state.resetStore);
+  const bindLesson = useLessonEditorStore((state) => state.bindLesson);
+  const editorLesson = useLessonEditorStore((state) => state.lesson);
 
   const [isMounted, setIsMounted] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
@@ -156,6 +160,33 @@ export default function InstructorWorkstationPage({
     setLessonResources([]);
   };
 
+  const startNewLesson = () => {
+    resetStore();
+    hasLoadedLesson.current = false;
+    lastSavedDraftSignature.current = null;
+    saveRequestId.current += 1;
+    saveInFlight.current = false;
+    pendingAutoSave.current = false;
+    setDatabaseLessonId(null);
+    setSelectedStudentId(null);
+    setSelectedStudent(null);
+    setWorkstationState((previous) => ({
+      ...previous,
+      content: {},
+      bannerUrl: "",
+      customBannerUrl: "",
+      submission: undefined,
+    }));
+    setSidebarBlocksByStep({});
+    setSidebarStep("warm_up");
+    setLessonStatus("draft");
+    setSaveIndicator("idle");
+    setValidationErrors({});
+    setPublishStatus(null);
+    resetNewLessonForm();
+    setActiveTab("builder");
+  };
+
   const getDraftSignature = (content: StrictStepContent, title: string, subtitle: string, moduleNumber: string) =>
     JSON.stringify({
       content,
@@ -237,6 +268,7 @@ export default function InstructorWorkstationPage({
   };
 
   const activateLesson = (lesson: LessonWithVersion) => {
+    bindLesson(lesson);
     const content = lesson.content || {};
     const lessonSlug = typeof content.slug === "string" ? content.slug : lesson.id;
     const savedStudentId = getSavedStudentId(lesson);
@@ -281,6 +313,7 @@ export default function InstructorWorkstationPage({
   };
 
   const duplicateLesson = (lesson?: LessonWithVersion) => {
+    resetStore();
     const sourceContent = (lesson?.content || workstationState.content) as Record<string, any>;
     const sourceTitle = lesson?.title || newLesson.title || "Untitled Lesson";
     const sourceSlug = typeof sourceContent.slug === "string" ? sourceContent.slug : createSlug(sourceTitle);
@@ -523,6 +556,7 @@ export default function InstructorWorkstationPage({
         changes_summary: "Initial lesson created in Lesson Builder",
       });
       const lesson = created;
+      bindLesson(lesson);
       setSelectedStudentId(student.id);
       setNewLesson((previous) => ({ ...previous, studentId: student.id, title: lesson.title, slug, moduleNumber: String(moduleNumber), status: newLesson.status }));
       setWorkstationState((previous) => ({ ...previous, content: created.content || previous.content }));
@@ -745,6 +779,9 @@ export default function InstructorWorkstationPage({
     };
     const requestId = ++saveRequestId.current;
     try {
+      if (databaseLessonId && editorLesson?.id !== databaseLessonId) {
+        throw new Error("The active lesson identity is not synchronized with the database record");
+      }
       const lesson = databaseLessonId
         ? await updateLesson(databaseLessonId, {
           title,
@@ -776,6 +813,7 @@ export default function InstructorWorkstationPage({
       const savedSlug = typeof lesson.content?.slug === "string" ? lesson.content.slug : slug;
       if (requestId !== saveRequestId.current) return;
       setDatabaseLessonId(lesson.id);
+      bindLesson(lesson);
       setNewLesson((previous) => ({
         ...previous,
         studentId,
@@ -1024,7 +1062,10 @@ export default function InstructorWorkstationPage({
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Lesson Management</p>
                 <h2 id="lesson-management-title" className="mt-1 font-sans text-xl font-semibold text-stone-100">All Lessons</h2>
               </div>
-              <span className="text-xs text-stone-500">{createdLessons.length} lessons</span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-stone-500">{createdLessons.length} lessons</span>
+                <button type="button" onClick={startNewLesson} className="rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-amber-400">Create New Lesson</button>
+              </div>
             </div>
             <div className="overflow-visible">
               <table className="min-w-[980px] w-full table-fixed text-left text-xs">

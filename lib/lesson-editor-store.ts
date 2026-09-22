@@ -56,6 +56,8 @@ export interface LessonEditorState {
   publishLesson: () => Promise<void>;
 
   // Actions - State Reset
+  resetStore: () => void;
+  bindLesson: (lesson: LessonWithVersion) => void;
   reset: () => void;
 }
 
@@ -73,23 +75,13 @@ function normalizeLessonIdentity(value: unknown): string {
 
 function resolveSaveLessonId(lesson: LessonWithVersion, routeLessonId: string | null): string {
   const routeIdentity = normalizeLessonIdentity(routeLessonId);
-  if (!routeIdentity) return lesson.id;
-
-  const lessonRecord = lesson as LessonWithVersion & { slug?: string | null };
-  const contentSlug = lesson.content && typeof lesson.content.slug === "string" ? lesson.content.slug : "";
-  const identities = [lesson.id, lessonRecord.slug, contentSlug]
-    .map(normalizeLessonIdentity)
-    .filter(Boolean);
-
-  if (identities.includes(routeIdentity)) return lesson.id;
+  if (routeIdentity === normalizeLessonIdentity(lesson.id)) return lesson.id;
 
   console.error("Lesson save identity mismatch", {
     routeLessonId,
     activeLessonId: lesson.id,
-    activeLessonSlug: lessonRecord.slug || null,
-    contentSlug: contentSlug || null,
   });
-  throw new Error("Cannot save lesson content: active route lesson does not match loaded lesson");
+  throw new Error("Cannot save lesson content: active route id does not match loaded lesson id");
 }
 
 // ============================================================================
@@ -124,6 +116,7 @@ export const useLessonEditorStore = create<LessonEditorState>()(
 
         set((state) => {
           state.lesson = lesson;
+          state.routeLessonId = lesson.id;
           state.content = lesson.content || {};
           state.bannerUrl = lesson.content?.coverImage || lesson.content?.bannerUrl || lesson.banner_url || "";
           state.isLoading = false;
@@ -426,7 +419,7 @@ export const useLessonEditorStore = create<LessonEditorState>()(
     // Reset
     // ========================================================================
 
-    reset: () => {
+    resetStore: () => {
       set({
         lesson: null,
         routeLessonId: null,
@@ -437,6 +430,24 @@ export const useLessonEditorStore = create<LessonEditorState>()(
         error: null,
         saveError: null,
       });
+    },
+
+    bindLesson: (lesson) => {
+      if (!lesson.id || typeof lesson.id !== "string") {
+        throw new Error("Cannot bind lesson without a database id");
+      }
+      set((state) => {
+        state.lesson = lesson;
+        state.routeLessonId = lesson.id;
+        state.content = lesson.content || {};
+        state.bannerUrl = lesson.content?.coverImage || lesson.content?.bannerUrl || lesson.banner_url || "";
+        state.error = null;
+        state.saveError = null;
+      });
+    },
+
+    reset: () => {
+      get().resetStore();
     },
   }))
 );
