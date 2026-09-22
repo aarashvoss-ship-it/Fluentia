@@ -59,6 +59,39 @@ export interface LessonEditorState {
   reset: () => void;
 }
 
+function normalizeLessonIdentity(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const decoded = (() => {
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  })();
+  return decoded.trim().toLowerCase();
+}
+
+function resolveSaveLessonId(lesson: LessonWithVersion, routeLessonId: string | null): string {
+  const routeIdentity = normalizeLessonIdentity(routeLessonId);
+  if (!routeIdentity) return lesson.id;
+
+  const lessonRecord = lesson as LessonWithVersion & { slug?: string | null };
+  const contentSlug = lesson.content && typeof lesson.content.slug === "string" ? lesson.content.slug : "";
+  const identities = [lesson.id, lessonRecord.slug, contentSlug]
+    .map(normalizeLessonIdentity)
+    .filter(Boolean);
+
+  if (identities.includes(routeIdentity)) return lesson.id;
+
+  console.error("Lesson save identity mismatch", {
+    routeLessonId,
+    activeLessonId: lesson.id,
+    activeLessonSlug: lessonRecord.slug || null,
+    contentSlug: contentSlug || null,
+  });
+  throw new Error("Cannot save lesson content: active route lesson does not match loaded lesson");
+}
+
 // ============================================================================
 // Store Implementation
 // ============================================================================
@@ -80,7 +113,7 @@ export const useLessonEditorStore = create<LessonEditorState>()(
     // ========================================================================
 
     hydrateLessonFromDatabase: async (lessonId: string) => {
-      set({ routeLessonId: lessonId });
+      set({ routeLessonId: typeof lessonId === "string" ? lessonId : null });
       set({ isLoading: true, error: null });
       try {
         const lesson = await getLessonBaseById(lessonId);
@@ -139,10 +172,8 @@ export const useLessonEditorStore = create<LessonEditorState>()(
         set({ isSaving: true, saveError: null });
         try {
           const currentState = get();
-          if (!currentState.lesson || currentState.lesson.id !== currentState.routeLessonId) {
-            throw new Error("Cannot save lesson content: active route lesson changed");
-          }
-          await updateLesson(currentState.routeLessonId, {
+          if (!currentState.lesson) throw new Error("No lesson loaded");
+          await updateLesson(resolveSaveLessonId(currentState.lesson, currentState.routeLessonId), {
             content: currentState.content,
             changes_summary: `Added block to ${stepId}: ${block.title}`,
           });
@@ -175,10 +206,8 @@ export const useLessonEditorStore = create<LessonEditorState>()(
         set({ isSaving: true, saveError: null });
         try {
           const currentState = get();
-          if (!currentState.lesson || currentState.lesson.id !== currentState.routeLessonId) {
-            throw new Error("Cannot save lesson content: active route lesson changed");
-          }
-          await updateLesson(currentState.routeLessonId, {
+          if (!currentState.lesson) throw new Error("No lesson loaded");
+          await updateLesson(resolveSaveLessonId(currentState.lesson, currentState.routeLessonId), {
             content: currentState.content,
             changes_summary: `Updated block ${blockId} in ${stepId}`,
           });
@@ -208,10 +237,8 @@ export const useLessonEditorStore = create<LessonEditorState>()(
         set({ isSaving: true, saveError: null });
         try {
           const currentState = get();
-          if (!currentState.lesson || currentState.lesson.id !== currentState.routeLessonId) {
-            throw new Error("Cannot save lesson content: active route lesson changed");
-          }
-          await updateLesson(currentState.routeLessonId, {
+          if (!currentState.lesson) throw new Error("No lesson loaded");
+          await updateLesson(resolveSaveLessonId(currentState.lesson, currentState.routeLessonId), {
             content: currentState.content,
             changes_summary: `Deleted block ${blockId} from ${stepId}`,
           });
@@ -244,10 +271,8 @@ export const useLessonEditorStore = create<LessonEditorState>()(
         set({ isSaving: true, saveError: null });
         try {
           const currentState = get();
-          if (!currentState.lesson || currentState.lesson.id !== currentState.routeLessonId) {
-            throw new Error("Cannot save lesson content: active route lesson changed");
-          }
-          await updateLesson(currentState.routeLessonId, {
+          if (!currentState.lesson) throw new Error("No lesson loaded");
+          await updateLesson(resolveSaveLessonId(currentState.lesson, currentState.routeLessonId), {
             content: currentState.content,
             changes_summary: `Toggled block ${blockId} in ${stepId}`,
           });
@@ -283,10 +308,8 @@ export const useLessonEditorStore = create<LessonEditorState>()(
         set({ isSaving: true, saveError: null });
         try {
           const currentState = get();
-          if (!currentState.lesson || currentState.lesson.id !== currentState.routeLessonId) {
-            throw new Error("Cannot save lesson content: active route lesson changed");
-          }
-          await updateLesson(currentState.routeLessonId, {
+          if (!currentState.lesson) throw new Error("No lesson loaded");
+          await updateLesson(resolveSaveLessonId(currentState.lesson, currentState.routeLessonId), {
             content: currentState.content,
             changes_summary: `Reordered blocks in ${stepId}`,
           });
@@ -315,10 +338,8 @@ export const useLessonEditorStore = create<LessonEditorState>()(
         set({ isSaving: true, saveError: null });
         try {
           const currentState = get();
-          if (!currentState.lesson || currentState.lesson.id !== currentState.routeLessonId) {
-            throw new Error("Cannot save lesson content: active route lesson changed");
-          }
-          await updateLesson(currentState.routeLessonId, {
+          if (!currentState.lesson) throw new Error("No lesson loaded");
+          await updateLesson(resolveSaveLessonId(currentState.lesson, currentState.routeLessonId), {
             banner_url: url,
             content: {
               ...currentState.content,
@@ -353,10 +374,8 @@ export const useLessonEditorStore = create<LessonEditorState>()(
         set({ isSaving: true, saveError: null });
         try {
           const currentState = get();
-          if (!currentState.lesson || currentState.lesson.id !== currentState.routeLessonId) {
-            throw new Error("Cannot save lesson content: active route lesson changed");
-          }
-          await updateLesson(currentState.routeLessonId, {
+          if (!currentState.lesson) throw new Error("No lesson loaded");
+          await updateLesson(resolveSaveLessonId(currentState.lesson, currentState.routeLessonId), {
             title: title || currentState.lesson.title,
             subject: subject || currentState.lesson.subject || undefined,
             changes_summary: "Updated lesson metadata",
@@ -385,10 +404,8 @@ export const useLessonEditorStore = create<LessonEditorState>()(
       set({ isSaving: true, saveError: null });
       try {
         const currentState = get();
-        if (!currentState.lesson || currentState.lesson.id !== currentState.routeLessonId) {
-          throw new Error("Cannot save lesson content: active route lesson changed");
-        }
-        const updated = await updateLesson(currentState.routeLessonId, {
+        if (!currentState.lesson) throw new Error("No lesson loaded");
+        const updated = await updateLesson(resolveSaveLessonId(currentState.lesson, currentState.routeLessonId), {
           status: "published",
           changes_summary: "Lesson published",
         });

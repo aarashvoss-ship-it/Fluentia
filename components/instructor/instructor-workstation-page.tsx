@@ -745,6 +745,7 @@ export default function InstructorWorkstationPage({
             instructor_id: instructorId,
             status,
             is_published: status === "published",
+            instructor_note: newLesson.instructorGuidance,
             content,
             changes_summary: `Initial lesson created as ${status}`,
           });
