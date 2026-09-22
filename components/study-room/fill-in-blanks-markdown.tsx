@@ -7,6 +7,8 @@ import remarkGfm from "remark-gfm";
 import { isFillInBlankAnswerCorrect } from "@/lib/fill-in-blanks";
 
 const DEFAULT_ANSWER = "";
+const BRACKET_PATTERN = /\[([^\]]+)\]/g;
+const BLANK_TOKEN_PATTERN = /FILLINBLANKTOKEN(\d+)FILLIN/g;
 
 type FillInBlanksMarkdownProps = {
   blockId: string;
@@ -33,19 +35,28 @@ export function FillInBlanksMarkdown({
 }: FillInBlanksMarkdownProps) {
   const blankIndexRef = useRef(0);
   blankIndexRef.current = 0;
+  const blankAnswers = Array.from(text.matchAll(BRACKET_PATTERN), (match) =>
+    match[1].trim().replace(/^blank\s*:\s*/i, "").trim(),
+  );
+  let replacementIndex = 0;
+  const markdownText = text.replace(BRACKET_PATTERN, () => {
+    const token = `FILLINBLANKTOKEN${replacementIndex}FILLIN`;
+    replacementIndex += 1;
+    return token;
+  });
 
   const renderText = (children: React.ReactNode) => {
     const value = String(children);
     const nodes: React.ReactNode[] = [];
     let lastIndex = 0;
-    const tokenPattern = /\[([^\]]+)\]/g;
+    const tokenPattern = BLANK_TOKEN_PATTERN;
     let match: RegExpExecArray | null;
 
     while ((match = tokenPattern.exec(value)) !== null) {
       if (match.index > lastIndex) nodes.push(value.slice(lastIndex, match.index));
-      const rawAnswer = match[1].trim();
-      const answer = rawAnswer.replace(/^blank\s*:\s*/i, "").trim();
-      const blankIndex = blankIndexRef.current++;
+      const blankIndex = Number(match[1]);
+      blankIndexRef.current = Math.max(blankIndexRef.current, blankIndex + 1);
+      const answer = blankAnswers[blankIndex] || "";
       const responseKey = `${blockId}-blank-${blankIndex}`;
       const acceptable = acceptableAnswers[blankIndex]?.length ? acceptableAnswers[blankIndex] : [answer || DEFAULT_ANSWER];
       const response = values[responseKey] || "";
@@ -88,7 +99,7 @@ export function FillInBlanksMarkdown({
   return (
     <div className={className}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={components}>
-        {text || "Nothing to preview yet."}
+        {markdownText || "Nothing to preview yet."}
       </ReactMarkdown>
     </div>
   );
