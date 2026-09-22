@@ -797,12 +797,16 @@ export default function LessonPage() {
               {displayLessonTitle || lesson.title}
             </h1>
             {lessonSubtitle && <p className="text-xs text-[#b5bac2]">{lessonSubtitle}</p>}
-            {((typeof lesson.instructor_note === "string" && lesson.instructor_note.trim()) || (typeof rawLessonContent.instructorGuidance === "string" && rawLessonContent.instructorGuidance.trim())) && <div className="mt-2 max-w-2xl rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-sm leading-relaxed text-amber-100"><p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Lesson guidance</p><MarkdownContent value={(lesson.instructor_note || rawLessonContent.instructorGuidance) as string} /></div>}
             <div className="mt-7 flex items-center gap-2 text-[11px] text-[#9ba1aa]"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#283344] text-[9px] font-semibold text-[#d9a63b]">{instructor.initials}</span>Guided by {instructor.fullName}</div>
             <div className="w-12 h-12 rounded-full border-2 border-[#F59E0B] bg-transparent flex items-center justify-center p-1.5 mt-3"><img src="/logo.png" alt="Fluentia" className="w-full h-full object-contain" /></div>
           </div>
         </section>
       )}
+
+      {((typeof lesson.instructor_note === "string" && lesson.instructor_note.trim()) || (typeof rawLessonContent.instructorGuidance === "string" && rawLessonContent.instructorGuidance.trim())) && <section className="mt-6 rounded-xl border border-[#394252] bg-[#121721] px-5 py-4" aria-label="Lesson guidance">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Lesson guidance</p>
+        <MarkdownContent value={(lesson.instructor_note || rawLessonContent.instructorGuidance) as string} className="mt-2 max-w-3xl text-sm leading-relaxed text-stone-300" />
+      </section>}
 
             <div className="py-8">
             <header>
