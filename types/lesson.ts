@@ -44,6 +44,7 @@ export interface FillInTheBlanksContentBlock extends ContentBlockBase {
   type: "fill-in-the-blanks";
   textWithBlanks: string;
   acceptableAnswers: string[][];
+  wordBank?: string[];
   caseSensitive?: boolean;
 }
 

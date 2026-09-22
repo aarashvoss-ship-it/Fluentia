@@ -13,6 +13,7 @@ type FillInBlanksMarkdownProps = {
   blockId: string;
   text: string;
   acceptableAnswers: string[][];
+  wordBank?: string[];
   caseSensitive?: boolean;
   values: Record<string, string>;
   onChange?: (blankIndex: number, value: string) => void;
@@ -25,6 +26,7 @@ export function FillInBlanksMarkdown({
   blockId,
   text,
   acceptableAnswers,
+  wordBank = [],
   caseSensitive = false,
   values,
   onChange,
@@ -43,7 +45,7 @@ export function FillInBlanksMarkdown({
     const acceptable = acceptableAnswers[blankIndex]?.length ? acceptableAnswers[blankIndex] : [answer || DEFAULT_ANSWER];
     const response = values[responseKey] || "";
     const isCorrect = showFeedback && response.trim().length > 0 && isFillInBlankAnswerCorrect(response, acceptable, caseSensitive);
-    return <React.Fragment key={responseKey}><input type="text" value={response} onChange={(event) => onChange?.(blankIndex, event.target.value)} readOnly={readOnly} disabled={readOnly} placeholder={readOnly ? answer || "answer" : "answer"} aria-label={`Blank ${blankIndex + 1}`} className={`mx-1 inline-block min-w-24 max-w-full border-b-2 bg-transparent px-2 py-0.5 text-center align-baseline text-inherit text-stone-100 outline-none focus:border-amber-300 ${isCorrect ? "border-emerald-400" : "border-amber-500"}`} data-acceptable-answer-count={acceptable.length} />{isCorrect && <span className="text-xs text-emerald-300">Correct</span>}</React.Fragment>;
+    return <React.Fragment key={responseKey}><input type="text" value={response} onChange={(event) => onChange?.(blankIndex, event.target.value)} onDragOver={(event) => { if (!readOnly) event.preventDefault(); }} onDrop={(event) => { if (readOnly) return; event.preventDefault(); const droppedWord = event.dataTransfer.getData("text/plain").trim(); if (droppedWord) onChange?.(blankIndex, droppedWord); }} readOnly={readOnly} disabled={readOnly} placeholder={readOnly ? answer || "answer" : "Drop or type"} aria-label={`Blank ${blankIndex + 1}`} className={`mx-1 inline-block min-w-24 max-w-full border-b-2 bg-transparent px-2 py-0.5 text-center align-baseline text-inherit text-stone-100 outline-none focus:border-amber-300 ${isCorrect ? "border-emerald-400" : "border-amber-500"}`} data-acceptable-answer-count={acceptable.length} />{isCorrect && <span className="text-xs text-emerald-300">Correct</span>}</React.Fragment>;
   };
 
   const renderText = (children: React.ReactNode) => {
@@ -87,6 +89,7 @@ export function FillInBlanksMarkdown({
             </ReactMarkdown>
           ))
         : <p className="text-stone-500">Nothing to preview yet.</p>}
+      {wordBank.length > 0 && <div className="mt-4 border-t border-[#394252] pt-3"><p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-amber-400">Word Bank</p><div className="flex flex-wrap gap-2" aria-label="Fill in the blanks word bank">{wordBank.map((word, wordIndex) => <button key={`${word}-${wordIndex}`} type="button" draggable={!readOnly} onDragStart={(event) => { if (!readOnly) event.dataTransfer.setData("text/plain", word); }} disabled={readOnly} className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-200 transition hover:border-amber-400 hover:bg-amber-500/20 disabled:cursor-default disabled:opacity-70">{word}</button>)}</div><p className="mt-2 text-[11px] text-stone-500">Drag a word onto a blank, or type your answer.</p></div>}
     </div>
   );
 }
