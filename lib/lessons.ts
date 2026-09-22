@@ -806,17 +806,27 @@ export async function deleteLesson(id: string): Promise<void> {
     ] as const;
 
     for (const table of childTables) {
-      const { error: childError } = await supabase.from(table).delete().eq("lesson_id", id);
-      if (childError) {
+      try {
+        const { error: childError } = await supabase.from(table).delete().eq("lesson_id", id);
+        if (childError) {
+          const details = describeSupabaseError(childError);
+          console.warn(`Supabase child cleanup skipped for ${table} and lesson ${id}:`, {
+            code: details.code,
+            message: details.message,
+            details: details.details,
+            hint: details.hint,
+            status: details.status,
+          });
+        }
+      } catch (childError) {
         const details = describeSupabaseError(childError);
-        console.error(`Supabase child cleanup failed for ${table} and lesson ${id}:`, {
+        console.warn(`Supabase child cleanup skipped for ${table} and lesson ${id}:`, {
           code: details.code,
           message: details.message,
           details: details.details,
           hint: details.hint,
           status: details.status,
         });
-        throw toSupabaseError(childError, `Unable to delete related ${table} records for lesson ${id}`);
       }
     }
 
