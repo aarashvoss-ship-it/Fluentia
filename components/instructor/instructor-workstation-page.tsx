@@ -138,6 +138,7 @@ export default function InstructorWorkstationPage({
     title: "",
     slug: "",
     subtitle: "",
+    instructorGuidance: "",
     moduleNumber: "",
     status: "draft" as "draft" | "published",
   });
@@ -148,6 +149,7 @@ export default function InstructorWorkstationPage({
       title: "",
       slug: "",
       subtitle: "",
+      instructorGuidance: "",
       moduleNumber: "",
       status: "draft",
     });
@@ -162,7 +164,7 @@ export default function InstructorWorkstationPage({
       moduleNumber: Number(moduleNumber) || 1,
       bannerUrl: workstationState.bannerUrl,
       sidebarBlocksByStep,
-      instructorNote: workstationState.studentProfile.teacherNotes,
+      instructorGuidance: newLesson.instructorGuidance,
       lessonResources,
     });
 
@@ -250,6 +252,7 @@ export default function InstructorWorkstationPage({
       title: lesson.title,
       slug: lessonSlug,
       subtitle: typeof content.subtitle === "string" ? content.subtitle : lesson.subtitle || "",
+      instructorGuidance: typeof content.instructorGuidance === "string" ? content.instructorGuidance : "",
       moduleNumber: String(content.moduleNumber || lesson.module_number || 1),
       status: lesson.status === "published" ? "published" : "draft",
     }));
@@ -492,7 +495,7 @@ export default function InstructorWorkstationPage({
         coverImage: workstationState.bannerUrl,
         bannerUrl: workstationState.bannerUrl,
         sidebarBlocks: sidebarBlocksByStep,
-      instructorNote: workstationState.studentProfile.teacherNotes,
+      instructorGuidance: newLesson.instructorGuidance,
       lessonResources,
       };
       const created = await createLesson({
@@ -501,6 +504,7 @@ export default function InstructorWorkstationPage({
         student_id: student.id,
         student_token: student.token,
         status: newLesson.status,
+        instructor_note: newLesson.instructorGuidance,
         content,
         changes_summary: "Initial lesson created in Lesson Builder",
       });
@@ -715,7 +719,7 @@ export default function InstructorWorkstationPage({
       coverImage: workstationState.bannerUrl,
       bannerUrl: workstationState.bannerUrl,
       sidebarBlocks: sidebarBlocksByStep,
-      instructorNote: workstationState.studentProfile.teacherNotes,
+      instructorGuidance: newLesson.instructorGuidance,
       lessonResources,
     };
     const requestId = ++saveRequestId.current;
@@ -729,6 +733,7 @@ export default function InstructorWorkstationPage({
             instructor_id: instructorId,
             status,
             is_published: status === "published",
+            instructor_note: newLesson.instructorGuidance,
             content,
             changes_summary: `Lesson updated as ${status}`,
           })
@@ -1051,7 +1056,7 @@ export default function InstructorWorkstationPage({
             
             <label className="mt-3 block text-xs text-stone-400">Subtitle<input value={newLesson.subtitle} onChange={(event) => setNewLesson((previous) => ({ ...previous, subtitle: event.target.value }))} placeholder="Lesson summary" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" />
 </label>
-<label className="mt-3 block text-xs text-stone-400">Instructor Guidance / Note<textarea value={workstationState.studentProfile.teacherNotes} onChange={(e) => setWorkstationState((prev) => ({ ...prev, studentProfile: { ...prev.studentProfile, teacherNotes: e.target.value } }))} placeholder="Guidance shown in &quot;A NOTE FROM YOUR INSTRUCTOR&quot; on the student dashboard" rows={3} className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
+<label className="mt-3 block text-xs text-stone-400">Lesson-Specific Guidance<textarea value={newLesson.instructorGuidance} onChange={(e) => setNewLesson((previous) => ({ ...previous, instructorGuidance: e.target.value }))} placeholder="Guidance shown inside this lesson's Study Room" rows={3} className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
           </section>
           <main className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-12">
             <div className="h-full min-w-0 lg:col-span-8">

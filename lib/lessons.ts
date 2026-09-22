@@ -23,6 +23,7 @@ export interface CreateLessonInput {
   status?: "draft" | "published" | "evaluated";
   is_published?: boolean;
   instructor_id?: string;
+  instructor_note?: string;
   assigned_all_students?: boolean;
   content: Record<string, any>;
   changes_summary?: string;
@@ -36,6 +37,7 @@ export interface UpdateLessonInput {
   /** @deprecated Use student_id. */
   student_token?: string | null;
   instructor_id?: string;
+  instructor_note?: string | null;
   assigned_all_students?: boolean;
   subject?: string;
   grade?: string;
@@ -512,7 +514,7 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
   }
 
   try {
-    const { content, changes_summary, banner_url, student_id, student_token, instructor_id, is_published, ...lessonData } = input;
+    const { content, changes_summary, banner_url, student_id, student_token, instructor_id, instructor_note, is_published, ...lessonData } = input;
     const resolvedStudentId = student_id || undefined;
     const resolvedInstructorId = instructor_id || undefined;
     const hasTitle = typeof lessonData.title === "string" && lessonData.title.trim().length > 0;
@@ -537,6 +539,7 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
       ...(resolvedStudentId ? { student_id: resolvedStudentId } : {}),
       ...(student_token ? { student_token } : {}),
       ...(resolvedInstructorId ? { instructor_id: resolvedInstructorId } : {}),
+      ...(instructor_note !== undefined ? { instructor_note } : {}),
     };
     let { data: lesson, error: lessonError } = await supabase
       .from("lessons")
@@ -593,12 +596,12 @@ export async function updateLesson(
   }
 
   try {
-    const { content, changes_summary, banner_url, student_id, student_token, instructor_id, is_published, slug, title, status, subject, grade, assigned_all_students } = input;
+    const { content, changes_summary, banner_url, student_id, student_token, instructor_id, instructor_note, is_published, slug, title, status, subject, grade, assigned_all_students } = input;
     const resolvedStudentId = student_id || undefined;
     const resolvedInstructorId = instructor_id || undefined;
     // Update the lesson metadata
     const hasStudentTokenUpdate = Object.prototype.hasOwnProperty.call(input, "student_token");
-    if (title !== undefined || slug !== undefined || status !== undefined || subject !== undefined || grade !== undefined || assigned_all_students !== undefined || banner_url !== undefined || resolvedStudentId || resolvedInstructorId || hasStudentTokenUpdate || is_published !== undefined) {
+    if (title !== undefined || slug !== undefined || status !== undefined || subject !== undefined || grade !== undefined || assigned_all_students !== undefined || banner_url !== undefined || resolvedStudentId || resolvedInstructorId || hasStudentTokenUpdate || is_published !== undefined || instructor_note !== undefined) {
       const updatePayload = {
         ...(title !== undefined ? { title } : {}),
         ...(slug !== undefined ? { slug } : {}),
@@ -611,6 +614,7 @@ export async function updateLesson(
         ...(resolvedInstructorId ? { instructor_id: resolvedInstructorId } : {}),
         ...(hasStudentTokenUpdate ? { student_token } : {}),
         ...(is_published !== undefined ? { is_published } : {}),
+        ...(instructor_note !== undefined ? { instructor_note } : {}),
       };
       let { data: updatedRows, error: updateError } = await supabase
         .from("lessons")

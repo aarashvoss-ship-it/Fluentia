@@ -23,6 +23,7 @@ import { uploadStudentAudio } from "@/services/storage-service";
 import type { OptionIndexingStyle } from "@/types/lesson";
 import {
   ArrowRight,
+  ChevronDown,
   ChevronRight,
   Sparkles,
   BookOpen,
@@ -252,15 +253,16 @@ function MediaTranscriptAccordion({ transcript, isUnlocked }: { transcript?: str
   }
 
   return (
-    <details open={isOpen} onToggle={(event) => setIsOpen(event.currentTarget.open)} className="mt-4 rounded-md border border-amber-500/20 bg-[#0c1017]">
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-semibold text-amber-300 [&::-webkit-details-marker]:hidden">
+    <div className="mt-4 rounded-md border border-amber-500/20 bg-[#0c1017]">
+      <button type="button" onClick={() => setIsOpen((open) => !open)} aria-expanded={isOpen} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold text-amber-300">
         <Unlock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         Transcript
-      </summary>
-      <div className="border-t border-[#293343] px-3 py-3">
+        <ChevronDown className={`ml-auto h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} aria-hidden="true" />
+      </button>
+      {isOpen && <div className="border-t border-[#293343] px-3 py-3">
         {transcript?.trim() ? <MarkdownContent value={transcript} className="text-sm leading-relaxed text-stone-300" /> : <p className="text-xs text-stone-500">No transcript was provided for this media.</p>}
-      </div>
-    </details>
+      </div>}
+    </div>
   );
 }
 
@@ -795,6 +797,7 @@ export default function LessonPage() {
               {displayLessonTitle || lesson.title}
             </h1>
             {lessonSubtitle && <p className="text-xs text-[#b5bac2]">{lessonSubtitle}</p>}
+            {((typeof lesson.instructor_note === "string" && lesson.instructor_note.trim()) || (typeof rawLessonContent.instructorGuidance === "string" && rawLessonContent.instructorGuidance.trim())) && <div className="mt-2 max-w-2xl rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-sm leading-relaxed text-amber-100"><p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Lesson guidance</p><MarkdownContent value={(lesson.instructor_note || rawLessonContent.instructorGuidance) as string} /></div>}
             <div className="mt-7 flex items-center gap-2 text-[11px] text-[#9ba1aa]"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#283344] text-[9px] font-semibold text-[#d9a63b]">{instructor.initials}</span>Guided by {instructor.fullName}</div>
             <div className="w-12 h-12 rounded-full border-2 border-[#F59E0B] bg-transparent flex items-center justify-center p-1.5 mt-3"><img src="/logo.png" alt="Fluentia" className="w-full h-full object-contain" /></div>
           </div>

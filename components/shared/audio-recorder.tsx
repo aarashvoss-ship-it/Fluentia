@@ -101,7 +101,7 @@ export function AudioRecorder({
           an.getByteFrequencyData(arr);
           const bars = Array.from({ length: 48 }, (_, i) => {
             const v = arr[Math.floor((i / 48) * arr.length)] || 0;
-            return Math.max(2, Math.min(24, 2 + v * 0.09));
+              return Math.max(1, Math.min(8, 1 + v * 0.03));
           });
           setLevels(bars);
           animRef.current = requestAnimationFrame(tick);
@@ -135,7 +135,7 @@ export function AudioRecorder({
         {/* Waveform timeline */}
         <div className="flex flex-1 items-center justify-center gap-px overflow-hidden" aria-hidden>
           {levels.map((h, i) => (
-            <span key={i} className="w-px shrink-0 rounded-full bg-stone-400/70 sm:w-[2px]" style={{ height: h }} />
+            <span key={i} className="w-px shrink-0 rounded-full bg-stone-400/70" style={{ height: h }} />
           ))}
         </div>
         {/* Timer */}

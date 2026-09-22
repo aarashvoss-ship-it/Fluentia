@@ -158,7 +158,7 @@ export function StudentContextPanel({
 
         <div>
           <div className="text-slate-400 font-medium flex items-center gap-1.5 mb-1">
-            <History className="w-3.5 h-3.5 text-amber-400" /> Instructor Notes
+            <History className="w-3.5 h-3.5 text-amber-400" /> Student Dashboard Note
           </div>
             <textarea
               value={displayProfile.teacherNotes}
