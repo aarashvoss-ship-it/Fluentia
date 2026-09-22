@@ -11,6 +11,9 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Fluentia \u2014 Master English through Deliberate Practice",
   description: "Personalized English learning platform tailored per individual student.",
+  icons: {
+    icon: "/logo.png",
+  },
 };
 
 export default function RootLayout({
