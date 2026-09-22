@@ -19,6 +19,7 @@ type FillInBlanksMarkdownProps = {
   onChange?: (blankIndex: number, value: string) => void;
   readOnly?: boolean;
   showFeedback?: boolean;
+  showResults?: boolean;
   className?: string;
 };
 
@@ -32,6 +33,7 @@ export function FillInBlanksMarkdown({
   onChange,
   readOnly = false,
   showFeedback = false,
+  showResults = false,
   className = "",
 }: FillInBlanksMarkdownProps) {
   let globalBlankIndex = 0;
@@ -49,8 +51,9 @@ export function FillInBlanksMarkdown({
     const responseKey = `${blockId}-blank-${blankIndex}`;
     const acceptable = acceptableAnswers[blankIndex]?.length ? acceptableAnswers[blankIndex] : [answer || DEFAULT_ANSWER];
     const response = values[responseKey] || "";
-    const isCorrect = showFeedback && response.trim().length > 0 && isFillInBlankAnswerCorrect(response, acceptable, caseSensitive);
-    return <React.Fragment key={responseKey}><input type="text" value={response} onChange={(event) => onChange?.(blankIndex, event.target.value)} onDragOver={(event) => { if (!readOnly) event.preventDefault(); }} onDrop={(event) => { if (readOnly) return; event.preventDefault(); const droppedWord = event.dataTransfer.getData("text/plain").trim(); if (droppedWord) onChange?.(blankIndex, droppedWord); }} readOnly={readOnly} disabled={readOnly} placeholder={readOnly ? answer || "answer" : "Drop or type"} aria-label={`Blank ${blankIndex + 1}`} className={`mx-1 inline-block min-w-24 max-w-full border-b-2 bg-transparent px-2 py-0.5 text-center align-baseline text-inherit text-stone-100 outline-none focus:border-amber-300 ${isCorrect ? "border-emerald-400" : "border-amber-500"}`} data-acceptable-answer-count={acceptable.length} />{isCorrect && <span className="text-xs text-emerald-300">Correct</span>}</React.Fragment>;
+    const shouldShowFeedback = showResults && showFeedback && !readOnly;
+    const isCorrect = shouldShowFeedback && response.trim().length > 0 && isFillInBlankAnswerCorrect(response, acceptable, caseSensitive);
+    return <React.Fragment key={responseKey}><input type="text" value={response} onChange={(event) => onChange?.(blankIndex, event.target.value)} onDragOver={(event) => { if (!readOnly) event.preventDefault(); }} onDrop={(event) => { if (readOnly) return; event.preventDefault(); const droppedWord = event.dataTransfer.getData("text/plain").trim(); if (droppedWord) onChange?.(blankIndex, droppedWord); }} readOnly={readOnly} disabled={readOnly} placeholder={readOnly ? answer || "answer" : "Drop or type"} aria-label={`Blank ${blankIndex + 1}`} className={`mx-1 inline-block min-w-24 max-w-full border-b-2 bg-transparent px-2 py-0.5 text-center align-baseline text-inherit text-stone-100 outline-none focus:border-amber-300 ${shouldShowFeedback ? (isCorrect ? "border-emerald-400" : "border-red-400") : "border-amber-500"}`} data-acceptable-answer-count={acceptable.length} />{shouldShowFeedback && <span className={`text-xs ${isCorrect ? "text-emerald-300" : "text-red-300"}`}>{isCorrect ? "Correct" : "Incorrect"}</span>}</React.Fragment>;
   };
 
   const components: Components = {
