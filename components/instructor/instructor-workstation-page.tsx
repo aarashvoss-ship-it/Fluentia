@@ -1197,12 +1197,12 @@ export default function InstructorWorkstationPage({
 </section>
 </>}
       </div>
-      {guidanceOpen && <div className="fixed inset-0 z-[70] bg-black/45 backdrop-blur-sm" role="presentation" onClick={() => setGuidanceOpen(false)}>
-        <aside className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-amber-500/20 bg-[#0c1017]/95 p-5 text-stone-200 shadow-2xl backdrop-blur-md" role="dialog" aria-modal="true" aria-labelledby="workstation-guidance-title" onClick={(event) => event.stopPropagation()}>
+      <div className={`fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm transition-opacity duration-300 ease-in-out ${guidanceOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`} role="presentation" onClick={() => setGuidanceOpen(false)} aria-hidden={!guidanceOpen}>
+        <aside className={`absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-amber-500/20 bg-[#0c1017]/95 p-5 text-stone-200 shadow-2xl backdrop-blur-md transition-transform duration-300 ease-in-out ${guidanceOpen ? "translate-x-0" : "translate-x-full"}`} role="dialog" aria-modal={guidanceOpen} aria-labelledby="workstation-guidance-title" onClick={(event) => event.stopPropagation()}>
           <div className="flex items-center justify-between border-b border-[#293343] pb-4"><h2 id="workstation-guidance-title" className="flex items-center gap-2 text-sm font-semibold text-amber-300"><Lightbulb className="h-4 w-4" />Lesson Guidance</h2><button type="button" onClick={() => setGuidanceOpen(false)} aria-label="Close lesson guidance" className="rounded-md p-2 text-stone-400 transition hover:bg-white/10 hover:text-stone-100"><X className="h-4 w-4" /></button></div>
           <div className="min-h-0 flex-1 overflow-y-auto py-5"><MarkdownContent value={newLesson.instructorGuidance} className="text-sm leading-relaxed text-stone-300" /></div>
         </aside>
-      </div>}
+      </div>
   <InstructorChatWidget
     activeStudent={selectedStudent}
     students={students}
