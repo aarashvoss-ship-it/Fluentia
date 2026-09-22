@@ -747,14 +747,17 @@ export default function InstructorWorkstationPage({
     try {
       const lesson = databaseLessonId
         ? await updateLesson(databaseLessonId, {
-            title,
-            banner_url: workstationState.bannerUrl,
+          title,
+          subtitle: newLesson.subtitle.trim() || "A new Fluentia learning journey.",
+          module_number: moduleNumber,
+          banner_url: workstationState.bannerUrl,
             student_id: assignedStudent.id,
             student_token: assignedStudent.token,
             instructor_id: instructorId,
             status,
             is_published: status === "published",
             instructor_note: newLesson.instructorGuidance,
+            instructor_guidance: newLesson.instructorGuidance,
             content,
             changes_summary: `Lesson updated as ${status}`,
           })
@@ -821,6 +824,14 @@ export default function InstructorWorkstationPage({
         hint: details?.hint,
         status: details?.status,
       });
+      if (status === "published") {
+        console.error(
+          "Publish Error Detail:",
+          error instanceof Error ? error.message : details?.message || String(error),
+          details?.details,
+          details?.hint,
+        );
+      }
       setSaveIndicator("error");
       if (!isAutoSave) setPublishStatus("Lesson save failed. Check the Supabase connection and try again.");
     } finally {

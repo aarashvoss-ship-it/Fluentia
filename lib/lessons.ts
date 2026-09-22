@@ -32,12 +32,15 @@ export interface CreateLessonInput {
 export interface UpdateLessonInput {
   slug?: string;
   title?: string;
+  subtitle?: string;
+  module_number?: number;
   banner_url?: string;
   student_id?: StudentId;
   /** @deprecated Use student_id. */
   student_token?: string | null;
   instructor_id?: string;
   instructor_note?: string | null;
+  instructor_guidance?: string | null;
   assigned_all_students?: boolean;
   subject?: string;
   grade?: string;
@@ -125,6 +128,8 @@ function isMissingInstructorNoteColumn(error: { code?: string; message?: string 
 
 const LESSON_UPDATE_COLUMNS = [
   "title",
+  "subtitle",
+  "module_number",
   "slug",
   "status",
   "subject",
@@ -137,6 +142,25 @@ const LESSON_UPDATE_COLUMNS = [
   "is_published",
   "instructor_note",
 ] as const;
+
+function sanitizeJsonValue(value: unknown): unknown {
+  if (value === undefined) return undefined;
+  if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
+  if (Array.isArray(value)) return value.map(sanitizeJsonValue).filter((item) => item !== undefined);
+  if (typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .map(([key, item]) => [key, sanitizeJsonValue(item)] as const)
+        .filter(([, item]) => item !== undefined),
+    );
+  }
+  return String(value);
+}
+
+function sanitizeLessonContent(content: Record<string, any> | undefined): Record<string, any> | undefined {
+  if (!content) return undefined;
+  return sanitizeJsonValue(content) as Record<string, any>;
+}
 
 function sanitizeLessonUpdatePayload(payload: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(
@@ -552,8 +576,10 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
     const slug = (title && title.trim() !== "")
       ? title.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-" + Date.now()
       : "lesson-" + Date.now();
+    const safeContent = sanitizeLessonContent(content) || {};
+    const safeInstructorNote = typeof instructor_note === "string" ? instructor_note.trim() : undefined;
     const versionContent = {
-      ...content,
+      ...safeContent,
       slug,
       title,
     };
@@ -569,7 +595,7 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
       ...(resolvedStudentId ? { student_id: resolvedStudentId } : {}),
       ...(student_token ? { student_token } : {}),
       ...(resolvedInstructorId ? { instructor_id: resolvedInstructorId } : {}),
-      ...(instructor_note !== undefined ? { instructor_note } : {}),
+      ...(safeInstructorNote !== undefined ? { instructor_note: safeInstructorNote } : {}),
     };
     let { data: lesson, error: lessonError } = await supabase
       .from("lessons")
@@ -626,14 +652,20 @@ export async function updateLesson(
   }
 
   try {
-    const { content, changes_summary, banner_url, student_id, student_token, instructor_id, instructor_note, is_published, slug, title, status, subject, grade, assigned_all_students } = input;
+    const { content, changes_summary, banner_url, student_id, student_token, instructor_id, instructor_note, instructor_guidance, is_published, slug, title, subtitle, module_number, status, subject, grade, assigned_all_students } = input;
+    const safeContent = sanitizeLessonContent(content);
+    const safeInstructorNote = typeof (instructor_note ?? instructor_guidance) === "string"
+      ? (instructor_note ?? instructor_guidance)?.trim()
+      : undefined;
     const resolvedStudentId = student_id || undefined;
     const resolvedInstructorId = instructor_id || undefined;
     // Update the lesson metadata
     const hasStudentTokenUpdate = Object.prototype.hasOwnProperty.call(input, "student_token");
-    if (title !== undefined || slug !== undefined || status !== undefined || subject !== undefined || grade !== undefined || assigned_all_students !== undefined || banner_url !== undefined || resolvedStudentId || resolvedInstructorId || hasStudentTokenUpdate || is_published !== undefined || instructor_note !== undefined) {
+    if (title !== undefined || subtitle !== undefined || module_number !== undefined || slug !== undefined || status !== undefined || subject !== undefined || grade !== undefined || assigned_all_students !== undefined || banner_url !== undefined || resolvedStudentId || resolvedInstructorId || hasStudentTokenUpdate || is_published !== undefined || safeInstructorNote !== undefined) {
       const updatePayload = sanitizeLessonUpdatePayload({
         ...(title !== undefined ? { title } : {}),
+        ...(subtitle !== undefined ? { subtitle: typeof subtitle === "string" ? subtitle.trim() : subtitle } : {}),
+        ...(module_number !== undefined ? { module_number } : {}),
         ...(slug !== undefined ? { slug } : {}),
         ...(status !== undefined ? { status } : {}),
         ...(subject !== undefined ? { subject } : {}),
@@ -644,7 +676,7 @@ export async function updateLesson(
         ...(resolvedInstructorId ? { instructor_id: resolvedInstructorId } : {}),
         ...(hasStudentTokenUpdate ? { student_token } : {}),
         ...(is_published !== undefined ? { is_published } : {}),
-        ...(instructor_note !== undefined ? { instructor_note } : {}),
+        ...(safeInstructorNote !== undefined ? { instructor_note: safeInstructorNote } : {}),
       });
       let { data: updatedRows, error: updateError } = await supabase
         .from("lessons")
@@ -697,7 +729,7 @@ export async function updateLesson(
 
     // If content is provided, create a new version
     let newVersion: LessonVersionRow | null = null;
-    if (content) {
+    if (safeContent) {
       const nextVersionNumber = await getNextVersionNumber(id);
 
       const { data: version, error: versionError } = await supabase
@@ -706,7 +738,7 @@ export async function updateLesson(
           {
             lesson_id: id,
             version_number: nextVersionNumber,
-            content,
+            content: safeContent,
             changes_summary: changes_summary || "Updated version",
           },
         ])
