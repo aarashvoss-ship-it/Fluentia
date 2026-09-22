@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { parseInteractiveTranscript } from "@/lib/transcripts";
 
 interface InteractiveVideoBlockProps {
@@ -44,6 +45,7 @@ export function InteractiveVideoBlock({
   onTranscriptChange,
 }: InteractiveVideoBlockProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(false);
   const transcriptLines = parseInteractiveTranscript(transcript || "");
   const embedUrl = getVideoEmbedUrl(videoUrl);
 
@@ -83,18 +85,37 @@ export function InteractiveVideoBlock({
       )}
 
       {!transcriptLocked && transcriptLines.length > 0 && (
-        <div className="space-y-1 rounded border border-[#202631] bg-[#0c1017]/50 p-2" aria-label="Interactive transcript">
-          {transcriptLines.map((line) => (
-            <button
-              key={`${line.seconds}-${line.text}`}
-              type="button"
-              onClick={() => seekToTimestamp(line.seconds)}
-              className="flex w-full min-w-0 items-start gap-2 rounded px-2 py-1.5 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-200"
-            >
-              <span className="shrink-0 rounded border border-amber-500/40 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-amber-300">{line.timestamp}</span>
-              <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">{line.text}</span>
-            </button>
-          ))}
+        <div className="overflow-hidden rounded border border-[#202631] bg-[#0c1017]/50" aria-label="Interactive transcript">
+          <button
+            type="button"
+            onClick={() => setIsTranscriptExpanded((expanded) => !expanded)}
+            aria-expanded={isTranscriptExpanded}
+            aria-controls="interactive-video-transcript"
+            className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs font-semibold text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-200"
+          >
+            <span>Show / Hide Transcript</span>
+            <ChevronDown className={`h-4 w-4 shrink-0 text-amber-400 transition-transform duration-200 ${isTranscriptExpanded ? "rotate-180" : ""}`} aria-hidden="true" />
+          </button>
+          <div
+            id="interactive-video-transcript"
+            className={`grid transition-[grid-template-rows] duration-300 ease-out ${isTranscriptExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+          >
+            <div className="min-h-0 overflow-y-auto border-t border-[#202631]">
+              <div className="space-y-1 p-2">
+                {transcriptLines.map((line) => (
+                  <button
+                    key={`${line.seconds}-${line.text}`}
+                    type="button"
+                    onClick={() => seekToTimestamp(line.seconds)}
+                    className="flex w-full min-w-0 items-start gap-2 rounded px-2 py-1.5 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-200"
+                  >
+                    <span className="shrink-0 rounded border border-amber-500/40 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-amber-300">{line.timestamp}</span>
+                    <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">{line.text}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
