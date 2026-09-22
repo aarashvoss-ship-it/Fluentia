@@ -850,7 +850,6 @@ export default function LessonPage() {
           <p className="text-[#aeb2b9]">Welcome back, <span className="text-[#e6e4e0]">{studentDisplayName}</span>.</p>
           <div className="flex flex-wrap items-center gap-2">
             <AmbientMusicPlayer src={lessonContent.ambientMusicUrl} tracks={lessonContent.ambientTracks} />
-            {((typeof lesson.instructor_note === "string" && lesson.instructor_note.trim()) || (typeof rawLessonContent.instructorGuidance === "string" && rawLessonContent.instructorGuidance.trim())) && <button type="button" onClick={() => setGuidanceOpen(true)} aria-expanded={guidanceOpen} className="flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-[#171d28]/90 px-3 py-2 text-xs text-amber-300 transition hover:border-amber-400 hover:bg-amber-500/10"><Lightbulb className="h-3.5 w-3.5" />Lesson Guidance</button>}
             <button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs transition ${sidebarOpen ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#171d28]/90 text-amber-300 hover:border-amber-500"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button>
             <button type="button" onClick={() => setDictionaryWord("")} aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28]/90 text-stone-400 transition hover:border-amber-500 hover:text-amber-300"><BookOpen className="w-4 h-4" /></button>
             <Link href="/dashboard" className="flex items-center gap-1 rounded-md border border-[#394252] bg-[#171d28]/90 px-3 py-2 text-xs text-[#b5bac2] transition-colors hover:border-amber-500/50 hover:text-amber-300"><ChevronRight className="h-3 w-3 rotate-180" />Course overview</Link>
@@ -874,6 +873,7 @@ export default function LessonPage() {
         <div className="border-t border-[#202631]" />
 
         {/* Step Content */}
+        {((typeof lesson.instructor_note === "string" && lesson.instructor_note.trim()) || (typeof rawLessonContent.instructorGuidance === "string" && rawLessonContent.instructorGuidance.trim())) && <div className="mb-5 flex items-center"><button type="button" onClick={() => setGuidanceOpen(true)} aria-expanded={guidanceOpen} className="flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-[#171d28]/90 px-4 py-2 text-xs font-semibold text-amber-300 transition hover:border-amber-400 hover:bg-amber-500/10"><Lightbulb className="h-3.5 w-3.5" />Lesson Guidance</button></div>}
         <div className="space-y-7 pt-9">
           {/* Warm Up */}
           {currentStep === "warm_up" && (
