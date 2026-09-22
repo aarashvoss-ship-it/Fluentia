@@ -8,7 +8,7 @@ import { isFillInBlankAnswerCorrect } from "@/lib/fill-in-blanks";
 
 const DEFAULT_ANSWER = "";
 const BRACKET_PATTERN = /\[([^\]]+)\]/g;
-const BLANK_LINK_PATTERN = /^fillblank:(\d+)$/;
+const BLANK_MARKER_PATTERN = /\[([^\]]+)\]|FILLINBLANKTOKEN(\d+)FILLIN/g;
 
 type FillInBlanksMarkdownProps = {
   blockId: string;
@@ -38,7 +38,7 @@ export function FillInBlanksMarkdown({
   );
   let replacementIndex = 0;
   const markdownText = text.replace(BRACKET_PATTERN, () => {
-    const token = `[__FILLIN_BLANK_${replacementIndex}__](fillblank:${replacementIndex})`;
+    const token = `FILLINBLANKTOKEN${replacementIndex}FILLIN`;
     replacementIndex += 1;
     return token;
   });
@@ -52,7 +52,28 @@ export function FillInBlanksMarkdown({
     return <React.Fragment key={responseKey}><input type="text" value={response} onChange={(event) => onChange?.(blankIndex, event.target.value)} readOnly={readOnly} disabled={readOnly} placeholder={readOnly ? answer || "answer" : "answer"} aria-label={`Blank ${blankIndex + 1}`} className={`mx-1 inline-block min-w-24 max-w-full border-b-2 bg-transparent px-2 py-0.5 text-center align-baseline text-inherit text-stone-100 outline-none focus:border-amber-300 ${isCorrect ? "border-emerald-400" : "border-amber-500"}`} data-acceptable-answer-count={acceptable.length} />{isCorrect && <span className="text-xs text-emerald-300">Correct</span>}</React.Fragment>;
   };
 
+  const renderText = (children: React.ReactNode) => {
+    const value = String(children);
+    const nodes: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    BLANK_MARKER_PATTERN.lastIndex = 0;
+    while ((match = BLANK_MARKER_PATTERN.exec(value)) !== null) {
+      if (match.index > lastIndex) nodes.push(value.slice(lastIndex, match.index));
+      const answer = match[1]?.trim().replace(/^blank\s*:\s*/i, "").trim();
+      const blankIndex = match[2] !== undefined
+        ? Number(match[2])
+        : blankAnswers.findIndex((candidate) => candidate === answer);
+      nodes.push(renderInput(blankIndex >= 0 ? blankIndex : 0));
+      lastIndex = match.index + match[0].length;
+    }
+    if (lastIndex < value.length) nodes.push(value.slice(lastIndex));
+    return nodes.length ? nodes : children;
+  };
+
   const components: Components = {
+    text: ({ children }) => <>{renderText(children)}</>,
     h1: ({ children }) => <h1 className="mb-4 mt-6 text-2xl font-semibold leading-tight text-stone-100">{children}</h1>,
     h2: ({ children }) => <h2 className="mb-3 mt-5 text-lg font-semibold leading-tight text-stone-100">{children}</h2>,
     h3: ({ children }) => <h3 className="mb-3 mt-4 text-base font-semibold leading-tight text-stone-100">{children}</h3>,
@@ -63,11 +84,7 @@ export function FillInBlanksMarkdown({
     strong: ({ children }) => <strong className="font-semibold text-amber-400">{children}</strong>,
     em: ({ children }) => <em className="italic text-stone-200">{children}</em>,
     code: ({ children }) => <code className="rounded border border-[#394252] bg-[#0c1017] px-1.5 py-0.5 font-mono text-xs text-amber-200">{children}</code>,
-    a: ({ children, href }) => {
-      const match = typeof href === "string" ? href.match(BLANK_LINK_PATTERN) : null;
-      if (match) return renderInput(Number(match[1]));
-      return <a href={href} target="_blank" rel="noreferrer" className="text-amber-300 underline decoration-amber-500/40 underline-offset-2 hover:text-amber-200">{children}</a>;
-    },
+    a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="text-amber-300 underline decoration-amber-500/40 underline-offset-2 hover:text-amber-200">{children}</a>,
   };
 
   return (
