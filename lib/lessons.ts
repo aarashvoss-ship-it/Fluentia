@@ -569,15 +569,17 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
 
   try {
     const { content, changes_summary, banner_url, student_id, student_token, instructor_id, instructor_note, is_published, ...lessonData } = input;
-    const resolvedStudentId = student_id || undefined;
-    const resolvedInstructorId = instructor_id || undefined;
-    const hasTitle = typeof lessonData.title === "string" && lessonData.title.trim().length > 0;
-    const title = hasTitle ? lessonData.title.trim() : "Untitled Lesson";
-    const slug = (title && title.trim() !== "")
-      ? title.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-" + Date.now()
-      : "lesson-" + Date.now();
+    const resolvedStudentId = typeof student_id === "string" && student_id.trim() ? student_id.trim() : null;
+    const resolvedInstructorId = typeof instructor_id === "string" && instructor_id.trim() ? instructor_id.trim() : null;
+    const title = typeof lessonData.title === "string" && lessonData.title.trim()
+      ? lessonData.title.trim()
+      : "Untitled Lesson";
+    const slugBase = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    const slug = `${slugBase || "lesson"}-${Date.now()}`;
     const safeContent = sanitizeLessonContent(content) || {};
-    const safeInstructorNote = typeof instructor_note === "string" ? instructor_note.trim() : undefined;
+    const safeInstructorNote = typeof instructor_note === "string" && instructor_note.trim()
+      ? instructor_note.trim()
+      : null;
     const versionContent = {
       ...safeContent,
       slug,
@@ -586,16 +588,18 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
 
     // Insert the lesson
     const lessonPayload = {
-      ...lessonData,
       title,
       slug,
       status: lessonData.status || "draft",
       is_published: is_published ?? lessonData.status === "published",
-      ...(banner_url ? { banner_url } : {}),
+      ...(typeof banner_url === "string" && banner_url.trim() ? { banner_url: banner_url.trim() } : {}),
       ...(resolvedStudentId ? { student_id: resolvedStudentId } : {}),
-      ...(student_token ? { student_token } : {}),
+      ...(typeof student_token === "string" && student_token.trim() ? { student_token: student_token.trim() } : {}),
       ...(resolvedInstructorId ? { instructor_id: resolvedInstructorId } : {}),
-      ...(safeInstructorNote !== undefined ? { instructor_note: safeInstructorNote } : {}),
+      ...(safeInstructorNote ? { instructor_note: safeInstructorNote } : {}),
+      ...(typeof lessonData.subject === "string" && lessonData.subject.trim() ? { subject: lessonData.subject.trim() } : {}),
+      ...(typeof lessonData.grade === "string" && lessonData.grade.trim() ? { grade: lessonData.grade.trim() } : {}),
+      ...(typeof lessonData.assigned_all_students === "boolean" ? { assigned_all_students: lessonData.assigned_all_students } : {}),
     };
     let { data: lesson, error: lessonError } = await supabase
       .from("lessons")
@@ -635,7 +639,14 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
       content: version.content,
     };
   } catch (error) {
-    console.error("Error creating lesson:", error);
+    const details = describeSupabaseError(error);
+    console.error("Error creating lesson:", {
+      message: details.message,
+      details: details.details,
+      hint: details.hint,
+      code: details.code,
+      status: details.status,
+    });
     throw error;
   }
 }
