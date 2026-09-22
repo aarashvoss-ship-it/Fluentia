@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { ChatMessage, ContentBlock, SavedVocabularyWord, StudentNote, StudyStepId, STUDY_STEPS, LessonContent, StudentSubmission } from "@/types/lesson";
 import { getLessonById, type LessonWithVersion } from "@/lib/lessons";
-import { PublishedLessonState, writeLastAccessedLesson } from "@/lib/lesson-store";
+import { getLessonStateKey, PublishedLessonState, writeLastAccessedLesson } from "@/lib/lesson-store";
 import { fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, saveChatMessage, saveStudentNote, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
 import { FLUENTIA_USERS, INSTRUCTOR_USER, type StudentUser } from "@/lib/users";
 import { supabase } from "@/lib/supabase";
@@ -280,6 +280,7 @@ export default function LessonPage() {
   const [studentReady, setStudentReady] = useState(false);
   const [currentStep, setCurrentStep] = useState<StudyStepId>("warm_up");
   const [lessonStateHydrated, setLessonStateHydrated] = useState(false);
+  const [submissionHydrated, setSubmissionHydrated] = useState(false);
   const [completedSteps, setCompletedSteps] = useState<StudyStepId[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [publishedLesson, setPublishedLesson] = useState<PublishedLessonState | null>(null);
@@ -408,6 +409,17 @@ export default function LessonPage() {
     let mounted = true;
     setLessonReady(false);
     setLessonNotFound(false);
+    setLessonStateHydrated(false);
+    setSubmissionHydrated(false);
+    setSubmission({
+      status: "in_progress",
+      listeningAnswers: {},
+      readingAnswers: {},
+      writingText: "",
+      blockResponses: {},
+      quizSelections: {},
+      audioUploads: {},
+    });
     setLoading(true);
 
     const loadLesson = async () => {
@@ -417,7 +429,6 @@ export default function LessonPage() {
         
         if (lesson) {
           setLesson(lesson);
-          setLessonStateHydrated(true);
           if (activeStudent?.token) {
             writeLastAccessedLesson(lesson.id, activeStudent.token);
           }
@@ -479,6 +490,14 @@ export default function LessonPage() {
   useEffect(() => {
     if (!lessonReady || !studentReady || lessonNotFound || !lesson) return;
     const activeToken = activeStudent?.token || lesson.student_token || lesson.student_id || "student";
+    if (typeof window !== "undefined" && lesson.updated_at) {
+      const cacheVersionKey = `fluentia:lesson-cache-version:${lesson.id}:${activeToken}`;
+      const cachedVersion = window.localStorage.getItem(cacheVersionKey);
+      if (cachedVersion !== lesson.updated_at) {
+        window.localStorage.removeItem(getLessonStateKey(lesson.id, activeToken));
+        window.localStorage.setItem(cacheVersionKey, lesson.updated_at);
+      }
+    }
     setCurrentStep("warm_up");
     const params = new URLSearchParams(window.location.search);
     const requestedStep = getRequestedStep(params.get("step"));
@@ -492,16 +511,26 @@ export default function LessonPage() {
       const requestedNonResultsStep = requestedStep && requestedStep !== "results" ? requestedStep : null;
       const persistedStep = progress.currentStep !== "results" || canShowResults ? progress.currentStep : "warm_up";
       setPublishedLesson(state?.status !== "draft" ? state : null);
-      if (hydratedSubmission) setSubmission(hydratedSubmission);
+      setSubmission(hydratedSubmission || {
+        status: "in_progress",
+        listeningAnswers: {},
+        readingAnswers: {},
+        writingText: "",
+        blockResponses: {},
+        quizSelections: {},
+        audioUploads: {},
+      });
       setCurrentStep(canShowResults && requestedStep === "results"
         ? "results"
         : requestedNonResultsStep || (startStep === "warm_up" ? "warm_up" : persistedStep));
       setCompletedSteps(progress.completedSteps);
+      setSubmissionHydrated(true);
       setLessonStateHydrated(true);
     }).catch((error) => {
       console.error("Failed to hydrate lesson state:", error);
       setCurrentStep("warm_up");
       setCompletedSteps([]);
+      setSubmissionHydrated(true);
       setLessonStateHydrated(true);
     });
   }, [activeStudent?.token, lessonReady, lessonNotFound, lesson, studentReady]);
@@ -715,7 +744,7 @@ export default function LessonPage() {
     );
   }
 
-  if (!lessonStateHydrated) {
+  if (!lessonStateHydrated || !submissionHydrated) {
     return (
       <div className="fluentia-study-room flex min-h-screen items-center justify-center bg-[#0c1017] px-5 text-sm text-stone-400">
         Preparing study room...
