@@ -347,7 +347,16 @@ export default function InstructorWorkstationPage({
         status: details?.status,
       });
       setCreatedLessons((current) => [lesson, ...current]);
-      setPublishStatus("Lesson deletion failed. The lesson was restored in the table.");
+      const failureMessage = error instanceof Error ? error.message : details?.message || "Unknown deletion error";
+      const isPermissionFailure = details?.code === "42501" || /permission|row-level security|rls/i.test(`${failureMessage} ${details?.details || ""}`);
+      const isConstraintFailure = details?.code === "23503" || /foreign key|constraint|referenced/i.test(`${failureMessage} ${details?.details || ""}`);
+      setPublishStatus(
+        isPermissionFailure
+          ? "Lesson deletion blocked by Supabase permissions. Check instructor access policies."
+          : isConstraintFailure
+            ? "Lesson deletion blocked by related records. Remove the related records or check cascade rules."
+            : `Lesson deletion failed: ${failureMessage}`,
+      );
     }
   };
 

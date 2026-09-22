@@ -766,12 +766,52 @@ export async function deleteLesson(id: string): Promise<void> {
   }
 
   try {
+    const childTables = [
+      "lesson_versions",
+      "submissions",
+      "instructor_feedback",
+      "lesson_assignments",
+    ] as const;
+
+    for (const table of childTables) {
+      const { error: childError } = await supabase.from(table).delete().eq("lesson_id", id);
+      if (childError) {
+        const details = describeSupabaseError(childError);
+        console.error(`Supabase child cleanup failed for ${table} and lesson ${id}:`, {
+          code: details.code,
+          message: details.message,
+          details: details.details,
+          hint: details.hint,
+          status: details.status,
+        });
+        throw toSupabaseError(childError, `Unable to delete related ${table} records for lesson ${id}`);
+      }
+    }
+
     const { error } = await supabase.from("lessons").delete().eq("id", id);
 
-    if (error) throw error;
+    if (error) {
+      const details = describeSupabaseError(error);
+      console.error(`Supabase lesson deletion failed for ${id}:`, {
+        code: details.code,
+        message: details.message,
+        details: details.details,
+        hint: details.hint,
+        status: details.status,
+      });
+      throw toSupabaseError(error, `Unable to delete lesson ${id}`);
+    }
   } catch (error) {
-    console.error(`Error deleting lesson ${id}:`, error);
-    throw error;
+    const normalizedError = error instanceof Error ? error : toSupabaseError(error, `Unable to delete lesson ${id}`);
+    const details = describeSupabaseError(normalizedError);
+    console.error(`Error deleting lesson ${id}:`, {
+      code: details.code,
+      message: details.message,
+      details: details.details,
+      hint: details.hint,
+      status: details.status,
+    });
+    throw normalizedError;
   }
 }
 
