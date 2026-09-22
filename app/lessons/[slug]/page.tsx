@@ -39,6 +39,8 @@ import {
   Award,
   PanelRight,
   Trash2,
+  Lightbulb,
+  X,
 } from "lucide-react";
 
 function getLockedSteps(completedSteps: StudyStepId[]): StudyStepId[] {
@@ -301,6 +303,7 @@ export default function LessonPage() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [dictionaryWord, setDictionaryWord] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [guidanceOpen, setGuidanceOpen] = useState(false);
   const [submissionSaveError, setSubmissionSaveError] = useState<string | null>(null);
   const [studentBannerUrl, setStudentBannerUrl] = useState<string | null>(null);
   const [bannerLoadFailed, setBannerLoadFailed] = useState(false);
@@ -841,17 +844,13 @@ export default function LessonPage() {
         </section>
       )}
 
-      {((typeof lesson.instructor_note === "string" && lesson.instructor_note.trim()) || (typeof rawLessonContent.instructorGuidance === "string" && rawLessonContent.instructorGuidance.trim())) && <section className="mt-6 rounded-xl border border-[#394252] bg-[#121721] px-5 py-4" aria-label="Lesson guidance">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Lesson guidance</p>
-        <MarkdownContent value={(lesson.instructor_note || rawLessonContent.instructorGuidance) as string} className="mt-2 max-w-3xl text-sm leading-relaxed text-stone-300" />
-      </section>}
-
             <div className="py-8">
             <header>
         <div className="flex flex-wrap items-center justify-between gap-3 text-[12px]">
           <p className="text-[#aeb2b9]">Welcome back, <span className="text-[#e6e4e0]">{studentDisplayName}</span>.</p>
           <div className="flex flex-wrap items-center gap-2">
             <AmbientMusicPlayer src={lessonContent.ambientMusicUrl} tracks={lessonContent.ambientTracks} />
+            {((typeof lesson.instructor_note === "string" && lesson.instructor_note.trim()) || (typeof rawLessonContent.instructorGuidance === "string" && rawLessonContent.instructorGuidance.trim())) && <button type="button" onClick={() => setGuidanceOpen(true)} aria-expanded={guidanceOpen} className="flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-[#171d28]/90 px-3 py-2 text-xs text-amber-300 transition hover:border-amber-400 hover:bg-amber-500/10"><Lightbulb className="h-3.5 w-3.5" />Lesson Guidance</button>}
             <button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs transition ${sidebarOpen ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#171d28]/90 text-amber-300 hover:border-amber-500"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button>
             <button type="button" onClick={() => setDictionaryWord("")} aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28]/90 text-stone-400 transition hover:border-amber-500 hover:text-amber-300"><BookOpen className="w-4 h-4" /></button>
             <Link href="/dashboard" className="flex items-center gap-1 rounded-md border border-[#394252] bg-[#171d28]/90 px-3 py-2 text-xs text-[#b5bac2] transition-colors hover:border-amber-500/50 hover:text-amber-300"><ChevronRight className="h-3 w-3 rotate-180" />Course overview</Link>
@@ -1246,6 +1245,12 @@ export default function LessonPage() {
           void saveChatMessage(lessonStudentToken, message);
         }}
       />
+      {guidanceOpen && <div className="fixed inset-0 z-[70] bg-black/45 backdrop-blur-sm" role="presentation" onClick={() => setGuidanceOpen(false)}>
+        <aside className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-amber-500/20 bg-[#0c1017]/95 p-5 text-stone-200 shadow-2xl backdrop-blur-md" role="dialog" aria-modal="true" aria-labelledby="lesson-guidance-title" onClick={(event) => event.stopPropagation()}>
+          <div className="flex items-center justify-between border-b border-[#293343] pb-4"><h2 id="lesson-guidance-title" className="flex items-center gap-2 text-sm font-semibold text-amber-300"><Lightbulb className="h-4 w-4" />Lesson Guidance</h2><button type="button" onClick={() => setGuidanceOpen(false)} aria-label="Close lesson guidance" className="rounded-md p-2 text-stone-400 transition hover:bg-white/10 hover:text-stone-100"><X className="h-4 w-4" /></button></div>
+          <div className="min-h-0 flex-1 overflow-y-auto py-5"><MarkdownContent value={(lesson.instructor_note || rawLessonContent.instructorGuidance) as string} className="text-sm leading-relaxed text-stone-300" /></div>
+        </aside>
+      </div>}
       {dictionaryWord !== null && (
         <DictionaryModal
           initialWord={dictionaryWord}
