@@ -122,10 +122,6 @@ function isMissingPublishedColumn(error: { code?: string; message?: string } | n
   return Boolean(error && (error.code === "42703" || error.code === "PGRST204") && /is_published/i.test(error.message || ""));
 }
 
-function isMissingInstructorNoteColumn(error: { code?: string; message?: string } | null) {
-  return Boolean(error && (error.code === "42703" || error.code === "PGRST204") && /instructor_note/i.test(error.message || ""));
-}
-
 const LESSON_UPDATE_COLUMNS = [
   "title",
   "subtitle",
@@ -140,7 +136,6 @@ const LESSON_UPDATE_COLUMNS = [
   "student_token",
   "instructor_id",
   "is_published",
-  "instructor_note",
 ] as const;
 
 function sanitizeJsonValue(value: unknown): unknown {
@@ -568,7 +563,7 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
   }
 
   try {
-    const { content, changes_summary, banner_url, student_id, student_token, instructor_id, instructor_note, is_published, ...lessonData } = input;
+    const { content, changes_summary, banner_url, student_id, student_token, instructor_id, is_published, ...lessonData } = input;
     const resolvedStudentId = typeof student_id === "string" && student_id.trim() ? student_id.trim() : null;
     const resolvedInstructorId = typeof instructor_id === "string" && instructor_id.trim() ? instructor_id.trim() : null;
     const title = typeof lessonData.title === "string" && lessonData.title.trim()
@@ -578,9 +573,6 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
     const slug = `${slugBase || "lesson"}-${Date.now()}`;
     const status = lessonData.status || "draft";
     const safeContent = sanitizeLessonContent(content) || {};
-    const safeInstructorNote = typeof instructor_note === "string" && instructor_note.trim()
-      ? instructor_note.trim()
-      : null;
     const versionContent = {
       ...safeContent,
       slug,
@@ -597,7 +589,6 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
       ...(resolvedStudentId ? { student_id: resolvedStudentId } : {}),
       ...(typeof student_token === "string" && student_token.trim() ? { student_token: student_token.trim() } : {}),
       ...(resolvedInstructorId ? { instructor_id: resolvedInstructorId } : {}),
-      ...(safeInstructorNote ? { instructor_note: safeInstructorNote } : {}),
       ...(typeof lessonData.subject === "string" && lessonData.subject.trim() ? { subject: lessonData.subject.trim() } : {}),
       ...(typeof lessonData.grade === "string" && lessonData.grade.trim() ? { grade: lessonData.grade.trim() } : {}),
       ...(typeof lessonData.assigned_all_students === "boolean" ? { assigned_all_students: lessonData.assigned_all_students } : {}),
@@ -665,16 +656,13 @@ export async function updateLesson(
   }
 
   try {
-    const { content, changes_summary, banner_url, student_id, student_token, instructor_id, instructor_note, instructor_guidance, is_published, slug, title, subtitle, module_number, status, subject, grade, assigned_all_students } = input;
+    const { content, changes_summary, banner_url, student_id, student_token, instructor_id, is_published, slug, title, subtitle, module_number, status, subject, grade, assigned_all_students } = input;
     const safeContent = sanitizeLessonContent(content);
-    const safeInstructorNote = typeof (instructor_note ?? instructor_guidance) === "string"
-      ? (instructor_note ?? instructor_guidance)?.trim()
-      : undefined;
     const resolvedStudentId = student_id || undefined;
     const resolvedInstructorId = instructor_id || undefined;
     // Update the lesson metadata
     const hasStudentTokenUpdate = Object.prototype.hasOwnProperty.call(input, "student_token");
-    if (title !== undefined || subtitle !== undefined || module_number !== undefined || slug !== undefined || status !== undefined || subject !== undefined || grade !== undefined || assigned_all_students !== undefined || banner_url !== undefined || resolvedStudentId || resolvedInstructorId || hasStudentTokenUpdate || is_published !== undefined || safeInstructorNote !== undefined) {
+    if (title !== undefined || subtitle !== undefined || module_number !== undefined || slug !== undefined || status !== undefined || subject !== undefined || grade !== undefined || assigned_all_students !== undefined || banner_url !== undefined || resolvedStudentId || resolvedInstructorId || hasStudentTokenUpdate || is_published !== undefined) {
       const updatePayload = sanitizeLessonUpdatePayload({
         ...(title !== undefined ? { title } : {}),
         ...(subtitle !== undefined ? { subtitle: typeof subtitle === "string" ? subtitle.trim() : subtitle } : {}),
@@ -689,15 +677,14 @@ export async function updateLesson(
         ...(resolvedInstructorId ? { instructor_id: resolvedInstructorId } : {}),
         ...(hasStudentTokenUpdate ? { student_token } : {}),
         ...(is_published !== undefined ? { is_published } : {}),
-        ...(safeInstructorNote !== undefined ? { instructor_note: safeInstructorNote } : {}),
       });
       let { data: updatedRows, error: updateError } = await supabase
         .from("lessons")
         .update(updatePayload)
         .eq("id", id)
         .select("id");
-      if (isMissingBannerColumn(updateError) || isMissingStudentColumn(updateError) || isMissingPublishedColumn(updateError) || isMissingInstructorNoteColumn(updateError)) {
-        const { banner_url: _ignoredBannerUrl, student_id: _ignoredStudentId, student_token: _ignoredStudentToken, is_published: _ignoredPublished, instructor_note: _ignoredInstructorNote, ...compatPayload } = updatePayload;
+      if (isMissingBannerColumn(updateError) || isMissingStudentColumn(updateError) || isMissingPublishedColumn(updateError)) {
+        const { banner_url: _ignoredBannerUrl, student_id: _ignoredStudentId, student_token: _ignoredStudentToken, is_published: _ignoredPublished, ...compatPayload } = updatePayload;
         if (Object.keys(compatPayload).length > 0) {
           ({ data: updatedRows, error: updateError } = await supabase
             .from("lessons")
