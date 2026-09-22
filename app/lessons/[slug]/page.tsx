@@ -19,8 +19,9 @@ import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
+import { FillInBlanksMarkdown } from "@/components/study-room/fill-in-blanks-markdown";
+import { parseFillInBlanks } from "@/lib/fill-in-blanks";
 import { uploadStudentAudio } from "@/services/storage-service";
-import { isFillInBlankAnswerCorrect, parseFillInBlanks } from "@/lib/fill-in-blanks";
 import type { OptionIndexingStyle } from "@/types/lesson";
 import {
   ArrowRight,
@@ -763,18 +764,8 @@ export default function LessonPage() {
       </div>
     );
     const renderFillInTheBlanks = (block: Extract<ContentBlock, { type: "fill-in-the-blanks" }>) => {
-      const blanks = parseFillInBlanks(block.textWithBlanks);
-      if (blanks.length === 0) return <p className="text-sm text-stone-500">This activity has no blanks configured yet.</p>;
-      let cursor = 0;
-      return <p className="text-sm leading-relaxed text-stone-300">{blanks.map((blank, blankIndex) => {
-        const prefix = block.textWithBlanks.slice(cursor, blank.start);
-        cursor = blank.end;
-        const responseKey = `${block.id}-blank-${blankIndex}`;
-        const response = submission.blockResponses?.[responseKey] || "";
-        const acceptableAnswers = block.acceptableAnswers[blankIndex]?.length ? block.acceptableAnswers[blankIndex] : [blank.answer];
-        const isCorrect = response.trim().length > 0 && isFillInBlankAnswerCorrect(response, acceptableAnswers, block.caseSensitive === true);
-        return <span key={`${block.id}-blank-${blankIndex}`}>{prefix}<input value={response} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [responseKey]: event.target.value } })} aria-label={`Blank ${blankIndex + 1}`} className={`mx-1 inline-block w-32 border-b bg-transparent px-1 py-0.5 text-sm text-stone-100 outline-none ${isCorrect ? "border-emerald-400" : "border-amber-500/60 focus:border-amber-400"}`} />{isCorrect && <span className="text-xs text-emerald-300">Correct</span>}</span>;
-      })}{block.textWithBlanks.slice(cursor)}</p>;
+      const values = submission.blockResponses || {};
+      return <FillInBlanksMarkdown blockId={block.id} text={block.textWithBlanks} acceptableAnswers={block.acceptableAnswers} caseSensitive={block.caseSensitive} values={values} showFeedback onChange={(blankIndex, value) => void persistSubmission({ ...submission, blockResponses: { ...values, [`${block.id}-blank-${blankIndex}`]: value } })} className="text-sm leading-relaxed text-stone-300" />;
     };
     const visibleBlocks = blocks.filter((block) => block.is_active !== false && block.enabled !== false);
     const questionBlocks = visibleBlocks.filter((block) => block.type === "question");
