@@ -1,5 +1,4 @@
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { resolveUserUuid } from "@/lib/identity";
 import type { StudentId } from "@/types/database";
 import type { StudentProfile } from "@/types/lesson";
 
@@ -19,14 +18,6 @@ export interface StudentProfileRecord {
 export async function saveStudentProfile(studentToken: string, profile: StudentProfile): Promise<void> {
   if (!isSupabaseConfigured()) return;
 
-  const profileId = await resolveUserUuid();
-  if (!profileId) return;
-  const { error: studentError } = await supabase
-    .from("students")
-    .update({ name: profile.fullName, updated_at: new Date().toISOString() })
-    .eq("id", profileId);
-  if (studentError) throw studentError;
-
   const { error } = await supabase.from("student_profiles").upsert({
     student_token: studentToken,
     level: profile.level,
@@ -36,6 +27,14 @@ export async function saveStudentProfile(studentToken: string, profile: StudentP
   }, { onConflict: "student_token" });
 
   if (error) throw error;
+
+  const { error: studentError } = await supabase
+    .from("students")
+    .update({ name: profile.fullName, updated_at: new Date().toISOString() })
+    .eq("token", studentToken);
+  if (studentError) {
+    console.warn("Student name sync skipped:", studentError.message || studentError);
+  }
 }
 
 export async function getStudentProfile(studentToken: string): Promise<Partial<StudentProfile> | null> {

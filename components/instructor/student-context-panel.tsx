@@ -83,8 +83,23 @@ export function StudentContextPanel({
       await onSaveProfile?.(displayProfile);
       setProfileSaveMessage("Profile saved");
     } catch (error) {
-      console.error("Error saving student profile:", error);
-      setProfileSaveMessage("Profile save failed");
+      const errorMessage = error instanceof Error
+        ? error.message
+        : error && typeof error === "object"
+          ? ((error as { message?: string; details?: string }).message || (error as { details?: string }).details || JSON.stringify(error))
+          : String(error);
+      console.error("Error saving student profile:", errorMessage);
+      if (studentId || displayProfile.id) {
+        const fallbackKey = `fluentia:student-profile:${studentId || displayProfile.id}`;
+        try {
+          window.localStorage.setItem(fallbackKey, JSON.stringify(displayProfile));
+          setProfileSaveMessage(`Profile saved locally. Database sync failed: ${errorMessage}`);
+          return;
+        } catch (fallbackError) {
+          console.error("Error saving student profile locally:", fallbackError);
+        }
+      }
+      setProfileSaveMessage(`Profile save failed: ${errorMessage}`);
     } finally {
       setIsSavingProfile(false);
     }
@@ -177,7 +192,7 @@ export function StudentContextPanel({
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t border-[#202631] pt-3">
-          <span className={profileSaveMessage === "Profile save failed" ? "text-red-300" : "text-stone-500"}>{profileSaveMessage || "Instructor profile settings"}</span>
+          <span className={profileSaveMessage?.startsWith("Profile save failed") ? "text-red-300" : profileSaveMessage?.startsWith("Profile saved locally") ? "text-amber-300" : "text-stone-500"}>{profileSaveMessage || "Instructor profile settings"}</span>
           <button type="button" onClick={() => void saveProfile()} disabled={isSavingProfile || !onSaveProfile} className="rounded-md bg-amber-500 px-3 py-2 text-[11px] font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50">
             {isSavingProfile ? "Saving..." : "Save profile"}
           </button>
