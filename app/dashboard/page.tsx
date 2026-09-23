@@ -398,8 +398,10 @@ function DashboardContent() {
   const hasFeedback = completedLessons > 0;
   const instructorNote =
     savedInstructorNote ||
-    lessonStates[displayLessons[0]?.id]?.studentProfile.teacherNotes ||
-    activeStudent.profile?.teacherNotes ||
+    activeStudent?.profile?.instructor_notes ||
+    activeStudent?.profile?.dashboard_note ||
+    activeStudent?.profile?.teacherNotes ||
+    lessonStates[displayLessons[0]?.id]?.studentProfile?.teacherNotes ||
     "Your instructor will add personalized guidance here.";
   const dashboardResources = ((lessonStates[displayLessons[0]?.id] as unknown as Record<string, unknown>)?.lessonResources as { id: string; title: string; url: string; type: string }[] | undefined) || [];
   const latestReport = lessonStates[displayLessons[0]?.id]?.evaluation;

@@ -274,6 +274,8 @@ export interface StudentProfile {
   bannerUrl?: string;
   level: string;
   targetGoal: string;
+  instructor_notes?: string;
+  dashboard_note?: string;
   weaknesses: string[];
   teacherNotes: string;
   attendanceRate: number;
