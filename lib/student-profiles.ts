@@ -84,26 +84,26 @@ export async function saveStudentProfile(studentToken: string, profile: StudentP
 export async function getStudentProfile(studentToken: string): Promise<Partial<StudentProfile> | null> {
   if (!isSupabaseConfigured()) return getStudentProfileLocally(studentToken);
 
-  const [{ data: student, error: studentError }, { data, error }] = await Promise.all([
-    supabase.from("students").select("name, email, token").eq("token", studentToken).maybeSingle(),
-    supabase
+  const profileResult = await supabase
     .from("student_profiles")
     .select("level, learning_goal, instructor_notes")
     .eq("student_token", studentToken)
-    .maybeSingle(),
-  ]);
-
-  if (studentError) throw studentError;
-  if (error) {
-    if (error.code === "42P01" || /student_profiles/i.test(error.message || "")) return getStudentProfileLocally(studentToken);
-    throw error;
+    .maybeSingle();
+  if (profileResult.error) {
+    if (profileResult.error.code !== "42P01" && !/student_profiles/i.test(profileResult.error.message || "")) {
+      console.warn("Student profile read unavailable; using local storage:", profileResult.error.message || profileResult.error.details);
+    }
+    return getStudentProfileLocally(studentToken);
   }
-  if (!student && !data) return getStudentProfileLocally(studentToken);
+
+  let student: { name?: string; email?: string; token?: string } | null = null;
+  const studentResult = await supabase.from("students").select("name, email, token").eq("token", studentToken).maybeSingle();
+  if (!studentResult.error) student = studentResult.data;
 
   return {
     fullName: student?.name || undefined,
-    level: data?.level || undefined,
-    targetGoal: data?.learning_goal || undefined,
-    teacherNotes: data?.instructor_notes || undefined,
+    level: profileResult.data?.level || undefined,
+    targetGoal: profileResult.data?.learning_goal || undefined,
+    teacherNotes: profileResult.data?.instructor_notes || undefined,
   };
 }

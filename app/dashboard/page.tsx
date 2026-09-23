@@ -131,19 +131,28 @@ function DashboardContent() {
     if (!studentToken) return;
 
     const loadInstructorNote = async () => {
-      let localProfile: Record<string, unknown> | null = null;
-      try {
-        localProfile = JSON.parse(window.localStorage.getItem(`fluentia:student-profile:${studentToken}`) || "null") as Record<string, unknown> | null;
-      } catch {
-        localProfile = null;
-      }
+      const identifiers = [...new Set([studentToken, activeStudent?.id].filter(Boolean))] as string[];
+      const readLocalProfile = (identifier: string) => {
+        try {
+          return JSON.parse(window.localStorage.getItem(`fluentia:student-profile:${identifier}`) || "null") as Record<string, unknown> | null;
+        } catch {
+          return null;
+        }
+      };
+      const localNote = identifiers.map(readLocalProfile).map(getStudentProfileNote).find(Boolean) || "";
+      setSavedInstructorNote(localNote);
 
-      try {
-        const remoteProfile = await getStudentProfile(studentToken);
-        const note = getStudentProfileNote(remoteProfile as Record<string, unknown> | null) || getStudentProfileNote(localProfile);
-        setSavedInstructorNote(note);
-      } catch {
-        setSavedInstructorNote(getStudentProfileNote(localProfile));
+      for (const identifier of identifiers) {
+        try {
+          const remoteProfile = await getStudentProfile(identifier);
+          const remoteNote = getStudentProfileNote(remoteProfile as Record<string, unknown> | null);
+          if (remoteNote) {
+            setSavedInstructorNote(remoteNote);
+            return;
+          }
+        } catch {
+          // Local fallback is already displayed.
+        }
       }
     };
 
