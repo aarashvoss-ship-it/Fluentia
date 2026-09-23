@@ -45,7 +45,7 @@ export const INSTRUCTOR_USER: FluentiaUser = {
 export const FLUENTIA_USERS: FluentiaUser[] = [
   student("fatemeh-8421", "fatemeh-8421", "Fatemeh Soheilikia", "f.soheilikia.lastqueen2002@gmail.com", "B2 Upper Intermediate", "Advanced fluency"),
   student("navid-3912", "navid-3912", "Navid Kabazi", "navidws@gmail.com", "B1 Intermediate", "Confident conversation"),
-  student("yasaman-5184", "yasaman-5184", "Yasaman Shebani", "yasamansheybani7192@gmail.com", "B2 Upper Intermediate", "Professional writing"),
+  student("yasaman-5184", "yasaman-5184", "Yasaman Sheybani", "yasamansheybani7192@gmail.com", "B2 Upper Intermediate", "Professional writing"),
   student("arezo-7741", "arezo-7741", "Arezo Moghadasi", "arezomoghadasi1996@gmail.com", "B1 Intermediate", "Academic vocabulary"),
   student("morad-3529", "morad-3529", "Morad Abdi Varmazan", "moradabdi@gmail.com", "B1 Intermediate", "Professional writing"),
   student("arash-1024", "arash-1024", "Arash Vossoughi", "aarashvossoughi@gmail.com", "B2 Upper Intermediate", "C1 fluency and presentation"),
