@@ -17,7 +17,7 @@ import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { WritingBlockRenderer } from "@/components/shared/writing-block";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player";
-import { saveStudentProfile } from "@/lib/student-profiles";
+import { getStudentProfile, saveStudentProfile } from "@/lib/student-profiles";
 import { MusicLibraryManager } from "@/components/instructor/music-library-manager";
 import { InstructorChatWidget } from "@/components/instructor/instructor-chat-widget";
 import { useLessonEditorStore } from "@/lib/lesson-editor-store";
@@ -223,6 +223,22 @@ export default function InstructorWorkstationPage({
 
     setSelectedStudent(student);
     setWorkstationState((previous) => ({ ...previous, studentProfile: student.profile }));
+    const studentToken = student.token || student.id;
+    const savedProfile = await getStudentProfile(studentToken).catch(() => null);
+    if (savedProfile) {
+      setWorkstationState((previous) => ({
+        ...previous,
+        studentProfile: {
+          ...previous.studentProfile,
+          ...savedProfile,
+          id: student.id,
+          fullName: savedProfile.fullName || previous.studentProfile.fullName || student.name,
+          level: savedProfile.level || previous.studentProfile.level,
+          targetGoal: savedProfile.targetGoal || previous.studentProfile.targetGoal,
+          teacherNotes: savedProfile.teacherNotes || previous.studentProfile.teacherNotes,
+        },
+      }));
+    }
     if (loadedLesson) activateLesson(loadedLesson);
     else {
       setSidebarBlocksByStep({});

@@ -140,6 +140,19 @@ function DashboardContent() {
         }
       };
       const localNote = identifiers.map(readLocalProfile).map(getStudentProfileNote).find(Boolean) || "";
+      const localProfile = identifiers.map(readLocalProfile).find(Boolean);
+      if (localProfile) {
+        setActiveStudent((current) => current ? {
+          ...current,
+          profile: {
+            ...current.profile,
+            fullName: typeof localProfile.fullName === "string" ? localProfile.fullName : current.profile.fullName,
+            level: typeof localProfile.level === "string" ? localProfile.level : current.profile.level,
+            targetGoal: typeof localProfile.targetGoal === "string" ? localProfile.targetGoal : current.profile.targetGoal,
+            teacherNotes: getStudentProfileNote(localProfile) || current.profile.teacherNotes,
+          },
+        } : current);
+      }
       setSavedInstructorNote(localNote);
 
       for (const identifier of identifiers) {
