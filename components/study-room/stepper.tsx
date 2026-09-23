@@ -32,12 +32,12 @@ export function Stepper({
               onClick={() => onStepClick(step.id)}
               disabled={isLocked}
               aria-current={isActive ? "step" : undefined}
-              className={`group flex shrink-0 items-center gap-2 rounded-none border-0 px-0 py-1 text-[12px] font-medium leading-none transition-all duration-200 ease-out whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 ${
+              className={`group flex shrink-0 items-center gap-2 rounded-none border-0 px-0 py-1 text-[13px] font-medium leading-none transition-all duration-200 ease-out whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 ${
                 isActive
                   ? "text-[#d99d22]"
                   : isCompleted
-                  ? "text-[#8e96a5]"
-                  : "text-[#545d70] hover:text-[#858d9c]"
+                  ? "text-slate-400"
+                  : "text-slate-400 hover:text-slate-300"
               }`}
             >
               <div
@@ -45,8 +45,8 @@ export function Stepper({
                   isActive
                     ? "border border-[#d99d22] bg-[#d99d22] text-[#12161d]"
                     : isCompleted
-                    ? "border border-[#5c6879] bg-transparent text-[#8e96a5]"
-                    : "border border-[#293343] bg-transparent text-transparent"
+                    ? "border border-slate-400 bg-transparent text-slate-400"
+                    : "border border-slate-400 bg-transparent text-slate-400"
                 }`}
               >
                 {isCompleted && !isActive ? (
