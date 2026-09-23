@@ -244,11 +244,19 @@ export async function getSubmissionByLessonAndStudent(
       evaluation: evaluation || undefined,
     };
   } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error as { code?: string }).code === "PGRST116"
+    ) {
+      return null;
+    }
     console.error(
       `Error fetching submission for lesson ${lessonId} and student ${studentId}:`,
       error
     );
-    throw error;
+    return null;
   }
 }
 

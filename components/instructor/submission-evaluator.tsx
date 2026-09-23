@@ -60,6 +60,9 @@ export function SubmissionEvaluator({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [evaluationId, setEvaluationId] = useState<string | null>(null);
+  const [submissionLoadState, setSubmissionLoadState] = useState<
+    "idle" | "loading" | "loaded" | "missing"
+  >(useSupabase ? "idle" : "loaded");
 
   // Load existing submission and evaluation if useSupabase is enabled
   useEffect(() => {
@@ -70,15 +73,20 @@ export function SubmissionEvaluator({
 
   const loadSubmissionData = async () => {
     if (!lessonId || !studentId) return;
+    setSubmissionLoadState("loading");
     try {
       const submission = await getSubmissionByLessonAndStudent(lessonId, studentId);
       if (submission) {
         setSubmissionId(submission.id);
+        setSubmissionLoadState("loaded");
         if (submission.evaluation) {
           setEvaluationId(submission.evaluation.id);
         }
+      } else {
+        setSubmissionLoadState("missing");
       }
     } catch (error) {
+      setSubmissionLoadState("missing");
       console.error("Error loading submission:", error);
     }
   };
@@ -176,7 +184,13 @@ ${comments}
         </div>
       )}
 
-      <div className="space-y-3">
+      {useSupabase && submissionLoadState === "missing" && (
+        <div className="rounded-lg border border-amber-700/50 bg-amber-950/30 p-3 text-xs text-amber-200">
+          Student has not submitted work for this lesson yet.
+        </div>
+      )}
+
+      <div className={`space-y-3 ${useSupabase && submissionLoadState === "missing" ? "opacity-60" : ""}`}>
         {RUBRIC_CRITERIA.map((criterion) => {
           const currentScore = scores[criterion.id] || 0;
           return (
