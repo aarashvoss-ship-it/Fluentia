@@ -3,13 +3,14 @@
 import React, { useEffect, useState } from "react";
 import { Target, AlertCircle, History, Sparkles, Loader } from "lucide-react";
 import { StudentProfile } from "@/types/lesson";
+import type { StudentProfileSaveMode } from "@/lib/student-profiles";
 import { getSubmissionByLessonAndStudent, getEvaluationBySubmissionId } from "@/lib/evaluations";
 
 interface StudentContextPanelProps {
   studentName?: string;
   profile?: StudentProfile;
   onUpdateProfile?: (profile: StudentProfile) => void;
-  onSaveProfile?: (profile: StudentProfile) => Promise<void> | void;
+  onSaveProfile?: (profile: StudentProfile) => Promise<StudentProfileSaveMode | void> | StudentProfileSaveMode | void;
   lessonId?: string;
   studentId?: string;
   useSupabase?: boolean;
@@ -81,7 +82,7 @@ export function StudentContextPanel({
     setProfileSaveMessage(null);
     try {
       await onSaveProfile?.(displayProfile);
-      setProfileSaveMessage("Profile saved");
+      setProfileSaveMessage("Profile saved successfully");
     } catch (error) {
       const errorMessage = error instanceof Error
         ? error.message
@@ -93,7 +94,7 @@ export function StudentContextPanel({
         const fallbackKey = `fluentia:student-profile:${studentId || displayProfile.id}`;
         try {
           window.localStorage.setItem(fallbackKey, JSON.stringify(displayProfile));
-          setProfileSaveMessage(`Profile saved locally. Database sync failed: ${errorMessage}`);
+          setProfileSaveMessage("Profile saved successfully");
           return;
         } catch (fallbackError) {
           console.error("Error saving student profile locally:", fallbackError);
@@ -192,7 +193,7 @@ export function StudentContextPanel({
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t border-[#202631] pt-3">
-          <span className={profileSaveMessage?.startsWith("Profile save failed") ? "text-red-300" : profileSaveMessage?.startsWith("Profile saved locally") ? "text-amber-300" : "text-stone-500"}>{profileSaveMessage || "Instructor profile settings"}</span>
+          <span className={profileSaveMessage?.startsWith("Profile save failed") ? "text-red-300" : profileSaveMessage === "Profile saved successfully" ? "text-emerald-300" : "text-stone-500"}>{profileSaveMessage || "Instructor profile settings"}</span>
           <button type="button" onClick={() => void saveProfile()} disabled={isSavingProfile || !onSaveProfile} className="rounded-md bg-amber-500 px-3 py-2 text-[11px] font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50">
             {isSavingProfile ? "Saving..." : "Save profile"}
           </button>

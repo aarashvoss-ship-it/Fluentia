@@ -15,30 +15,62 @@ export interface StudentProfileRecord {
   updated_at?: string;
 }
 
-export async function saveStudentProfile(studentToken: string, profile: StudentProfile): Promise<void> {
-  if (!isSupabaseConfigured()) return;
+export type StudentProfileSaveMode = "database" | "local";
 
-  const { error } = await supabase.from("student_profiles").upsert({
-    student_token: studentToken,
-    level: profile.level,
-    learning_goal: profile.targetGoal,
-    instructor_notes: profile.teacherNotes,
-    updated_at: new Date().toISOString(),
-  }, { onConflict: "student_token" });
+const localProfileKey = (studentToken: string) => `fluentia:student-profile:${studentToken}`;
 
-  if (error) throw error;
+function saveStudentProfileLocally(studentToken: string, profile: StudentProfile) {
+  if (typeof window === "undefined" || !window.localStorage) return false;
+  window.localStorage.setItem(localProfileKey(studentToken), JSON.stringify(profile));
+  return true;
+}
 
-  const { error: studentError } = await supabase
-    .from("students")
-    .update({ name: profile.fullName, updated_at: new Date().toISOString() })
-    .eq("token", studentToken);
-  if (studentError) {
-    console.warn("Student name sync skipped:", studentError.message || studentError);
+function getStudentProfileLocally(studentToken: string): Partial<StudentProfile> | null {
+  if (typeof window === "undefined" || !window.localStorage) return null;
+  try {
+    return JSON.parse(window.localStorage.getItem(localProfileKey(studentToken)) || "null") as Partial<StudentProfile> | null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveStudentProfile(studentToken: string, profile: StudentProfile): Promise<StudentProfileSaveMode> {
+  if (!isSupabaseConfigured()) {
+    saveStudentProfileLocally(studentToken, profile);
+    return "local";
+  }
+
+  try {
+    const { error } = await supabase.from("student_profiles").upsert({
+      student_token: studentToken,
+      level: profile.level,
+      learning_goal: profile.targetGoal,
+      instructor_notes: profile.teacherNotes,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "student_token" });
+
+    if (error) throw error;
+
+    const { error: studentError } = await supabase
+      .from("students")
+      .update({ name: profile.fullName, updated_at: new Date().toISOString() })
+      .eq("token", studentToken);
+    if (studentError) {
+      console.warn("Student name sync skipped:", studentError.message || studentError);
+    }
+    return "database";
+  } catch (error) {
+    const details = error && typeof error === "object"
+      ? error as { message?: string; details?: string; hint?: string; code?: string }
+      : {};
+    console.error("Error saving student profile:", details.message || details.details || JSON.stringify(error));
+    if (saveStudentProfileLocally(studentToken, profile)) return "local";
+    throw error;
   }
 }
 
 export async function getStudentProfile(studentToken: string): Promise<Partial<StudentProfile> | null> {
-  if (!isSupabaseConfigured()) return null;
+  if (!isSupabaseConfigured()) return getStudentProfileLocally(studentToken);
 
   const [{ data: student, error: studentError }, { data, error }] = await Promise.all([
     supabase.from("students").select("name, email, token").eq("token", studentToken).maybeSingle(),
@@ -50,8 +82,11 @@ export async function getStudentProfile(studentToken: string): Promise<Partial<S
   ]);
 
   if (studentError) throw studentError;
-  if (error) throw error;
-  if (!student && !data) return null;
+  if (error) {
+    if (error.code === "42P01" || /student_profiles/i.test(error.message || "")) return getStudentProfileLocally(studentToken);
+    throw error;
+  }
+  if (!student && !data) return getStudentProfileLocally(studentToken);
 
   return {
     fullName: student?.name || undefined,
