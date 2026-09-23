@@ -128,21 +128,31 @@ export async function getStudentProfile(studentToken: string): Promise<Partial<S
   ];
   const identityResults = await Promise.all(identityCandidates);
   const student = identityResults.find((result) => result.data)?.data || null;
-  const profileTokens = [...new Set([studentToken, student?.token].filter((value): value is string => Boolean(value)))];
-  const profileResult = await supabase
-    .from("student_profiles")
-    .select("*")
-    .in("student_token", profileTokens)
-    .maybeSingle();
-  if (profileResult.error) {
-    if (profileResult.error.code !== "42P01" && !/student_profiles/i.test(profileResult.error.message || "")) {
-      console.warn("Student profile read unavailable; using local storage:", profileResult.error.message || profileResult.error.details);
+  const profileTokens = [...new Set([student?.token, studentToken].filter((value): value is string => Boolean(value)))];
+  let profileData: Record<string, unknown> | null = null;
+  let profileError: { code?: string; message?: string; details?: string } | null = null;
+  for (const profileToken of profileTokens) {
+    const profileResult = await supabase
+      .from("student_profiles")
+      .select("*")
+      .eq("student_token", profileToken)
+      .maybeSingle();
+    if (profileResult.data) {
+      profileData = profileResult.data as Record<string, unknown>;
+      break;
+    }
+    if (profileResult.error) profileError = profileResult.error;
+  }
+  if (!profileData && profileError) {
+    if (profileError.code !== "42P01" && !/student_profiles/i.test(profileError.message || "")) {
+      console.warn("Student profile read unavailable; using local storage:", profileError.message || profileError.details);
     }
     return profileTokens.map(getStudentProfileLocally).find(Boolean) || null;
   }
+  if (!profileData) return profileTokens.map(getStudentProfileLocally).find(Boolean) || null;
 
   return {
-    ...normalizeStudentProfile(profileResult.data as Record<string, unknown>, student?.token || studentToken),
+    ...normalizeStudentProfile(profileData, student?.token || studentToken),
     fullName: student?.name || undefined,
   };
 }
