@@ -276,6 +276,8 @@ export interface StudentProfile {
   targetGoal: string;
   core_goal?: string;
   learningGoal?: string;
+  assignedInstructor?: string;
+  assignedInstructorInitials?: string;
   instructor_notes?: string;
   dashboard_note?: string;
   weaknesses: string[];
