@@ -611,6 +611,9 @@ function DashboardContent() {
     activeStudent?.profile?.teacherNotes ||
     lessonStates[displayLessons[0]?.id]?.studentProfile?.teacherNotes ||
     "Your instructor will add personalized guidance here.";
+  const studentLevel = activeStudent.profile?.level?.trim() || "Not set";
+  const studentLearningGoal =
+    activeStudent.profile?.targetGoal?.trim() || "Not set";
   const dashboardResources =
     ((lessonStates[displayLessons[0]?.id] as unknown as Record<string, unknown>)
       ?.lessonResources as
@@ -862,13 +865,13 @@ function DashboardContent() {
                           <div>
                             <p className="text-stone-500">Level</p>
                             <p className="mt-1 rounded-md border border-[#394252] bg-[#0c1017] p-2 text-stone-200">
-                              {activeStudent.profile?.level || "Not set"}
+                              {studentLevel}
                             </p>
                           </div>
                           <div>
                             <p className="text-stone-500">Learning goal</p>
                             <p className="mt-1 rounded-md border border-[#394252] bg-[#0c1017] p-2 text-stone-200">
-                              {activeStudent.profile?.targetGoal || "Not set"}
+                              {studentLearningGoal}
                             </p>
                           </div>
                         </div>
@@ -1173,13 +1176,13 @@ function DashboardContent() {
                           <div>
                             <p className="text-stone-500">Level</p>
                             <p className="mt-1 rounded-md border border-[#394252] bg-[#0c1017] p-2 text-stone-200">
-                              {activeStudent.profile?.level || "Not set"}
+                              {studentLevel}
                             </p>
                           </div>
                           <div>
                             <p className="text-stone-500">Learning goal</p>
                             <p className="mt-1 rounded-md border border-[#394252] bg-[#0c1017] p-2 text-stone-200">
-                              {activeStudent.profile?.targetGoal || "Not set"}
+                              {studentLearningGoal}
                             </p>
                           </div>
                         </div>

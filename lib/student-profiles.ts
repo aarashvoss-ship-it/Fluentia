@@ -23,7 +23,15 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}
 
 export function getStudentProfileNote(profile?: Record<string, unknown> | null) {
   if (!profile) return "";
-  for (const key of ["teacherNotes", "instructor_notes", "dashboard_note", "student_dashboard_note"]) {
+  for (const key of [
+    "teacherNotes",
+    "instructorNotes",
+    "instructorNote",
+    "instructor_notes",
+    "dashboard_note",
+    "student_dashboard_note",
+    "studentDashboardNote",
+  ]) {
     const value = profile[key];
     if (typeof value === "string" && value.trim()) return value.trim();
   }
@@ -45,8 +53,14 @@ function normalizeStudentProfile(profile: Record<string, unknown> | null, studen
     id: studentToken,
     fullName: getProfileValue(profile, ["fullName", "name"]) || undefined,
     level: getProfileValue(profile, ["level"]) || undefined,
-    targetGoal: getProfileValue(profile, ["targetGoal", "learning_goal", "core_goal", "learningGoal"]) || undefined,
-    teacherNotes: getProfileValue(profile, ["teacherNotes", "instructor_notes", "dashboard_note", "student_dashboard_note"]) || undefined,
+    targetGoal: getProfileValue(profile, [
+      "targetGoal",
+      "learningGoal",
+      "learning_goal",
+      "core_goal",
+      "goal",
+    ]) || undefined,
+    teacherNotes: getStudentProfileNote(profile) || undefined,
   };
 }
 
@@ -96,6 +110,20 @@ export async function saveStudentProfile(studentToken: string, profile: StudentP
       error = fallback.error;
     }
     if (error) throw error;
+
+    if (profile.id && uuidPattern.test(profile.id)) {
+      const { error: canonicalProfileError } = await supabase
+        .from("profiles")
+        .update({
+          level: profile.level || null,
+          learning_goal: profile.targetGoal || null,
+          instructor_note: instructorNotes || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", profile.id);
+      if (canonicalProfileError) throw canonicalProfileError;
+    }
+
     saveStudentProfileLocally(studentToken, profile);
 
     const { error: studentError } = await supabase
@@ -129,6 +157,32 @@ export async function getStudentProfile(studentToken: string): Promise<Partial<S
   const identityResults = await Promise.all(identityCandidates);
   const student = identityResults.find((result) => result.data)?.data || null;
   const profileTokens = [...new Set([student?.token, studentToken].filter((value): value is string => Boolean(value)))];
+  const canonicalProfileCandidates = [
+    ...(uuidPattern.test(studentToken)
+      ? [supabase
+          .from("profiles")
+          .select("id, full_name, level, learning_goal, instructor_note")
+          .eq("id", studentToken)
+          .maybeSingle()]
+      : []),
+    ...(student?.id
+      ? [supabase
+          .from("profiles")
+          .select("id, full_name, level, learning_goal, instructor_note")
+          .eq("id", student.id)
+          .maybeSingle()]
+      : []),
+    ...(student?.token
+      ? [supabase
+          .from("profiles")
+          .select("id, full_name, level, learning_goal, instructor_note")
+          .eq("token", student.token)
+          .maybeSingle()]
+      : []),
+  ];
+  const canonicalProfileResults = await Promise.all(canonicalProfileCandidates);
+  const canonicalProfile =
+    canonicalProfileResults.find((result) => result.data)?.data as Record<string, unknown> | null || null;
   let profileData: Record<string, unknown> | null = null;
   let profileError: { code?: string; message?: string; details?: string } | null = null;
   for (const profileToken of profileTokens) {
@@ -143,16 +197,36 @@ export async function getStudentProfile(studentToken: string): Promise<Partial<S
     }
     if (profileResult.error) profileError = profileResult.error;
   }
-  if (!profileData && profileError) {
+  if (!profileData && profileError && !canonicalProfile) {
     if (profileError.code !== "42P01" && !/student_profiles/i.test(profileError.message || "")) {
       console.warn("Student profile read unavailable; using local storage:", profileError.message || profileError.details);
     }
     return profileTokens.map(getStudentProfileLocally).find(Boolean) || null;
   }
-  if (!profileData) return profileTokens.map(getStudentProfileLocally).find(Boolean) || null;
+  if (!profileData && !canonicalProfile) {
+    return profileTokens.map(getStudentProfileLocally).find(Boolean) || null;
+  }
+
+  const legacyProfile = normalizeStudentProfile(
+    profileData,
+    student?.token || studentToken,
+  );
+  const canonicalProfileValues = normalizeStudentProfile(
+    canonicalProfile,
+    student?.token || studentToken,
+  );
 
   return {
-    ...normalizeStudentProfile(profileData, student?.token || studentToken),
+    ...legacyProfile,
+    ...(canonicalProfileValues?.level
+      ? { level: canonicalProfileValues.level }
+      : {}),
+    ...(canonicalProfileValues?.targetGoal
+      ? { targetGoal: canonicalProfileValues.targetGoal }
+      : {}),
+    ...(canonicalProfileValues?.teacherNotes
+      ? { teacherNotes: canonicalProfileValues.teacherNotes }
+      : {}),
     fullName: student?.name || undefined,
   };
 }
