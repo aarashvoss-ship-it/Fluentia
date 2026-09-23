@@ -146,6 +146,19 @@ function DashboardContent() {
         try {
           const remoteProfile = await getStudentProfile(identifier);
           const remoteNote = getStudentProfileNote(remoteProfile as Record<string, unknown> | null);
+          if (remoteProfile) {
+            setActiveStudent((current) => current ? {
+              ...current,
+              name: remoteProfile.fullName || current.name,
+              profile: {
+                ...current.profile,
+                fullName: remoteProfile.fullName || current.profile.fullName,
+                level: remoteProfile.level || current.profile.level,
+                targetGoal: remoteProfile.targetGoal || current.profile.targetGoal,
+                teacherNotes: remoteProfile.teacherNotes || current.profile.teacherNotes,
+              },
+            } : current);
+          }
           if (remoteNote) {
             setSavedInstructorNote(remoteNote);
             return;

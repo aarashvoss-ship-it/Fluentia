@@ -28,6 +28,15 @@ export function getStudentProfileNote(profile?: Record<string, unknown> | null) 
   return "";
 }
 
+function getProfileValue(profile: Record<string, unknown> | null | undefined, keys: string[]) {
+  if (!profile) return "";
+  for (const key of keys) {
+    const value = profile[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
 function saveStudentProfileLocally(studentToken: string, profile: StudentProfile) {
   if (typeof window === "undefined" || !window.localStorage) return false;
   window.localStorage.setItem(localProfileKey(studentToken), JSON.stringify(profile));
@@ -51,7 +60,7 @@ export async function saveStudentProfile(studentToken: string, profile: StudentP
 
   try {
     const instructorNotes = getStudentProfileNote(profile as unknown as Record<string, unknown>);
-    const { error } = await supabase.from("student_profiles").upsert({
+    let { error } = await supabase.from("student_profiles").upsert({
       student_token: studentToken,
       level: profile.level,
       learning_goal: profile.targetGoal,
@@ -59,7 +68,18 @@ export async function saveStudentProfile(studentToken: string, profile: StudentP
       updated_at: new Date().toISOString(),
     }, { onConflict: "student_token" });
 
+    if (error && /column|schema cache/i.test(error.message || "")) {
+      const fallback = await supabase.from("student_profiles").upsert({
+        student_token: studentToken,
+        level: profile.level,
+        core_goal: profile.targetGoal,
+        dashboard_note: instructorNotes,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "student_token" });
+      error = fallback.error;
+    }
     if (error) throw error;
+    saveStudentProfileLocally(studentToken, profile);
 
     const { error: studentError } = await supabase
       .from("students")
@@ -86,7 +106,7 @@ export async function getStudentProfile(studentToken: string): Promise<Partial<S
 
   const profileResult = await supabase
     .from("student_profiles")
-    .select("level, learning_goal, instructor_notes")
+    .select("*")
     .eq("student_token", studentToken)
     .maybeSingle();
   if (profileResult.error) {
@@ -102,8 +122,8 @@ export async function getStudentProfile(studentToken: string): Promise<Partial<S
 
   return {
     fullName: student?.name || undefined,
-    level: profileResult.data?.level || undefined,
-    targetGoal: profileResult.data?.learning_goal || undefined,
-    teacherNotes: profileResult.data?.instructor_notes || undefined,
+    level: getProfileValue(profileResult.data, ["level"]) || undefined,
+    targetGoal: getProfileValue(profileResult.data, ["learning_goal", "core_goal"]) || undefined,
+    teacherNotes: getProfileValue(profileResult.data, ["instructor_notes", "dashboard_note", "student_dashboard_note"]) || undefined,
   };
 }
