@@ -129,6 +129,10 @@ function DashboardContent() {
   useEffect(() => {
     const studentToken = activeStudent?.token;
     if (!studentToken) return;
+    console.log("[Student Dashboard] profile load identifier:", {
+      studentToken,
+      studentId: activeStudent.id,
+    });
 
     const loadInstructorNote = async () => {
       const identifiers = [...new Set([studentToken, activeStudent?.id].filter(Boolean))] as string[];
@@ -201,6 +205,32 @@ function DashboardContent() {
       window.removeEventListener(FLUENTIA_DATA_UPDATED_EVENT, refreshInstructorNote);
     };
   }, [activeStudent?.token]);
+
+  useEffect(() => {
+    if (!profileOpen || !activeStudent?.token) return;
+    const studentToken = activeStudent.token;
+    void getStudentProfile(studentToken).then((profile) => {
+      if (!profile) return;
+      console.log("[Student Profile Modal] profile load identifier:", {
+        studentToken,
+        studentId: activeStudent.id,
+      });
+      setActiveStudent((current) => current ? {
+        ...current,
+        profile: {
+          ...current.profile,
+          ...profile,
+          fullName: profile.fullName || current.profile.fullName,
+          level: profile.level || current.profile.level,
+          targetGoal: profile.targetGoal || current.profile.targetGoal,
+          teacherNotes: profile.teacherNotes || current.profile.teacherNotes,
+        },
+      } : current);
+      setSavedInstructorNote(getStudentProfileNote(profile as Record<string, unknown>));
+    }).catch(() => {
+      // The dashboard's existing local profile state remains visible.
+    });
+  }, [profileOpen, activeStudent?.token]);
 
   useEffect(() => {
     const loadDashboard = async (userId: string) => {
@@ -357,7 +387,7 @@ function DashboardContent() {
     return <AccessCard title="Student access required" message="Sign in with an authorized student account to open your dashboard." />;
   }
 
-  const token = activeStudent.id;
+  const token = activeStudent.token;
   const displayLessons = lessons;
   const completedLessons = displayLessons.filter(
     (lesson) => getLessonStatus(lessonStates[lesson.id]) === "completed"
