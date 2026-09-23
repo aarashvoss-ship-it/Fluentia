@@ -13,7 +13,7 @@ import { DictionaryModal } from "@/components/study-room/dictionary-modal";
 import { LearningSidebar } from "@/components/study-room/learning-sidebar";
 import { ChatWidget } from "@/components/study-room/chat-widget";
 import { AccessCard } from "@/components/access/access-card";
-import { saveStudentProfile } from "@/lib/student-profiles";
+import { getStudentProfile, getStudentProfileNote, saveStudentProfile } from "@/lib/student-profiles";
 import { createBrowserClient } from "@supabase/ssr";
 
 const supabase = createBrowserClient(
@@ -110,6 +110,7 @@ function DashboardContent() {
   const [bannerPreset, setBannerPreset] = useState<ProfilePreferences["bannerPreset"]>("default-dark");
   const [customBannerUrl, setCustomBannerUrl] = useState("");
   const [bannerLoadFailed, setBannerLoadFailed] = useState(false);
+  const [savedInstructorNote, setSavedInstructorNote] = useState("");
 
   const [dictionaryWord, setDictionaryWord] = useState<string | null>(null);
 
@@ -124,6 +125,37 @@ function DashboardContent() {
     document.addEventListener("dblclick", onDblClick);
     return () => document.removeEventListener("dblclick", onDblClick);
   }, []);
+
+  useEffect(() => {
+    const studentToken = activeStudent?.token;
+    if (!studentToken) return;
+
+    const loadInstructorNote = async () => {
+      let localProfile: Record<string, unknown> | null = null;
+      try {
+        localProfile = JSON.parse(window.localStorage.getItem(`fluentia:student-profile:${studentToken}`) || "null") as Record<string, unknown> | null;
+      } catch {
+        localProfile = null;
+      }
+
+      try {
+        const remoteProfile = await getStudentProfile(studentToken);
+        const note = getStudentProfileNote(remoteProfile as Record<string, unknown> | null) || getStudentProfileNote(localProfile);
+        setSavedInstructorNote(note);
+      } catch {
+        setSavedInstructorNote(getStudentProfileNote(localProfile));
+      }
+    };
+
+    const refreshInstructorNote = () => void loadInstructorNote();
+    void loadInstructorNote();
+    window.addEventListener("storage", refreshInstructorNote);
+    window.addEventListener(FLUENTIA_DATA_UPDATED_EVENT, refreshInstructorNote);
+    return () => {
+      window.removeEventListener("storage", refreshInstructorNote);
+      window.removeEventListener(FLUENTIA_DATA_UPDATED_EVENT, refreshInstructorNote);
+    };
+  }, [activeStudent?.token]);
 
   useEffect(() => {
     const loadDashboard = async (userId: string) => {
@@ -290,6 +322,7 @@ function DashboardContent() {
   );
   const hasFeedback = completedLessons > 0;
   const instructorNote =
+    savedInstructorNote ||
     lessonStates[displayLessons[0]?.id]?.studentProfile.teacherNotes ||
     activeStudent.profile?.teacherNotes ||
     "Your instructor will add personalized guidance here.";

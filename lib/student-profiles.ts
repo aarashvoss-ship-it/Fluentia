@@ -19,6 +19,15 @@ export type StudentProfileSaveMode = "database" | "local";
 
 const localProfileKey = (studentToken: string) => `fluentia:student-profile:${studentToken}`;
 
+export function getStudentProfileNote(profile?: Record<string, unknown> | null) {
+  if (!profile) return "";
+  for (const key of ["teacherNotes", "instructor_notes", "dashboard_note", "student_dashboard_note"]) {
+    const value = profile[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
 function saveStudentProfileLocally(studentToken: string, profile: StudentProfile) {
   if (typeof window === "undefined" || !window.localStorage) return false;
   window.localStorage.setItem(localProfileKey(studentToken), JSON.stringify(profile));
@@ -41,11 +50,12 @@ export async function saveStudentProfile(studentToken: string, profile: StudentP
   }
 
   try {
+    const instructorNotes = getStudentProfileNote(profile as unknown as Record<string, unknown>);
     const { error } = await supabase.from("student_profiles").upsert({
       student_token: studentToken,
       level: profile.level,
       learning_goal: profile.targetGoal,
-      instructor_notes: profile.teacherNotes,
+      instructor_notes: instructorNotes,
       updated_at: new Date().toISOString(),
     }, { onConflict: "student_token" });
 
@@ -63,7 +73,9 @@ export async function saveStudentProfile(studentToken: string, profile: StudentP
     const details = error && typeof error === "object"
       ? error as { message?: string; details?: string; hint?: string; code?: string }
       : {};
-    console.error("Error saving student profile:", details.message || details.details || JSON.stringify(error));
+    if (details.message || details.details) {
+      console.warn("Student profile database sync unavailable; using local storage:", details.message || details.details);
+    }
     if (saveStudentProfileLocally(studentToken, profile)) return "local";
     throw error;
   }
