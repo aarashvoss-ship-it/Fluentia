@@ -30,7 +30,7 @@ export interface BlockItem {
   enabled: boolean;
 }
 
-export type ContentBlockType = "text" | "audio" | "video" | "image" | "resource" | "question" | "quiz" | "fill-in-the-blanks";
+export type ContentBlockType = "text" | "audio" | "video" | "image" | "resource" | "question" | "quiz" | "fill-in-the-blanks" | "writing";
 
 export interface QuizQuestion {
   id: string;
@@ -46,6 +46,14 @@ export interface FillInTheBlanksContentBlock extends ContentBlockBase {
   acceptableAnswers: string[][];
   wordBank?: string[];
   caseSensitive?: boolean;
+}
+
+export interface WritingContentBlock extends ContentBlockBase {
+  type: "writing";
+  prompt: string;
+  minWordCount: number;
+  maxWordCount: number;
+  guidance?: string;
 }
 
 export type StudentResponseType = "text" | "voice" | "audio" | "file";
@@ -128,7 +136,8 @@ export type ContentBlock =
   | ResourceContentBlock
   | QuestionContentBlock
   | QuizContentBlock
-  | FillInTheBlanksContentBlock;
+  | FillInTheBlanksContentBlock
+  | WritingContentBlock;
 
 export type DynamicStepContent = { blocks?: ContentBlock[] };
 
@@ -315,6 +324,7 @@ export interface StudentSubmission {
   listeningAnswers: Record<string, string>;
   readingAnswers: Record<string, string>;
   writingText: string;
+  writing_responses?: Record<string, string>;
   speakingAudioUrl?: string;
   blockResponses?: Record<string, string>;
   quizSelections?: Record<string, string>;

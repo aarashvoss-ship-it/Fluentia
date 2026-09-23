@@ -236,6 +236,7 @@ function mapSubmission(row: SupabaseRow): StudentSubmission {
     listeningAnswers: content.listeningAnswers || {},
     readingAnswers: content.readingAnswers || {},
     writingText: content.writingText || "",
+    writing_responses: content.writing_responses || {},
     speakingAudioUrl: row.audio_url || content.speakingAudioUrl,
     blockResponses: content.blockResponses || {},
     quizSelections: content.quizSelections || {},
