@@ -222,7 +222,9 @@ function DashboardContent() {
           ...profile,
           fullName: profile.fullName || current.profile.fullName,
           level: profile.level || current.profile.level,
-          targetGoal: profile.targetGoal || current.profile.targetGoal,
+          targetGoal: profile.core_goal || profile.learningGoal || profile.targetGoal || current.profile.targetGoal,
+          core_goal: profile.core_goal || current.profile.core_goal,
+          learningGoal: profile.learningGoal || current.profile.learningGoal,
           teacherNotes: profile.teacherNotes || current.profile.teacherNotes,
         },
       } : current);
