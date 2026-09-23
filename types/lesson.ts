@@ -278,6 +278,7 @@ export interface StudentProfile {
   learningGoal?: string;
   assignedInstructor?: string;
   assignedInstructorInitials?: string;
+  assigned_instructor?: string;
   instructor_notes?: string;
   dashboard_note?: string;
   weaknesses: string[];

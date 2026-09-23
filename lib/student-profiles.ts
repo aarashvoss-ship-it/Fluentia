@@ -10,6 +10,7 @@ export interface StudentProfileRecord {
   level: string;
   learning_goal: string;
   instructor_notes: string;
+  assigned_instructor?: string;
   avatar_url?: string;
   banner_url?: string;
   updated_at?: string;
@@ -60,6 +61,11 @@ function normalizeStudentProfile(profile: Record<string, unknown> | null, studen
       "core_goal",
       "goal",
     ]) || undefined,
+    assignedInstructor: getProfileValue(profile, [
+      "assignedInstructor",
+      "assigned_instructor",
+      "instructor_name",
+    ]) || undefined,
     teacherNotes: getStudentProfileNote(profile) || undefined,
   };
 }
@@ -96,6 +102,7 @@ export async function saveStudentProfile(studentToken: string, profile: StudentP
       level: profile.level,
       learning_goal: profile.targetGoal,
       instructor_notes: instructorNotes,
+      assigned_instructor: profile.assignedInstructor || "",
       updated_at: new Date().toISOString(),
     }, { onConflict: "student_token" });
 
@@ -105,6 +112,7 @@ export async function saveStudentProfile(studentToken: string, profile: StudentP
         level: profile.level,
         core_goal: profile.targetGoal,
         dashboard_note: instructorNotes,
+        assigned_instructor: profile.assignedInstructor || "",
         updated_at: new Date().toISOString(),
       }, { onConflict: "student_token" });
       error = fallback.error;

@@ -252,6 +252,12 @@ function DashboardContent() {
                           : typeof localProfile.learningGoal === "string"
                             ? localProfile.learningGoal
                             : current.profile.targetGoal,
+                  assignedInstructor:
+                    typeof localProfile.assignedInstructor === "string"
+                      ? localProfile.assignedInstructor
+                      : typeof localProfile.assigned_instructor === "string"
+                        ? localProfile.assigned_instructor
+                        : current.profile.assignedInstructor,
                   teacherNotes:
                     getStudentProfileNote(localProfile) ||
                     current.profile.teacherNotes,
@@ -281,6 +287,9 @@ function DashboardContent() {
                       level: remoteProfile.level || current.profile.level,
                       targetGoal:
                         remoteProfile.targetGoal || current.profile.targetGoal,
+                      assignedInstructor:
+                        remoteProfile.assignedInstructor ||
+                        current.profile.assignedInstructor,
                       teacherNotes:
                         remoteProfile.teacherNotes ||
                         current.profile.teacherNotes,
@@ -336,6 +345,9 @@ function DashboardContent() {
                     profile.learningGoal ||
                     profile.targetGoal ||
                     current.profile.targetGoal,
+                  assignedInstructor:
+                    profile.assignedInstructor ||
+                    current.profile.assignedInstructor,
                   core_goal: profile.core_goal || current.profile.core_goal,
                   learningGoal:
                     profile.learningGoal || current.profile.learningGoal,

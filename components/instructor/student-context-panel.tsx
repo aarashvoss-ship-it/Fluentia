@@ -181,6 +181,19 @@ export function StudentContextPanel({
 
         <div>
           <div className="text-slate-400 font-medium flex items-center gap-1.5 mb-1">
+            <Target className="w-3.5 h-3.5 text-amber-400" /> Assigned Instructor
+          </div>
+          <input
+            value={displayProfile.assignedInstructor || ""}
+            onChange={(e) => updateProfile("assignedInstructor", e.target.value)}
+            className="w-full bg-[#0c1017] p-2.5 rounded-lg border border-[#202631] text-stone-200 focus:outline-none focus:border-amber-500"
+            aria-label="Assigned instructor"
+            placeholder="Instructor name"
+          />
+        </div>
+
+        <div>
+          <div className="text-slate-400 font-medium flex items-center gap-1.5 mb-1">
             <History className="w-3.5 h-3.5 text-amber-400" /> Student Dashboard Note
           </div>
             <textarea
