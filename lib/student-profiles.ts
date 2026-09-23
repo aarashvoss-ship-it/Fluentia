@@ -19,6 +19,7 @@ export type StudentProfileSaveMode = "database" | "local";
 
 const localProfileKey = (studentToken: string) => `fluentia:student-profile:${studentToken}`;
 const requestedLocalProfileKey = (studentToken: string) => `student_profile_${studentToken}`;
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function getStudentProfileNote(profile?: Record<string, unknown> | null) {
   if (!profile) return "";
@@ -120,24 +121,28 @@ export async function saveStudentProfile(studentToken: string, profile: StudentP
 export async function getStudentProfile(studentToken: string): Promise<Partial<StudentProfile> | null> {
   if (!isSupabaseConfigured()) return getStudentProfileLocally(studentToken);
 
+  const identityCandidates = [
+    ...(uuidPattern.test(studentToken) ? [supabase.from("students").select("id, name, email, token").eq("id", studentToken).maybeSingle()] : []),
+    supabase.from("students").select("id, name, email, token").eq("token", studentToken).maybeSingle(),
+    supabase.from("students").select("id, name, email, token").eq("email", studentToken).maybeSingle(),
+  ];
+  const identityResults = await Promise.all(identityCandidates);
+  const student = identityResults.find((result) => result.data)?.data || null;
+  const profileTokens = [...new Set([studentToken, student?.token].filter((value): value is string => Boolean(value)))];
   const profileResult = await supabase
     .from("student_profiles")
     .select("*")
-    .eq("student_token", studentToken)
+    .in("student_token", profileTokens)
     .maybeSingle();
   if (profileResult.error) {
     if (profileResult.error.code !== "42P01" && !/student_profiles/i.test(profileResult.error.message || "")) {
       console.warn("Student profile read unavailable; using local storage:", profileResult.error.message || profileResult.error.details);
     }
-    return getStudentProfileLocally(studentToken);
+    return profileTokens.map(getStudentProfileLocally).find(Boolean) || null;
   }
 
-  let student: { name?: string; email?: string; token?: string } | null = null;
-  const studentResult = await supabase.from("students").select("name, email, token").eq("token", studentToken).maybeSingle();
-  if (!studentResult.error) student = studentResult.data;
-
   return {
-    ...normalizeStudentProfile(profileResult.data as Record<string, unknown>, studentToken),
+    ...normalizeStudentProfile(profileResult.data as Record<string, unknown>, student?.token || studentToken),
     fullName: student?.name || undefined,
   };
 }
