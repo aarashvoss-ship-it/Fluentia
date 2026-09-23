@@ -134,7 +134,9 @@ function DashboardContent() {
       const identifiers = [...new Set([studentToken, activeStudent?.id].filter(Boolean))] as string[];
       const readLocalProfile = (identifier: string) => {
         try {
-          return JSON.parse(window.localStorage.getItem(`fluentia:student-profile:${identifier}`) || "null") as Record<string, unknown> | null;
+          const stored = window.localStorage.getItem(`student_profile_${identifier}`)
+            || window.localStorage.getItem(`fluentia:student-profile:${identifier}`);
+          return stored ? JSON.parse(stored) as Record<string, unknown> : null;
         } catch {
           return null;
         }
@@ -148,7 +150,15 @@ function DashboardContent() {
             ...current.profile,
             fullName: typeof localProfile.fullName === "string" ? localProfile.fullName : current.profile.fullName,
             level: typeof localProfile.level === "string" ? localProfile.level : current.profile.level,
-            targetGoal: typeof localProfile.targetGoal === "string" ? localProfile.targetGoal : current.profile.targetGoal,
+            targetGoal: typeof localProfile.targetGoal === "string"
+              ? localProfile.targetGoal
+              : typeof localProfile.learning_goal === "string"
+                ? localProfile.learning_goal
+                : typeof localProfile.core_goal === "string"
+                  ? localProfile.core_goal
+                  : typeof localProfile.learningGoal === "string"
+                    ? localProfile.learningGoal
+                    : current.profile.targetGoal,
             teacherNotes: getStudentProfileNote(localProfile) || current.profile.teacherNotes,
           },
         } : current);

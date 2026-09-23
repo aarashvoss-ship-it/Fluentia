@@ -18,6 +18,7 @@ export interface StudentProfileRecord {
 export type StudentProfileSaveMode = "database" | "local";
 
 const localProfileKey = (studentToken: string) => `fluentia:student-profile:${studentToken}`;
+const requestedLocalProfileKey = (studentToken: string) => `student_profile_${studentToken}`;
 
 export function getStudentProfileNote(profile?: Record<string, unknown> | null) {
   if (!profile) return "";
@@ -37,16 +38,31 @@ function getProfileValue(profile: Record<string, unknown> | null | undefined, ke
   return "";
 }
 
+function normalizeStudentProfile(profile: Record<string, unknown> | null, studentToken: string): Partial<StudentProfile> | null {
+  if (!profile) return null;
+  return {
+    id: studentToken,
+    fullName: getProfileValue(profile, ["fullName", "name"]) || undefined,
+    level: getProfileValue(profile, ["level"]) || undefined,
+    targetGoal: getProfileValue(profile, ["targetGoal", "learning_goal", "core_goal", "learningGoal"]) || undefined,
+    teacherNotes: getProfileValue(profile, ["teacherNotes", "instructor_notes", "dashboard_note", "student_dashboard_note"]) || undefined,
+  };
+}
+
 function saveStudentProfileLocally(studentToken: string, profile: StudentProfile) {
   if (typeof window === "undefined" || !window.localStorage) return false;
-  window.localStorage.setItem(localProfileKey(studentToken), JSON.stringify(profile));
+  const serialized = JSON.stringify(profile);
+  window.localStorage.setItem(localProfileKey(studentToken), serialized);
+  window.localStorage.setItem(requestedLocalProfileKey(studentToken), serialized);
   return true;
 }
 
 function getStudentProfileLocally(studentToken: string): Partial<StudentProfile> | null {
   if (typeof window === "undefined" || !window.localStorage) return null;
   try {
-    return JSON.parse(window.localStorage.getItem(localProfileKey(studentToken)) || "null") as Partial<StudentProfile> | null;
+    const stored = window.localStorage.getItem(requestedLocalProfileKey(studentToken))
+      || window.localStorage.getItem(localProfileKey(studentToken));
+    return normalizeStudentProfile(stored ? JSON.parse(stored) as Record<string, unknown> : null, studentToken);
   } catch {
     return null;
   }
@@ -121,9 +137,7 @@ export async function getStudentProfile(studentToken: string): Promise<Partial<S
   if (!studentResult.error) student = studentResult.data;
 
   return {
+    ...normalizeStudentProfile(profileResult.data as Record<string, unknown>, studentToken),
     fullName: student?.name || undefined,
-    level: getProfileValue(profileResult.data, ["level"]) || undefined,
-    targetGoal: getProfileValue(profileResult.data, ["learning_goal", "core_goal"]) || undefined,
-    teacherNotes: getProfileValue(profileResult.data, ["instructor_notes", "dashboard_note", "student_dashboard_note"]) || undefined,
   };
 }

@@ -1192,7 +1192,7 @@ export default function InstructorWorkstationPage({
 
         {activeTab === "evaluation" && <>
 <div className="mb-6">
-<StudentContextPanel studentName={selectedStudent?.name || "Selected Student"} profile={workstationState.studentProfile} onUpdateProfile={(studentProfile: StudentProfile) => setWorkstationState((previous) => ({ ...previous, studentProfile }))} onSaveProfile={async (studentProfile: StudentProfile) => { if (!selectedStudent) return; const studentToken = selectedStudent.token || selectedStudent.id; await saveStudentProfile(studentToken, studentProfile); window.localStorage.setItem(`fluentia:student-profile-sync:${studentToken}`, new Date().toISOString()); window.dispatchEvent(new CustomEvent(FLUENTIA_DATA_UPDATED_EVENT, { detail: { type: "student-profile", studentToken } })); }} />
+<StudentContextPanel studentName={selectedStudent?.name || "Selected Student"} studentId={selectedStudent?.id} studentToken={selectedStudent?.token} profile={workstationState.studentProfile} onUpdateProfile={(studentProfile: StudentProfile) => setWorkstationState((previous) => ({ ...previous, studentProfile }))} onSaveProfile={async (studentProfile: StudentProfile) => { if (!selectedStudent) return; const studentToken = selectedStudent.token || selectedStudent.id; await saveStudentProfile(studentToken, studentProfile); window.localStorage.setItem(`fluentia:student-profile-sync:${studentToken}`, new Date().toISOString()); window.dispatchEvent(new CustomEvent(FLUENTIA_DATA_UPDATED_EVENT, { detail: { type: "student-profile", studentToken } })); }} />
 </div>
 <section className="mt-8 grid grid-cols-1 items-start gap-6 lg:grid-cols-12" aria-label="Student submission review workspace">
 <div className="space-y-5 lg:col-span-7">

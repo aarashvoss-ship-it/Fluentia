@@ -13,6 +13,7 @@ interface StudentContextPanelProps {
   onSaveProfile?: (profile: StudentProfile) => Promise<StudentProfileSaveMode | void> | StudentProfileSaveMode | void;
   lessonId?: string;
   studentId?: string;
+  studentToken?: string;
   useSupabase?: boolean;
 }
 
@@ -23,6 +24,7 @@ export function StudentContextPanel({
   onSaveProfile,
   lessonId,
   studentId,
+  studentToken,
   useSupabase = true,
 }: StudentContextPanelProps) {
   const displayProfile: StudentProfile = profile || {
@@ -91,9 +93,14 @@ export function StudentContextPanel({
           : String(error);
       console.error("Error saving student profile:", errorMessage);
       if (studentId || displayProfile.id) {
-        const fallbackKey = `fluentia:student-profile:${studentId || displayProfile.id}`;
+        const fallbackIdentifier = studentToken || studentId || displayProfile.id;
+        const fallbackKey = fallbackIdentifier ? `student_profile_${fallbackIdentifier}` : "";
         try {
-          window.localStorage.setItem(fallbackKey, JSON.stringify(displayProfile));
+          if (!fallbackKey) throw new Error("No student identifier is available for local profile storage.");
+          const serialized = JSON.stringify(displayProfile);
+          window.localStorage.setItem(fallbackKey, serialized);
+          window.localStorage.setItem(`fluentia:student-profile:${fallbackIdentifier}`, serialized);
+          window.dispatchEvent(new CustomEvent("fluentia:student-profile-updated", { detail: { studentToken: fallbackIdentifier } }));
           setProfileSaveMessage("Profile saved successfully");
           return;
         } catch (fallbackError) {
