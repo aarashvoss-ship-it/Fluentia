@@ -252,10 +252,6 @@ export async function getSubmissionByLessonAndStudent(
     ) {
       return null;
     }
-    console.error(
-      `Error fetching submission for lesson ${lessonId} and student ${studentId}:`,
-      error
-    );
     return null;
   }
 }
