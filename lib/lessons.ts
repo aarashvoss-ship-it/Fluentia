@@ -270,8 +270,8 @@ async function getNextVersionNumber(lessonId: string): Promise<number> {
  */
 export async function getLessons(): Promise<LessonWithVersion[]> {
   if (!isSupabaseConfigured()) {
-    console.warn("Supabase not configured, returning empty array");
-    return [];
+    console.warn("Supabase not configured, returning fallback lesson data");
+    return [{ ...FALLBACK_LESSON, content: { ...FALLBACK_LESSON.content } }];
   }
 
   try {
@@ -300,7 +300,7 @@ export async function getLessons(): Promise<LessonWithVersion[]> {
     }));
   } catch (error) {
     console.error("Error fetching lessons:", (error as { message?: string })?.message || JSON.stringify(error));
-    throw error;
+    return [{ ...FALLBACK_LESSON, content: { ...FALLBACK_LESSON.content } }];
   }
 }
 

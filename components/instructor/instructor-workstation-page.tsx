@@ -296,10 +296,11 @@ export default function InstructorWorkstationPage({
 
   const refreshCreatedLessons = async () => {
     try {
-      setCreatedLessons(await getLessons());
+      const lessons = await getLessons();
+      setCreatedLessons(lessons);
     } catch (error) {
-      console.error("Failed to load lessons from Supabase:", error);
-      setPublishStatus("Unable to load lessons from Supabase.");
+      console.error("Failed to load lessons from Supabase:", (error as { message?: string })?.message || JSON.stringify(error));
+      setPublishStatus("Unable to refresh lessons. Previously loaded lessons remain available.");
     }
   };
 
