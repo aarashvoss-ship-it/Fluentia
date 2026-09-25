@@ -1233,6 +1233,8 @@ export default function LessonPage() {
         onClose={() => setSidebarOpen(false)}
         words={savedWords}
         notes={notes}
+        studentId={activeStudent?.id}
+        studentToken={activeStudent?.token || lesson?.student_token || lesson?.student_id || undefined}
         resource={evaluation?.studyHubPrescription} resources={lessonPageResources}
         onSaveNote={(note) => {
           setNotes([note, ...notes.filter((item) => item.id !== note.id)]);
