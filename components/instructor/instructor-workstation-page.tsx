@@ -68,6 +68,7 @@ type StudentResourceEntry = {
   student_id: string;
   student_token: string;
   lesson_id: string | null;
+  type?: StudentResourceType;
   resource_type: StudentResourceType;
   title: string;
   body?: string | null;
@@ -665,6 +666,7 @@ export default function InstructorWorkstationPage({
           student_id: selectedStudent.id,
           student_token: studentToken,
           lesson_id: resourceLessonId,
+          type: resourceType,
           resource_type: resourceType,
           title: trimmedTitle,
           updated_at: new Date().toISOString(),
@@ -681,7 +683,7 @@ export default function InstructorWorkstationPage({
                 explanation: resourceDraft.explanation.trim() || undefined,
               }
             : {}),
-        }).filter(([, value]) => value !== undefined && value !== null && value !== ""),
+        }).filter(([, value]) => value !== undefined && value !== null && (typeof value !== "string" || value.trim() !== "")),
       ) as Pick<StudentResourceEntry, "student_id" | "student_token" | "lesson_id" | "resource_type" | "title">
         & Partial<Pick<StudentResourceEntry, "body" | "link_url" | "question" | "answer" | "explanation">>
         & { updated_at: string };
@@ -690,6 +692,7 @@ export default function InstructorWorkstationPage({
         .from("student_resources")
         .insert(payload)
         .select()
+        .abortSignal(AbortSignal.timeout(8000))
         .single();
 
       if (error) {

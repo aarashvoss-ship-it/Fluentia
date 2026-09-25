@@ -123,6 +123,10 @@ function isMissingPublishedColumn(error: { code?: string; message?: string } | n
   return Boolean(error && (error.code === "42703" || error.code === "PGRST204") && /is_published/i.test(error.message || ""));
 }
 
+function isMissingStatusColumn(error: { code?: string; message?: string } | null) {
+  return Boolean(error && (error.code === "42703" || error.code === "PGRST204") && /\bstatus\b/i.test(error.message || ""));
+}
+
 const LESSON_UPDATE_COLUMNS = [
   "title",
   "subtitle",
@@ -751,7 +755,7 @@ export async function updateLesson(
         ...(subtitle !== undefined ? { subtitle: typeof subtitle === "string" ? subtitle.trim() : subtitle } : {}),
         ...(module_number !== undefined ? { module_number } : {}),
         ...(slug !== undefined ? { slug } : {}),
-        ...(status !== undefined ? { status } : {}),
+        ...(status !== undefined ? { status } : is_published !== undefined ? { status: is_published ? "published" : "draft" } : {}),
         ...(subject !== undefined ? { subject } : {}),
         ...(grade !== undefined ? { grade } : {}),
         ...(assigned_all_students !== undefined ? { assigned_all_students } : {}),
@@ -759,24 +763,36 @@ export async function updateLesson(
         ...(resolvedStudentId ? { student_id: resolvedStudentId } : {}),
         ...(resolvedInstructorId ? { instructor_id: resolvedInstructorId } : {}),
         ...(hasStudentTokenUpdate ? { student_token } : {}),
-        ...(is_published !== undefined ? { is_published } : {}),
+        ...(status === "published" || status === "draft"
+          ? { is_published: status === "published" }
+          : is_published !== undefined ? { is_published } : {}),
       });
       let { data: updatedRows, error: updateError } = await supabase
         .from("lessons")
         .update(updatePayload)
         .eq("id", id)
-        .select("id");
+        .select("id")
+        .abortSignal(AbortSignal.timeout(8000));
       if (updateError) {
         console.error("Supabase lessons PATCH error response:", updateError);
       }
-      if (isMissingBannerColumn(updateError) || isMissingStudentColumn(updateError) || isMissingPublishedColumn(updateError)) {
-        const { banner_url: _ignoredBannerUrl, student_id: _ignoredStudentId, student_token: _ignoredStudentToken, is_published: _ignoredPublished, ...compatPayload } = updatePayload;
+      if (isMissingBannerColumn(updateError) || isMissingStudentColumn(updateError) || isMissingPublishedColumn(updateError) || isMissingStatusColumn(updateError)) {
+        const missingColumns = new Set<string>();
+        if (isMissingBannerColumn(updateError)) missingColumns.add("banner_url");
+        if (isMissingStudentColumn(updateError)) {
+          missingColumns.add("student_id");
+          missingColumns.add("student_token");
+        }
+        if (isMissingPublishedColumn(updateError)) missingColumns.add("is_published");
+        if (isMissingStatusColumn(updateError)) missingColumns.add("status");
+        const compatPayload = Object.fromEntries(Object.entries(updatePayload).filter(([column]) => !missingColumns.has(column)));
         if (Object.keys(compatPayload).length > 0) {
           ({ data: updatedRows, error: updateError } = await supabase
             .from("lessons")
             .update(compatPayload)
             .eq("id", id)
-            .select("id"));
+            .select("id")
+            .abortSignal(AbortSignal.timeout(8000)));
         } else {
           updateError = null;
         }
