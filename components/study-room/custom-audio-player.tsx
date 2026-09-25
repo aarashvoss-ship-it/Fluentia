@@ -16,6 +16,7 @@ export function CustomAudioPlayer({ src, label = "Audio" }: { src: string; label
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
+  const [playbackRate, setPlaybackRate] = useState(1);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -60,6 +61,11 @@ export function CustomAudioPlayer({ src, label = "Audio" }: { src: string; label
     if (audioRef.current) audioRef.current.volume = value;
   };
 
+  const changePlaybackRate = (value: number) => {
+    setPlaybackRate(value);
+    if (audioRef.current) audioRef.current.playbackRate = value;
+  };
+
   return (
     <div className="w-full rounded-xl border border-[#293343] bg-[#171d28] p-3 text-stone-300 shadow-inner">
       <audio ref={audioRef} src={src} preload="metadata" className="sr-only" aria-label={label} />
@@ -68,7 +74,13 @@ export function CustomAudioPlayer({ src, label = "Audio" }: { src: string; label
           {isPlaying ? <Pause className="h-4 w-4 fill-current" /> : <Play className="ml-0.5 h-4 w-4 fill-current" />}
         </button>
         <div className="min-w-0 flex-1">
-          <div className="mb-1 flex items-center justify-between gap-3 text-[10px] text-stone-500"><span className="truncate">{label}</span><span className="shrink-0 tabular-nums">{formatTime(currentTime)} / {formatTime(duration)}</span></div>
+          <div className="mb-1 flex items-center justify-between gap-2 text-[10px] text-stone-500">
+            <span className="min-w-0 truncate">{label}</span>
+            <select value={playbackRate} onChange={(event) => changePlaybackRate(Number(event.target.value))} aria-label={`${label} playback speed`} className="shrink-0 rounded border border-[#394252] bg-[#0c1017] px-1 py-0.5 text-[10px] text-stone-300 outline-none focus:border-amber-500">
+              {[0.75, 1, 1.25, 1.5, 2].map((rate) => <option key={rate} value={rate}>{rate}x</option>)}
+            </select>
+            <span className="shrink-0 tabular-nums">{formatTime(currentTime)} / {formatTime(duration)}</span>
+          </div>
           <input type="range" min="0" max={duration || 0} step="0.01" value={Math.min(currentTime, duration || 0)} onChange={(event) => seek(Number(event.target.value))} aria-label={`${label} progress`} className="h-1.5 w-full cursor-pointer accent-amber-500" />
         </div>
         <Volume2 className="hidden h-4 w-4 shrink-0 text-stone-500 sm:block" />

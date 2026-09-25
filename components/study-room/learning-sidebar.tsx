@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, BookMarked, Check, FileText, Layers3, Library, Trash2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookMarked, Check, FileText, Headphones, Layers3, Library, Trash2, X } from "lucide-react";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
+import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { supabase } from "@/lib/supabaseClient";
 import { SavedVocabularyWord, StudentNote } from "@/types/lesson";
 
-type LearningTab = "vocab" | "notes" | "reading" | "flashcards" | "quizzes";
+type LearningTab = "vocab" | "notes" | "reading" | "flashcards" | "quizzes" | "audio";
 type StudentResource = {
   id: string;
-  resource_type: "note" | "reading" | "flashcard" | "quiz";
+  resource_type: "note" | "reading" | "flashcard" | "quiz" | "audio";
   title: string;
   body?: string | null;
   link_url?: string | null;
@@ -166,6 +167,7 @@ export function LearningSidebar({
     ["reading", "Reading", Library],
     ["flashcards", "Cards", Layers3],
     ["quizzes", "Quizzes", Check],
+    ["audio", "Audio", Headphones],
   ] as const;
 
   const goToCard = (index: number) => {
@@ -183,6 +185,7 @@ export function LearningSidebar({
   const noteResources = assignedResources.filter((item) => item.resource_type === "note");
   const readingResources = assignedResources.filter((item) => item.resource_type === "reading");
   const quizResources = assignedResources.filter((item) => item.resource_type === "quiz");
+  const audioResources = assignedResources.filter((item) => item.resource_type === "audio");
 
   return (
     <>
@@ -195,7 +198,7 @@ export function LearningSidebar({
         className={`fixed inset-0 z-20 bg-black/55 transition-opacity duration-200 ${open ? "opacity-100" : "pointer-events-none opacity-0"}`}
       />
       <aside
-        className={`fixed bottom-0 right-0 top-0 z-30 flex w-full max-w-sm flex-col border-l border-[#29303c] bg-[#121721] shadow-2xl transition-transform duration-200 sm:w-[360px] ${open ? "translate-x-0" : "translate-x-full"}`}
+        className={`fixed bottom-0 right-0 top-0 z-30 flex w-full max-w-lg flex-col border-l border-[#29303c] bg-[#121721] shadow-2xl transition-transform duration-200 ${open ? "translate-x-0" : "translate-x-full"}`}
         id="learning-sidebar"
         aria-hidden={!open}
       >
@@ -209,7 +212,7 @@ export function LearningSidebar({
           </button>
         </div>
 
-        <div className="grid grid-cols-5 border-b border-[#29303c]">
+        <div className="grid grid-cols-6 border-b border-[#29303c]">
           {tabs.map(([id, label, Icon]) => (
             <button key={id} type="button" onClick={() => setTab(id)} aria-pressed={tab === id} className={`flex min-w-0 flex-col items-center gap-1 px-1 py-3 text-[10px] ${tab === id ? "border-b-2 border-amber-500 text-amber-300" : "text-stone-500 hover:text-stone-300"}`}>
               <Icon className="h-4 w-4" />
@@ -336,6 +339,20 @@ export function LearningSidebar({
                   {getSafeResourceHref(item.link_url) && <a href={getSafeResourceHref(item.link_url) || undefined} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-md border border-amber-500/30 px-3 py-2 text-xs font-semibold text-amber-300 hover:border-amber-400">Open practice</a>}
                 </article>
               ))}
+            </section>
+          )}
+
+          {tab === "audio" && (
+            <section className="space-y-3" aria-label="Audio materials">
+              <h3 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Audio Materials</h3>
+              {audioResources.length === 0 ? <p className="text-sm text-stone-500">Your instructor has not assigned audio materials yet.</p> : audioResources.map((item) => {
+                const audioHref = getSafeResourceHref(item.link_url);
+                return <article key={item.id} className="space-y-3 rounded-lg border border-[#29303c] bg-[#0c1017] p-3">
+                  <h4 className="text-sm font-semibold text-stone-100">{item.title}</h4>
+                  {audioHref ? <CustomAudioPlayer src={audioHref} label={item.title} /> : <p className="text-xs text-stone-500">Audio file is not available.</p>}
+                  {item.body && <MarkdownContent value={item.body} className="text-xs leading-relaxed text-stone-400" />}
+                </article>;
+              })}
             </section>
           )}
         </div>

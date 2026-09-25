@@ -62,7 +62,7 @@ function cloneSidebarBlocksByStep(blocks: SidebarBlocksByStep): SidebarBlocksByS
 }
 
 type LessonResource = { id: string; title: string; url: string; type: "PDF" | "Article" | "Video" };
-type StudentResourceType = "note" | "reading" | "flashcard" | "quiz";
+type StudentResourceType = "note" | "reading" | "flashcard" | "quiz" | "audio";
 type StudentResourceEntry = {
   id: string;
   student_id: string;
@@ -126,6 +126,7 @@ export default function InstructorWorkstationPage({
   const [lessonResources, setLessonResources] = useState<LessonResource[]>([]);
   const [studentResources, setStudentResources] = useState<StudentResourceEntry[]>([]);
   const [resourceDraft, setResourceDraft] = useState(EMPTY_RESOURCE_DRAFT);
+  const [audioFile, setAudioFile] = useState<File | null>(null);
   const [resourceStatus, setResourceStatus] = useState<string | null>(null);
   const [flashcardIndex, setFlashcardIndex] = useState(0);
   const [flashcardFlipped, setFlashcardFlipped] = useState(false);
@@ -623,21 +624,44 @@ export default function InstructorWorkstationPage({
       return;
     }
 
-    const studentToken = selectedStudent.token || selectedStudent.id;
-    const payload = {
-      student_id: selectedStudent.id,
-      student_token: studentToken,
-      resource_type: resourceType,
-      title: trimmedTitle,
-      body: ["note", "quiz"].includes(resourceType) ? resourceDraft.body.trim() || null : null,
-      link_url: resourceType === "reading" ? resourceDraft.linkUrl.trim() || null : null,
-      question: resourceType === "flashcard" ? resourceDraft.question.trim() || null : null,
-      answer: resourceType === "flashcard" ? resourceDraft.answer.trim() || null : null,
-      explanation: resourceType === "flashcard" && resourceDraft.explanation.trim() ? resourceDraft.explanation.trim() : null,
-      updated_at: new Date().toISOString(),
-    };
+    if (resourceType === "audio" && !resourceDraft.linkUrl.trim() && !audioFile) {
+      setResourceStatus("Add an audio URL or choose an audio file.");
+      return;
+    }
 
+    if (resourceType === "audio" && audioFile && !audioFile.type.startsWith("audio/")) {
+      setResourceStatus("Choose a valid audio file.");
+      return;
+    }
+
+    const studentToken = selectedStudent.token || selectedStudent.id;
     try {
+      let audioUrl = resourceDraft.linkUrl.trim();
+      if (resourceType === "audio" && !audioUrl && audioFile) {
+        const path = `student-resources/${selectedStudent.id}/${Date.now()}-${audioFile.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+        const { error: uploadError } = await supabase.storage.from("lesson-audio").upload(path, audioFile, {
+          contentType: audioFile.type,
+          upsert: false,
+        });
+        if (uploadError) {
+          setResourceStatus("Audio upload failed. Check the storage bucket permissions and try again.");
+          return;
+        }
+        audioUrl = supabase.storage.from("lesson-audio").getPublicUrl(path).data.publicUrl;
+      }
+      const payload = {
+        student_id: selectedStudent.id,
+        student_token: studentToken,
+        resource_type: resourceType,
+        title: trimmedTitle,
+        body: ["note", "quiz", "audio"].includes(resourceType) ? resourceDraft.body.trim() || null : null,
+        link_url: ["reading", "audio"].includes(resourceType) ? audioUrl || null : null,
+        question: resourceType === "flashcard" ? resourceDraft.question.trim() || null : null,
+        answer: resourceType === "flashcard" ? resourceDraft.answer.trim() || null : null,
+        explanation: resourceType === "flashcard" && resourceDraft.explanation.trim() ? resourceDraft.explanation.trim() : null,
+        updated_at: new Date().toISOString(),
+      };
+
       const { data, error } = await supabase
         .from("student_resources")
         .insert(payload)
@@ -655,6 +679,7 @@ export default function InstructorWorkstationPage({
           setStudentResources(next);
           writeStudentResourcesLocally(studentToken, next);
           setResourceDraft(EMPTY_RESOURCE_DRAFT);
+          setAudioFile(null);
           setResourceStatus("Resource saved locally because the student_resources table is not available yet.");
           return;
         }
@@ -668,6 +693,7 @@ export default function InstructorWorkstationPage({
       setStudentResources(next);
       writeStudentResourcesLocally(studentToken, next);
       setResourceDraft(EMPTY_RESOURCE_DRAFT);
+      setAudioFile(null);
       setResourceStatus("Resource saved to the selected student.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown save error";
@@ -1453,7 +1479,7 @@ export default function InstructorWorkstationPage({
               <div className="grid gap-6 xl:grid-cols-[1.1fr_1.4fr]">
                 <div className="rounded-2xl border border-[#202631] bg-[#171d28]/60 p-5">
                   <div className="mb-4 flex flex-wrap gap-2">
-                    {([['note', 'Notes'], ['reading', 'Reading'], ['flashcard', 'Flashcards'], ['quiz', 'Quiz']] as const).map(([type, label]) => (
+                    {([['note', 'Notes'], ['reading', 'Reading'], ['flashcard', 'Flashcards'], ['quiz', 'Quiz'], ['audio', 'Audio']] as const).map(([type, label]) => (
                       <button
                         key={type}
                         type="button"
@@ -1471,7 +1497,7 @@ export default function InstructorWorkstationPage({
                       <input
                         value={resourceDraft.title}
                         onChange={(event) => setResourceDraft((previous) => ({ ...previous, title: event.target.value }))}
-                        placeholder="Vocabulary set / reading summary / quiz idea"
+                        placeholder={resourceDraft.type === "audio" ? "Podcast / Deep Dive Audio" : "Vocabulary set / reading summary / quiz idea"}
                         className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
                       />
                     </label>
@@ -1486,6 +1512,40 @@ export default function InstructorWorkstationPage({
                           className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
                         />
                       </label>
+                    )}
+
+                    {resourceDraft.type === "audio" && (
+                      <>
+                        <label className="block text-xs text-stone-400">
+                          Audio file URL
+                          <input
+                            type="url"
+                            value={resourceDraft.linkUrl}
+                            onChange={(event) => setResourceDraft((previous) => ({ ...previous, linkUrl: event.target.value }))}
+                            placeholder="https://…"
+                            className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                          />
+                        </label>
+                        <label className="block text-xs text-stone-400">
+                          Or upload an audio file
+                          <input
+                            type="file"
+                            accept="audio/*"
+                            onChange={(event) => setAudioFile(event.target.files?.[0] || null)}
+                            className="mt-1 block w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-300 file:mr-3 file:rounded file:border-0 file:bg-amber-500 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-950"
+                          />
+                        </label>
+                        <label className="block text-xs text-stone-400">
+                          Optional description / transcript notes
+                          <textarea
+                            value={resourceDraft.body}
+                            onChange={(event) => setResourceDraft((previous) => ({ ...previous, body: event.target.value }))}
+                            rows={4}
+                            placeholder="Add context or transcript notes for the student."
+                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                          />
+                        </label>
+                      </>
                     )}
 
                     {(resourceDraft.type === "note" || resourceDraft.type === "quiz") && (
@@ -1699,6 +1759,10 @@ export default function InstructorWorkstationPage({
                           {resource.resource_type === "reading" && resource.link_url && (
                             <a href={resource.link_url} target="_blank" rel="noreferrer" className="mt-3 block truncate text-sm text-sky-300 underline">{resource.link_url}</a>
                           )}
+                          {resource.resource_type === "audio" && resource.link_url && (
+                            <a href={resource.link_url} target="_blank" rel="noreferrer" className="mt-3 block truncate text-sm text-sky-300 underline">{resource.link_url}</a>
+                          )}
+                          {resource.resource_type === "audio" && resource.body && <p className="mt-3 text-sm leading-relaxed text-stone-300">{resource.body}</p>}
                           {resource.resource_type === "note" && resource.body && <p className="mt-3 text-sm leading-relaxed text-stone-300">{resource.body}</p>}
                           {resource.resource_type === "quiz" && resource.body && <p className="mt-3 text-sm leading-relaxed text-stone-300">{resource.body}</p>}
                         </div>
