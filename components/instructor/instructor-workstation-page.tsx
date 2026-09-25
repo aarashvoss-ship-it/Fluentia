@@ -1,14 +1,14 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronDown, MoreVertical, Plus, Trash2, X, Lightbulb } from "lucide-react";
+import { Check, ChevronDown, Grid3X3, List, MoreVertical, Plus, Search, Trash2, X, Lightbulb } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { StudentContextPanel } from "@/components/instructor/student-context-panel";
 import { LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
 import { InstructorBannerManager } from "@/components/instructor/banner-manager";
 import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/submission-evaluator";
 import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
-import { assignLessonToAllActiveStudents, assignLessonToStudent, createLesson, deleteLesson, getLessons, publishLessonAndAssign, unassignLesson, updateLesson, type LessonWithVersion } from "@/lib/lessons";
+import { assignLessonToAllActiveStudents, assignLessonToStudent, createLesson, deleteLesson, getLessons, publishLessonAndAssign, setLessonAssignments, unassignLesson, updateLesson, type LessonWithVersion } from "@/lib/lessons";
 import { PublishedLessonState } from "@/lib/lesson-store";
 import { StudentUser } from "@/lib/users";
 import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/storage-service";
@@ -87,7 +87,12 @@ export default function InstructorWorkstationPage({
   const [publishedLessonCount, setPublishedLessonCount] = useState(0);
   const [draftLessonCount, setDraftLessonCount] = useState(0);
   const [lessonStatus, setLessonStatus] = useState<"draft" | "published">("published");
-  const [activeTab, setActiveTab] = useState<"dashboard" | "builder" | "evaluation" | "music">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "library" | "builder" | "evaluation" | "music">("dashboard");
+  const [librarySearch, setLibrarySearch] = useState("");
+  const [libraryLevel, setLibraryLevel] = useState("all");
+  const [libraryDomain, setLibraryDomain] = useState("all");
+  const [libraryView, setLibraryView] = useState<"grid" | "table">("grid");
+  const [assignmentEditorLessonId, setAssignmentEditorLessonId] = useState<string | null>(null);
   const [heroBannerOpen, setHeroBannerOpen] = useState(false);
   const [guidanceOpen, setGuidanceOpen] = useState(false);
   const [activeStudentsOpen, setActiveStudentsOpen] = useState(false);
@@ -418,7 +423,9 @@ export default function InstructorWorkstationPage({
       || metadata.assignmentMode === "all";
     if (assignedAll) return ["All Students"];
 
-    const assignedStudents = metadata.assignedStudents || metadata.assigned_students;
+    const assignedStudents = lesson.assigned_student_ids?.length
+      ? lesson.assigned_student_ids
+      : metadata.assignedStudents || metadata.assigned_students;
     if (Array.isArray(assignedStudents) && assignedStudents.length > 0) {
       return assignedStudents.map((assignedStudent: unknown) => {
         const identifier = typeof assignedStudent === "string"
@@ -483,6 +490,27 @@ export default function InstructorWorkstationPage({
     } catch (error) {
       logAssignmentError("Lesson assignment failed:", error);
       setPublishStatus("Lesson assignment failed. Check the assignment details and try again.");
+    }
+  };
+
+  const getAssignedStudentIds = (lesson: LessonWithVersion) => {
+    if (lesson.assigned_student_ids) return lesson.assigned_student_ids;
+    return getAssignedStudentNames(lesson)
+      .map((name) => students.find((student) => student.name === name)?.id)
+      .filter((id): id is string => Boolean(id));
+  };
+
+  const handleAssignmentToggle = async (lesson: LessonWithVersion, studentId: string) => {
+    const currentIds = getAssignedStudentIds(lesson);
+    const nextIds = currentIds.includes(studentId)
+      ? currentIds.filter((id) => id !== studentId)
+      : [...currentIds, studentId];
+    try {
+      await refreshLessonListAfterAssignment(await setLessonAssignments(lesson.id, nextIds));
+      setPublishStatus(nextIds.length ? "Lesson assignments updated." : "Lesson unassigned.");
+    } catch (error) {
+      logAssignmentError("Lesson assignments update failed:", error);
+      setPublishStatus("Lesson assignments update failed. Check the assignment details and try again.");
     }
   };
 
@@ -988,6 +1016,25 @@ export default function InstructorWorkstationPage({
     </div>
   );};
 
+  const getLessonMetadata = (lesson: LessonWithVersion) => {
+    const content = (lesson.content || {}) as Record<string, any>;
+    return {
+      level: String(content.level || content.cefrLevel || lesson.grade || "Unspecified"),
+      domain: String(content.domain || content.topicDomain || lesson.subject || "General"),
+      theme: String(content.theme || content.lessonTheme || "Open practice"),
+      skillFocus: String(content.skill_focus || content.skillFocus || content.primarySkill || "Integrated skills"),
+      subtitle: String(content.subtitle || lesson.subtitle || "No subtitle"),
+    };
+  };
+  const filteredLibraryLessons = createdLessons.filter((lesson) => {
+    const metadata = getLessonMetadata(lesson);
+    const query = librarySearch.trim().toLowerCase();
+    return (!query || lesson.title.toLowerCase().includes(query) || metadata.subtitle.toLowerCase().includes(query))
+      && (libraryLevel === "all" || metadata.level.toUpperCase() === libraryLevel)
+      && (libraryDomain === "all" || metadata.domain === libraryDomain);
+  });
+  const libraryDomains = [...new Set(createdLessons.map((lesson) => getLessonMetadata(lesson).domain))].sort();
+
   if (!isMounted) return null;
   if (accessDenied) return <AccessCard title="Access Denied" message="Your instructor account does not have access to this workspace." />;
 
@@ -1020,7 +1067,7 @@ export default function InstructorWorkstationPage({
         <nav className="sticky top-0 z-20 mb-8 border-b border-[#202631] bg-[#0c1017]/95 backdrop-blur" aria-label="Instructor workstation views">
           <div className="flex items-center justify-between gap-4 overflow-x-auto">
             <div className="flex shrink-0 gap-1">
-              {([["dashboard", "Dashboard"], ["builder", "Lesson Builder"], ["evaluation", "Student Evaluation"], ["music", "Music Library"]] as const).map(([tab, label]) => <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`whitespace-nowrap border-b-2 px-4 py-3 text-xs font-semibold transition ${activeTab === tab ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}>{label}</button>)}
+              {([["dashboard", "Dashboard"], ["library", "Lesson Library"], ["builder", "Lesson Builder"], ["evaluation", "Student Evaluation"], ["music", "Music Library"]] as const).map(([tab, label]) => <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`whitespace-nowrap border-b-2 px-4 py-3 text-xs font-semibold transition ${activeTab === tab ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}>{label}</button>)}
             </div>
             <label className="flex w-64 max-w-[240px] shrink-0 items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400">
               <span className="sr-only">Active student</span>
@@ -1078,7 +1125,7 @@ export default function InstructorWorkstationPage({
 <button type="button" onClick={() => setActiveTab("evaluation")} className="mt-4 text-xs font-semibold text-amber-300 hover:text-amber-200">Review student work</button>
 </div>
 </div>
-          <section className="overflow-visible rounded-xl border border-[#202631] bg-[#171d28]/60" aria-labelledby="lesson-management-title">
+          {false && <section className="overflow-visible rounded-xl border border-[#202631] bg-[#171d28]/60" aria-labelledby="lesson-management-title">
             <div className="flex items-center justify-between gap-4 border-b border-[#202631] px-5 py-4">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Lesson Management</p>
@@ -1123,6 +1170,23 @@ export default function InstructorWorkstationPage({
               </table>
             </div>
           </section>
+        </section>}
+
+        {activeTab === "library" && <section className="space-y-5" aria-labelledby="lesson-library-title">
+          <div className="flex flex-col gap-4 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Lesson Management</p><h2 id="lesson-library-title" className="mt-1 font-sans text-2xl font-semibold text-stone-100">Lesson Library</h2><p className="mt-1 text-sm text-stone-500">{filteredLibraryLessons.length} of {createdLessons.length} lessons</p></div>
+              <button type="button" onClick={startNewLesson} className="rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-amber-400">Create New Lesson</button>
+            </div>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+              <label className="relative min-w-0 flex-1"><span className="sr-only">Search lessons</span><Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-stone-500" /><input value={librarySearch} onChange={(event) => setLibrarySearch(event.target.value)} placeholder="Search by title or subtitle" className="w-full rounded-md border border-[#394252] bg-[#0c1017] py-2.5 pl-9 pr-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
+              <select value={libraryLevel} onChange={(event) => setLibraryLevel(event.target.value)} aria-label="Filter by level" className="rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2.5 text-xs text-white [color-scheme:dark]"><option value="all">All levels</option>{["B1", "B2", "C1", "C2"].map((level) => <option key={level} value={level}>{level}</option>)}</select>
+              <select value={libraryDomain} onChange={(event) => setLibraryDomain(event.target.value)} aria-label="Filter by domain" className="rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2.5 text-xs text-white [color-scheme:dark]"><option value="all">All domains</option>{libraryDomains.map((domain) => <option key={domain} value={domain}>{domain}</option>)}</select>
+              <div className="flex rounded-md border border-[#394252] bg-[#0c1017] p-1" role="group" aria-label="Lesson view mode"><button type="button" onClick={() => setLibraryView("grid")} aria-label="Grid view" className={`rounded p-1.5 ${libraryView === "grid" ? "bg-amber-500 text-slate-950" : "text-stone-500 hover:text-stone-200"}`}><Grid3X3 className="h-4 w-4" /></button><button type="button" onClick={() => setLibraryView("table")} aria-label="Table view" className={`rounded p-1.5 ${libraryView === "table" ? "bg-amber-500 text-slate-950" : "text-stone-500 hover:text-stone-200"}`}><List className="h-4 w-4" /></button></div>
+            </div>
+          </div>
+          {libraryView === "grid" ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{filteredLibraryLessons.map((lesson) => { const metadata = getLessonMetadata(lesson); const assignedIds = getAssignedStudentIds(lesson); return <article key={lesson.id} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 transition hover:border-amber-500/50"><div className="flex items-start justify-between gap-3"><button type="button" onClick={() => handleEditLesson(lesson)} className="min-w-0 text-left"><h3 className="truncate font-semibold text-stone-100">{lesson.title}</h3><p className="mt-1 line-clamp-2 text-xs leading-relaxed text-stone-500">{metadata.subtitle}</p></button><span className={`shrink-0 rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase ${lesson.status === "published" ? "border-emerald-500/30 text-emerald-300" : "border-amber-500/30 text-amber-300"}`}>{lesson.status}</span></div><div className="mt-4 flex flex-wrap gap-1.5"><span className="rounded-full bg-amber-500/15 px-2 py-1 text-[10px] text-amber-300">{metadata.level}</span><span className="rounded-full bg-sky-500/15 px-2 py-1 text-[10px] text-sky-300">{metadata.domain}</span><span className="rounded-full bg-stone-500/15 px-2 py-1 text-[10px] text-stone-300">{metadata.theme}</span><span className="rounded-full bg-emerald-500/15 px-2 py-1 text-[10px] text-emerald-300">{metadata.skillFocus}</span></div><div className="relative mt-5 border-t border-[#202631] pt-4" onClick={(event) => event.stopPropagation()}><div className="flex items-center justify-between gap-2"><div className="flex min-w-0 flex-wrap gap-1">{assignedIds.length === 0 ? <span className="text-xs text-stone-500">No students assigned</span> : assignedIds.map((id) => { const student = students.find((item) => item.id === id); return <span key={id} title={student?.name || id} className="flex h-7 w-7 items-center justify-center rounded-full border border-amber-500/40 bg-amber-500/10 text-[10px] font-semibold text-amber-200">{(student?.name || id).slice(0, 2).toUpperCase()}</span>; })}</div><button type="button" onClick={() => setAssignmentEditorLessonId((current) => current === lesson.id ? null : lesson.id)} className="rounded-md border border-amber-500/40 px-2.5 py-1.5 text-[11px] font-semibold text-amber-300">Assign</button></div>{assignmentEditorLessonId === lesson.id && <div className="absolute left-0 right-0 top-full z-30 mt-2 rounded-lg border border-[#394252] bg-[#171d28] p-3 shadow-xl"><p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Assign students</p>{students.map((student) => <label key={student.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs text-stone-300 hover:bg-[#202631]"><input type="checkbox" checked={assignedIds.includes(student.id)} onChange={() => void handleAssignmentToggle(lesson, student.id)} className="accent-amber-500" /><span className="min-w-0 flex-1 truncate">{student.name}</span>{assignedIds.includes(student.id) && <Check className="h-3.5 w-3.5 text-amber-400" />}</label>)}<button type="button" onClick={() => setAssignmentEditorLessonId(null)} className="mt-2 w-full rounded border border-[#394252] px-2 py-1.5 text-[11px] text-stone-400">Done</button></div>}</div><div className="mt-4 flex items-center justify-between"><span className="text-[11px] text-stone-500">Module {lesson.content?.moduleNumber || lesson.module_number || 1}</span><button type="button" onClick={() => handleEditLesson(lesson)} className="text-xs font-semibold text-amber-300 hover:text-amber-200">Edit / Continue</button></div></article>; })}</div> : <div className="overflow-x-auto rounded-xl border border-[#202631] bg-[#171d28]/60"><table className="min-w-[900px] w-full text-left text-xs"><thead className="border-b border-[#202631] bg-[#0c1017] text-[10px] uppercase tracking-[0.12em] text-stone-500"><tr><th className="px-5 py-3">Lesson</th><th className="px-4 py-3">Metadata</th><th className="px-4 py-3">Assigned students</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Action</th></tr></thead><tbody className="divide-y divide-[#202631]">{filteredLibraryLessons.map((lesson) => { const metadata = getLessonMetadata(lesson); return <tr key={lesson.id} className="text-stone-300 hover:bg-[#202631]/30"><td className="px-5 py-4"><button type="button" onClick={() => handleEditLesson(lesson)} className="text-left"><p className="font-semibold text-stone-100">{lesson.title}</p><p className="mt-1 text-[11px] text-stone-500">{metadata.subtitle}</p></button></td><td className="px-4 py-4"><div className="flex max-w-xs flex-wrap gap-1"><span className="rounded bg-amber-500/15 px-1.5 py-1 text-[10px] text-amber-300">{metadata.level}</span><span className="rounded bg-sky-500/15 px-1.5 py-1 text-[10px] text-sky-300">{metadata.domain}</span><span className="rounded bg-stone-500/15 px-1.5 py-1 text-[10px] text-stone-300">{metadata.theme}</span><span className="rounded bg-emerald-500/15 px-1.5 py-1 text-[10px] text-emerald-300">{metadata.skillFocus}</span></div></td><td className="px-4 py-4">{renderAssignedStudents(lesson)}</td><td className="px-4 py-4 capitalize">{lesson.status}</td><td className="px-4 py-4 text-right"><button type="button" onClick={() => handleEditLesson(lesson)} className="text-xs font-semibold text-amber-300">Edit</button></td></tr>; })}</tbody></table></div>}
+          {filteredLibraryLessons.length === 0 && <div className="rounded-xl border border-dashed border-[#394252] p-10 text-center text-sm text-stone-500">No lessons match these filters.</div>}
         </section>}
 
         {activeTab === "music" && <MusicLibraryManager />}

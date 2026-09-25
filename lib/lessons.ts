@@ -15,7 +15,7 @@ import type { LessonContent, InstructorLessonMock } from "@/types/lesson";
 export interface CreateLessonInput {
   title: string;
   banner_url?: string;
-  student_id?: StudentId;
+  student_id?: StudentId | null;
   /** @deprecated Use student_id. */
   student_token?: string;
   subject?: string;
@@ -35,7 +35,7 @@ export interface UpdateLessonInput {
   subtitle?: string;
   module_number?: number;
   banner_url?: string;
-  student_id?: StudentId;
+  student_id?: StudentId | null;
   /** @deprecated Use student_id. */
   student_token?: string | null;
   instructor_id?: string;
@@ -53,6 +53,7 @@ export interface UpdateLessonInput {
 export interface LessonWithVersion extends LessonRow {
   current_version?: LessonVersionRow;
   content?: Record<string, any>;
+  assigned_student_ids?: string[];
 }
 
 export const BENCHMARK_LESSON_ID = "b1b10001-1001-4001-8001-000000000001";
@@ -281,9 +282,21 @@ export async function getLessons(): Promise<LessonWithVersion[]> {
 
     if (error) throw error;
 
+    const lessonIds = (lessons || []).map((lesson) => lesson.id);
+    const { data: assignments, error: assignmentError } = lessonIds.length > 0
+      ? await supabase.from("lesson_assignments").select("lesson_id, student_id").in("lesson_id", lessonIds).eq("status", "assigned")
+      : { data: [], error: null };
+    if (assignmentError) throw assignmentError;
+    const assignmentsByLesson = new Map<string, string[]>();
+    for (const assignment of assignments || []) {
+      const current = assignmentsByLesson.get(assignment.lesson_id) || [];
+      current.push(assignment.student_id);
+      assignmentsByLesson.set(assignment.lesson_id, current);
+    }
+
     return Promise.all((lessons || []).map(async (lesson) => {
       const version = await getLatestLessonVersion(lesson.id);
-      return { ...lesson, current_version: version || undefined, content: version?.content };
+      return { ...lesson, current_version: version || undefined, content: version?.content, assigned_student_ids: assignmentsByLesson.get(lesson.id) || [] };
     }));
   } catch (error) {
     console.error("Error fetching lessons:", error);
@@ -458,6 +471,44 @@ async function upsertLessonAssignment(lessonId: string, studentId: string) {
     console.error("Supabase lesson assignment upsert failed:", details);
     throw toSupabaseError(error, `Failed to assign lesson ${lessonId} to student ${studentId}`);
   }
+}
+
+export async function setLessonAssignments(lessonId: string, studentIds: string[]): Promise<LessonWithVersion> {
+  const normalizedLessonId = lessonId.trim();
+  const normalizedStudentIds = [...new Set(studentIds.map((studentId) => studentId.trim()).filter(Boolean))];
+  if (!normalizedLessonId) throw new Error("A lesson is required for assignment");
+
+  const lesson = await getLessonById(normalizedLessonId);
+  if (!lesson) throw new Error("Lesson not found");
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError || !authData.user?.id) throw authError || new Error("No authenticated instructor session");
+
+  const { error: deleteError } = await supabase.from("lesson_assignments").delete().eq("lesson_id", normalizedLessonId);
+  if (deleteError) throw deleteError;
+  if (normalizedStudentIds.length > 0) {
+    const { error: insertError } = await supabase.from("lesson_assignments").insert(normalizedStudentIds.map((studentId) => ({
+      lesson_id: normalizedLessonId,
+      student_id: studentId,
+      assigned_at: new Date().toISOString(),
+      status: "assigned",
+    })));
+    if (insertError) throw insertError;
+  }
+
+  const content = {
+    ...(lesson.content || {}),
+    assignedAllStudents: false,
+    assignedStudents: normalizedStudentIds,
+  };
+  const updated = await updateLesson(normalizedLessonId, {
+    student_id: normalizedStudentIds[0] || null,
+    student_token: null,
+    instructor_id: authData.user.id,
+    assigned_all_students: false,
+    content,
+    changes_summary: "Updated lesson assignments",
+  });
+  return { ...updated, assigned_student_ids: normalizedStudentIds };
 }
 
 export async function assignLessonToStudent(lessonId: string, studentId: string): Promise<LessonWithVersion> {
