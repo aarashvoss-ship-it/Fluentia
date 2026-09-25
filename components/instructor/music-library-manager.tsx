@@ -27,7 +27,7 @@ export function MusicLibraryManager() {
 
   const loadTracks = async () => {
     try {
-      const { data, error } = await supabase.from("ambient_tracks").select("*").order("sort_order").order("created_at");
+      const { data, error } = await supabase.from("ambient_tracks").select("*").order("created_at");
       if (error) {
         console.error('Supabase Error Details:', error);
         showFallbackTracks("Showing default tracks. Run migration 003 to enable shared storage.");

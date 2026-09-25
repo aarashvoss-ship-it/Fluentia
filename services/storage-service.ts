@@ -333,14 +333,9 @@ export async function fetchLessonState(slug: string, studentToken?: string): Pro
             submission = null;
           }
           try {
-            const result = await supabase.from("instructor_feedback").select("*").eq("lesson_id", lessonId).eq("student_id", studentId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
-            if (result.error) {
-              console.error('Supabase Error Details:', result.error);
-            } else {
-              feedback = result.data;
-            }
-          } catch (error) {
-            console.error('Supabase Error Details:', error);
+            const result = await supabase.from("instructor_feedback").select("*").eq("lesson_id", lessonId).eq("student_id", studentId).limit(1).maybeSingle();
+            if (!result.error) feedback = result.data;
+          } catch {
             feedback = null;
           }
           return {
