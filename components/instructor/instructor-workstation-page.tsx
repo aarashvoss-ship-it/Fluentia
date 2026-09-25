@@ -707,10 +707,11 @@ export default function InstructorWorkstationPage({
       setResourceDraft(EMPTY_RESOURCE_DRAFT);
       setAudioFile(null);
       setResourceStatus("Resource saved to the selected student.");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown save error";
+    } catch (error: any) {
+      console.error("Full Student resource save error:", error);
+      const message = error?.message || error?.error_description || (typeof error === 'object' ? JSON.stringify(error) : String(error));
       console.error("Student resource save failed:", message);
-      setResourceStatus("Resource save failed. Check the Supabase schema and try again.");
+      setResourceStatus(`Resource save failed: ${message}`);
     }
   };
 
