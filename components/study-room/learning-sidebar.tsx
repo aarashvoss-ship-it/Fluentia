@@ -36,36 +36,40 @@ interface LearningSidebarProps {
 
 function getSafeResourceHref(value?: string | null) {
   if (!value?.trim()) return null;
+  const rawUrl = value.trim();
   try {
-    const url = new URL(value.trim(), "https://fluentia.invalid");
+    const url = new URL(rawUrl, "https://fluentia.invalid");
     if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-    return url.hostname === "fluentia.invalid" ? `${url.pathname}${url.search}${url.hash}` : url.href;
+    return rawUrl;
   } catch {
     return null;
+  }
+}
+
+async function handleDownload(fileUrl: string, fileName: string) {
+  try {
+    const response = await fetch(fileUrl);
+    if (!response.ok) throw new Error(`Download request failed (${response.status})`);
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = fileName || "download";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+  } catch (error) {
+    console.error("Download failed, opening fallback link:", error);
+    window.open(fileUrl, "_blank", "noopener,noreferrer");
   }
 }
 
 async function downloadMaterial(title: string, href?: string | null, content?: string | null) {
   const filename = `${title.trim().replace(/[^a-z0-9-_]+/gi, "-").replace(/^-|-$/g, "") || "learning-material"}`;
   if (href) {
-    try {
-      const response = await fetch(href);
-      if (!response.ok) throw new Error("Download failed");
-      const objectUrl = URL.createObjectURL(await response.blob());
-      const anchor = document.createElement("a");
-      anchor.href = objectUrl;
-      anchor.download = filename;
-      anchor.click();
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-      return;
-    } catch {
-      const anchor = document.createElement("a");
-      anchor.href = href;
-      anchor.download = filename;
-      anchor.rel = "noreferrer";
-      anchor.click();
-      return;
-    }
+    await handleDownload(href, filename);
+    return;
   }
   if (content) {
     const objectUrl = URL.createObjectURL(new Blob([content], { type: "text/plain;charset=utf-8" }));
