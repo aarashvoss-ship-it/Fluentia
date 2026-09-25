@@ -660,19 +660,29 @@ export default function InstructorWorkstationPage({
         }
         audioUrl = supabase.storage.from("lesson-audio").getPublicUrl(path).data.publicUrl;
       }
-      const payload = {
-        student_id: selectedStudent.id,
-        student_token: studentToken,
-        lesson_id: resourceLessonId,
-        resource_type: resourceType,
-        title: trimmedTitle,
-        body: ["note", "quiz", "audio"].includes(resourceType) ? resourceDraft.body.trim() || null : null,
-        link_url: ["reading", "audio"].includes(resourceType) ? audioUrl || null : null,
-        question: resourceType === "flashcard" ? resourceDraft.question.trim() || null : null,
-        answer: resourceType === "flashcard" ? resourceDraft.answer.trim() || null : null,
-        explanation: resourceType === "flashcard" && resourceDraft.explanation.trim() ? resourceDraft.explanation.trim() : null,
-        updated_at: new Date().toISOString(),
-      };
+      const payload = Object.fromEntries(
+        Object.entries({
+          student_id: selectedStudent.id,
+          student_token: studentToken,
+          lesson_id: resourceLessonId,
+          resource_type: resourceType,
+          title: trimmedTitle,
+          updated_at: new Date().toISOString(),
+          ...(resourceType === "note" || resourceType === "quiz" || resourceType === "audio"
+            ? { body: resourceDraft.body.trim() || undefined }
+            : {}),
+          ...(resourceType === "reading" || resourceType === "audio"
+            ? { link_url: audioUrl || undefined }
+            : {}),
+          ...(resourceType === "flashcard"
+            ? {
+                question: resourceDraft.question.trim() || undefined,
+                answer: resourceDraft.answer.trim() || undefined,
+                explanation: resourceDraft.explanation.trim() || undefined,
+              }
+            : {}),
+        }).filter(([, value]) => value !== undefined && value !== null),
+      );
 
       const { data, error } = await supabase
         .from("student_resources")
