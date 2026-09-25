@@ -682,7 +682,9 @@ export default function InstructorWorkstationPage({
               }
             : {}),
         }).filter(([, value]) => value !== undefined && value !== null),
-      );
+      ) as Pick<StudentResourceEntry, "student_id" | "student_token" | "lesson_id" | "resource_type" | "title">
+        & Partial<Pick<StudentResourceEntry, "body" | "link_url" | "question" | "answer" | "explanation">>
+        & { updated_at: string };
 
       const { data, error } = await supabase
         .from("student_resources")
