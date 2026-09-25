@@ -766,6 +766,9 @@ export async function updateLesson(
         .update(updatePayload)
         .eq("id", id)
         .select("id");
+      if (updateError) {
+        console.error("Supabase lessons PATCH error response:", updateError);
+      }
       if (isMissingBannerColumn(updateError) || isMissingStudentColumn(updateError) || isMissingPublishedColumn(updateError)) {
         const { banner_url: _ignoredBannerUrl, student_id: _ignoredStudentId, student_token: _ignoredStudentToken, is_published: _ignoredPublished, ...compatPayload } = updatePayload;
         if (Object.keys(compatPayload).length > 0) {

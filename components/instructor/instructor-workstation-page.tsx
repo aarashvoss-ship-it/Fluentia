@@ -681,7 +681,7 @@ export default function InstructorWorkstationPage({
                 explanation: resourceDraft.explanation.trim() || undefined,
               }
             : {}),
-        }).filter(([, value]) => value !== undefined && value !== null),
+        }).filter(([, value]) => value !== undefined && value !== null && value !== ""),
       ) as Pick<StudentResourceEntry, "student_id" | "student_token" | "lesson_id" | "resource_type" | "title">
         & Partial<Pick<StudentResourceEntry, "body" | "link_url" | "question" | "answer" | "explanation">>
         & { updated_at: string };
