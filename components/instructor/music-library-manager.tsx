@@ -29,6 +29,7 @@ export function MusicLibraryManager() {
     try {
       const { data, error } = await supabase.from("ambient_tracks").select("*").order("sort_order").order("created_at");
       if (error) {
+        console.error('Supabase Error Details:', error);
         showFallbackTracks("Showing default tracks. Run migration 003 to enable shared storage.");
         return;
       }
@@ -44,7 +45,8 @@ export function MusicLibraryManager() {
         return;
       }
       setTracks(data as AmbientTrackRow[]);
-    } catch {
+    } catch (error) {
+      console.error('Supabase Error Details:', error);
       showFallbackTracks("Showing default tracks. Run migration 003 to enable shared storage.");
     }
   };
