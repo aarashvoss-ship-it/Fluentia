@@ -67,6 +67,7 @@ type StudentResourceEntry = {
   id: string;
   student_id: string;
   student_token: string;
+  lesson_id: string | null;
   resource_type: StudentResourceType;
   title: string;
   body?: string | null;
@@ -101,6 +102,7 @@ export default function InstructorWorkstationPage({
   const [accessDenied, setAccessDenied] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<StudentUser | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [resourceLessonId, setResourceLessonId] = useState<string | null>(null);
 
   const [students, setStudents] = useState<StudentUser[]>([]);
   const [studentsLoading, setStudentsLoading] = useState(true);
@@ -209,6 +211,7 @@ export default function InstructorWorkstationPage({
     saveInFlight.current = false;
     pendingAutoSave.current = false;
     setDatabaseLessonId(null);
+    setResourceLessonId(null);
     setSelectedStudentId(null);
     setSelectedStudent(null);
     setWorkstationState((previous) => ({
@@ -242,6 +245,7 @@ export default function InstructorWorkstationPage({
 
   async function handleStudentChange(student: StudentUser, requestedLessonSlug = lessonId) {
     setPublishStatus(null);
+    setResourceLessonId(null);
     const id = student?.id?.trim();
     if (!id) {
       setSelectedStudentId(null);
@@ -283,6 +287,7 @@ export default function InstructorWorkstationPage({
       setSidebarBlocksByStep({});
       setLessonResources([]);
       setDatabaseLessonId(null);
+      setResourceLessonId(null);
     }
   }
 
@@ -359,6 +364,7 @@ export default function InstructorWorkstationPage({
         : []
     );
     setDatabaseLessonId(lesson.id);
+    setResourceLessonId(lesson.id);
     setLessonStatus(lesson.status === "published" ? "published" : "draft");
     window.setTimeout(() => {
       hasLoadedLesson.current = true;
@@ -570,14 +576,14 @@ export default function InstructorWorkstationPage({
     }
   };
 
-  const loadStudentResources = async (student: StudentUser | null) => {
-    if (!student) {
+  const loadStudentResources = async (student: StudentUser | null, lessonId: string | null) => {
+    if (!student || !lessonId) {
       setStudentResources([]);
       return;
     }
     const studentToken = student.token || student.id;
     const localFallback = () => {
-      const localResources = readStudentResourcesLocally(studentToken);
+      const localResources = readStudentResourcesLocally(studentToken).filter((item) => item.lesson_id === lessonId);
       setStudentResources(localResources);
     };
 
@@ -585,7 +591,8 @@ export default function InstructorWorkstationPage({
       const { data, error } = await supabase
         .from("student_resources")
         .select("*")
-        .eq("student_id", student.id);
+        .eq("student_id", student.id)
+        .eq("lesson_id", lessonId);
       if (error) throw error;
 
       const nextResources = ((data || []) as StudentResourceEntry[]).sort((left, right) => {
@@ -604,6 +611,10 @@ export default function InstructorWorkstationPage({
   const saveStudentResource = async () => {
     if (!selectedStudent) {
       setResourceStatus("Select a student before saving a resource.");
+      return;
+    }
+    if (!resourceLessonId) {
+      setResourceStatus("Select a lesson before saving a resource.");
       return;
     }
 
@@ -652,6 +663,7 @@ export default function InstructorWorkstationPage({
       const payload = {
         student_id: selectedStudent.id,
         student_token: studentToken,
+        lesson_id: resourceLessonId,
         resource_type: resourceType,
         title: trimmedTitle,
         body: ["note", "quiz", "audio"].includes(resourceType) ? resourceDraft.body.trim() || null : null,
@@ -969,12 +981,12 @@ export default function InstructorWorkstationPage({
   }, []);
 
   useEffect(() => {
-    if (!selectedStudent) {
+    if (!selectedStudent || !resourceLessonId) {
       setStudentResources([]);
       return;
     }
-    void loadStudentResources(selectedStudent);
-  }, [selectedStudent?.id, selectedStudent?.token]);
+    void loadStudentResources(selectedStudent, resourceLessonId);
+  }, [selectedStudent?.id, selectedStudent?.token, resourceLessonId]);
 
   const flashcards = studentResources.filter((resource) => resource.resource_type === "flashcard");
 
@@ -1463,6 +1475,7 @@ export default function InstructorWorkstationPage({
                       onChange={(event) => {
                         const student = students.find((item) => item.id === event.target.value);
                         if (student) {
+                          setResourceLessonId(null);
                           setSelectedStudent(student);
                           setSelectedStudentId(student.id);
                         }
@@ -1471,6 +1484,18 @@ export default function InstructorWorkstationPage({
                     >
                       <option value="">Select a student</option>
                       {students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-2 text-[11px] font-medium uppercase tracking-[0.12em] text-stone-400">
+                    <span>Lesson</span>
+                    <select
+                      value={resourceLessonId || ""}
+                      onChange={(event) => setResourceLessonId(event.target.value || null)}
+                      disabled={createdLessons.length === 0}
+                      className="min-w-[220px] rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs font-medium normal-case tracking-normal text-white outline-none [color-scheme:dark] disabled:opacity-50"
+                    >
+                      <option value="">Select a lesson</option>
+                      {createdLessons.map((lesson) => <option key={lesson.id} value={lesson.id}>{lesson.title}</option>)}
                     </select>
                   </label>
                 </div>

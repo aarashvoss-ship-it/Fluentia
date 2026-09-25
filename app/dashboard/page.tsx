@@ -1709,6 +1709,9 @@ function DashboardContent() {
         onClose={() => setSidebarOpen(false)}
         words={savedWords}
         notes={notes}
+        studentId={activeStudent.id}
+        studentToken={token}
+        activeLessonId={nextLesson?.id}
         resource={latestReport?.studyHubPrescription}
         resources={dashboardResources}
         onSaveNote={(note) => {

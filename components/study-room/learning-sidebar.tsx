@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, BookMarked, Check, FileText, Headphones, Layers3, Library, Trash2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookMarked, Check, Download, FileText, Headphones, Layers3, Library, Trash2, X } from "lucide-react";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { supabase } from "@/lib/supabaseClient";
@@ -10,6 +10,7 @@ import { SavedVocabularyWord, StudentNote } from "@/types/lesson";
 type LearningTab = "vocab" | "notes" | "reading" | "flashcards" | "quizzes" | "audio";
 type StudentResource = {
   id: string;
+  lesson_id: string | null;
   resource_type: "note" | "reading" | "flashcard" | "quiz" | "audio";
   title: string;
   body?: string | null;
@@ -25,6 +26,7 @@ interface LearningSidebarProps {
   notes: StudentNote[];
   studentId?: string;
   studentToken?: string;
+  activeLessonId?: string;
   resource?: string;
   resources?: { id: string; title: string; url: string; type: string }[];
   onClose: () => void;
@@ -43,12 +45,55 @@ function getSafeResourceHref(value?: string | null) {
   }
 }
 
+async function downloadMaterial(title: string, href?: string | null, content?: string | null) {
+  const filename = `${title.trim().replace(/[^a-z0-9-_]+/gi, "-").replace(/^-|-$/g, "") || "learning-material"}`;
+  if (href) {
+    try {
+      const response = await fetch(href);
+      if (!response.ok) throw new Error("Download failed");
+      const objectUrl = URL.createObjectURL(await response.blob());
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = filename;
+      anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      return;
+    } catch {
+      const anchor = document.createElement("a");
+      anchor.href = href;
+      anchor.download = filename;
+      anchor.rel = "noreferrer";
+      anchor.click();
+      return;
+    }
+  }
+  if (content) {
+    const objectUrl = URL.createObjectURL(new Blob([content], { type: "text/plain;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = `${filename}.txt`;
+    anchor.click();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  }
+}
+
+function DownloadMaterialButton({ title, href, content }: { title: string; href?: string | null; content?: string | null }) {
+  if (!href && !content) return null;
+  return (
+    <button type="button" onClick={() => void downloadMaterial(title, href, content)} className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 px-2.5 py-1.5 text-[11px] font-semibold text-amber-300 transition hover:border-amber-400 hover:bg-amber-500/10">
+      <Download className="h-3.5 w-3.5" />
+      Download Material
+    </button>
+  );
+}
+
 export function LearningSidebar({
   open,
   words,
   notes,
   studentId,
   studentToken,
+  activeLessonId,
   resource,
   resources = [],
   onClose,
@@ -76,7 +121,7 @@ export function LearningSidebar({
 
   useEffect(() => {
     let cancelled = false;
-    if (!open || (!studentId && !studentToken)) {
+    if (!open || (!studentId && !studentToken) || !activeLessonId) {
       setAssignedResources([]);
       setResourcesLoading(false);
       setResourcesError(null);
@@ -88,8 +133,8 @@ export function LearningSidebar({
     const loadResources = async () => {
       const query = supabase.from("student_resources").select("*");
       const result = studentId
-        ? await query.eq("student_id", studentId).order("created_at", { ascending: false })
-        : await query.eq("student_token", studentToken!).order("created_at", { ascending: false });
+        ? await query.eq("student_id", studentId).eq("lesson_id", activeLessonId).order("created_at", { ascending: false })
+        : await query.eq("student_token", studentToken!).eq("lesson_id", activeLessonId).order("created_at", { ascending: false });
       if (cancelled) return;
       if (result.error) {
         setResourcesError("Your assigned materials could not be loaded.");
@@ -112,7 +157,7 @@ export function LearningSidebar({
     return () => {
       cancelled = true;
     };
-  }, [open, studentId, studentToken]);
+  }, [open, studentId, studentToken, activeLessonId]);
 
   const flashcards = assignedResources.filter((item) => item.resource_type === "flashcard");
   const studyCards = flashcards.length > 0
@@ -236,6 +281,7 @@ export function LearningSidebar({
                   </div>
                   <p className="mt-2 text-xs leading-relaxed text-stone-400">{word.definition}</p>
                   {word.example && <p className="mt-2 text-xs italic text-stone-500">{word.example}</p>}
+                  <div className="mt-3"><DownloadMaterialButton title={word.word} content={`${word.word}\n${word.partOfSpeech}\n${word.definition}${word.example ? `\n${word.example}` : ""}`} /></div>
                 </article>
               ))}
             </section>
@@ -245,16 +291,17 @@ export function LearningSidebar({
             <section className="space-y-5" aria-label="Instructor and personal notes">
               <div className="space-y-3">
                 <h3 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Instructor Notes</h3>
-                {resource && <MarkdownContent value={resource} className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-sm leading-relaxed text-stone-300" />}
+                {resource && <div className="space-y-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3"><MarkdownContent value={resource} className="text-sm leading-relaxed text-stone-300" /><DownloadMaterialButton title="Instructor Notes" content={resource} /></div>}
                 {noteResources.length === 0 && !resource ? <p className="text-sm text-stone-500">Your instructor has not added notes yet.</p> : noteResources.map((item) => (
                   <article key={item.id} className="rounded-lg border border-[#29303c] bg-[#0c1017] p-3">
                     <h4 className="mb-2 text-sm font-semibold text-stone-100">{item.title}</h4>
                     {item.body && <MarkdownContent value={item.body} className="text-sm leading-relaxed text-stone-300" />}
+                    <div className="mt-3"><DownloadMaterialButton title={item.title} href={getSafeResourceHref(item.link_url)} content={item.body} /></div>
                   </article>
                 ))}
               </div>
               <div className="space-y-2 border-t border-[#29303c] pt-4">
-                <h3 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-400">My Notes</h3>
+                <div className="flex items-center justify-between gap-3"><h3 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-400">My Notes</h3><DownloadMaterialButton title="My Notes" content={notes[0]?.text} /></div>
                 <textarea value={notes[0]?.text || ""} onChange={(event) => onSaveNote({ id: notes[0]?.id || "personal", text: event.target.value, updatedAt: new Date().toISOString() })} placeholder="Your personal notes auto-save as you type..." rows={8} className="w-full resize-y rounded-lg border border-[#29303c] bg-[#0c1017] p-3 text-sm leading-relaxed text-stone-200 outline-none focus:border-amber-500" />
                 <p className="text-[10px] text-stone-600">Auto-saved locally for this student.</p>
               </div>
@@ -271,15 +318,17 @@ export function LearningSidebar({
                   <h4 className="text-sm font-semibold text-stone-100">{item.title}</h4>
                   {item.body && <MarkdownContent value={item.body} className="mt-2 text-xs leading-relaxed text-stone-400" />}
                   {href ? <a href={href} target="_blank" rel="noreferrer" download className="mt-3 inline-flex items-center rounded-md border border-amber-500/30 px-3 py-2 text-xs font-semibold text-amber-300 hover:border-amber-400">Open or download</a> : item.link_url && <p className="mt-2 break-all text-xs text-stone-500">{item.link_url}</p>}
+                  <div className="mt-3"><DownloadMaterialButton title={item.title} href={href} content={item.body} /></div>
                 </article>;
               })}
               {resources.map((item) => {
                 const href = getSafeResourceHref(item.url);
                 if (!href) return null;
-                return <a key={item.id} href={href} target="_blank" rel="noreferrer" className="flex items-center justify-between gap-2 rounded-lg border border-[#202631] bg-[#0c1017] px-3 py-2.5 text-xs text-stone-300 hover:border-amber-500/40 hover:text-amber-300">
-                  <span className="min-w-0 flex-1 truncate font-medium">{item.title || item.url}</span>
+                return <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#202631] bg-[#0c1017] px-3 py-2.5 text-xs text-stone-300">
+                  <a href={href} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate font-medium hover:text-amber-300">{item.title || item.url}</a>
                   <span className="shrink-0 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-amber-400">{item.type}</span>
-                </a>;
+                  <DownloadMaterialButton title={item.title || item.type} href={href} />
+                </div>;
               })}
             </section>
           )}
@@ -324,6 +373,7 @@ export function LearningSidebar({
                   <button type="button" onClick={() => rateCard(true)} aria-label={`Mark correct, ${rightCount} correct`} className="flex h-9 min-w-14 items-center justify-center gap-1.5 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 text-xs font-semibold text-emerald-200"><Check className="h-4 w-4" /><span>{rightCount}</span></button>
                   <button type="button" onClick={() => goToCard(cardIndex + 1)} disabled={cardIndex >= studyCards.length - 1} aria-label="Next flashcard" className="flex h-9 w-9 items-center justify-center rounded-md border border-[#394252] text-stone-200 hover:border-amber-500/50 disabled:cursor-not-allowed disabled:opacity-40"><ArrowRight className="h-4 w-4" /></button>
                 </div>
+                <DownloadMaterialButton title={currentCard.question} content={`${currentCard.question}\n\n${currentCard.answer}${currentCard.explanation ? `\n\n${currentCard.explanation}` : ""}`} />
                 <p className="text-center text-[10px] text-stone-600">Space to flip · Arrow keys to navigate</p>
               </> : <p className="rounded-xl border border-dashed border-[#394252] p-6 text-center text-sm text-stone-500">Your instructor’s flashcards and saved vocabulary will appear here.</p>}
             </section>
@@ -337,6 +387,7 @@ export function LearningSidebar({
                   <h4 className="mb-2 text-sm font-semibold text-stone-100">{item.title}</h4>
                   {item.body && <MarkdownContent value={item.body} className="text-sm leading-relaxed text-stone-300" />}
                   {getSafeResourceHref(item.link_url) && <a href={getSafeResourceHref(item.link_url) || undefined} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-md border border-amber-500/30 px-3 py-2 text-xs font-semibold text-amber-300 hover:border-amber-400">Open practice</a>}
+                  <div className="mt-3"><DownloadMaterialButton title={item.title} href={getSafeResourceHref(item.link_url)} content={item.body} /></div>
                 </article>
               ))}
             </section>
@@ -351,6 +402,7 @@ export function LearningSidebar({
                   <h4 className="text-sm font-semibold text-stone-100">{item.title}</h4>
                   {audioHref ? <CustomAudioPlayer src={audioHref} label={item.title} /> : <p className="text-xs text-stone-500">Audio file is not available.</p>}
                   {item.body && <MarkdownContent value={item.body} className="text-xs leading-relaxed text-stone-400" />}
+                  <DownloadMaterialButton title={item.title} href={audioHref} content={item.body} />
                 </article>;
               })}
             </section>
