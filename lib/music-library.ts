@@ -6,7 +6,7 @@ export async function getAmbientTracks(): Promise<LessonAudioTrack[]> {
   try {
     const { data, error } = await supabase
       .from("ambient_tracks")
-      .select("id, title, url, sort_order, is_active")
+      .select("*")
       .eq("is_active", true)
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true });

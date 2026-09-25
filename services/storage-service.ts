@@ -333,7 +333,7 @@ export async function fetchLessonState(slug: string, studentToken?: string): Pro
             submission = null;
           }
           try {
-            const result = await supabase.from("instructor_feedback").select("scores,comments,strengths,areas_to_improve,study_hub_prescription,voice_feedback_url,is_published,updated_at").eq("lesson_id", lessonId).eq("student_id", studentId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+            const result = await supabase.from("instructor_feedback").select("*").eq("lesson_id", lessonId).eq("student_id", studentId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
             if (!result.error) feedback = result.data;
           } catch {
             feedback = null;
