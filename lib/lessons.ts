@@ -283,12 +283,24 @@ export async function getLessons(): Promise<LessonWithVersion[]> {
     if (error) throw error;
 
     const lessonIds = (lessons || []).map((lesson) => lesson.id);
-    const { data: assignments, error: assignmentError } = lessonIds.length > 0
-      ? await supabase.from("lesson_assignments").select("lesson_id, student_id").in("lesson_id", lessonIds).eq("status", "assigned")
+    let assignmentResult = lessonIds.length > 0
+      ? await supabase.from("lesson_assignments").select("lesson_id, student_id, assigned_at").in("lesson_id", lessonIds).eq("status", "assigned")
       : { data: [], error: null };
-    if (assignmentError) throw assignmentError;
+    const assignmentError = assignmentResult.error;
+    const missingStatusColumn = Boolean(
+      assignmentError
+      && (assignmentError.code === "42703" || assignmentError.code === "PGRST204")
+      && /status/i.test(assignmentError.message || ""),
+    );
+    if (missingStatusColumn && lessonIds.length > 0) {
+      assignmentResult = await supabase
+        .from("lesson_assignments")
+        .select("lesson_id, student_id, assigned_at")
+        .in("lesson_id", lessonIds);
+    }
+    if (assignmentResult.error) throw assignmentResult.error;
     const assignmentsByLesson = new Map<string, string[]>();
-    for (const assignment of assignments || []) {
+    for (const assignment of assignmentResult.data || []) {
       const current = assignmentsByLesson.get(assignment.lesson_id) || [];
       current.push(assignment.student_id);
       assignmentsByLesson.set(assignment.lesson_id, current);
