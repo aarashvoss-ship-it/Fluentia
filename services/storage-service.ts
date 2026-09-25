@@ -321,9 +321,15 @@ export async function fetchLessonState(slug: string, studentToken?: string): Pro
       const lesson = await fetchStudentLesson(slug, studentToken);
       if (lesson) {
         const resolvedStudentId = await getStudentId() || lesson.student_id;
-        if (resolvedStudentId) {
-          const { data: submission } = await supabase.from("submissions").select("*").eq("lesson_id", lesson.id).eq("student_id", resolvedStudentId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
-          const { data: feedback } = await supabase.from("instructor_feedback").select("*").eq("lesson_id", lesson.id).eq("student_id", resolvedStudentId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+        const lessonId = typeof lesson.id === "string" ? lesson.id.trim() : "";
+        const studentId = typeof resolvedStudentId === "string" ? resolvedStudentId.trim() : "";
+        if (UUID_PATTERN.test(lessonId) && UUID_PATTERN.test(studentId)) {
+          const submissionResult = await supabase.from("submissions").select("*").eq("lesson_id", lessonId).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
+          if (submissionResult.error) console.warn("Unable to load lesson submission:", submissionResult.error);
+          const feedbackResult = await supabase.from("instructor_feedback").select("*").eq("lesson_id", lessonId).eq("student_id", studentId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+          if (feedbackResult.error) console.warn("Unable to load instructor feedback:", feedbackResult.error);
+          const { data: submission } = submissionResult;
+          const { data: feedback } = feedbackResult;
           return {
             content: lesson.content || defaultContent(),
             bannerUrl: lesson.coverImage || "",
@@ -349,7 +355,8 @@ export async function fetchStudentProgress(slug: string, studentToken?: string):
       const studentId = await getStudentId();
       const lesson = studentId ? await fetchStudentLesson(slug, studentId) : null;
       if (lesson && studentId) { // has lesson + student -> save to Supabase
-        const { data } = await supabase.from("submissions").select("answers,status,submitted_at").eq("lesson_id", lesson.id).eq("student_id", studentId).maybeSingle();
+        const { data, error } = await supabase.from("submissions").select("answers,status,submitted_at").eq("lesson_id", lesson.id).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
+        if (error) console.warn("Unable to load student progress submission:", error);
         const progress = data?.answers?.progress;
         if (progress) return { currentStep: progress.currentStep || "warm_up", completedSteps: progress.completedSteps || [], completed: Boolean(progress.completed), status: data.status || progress.status || "not_started", updatedAt: data.submitted_at || new Date(0).toISOString() };
       }
@@ -384,7 +391,8 @@ export async function saveStudentProgress(
       const studentId = await getStudentId();
       const lesson = studentId ? await fetchStudentLesson(slug, studentId) : null;
       if (lesson && studentId) {
-        const { data: existingSubmission } = await supabase.from("submissions").select("id,answers").eq("lesson_id", lesson.id).eq("student_id", studentId).maybeSingle();
+        const { data: existingSubmission, error: lookupError } = await supabase.from("submissions").select("id,answers").eq("lesson_id", lesson.id).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
+        if (lookupError) throw lookupError;
         const answers = { ...(existingSubmission?.answers || {}), progress: { currentStep: updated.currentStep, completedSteps: updated.completedSteps, status: updated.status } };
         const { error } = existingSubmission
           ? await supabase.from("submissions").update({ answers, status: updated.status, submitted_at: updated.updatedAt }).eq("id", existingSubmission.id)
@@ -435,7 +443,7 @@ export async function submitStudentLesson(
       const authenticatedStudentId = await getStudentId();
       const studentId = authenticatedStudentId || lesson?.student_id;
       if (lesson && studentId) {
-        const { data: existingSubmission, error: lookupError } = await supabase.from("submissions").select("id").eq("lesson_id", lesson.id).eq("student_id", studentId).maybeSingle();
+        const { data: existingSubmission, error: lookupError } = await supabase.from("submissions").select("id").eq("lesson_id", lesson.id).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
         if (lookupError) throw lookupError;
         const submissionPayload = { answers: submission, status: submission.status, submitted_at: submission.submittedAt || new Date().toISOString() };
         const { error } = existingSubmission

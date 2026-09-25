@@ -3,14 +3,18 @@ import { DEFAULT_LESSON_AUDIO_TRACKS, type LessonAudioTrack } from "@/lib/musicT
 
 export async function getAmbientTracks(): Promise<LessonAudioTrack[]> {
   if (!isSupabaseConfigured()) return DEFAULT_LESSON_AUDIO_TRACKS;
-  const { data, error } = await supabase
-    .from("ambient_tracks")
-    .select("id, title, url, sort_order, is_active")
-    .eq("is_active", true)
-    .order("sort_order", { ascending: true })
-    .order("created_at", { ascending: true });
-  if (error || !data || data.length === 0) return DEFAULT_LESSON_AUDIO_TRACKS;
-  return (data as AmbientTrackRow[]).map(({ title, url }) => ({ title, url }));
+  try {
+    const { data, error } = await supabase
+      .from("ambient_tracks")
+      .select("id, title, url, sort_order, is_active")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true });
+    if (error || !data || data.length === 0) return DEFAULT_LESSON_AUDIO_TRACKS;
+    return (data as AmbientTrackRow[]).map(({ title, url }) => ({ title, url }));
+  } catch {
+    return DEFAULT_LESSON_AUDIO_TRACKS;
+  }
 }
 
 export async function createAmbientTrack(title: string, url: string): Promise<AmbientTrackRow> {
