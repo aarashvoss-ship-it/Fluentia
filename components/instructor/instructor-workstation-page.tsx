@@ -709,7 +709,20 @@ export default function InstructorWorkstationPage({
       setResourceStatus("Resource saved to the selected student.");
     } catch (error: any) {
       console.error("Full Student resource save error:", error);
-      const message = error?.message || error?.error_description || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+      const errorObject = error && typeof error === "object" ? error as Record<string, unknown> : null;
+      let serializedError = "";
+      if (errorObject) {
+        try {
+          serializedError = JSON.stringify(errorObject) || "";
+        } catch {
+          serializedError = "";
+        }
+      }
+      const fallbackMessage = errorObject ? "Unknown Supabase error" : String(error || "Unknown save error");
+      const message =
+        (typeof errorObject?.message === "string" && errorObject.message) ||
+        (typeof errorObject?.error_description === "string" && errorObject.error_description) ||
+        (serializedError && serializedError !== "{}" ? serializedError : fallbackMessage);
       console.error("Student resource save failed:", message);
       setResourceStatus(`Resource save failed: ${message}`);
     }
