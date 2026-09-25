@@ -62,6 +62,31 @@ function cloneSidebarBlocksByStep(blocks: SidebarBlocksByStep): SidebarBlocksByS
 }
 
 type LessonResource = { id: string; title: string; url: string; type: "PDF" | "Article" | "Video" };
+type StudentResourceType = "note" | "reading" | "flashcard" | "quiz";
+type StudentResourceEntry = {
+  id: string;
+  student_id: string;
+  student_token: string;
+  resource_type: StudentResourceType;
+  title: string;
+  body?: string | null;
+  link_url?: string | null;
+  question?: string | null;
+  answer?: string | null;
+  explanation?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+const EMPTY_RESOURCE_DRAFT = {
+  type: "note" as StudentResourceType,
+  title: "",
+  body: "",
+  linkUrl: "",
+  question: "",
+  answer: "",
+  explanation: "",
+};
 
 export default function InstructorWorkstationPage({
   instructorId,
@@ -87,7 +112,7 @@ export default function InstructorWorkstationPage({
   const [publishedLessonCount, setPublishedLessonCount] = useState(0);
   const [draftLessonCount, setDraftLessonCount] = useState(0);
   const [lessonStatus, setLessonStatus] = useState<"draft" | "published">("published");
-  const [activeTab, setActiveTab] = useState<"dashboard" | "library" | "builder" | "evaluation" | "music">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "library" | "resources" | "builder" | "evaluation" | "music">("dashboard");
   const [librarySearch, setLibrarySearch] = useState("");
   const [libraryLevel, setLibraryLevel] = useState("all");
   const [libraryDomain, setLibraryDomain] = useState("all");
@@ -99,6 +124,14 @@ export default function InstructorWorkstationPage({
   const [sidebarStep, setSidebarStep] = useState<keyof SidebarBlocksByStep>("warm_up");
   const [sidebarBlocksByStep, setSidebarBlocksByStep] = useState<SidebarBlocksByStep>({});
   const [lessonResources, setLessonResources] = useState<LessonResource[]>([]);
+  const [studentResources, setStudentResources] = useState<StudentResourceEntry[]>([]);
+  const [resourceDraft, setResourceDraft] = useState(EMPTY_RESOURCE_DRAFT);
+  const [resourceStatus, setResourceStatus] = useState<string | null>(null);
+  const [flashcardIndex, setFlashcardIndex] = useState(0);
+  const [flashcardFlipped, setFlashcardFlipped] = useState(false);
+  const [showFlashcardExplanation, setShowFlashcardExplanation] = useState(false);
+  const [wrongCount, setWrongCount] = useState(0);
+  const [rightCount, setRightCount] = useState(0);
 
   const [workstationState, setWorkstationState] = useState<{
     content: StrictStepContent;
@@ -514,6 +547,163 @@ export default function InstructorWorkstationPage({
     }
   };
 
+  const localStudentResourcesKey = (studentToken: string) => `fluentia:student-resources:${studentToken}`;
+
+  const readStudentResourcesLocally = (studentToken: string): StudentResourceEntry[] => {
+    if (typeof window === "undefined") return [];
+    try {
+      const raw = window.localStorage.getItem(localStudentResourcesKey(studentToken));
+      return raw ? (JSON.parse(raw) as StudentResourceEntry[]) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const writeStudentResourcesLocally = (studentToken: string, resources: StudentResourceEntry[]) => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(localStudentResourcesKey(studentToken), JSON.stringify(resources));
+    } catch {
+      // Ignore local storage quota issues.
+    }
+  };
+
+  const loadStudentResources = async (student: StudentUser | null) => {
+    if (!student) {
+      setStudentResources([]);
+      return;
+    }
+    const studentToken = student.token || student.id;
+    const localFallback = () => {
+      const localResources = readStudentResourcesLocally(studentToken);
+      setStudentResources(localResources);
+    };
+
+    try {
+      const { data, error } = await supabase
+        .from("student_resources")
+        .select("*")
+        .eq("student_id", student.id);
+      if (error) throw error;
+
+      const nextResources = ((data || []) as StudentResourceEntry[]).sort((left, right) => {
+        const leftTime = left.created_at ? new Date(left.created_at).getTime() : 0;
+        const rightTime = right.created_at ? new Date(right.created_at).getTime() : 0;
+        return rightTime - leftTime;
+      });
+      setStudentResources(nextResources);
+      writeStudentResourcesLocally(studentToken, nextResources);
+    } catch (error) {
+      console.warn("Student resources unavailable; using local fallback:", error);
+      localFallback();
+    }
+  };
+
+  const saveStudentResource = async () => {
+    if (!selectedStudent) {
+      setResourceStatus("Select a student before saving a resource.");
+      return;
+    }
+
+    const trimmedTitle = resourceDraft.title.trim();
+    if (!trimmedTitle) {
+      setResourceStatus("Add a title before saving this resource.");
+      return;
+    }
+    const resourceType = resourceDraft.type;
+
+    if (resourceType === "flashcard" && (!resourceDraft.question.trim() || !resourceDraft.answer.trim())) {
+      setResourceStatus("Flashcards need both a question and an answer.");
+      return;
+    }
+
+    if (resourceType === "reading" && !resourceDraft.linkUrl.trim() && !resourceDraft.body.trim()) {
+      setResourceStatus("Add a link or reading notes for this resource.");
+      return;
+    }
+
+    const studentToken = selectedStudent.token || selectedStudent.id;
+    const payload = {
+      student_id: selectedStudent.id,
+      student_token: studentToken,
+      resource_type: resourceType,
+      title: trimmedTitle,
+      body: ["note", "quiz"].includes(resourceType) ? resourceDraft.body.trim() || null : null,
+      link_url: resourceType === "reading" ? resourceDraft.linkUrl.trim() || null : null,
+      question: resourceType === "flashcard" ? resourceDraft.question.trim() || null : null,
+      answer: resourceType === "flashcard" ? resourceDraft.answer.trim() || null : null,
+      explanation: resourceType === "flashcard" && resourceDraft.explanation.trim() ? resourceDraft.explanation.trim() : null,
+      updated_at: new Date().toISOString(),
+    };
+
+    try {
+      const { data, error } = await supabase
+        .from("student_resources")
+        .insert(payload)
+        .select()
+        .single();
+
+      if (error) {
+        if (error.code === "PGRST205" || /does not exist|42P01/i.test(error.message || "")) {
+          const localEntry: StudentResourceEntry = {
+            id: `local-${Date.now()}`,
+            ...payload,
+            created_at: new Date().toISOString(),
+          };
+          const next = [localEntry, ...readStudentResourcesLocally(studentToken)];
+          setStudentResources(next);
+          writeStudentResourcesLocally(studentToken, next);
+          setResourceDraft(EMPTY_RESOURCE_DRAFT);
+          setResourceStatus("Resource saved locally because the student_resources table is not available yet.");
+          return;
+        }
+        throw error;
+      }
+
+      const next = [
+        { ...payload, ...data, created_at: data?.created_at || new Date().toISOString(), updated_at: data?.updated_at || new Date().toISOString() },
+        ...studentResources,
+      ];
+      setStudentResources(next);
+      writeStudentResourcesLocally(studentToken, next);
+      setResourceDraft(EMPTY_RESOURCE_DRAFT);
+      setResourceStatus("Resource saved to the selected student.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown save error";
+      console.error("Student resource save failed:", message);
+      setResourceStatus("Resource save failed. Check the Supabase schema and try again.");
+    }
+  };
+
+  const deleteStudentResource = async (resource: StudentResourceEntry) => {
+    if (!selectedStudent) return;
+    const studentToken = selectedStudent.token || selectedStudent.id;
+
+    if (resource.id.startsWith("local-")) {
+      const next = studentResources.filter((item) => item.id !== resource.id);
+      setStudentResources(next);
+      writeStudentResourcesLocally(studentToken, next);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("student_resources")
+      .delete()
+      .eq("id", resource.id)
+      .eq("student_id", selectedStudent.id);
+
+    if (error) {
+      console.error("Student resource delete failed:", error.message);
+      setResourceStatus("Resource could not be deleted. Check the Supabase permissions and try again.");
+      return;
+    }
+
+    const next = studentResources.filter((item) => item.id !== resource.id);
+    setStudentResources(next);
+    writeStudentResourcesLocally(studentToken, next);
+    setResourceStatus("Resource deleted.");
+  };
+
   const handleAssignmentChange = async (lesson: LessonWithVersion, value: string) => {
     if (value === "__all_active__") {
       await handleAssignAllStudents(lesson);
@@ -750,6 +940,44 @@ export default function InstructorWorkstationPage({
       window.removeEventListener("fluentia:lesson-updated", refreshCounts);
     };
   }, []);
+
+  useEffect(() => {
+    if (!selectedStudent) {
+      setStudentResources([]);
+      return;
+    }
+    void loadStudentResources(selectedStudent);
+  }, [selectedStudent?.id, selectedStudent?.token]);
+
+  const flashcards = studentResources.filter((resource) => resource.resource_type === "flashcard");
+
+  useEffect(() => {
+    if (activeTab !== "resources" || flashcards.length === 0) return;
+    const updateIndex = (nextIndex: number) => {
+      setFlashcardIndex(Math.max(0, Math.min(nextIndex, flashcards.length - 1)));
+      setFlashcardFlipped(false);
+      setShowFlashcardExplanation(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
+      if (event.code === "Space") {
+        event.preventDefault();
+        setFlashcardFlipped((current) => !current);
+        return;
+      }
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        updateIndex(flashcardIndex + 1);
+      }
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        updateIndex(flashcardIndex - 1);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeTab, flashcards.length, flashcardIndex]);
 
   const clearValidationError = (field: keyof typeof validationErrors) => {
     setValidationErrors((previous) => {
@@ -1068,6 +1296,7 @@ export default function InstructorWorkstationPage({
           <div className="flex items-center justify-between gap-4 overflow-x-auto">
             <div className="flex shrink-0 gap-1">
               {([["dashboard", "Dashboard"], ["library", "Lesson Library"], ["builder", "Lesson Builder"], ["evaluation", "Student Evaluation"], ["music", "Music Library"]] as const).map(([tab, label]) => <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`whitespace-nowrap border-b-2 px-4 py-3 text-xs font-semibold transition ${activeTab === tab ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}>{label}</button>)}
+              <button type="button" onClick={() => setActiveTab("resources")} className={`whitespace-nowrap border-b-2 px-4 py-3 text-xs font-semibold transition ${activeTab === "resources" ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}>Resources</button>
             </div>
             <label className="flex w-64 max-w-[240px] shrink-0 items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400">
               <span className="sr-only">Active student</span>
@@ -1169,7 +1398,7 @@ export default function InstructorWorkstationPage({
                 </tbody>
               </table>
             </div>
-          </section>
+          </section>}
         </section>}
 
         {activeTab === "library" && <section className="space-y-5" aria-labelledby="lesson-library-title">
@@ -1188,6 +1417,298 @@ export default function InstructorWorkstationPage({
           {libraryView === "grid" ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{filteredLibraryLessons.map((lesson) => { const metadata = getLessonMetadata(lesson); const assignedIds = getAssignedStudentIds(lesson); return <article key={lesson.id} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 transition hover:border-amber-500/50"><div className="flex items-start justify-between gap-3"><button type="button" onClick={() => handleEditLesson(lesson)} className="min-w-0 text-left"><h3 className="truncate font-semibold text-stone-100">{lesson.title}</h3><p className="mt-1 line-clamp-2 text-xs leading-relaxed text-stone-500">{metadata.subtitle}</p></button><span className={`shrink-0 rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase ${lesson.status === "published" ? "border-emerald-500/30 text-emerald-300" : "border-amber-500/30 text-amber-300"}`}>{lesson.status}</span></div><div className="mt-4 flex flex-wrap gap-1.5"><span className="rounded-full bg-amber-500/15 px-2 py-1 text-[10px] text-amber-300">{metadata.level}</span><span className="rounded-full bg-sky-500/15 px-2 py-1 text-[10px] text-sky-300">{metadata.domain}</span><span className="rounded-full bg-stone-500/15 px-2 py-1 text-[10px] text-stone-300">{metadata.theme}</span><span className="rounded-full bg-emerald-500/15 px-2 py-1 text-[10px] text-emerald-300">{metadata.skillFocus}</span></div><div className="relative mt-5 border-t border-[#202631] pt-4" onClick={(event) => event.stopPropagation()}><div className="flex items-center justify-between gap-2"><div className="flex min-w-0 flex-wrap gap-1">{assignedIds.length === 0 ? <span className="text-xs text-stone-500">No students assigned</span> : assignedIds.map((id) => { const student = students.find((item) => item.id === id); return <span key={id} title={student?.name || id} className="flex h-7 w-7 items-center justify-center rounded-full border border-amber-500/40 bg-amber-500/10 text-[10px] font-semibold text-amber-200">{(student?.name || id).slice(0, 2).toUpperCase()}</span>; })}</div><button type="button" onClick={() => setAssignmentEditorLessonId((current) => current === lesson.id ? null : lesson.id)} className="rounded-md border border-amber-500/40 px-2.5 py-1.5 text-[11px] font-semibold text-amber-300">Assign</button></div>{assignmentEditorLessonId === lesson.id && <div className="absolute left-0 right-0 top-full z-30 mt-2 rounded-lg border border-[#394252] bg-[#171d28] p-3 shadow-xl"><p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Assign students</p>{students.map((student) => <label key={student.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs text-stone-300 hover:bg-[#202631]"><input type="checkbox" checked={assignedIds.includes(student.id)} onChange={() => void handleAssignmentToggle(lesson, student.id)} className="accent-amber-500" /><span className="min-w-0 flex-1 truncate">{student.name}</span>{assignedIds.includes(student.id) && <Check className="h-3.5 w-3.5 text-amber-400" />}</label>)}<button type="button" onClick={() => setAssignmentEditorLessonId(null)} className="mt-2 w-full rounded border border-[#394252] px-2 py-1.5 text-[11px] text-stone-400">Done</button></div>}</div><div className="mt-4 flex items-center justify-between"><span className="text-[11px] text-stone-500">Module {lesson.content?.moduleNumber || lesson.module_number || 1}</span><button type="button" onClick={() => handleEditLesson(lesson)} className="text-xs font-semibold text-amber-300 hover:text-amber-200">Edit / Continue</button></div></article>; })}</div> : <div className="overflow-x-auto rounded-xl border border-[#202631] bg-[#171d28]/60"><table className="min-w-[900px] w-full text-left text-xs"><thead className="border-b border-[#202631] bg-[#0c1017] text-[10px] uppercase tracking-[0.12em] text-stone-500"><tr><th className="px-5 py-3">Lesson</th><th className="px-4 py-3">Metadata</th><th className="px-4 py-3">Assigned students</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Action</th></tr></thead><tbody className="divide-y divide-[#202631]">{filteredLibraryLessons.map((lesson) => { const metadata = getLessonMetadata(lesson); return <tr key={lesson.id} className="text-stone-300 hover:bg-[#202631]/30"><td className="px-5 py-4"><button type="button" onClick={() => handleEditLesson(lesson)} className="text-left"><p className="font-semibold text-stone-100">{lesson.title}</p><p className="mt-1 text-[11px] text-stone-500">{metadata.subtitle}</p></button></td><td className="px-4 py-4"><div className="flex max-w-xs flex-wrap gap-1"><span className="rounded bg-amber-500/15 px-1.5 py-1 text-[10px] text-amber-300">{metadata.level}</span><span className="rounded bg-sky-500/15 px-1.5 py-1 text-[10px] text-sky-300">{metadata.domain}</span><span className="rounded bg-stone-500/15 px-1.5 py-1 text-[10px] text-stone-300">{metadata.theme}</span><span className="rounded bg-emerald-500/15 px-1.5 py-1 text-[10px] text-emerald-300">{metadata.skillFocus}</span></div></td><td className="px-4 py-4">{renderAssignedStudents(lesson)}</td><td className="px-4 py-4 capitalize">{lesson.status}</td><td className="px-4 py-4 text-right"><button type="button" onClick={() => handleEditLesson(lesson)} className="text-xs font-semibold text-amber-300">Edit</button></td></tr>; })}</tbody></table></div>}
           {filteredLibraryLessons.length === 0 && <div className="rounded-xl border border-dashed border-[#394252] p-10 text-center text-sm text-stone-500">No lessons match these filters.</div>}
         </section>}
+
+        {activeTab === "resources" && (() => {
+          const flashcards = studentResources.filter((resource) => resource.resource_type === "flashcard");
+          const currentFlashcard = flashcards[flashcardIndex] || null;
+          return (
+            <section className="space-y-6" aria-label="Student resources panel">
+              <div className="rounded-2xl border border-[#202631] bg-[#171d28]/60 p-5">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Student Materials</p>
+                    <h2 className="mt-1 font-sans text-2xl font-semibold text-stone-100">Resources</h2>
+                  </div>
+                  <label className="flex flex-col gap-2 text-[11px] font-medium uppercase tracking-[0.12em] text-stone-400">
+                    <span>Student</span>
+                    <select
+                      value={selectedStudentId || ""}
+                      onChange={(event) => {
+                        const student = students.find((item) => item.id === event.target.value);
+                        if (student) {
+                          setSelectedStudent(student);
+                          setSelectedStudentId(student.id);
+                        }
+                      }}
+                      className="min-w-[220px] rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs font-medium normal-case tracking-normal text-white outline-none [color-scheme:dark]"
+                    >
+                      <option value="">Select a student</option>
+                      {students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <div className="grid gap-6 xl:grid-cols-[1.1fr_1.4fr]">
+                <div className="rounded-2xl border border-[#202631] bg-[#171d28]/60 p-5">
+                  <div className="mb-4 flex flex-wrap gap-2">
+                    {([['note', 'Notes'], ['reading', 'Reading'], ['flashcard', 'Flashcards'], ['quiz', 'Quiz']] as const).map(([type, label]) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setResourceDraft((previous) => ({ ...previous, type }))}
+                        className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold transition ${resourceDraft.type === type ? 'border-amber-500 bg-amber-500/10 text-amber-300' : 'border-[#394252] text-stone-400 hover:text-stone-200'}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="block text-xs text-stone-400">
+                      Title
+                      <input
+                        value={resourceDraft.title}
+                        onChange={(event) => setResourceDraft((previous) => ({ ...previous, title: event.target.value }))}
+                        placeholder="Vocabulary set / reading summary / quiz idea"
+                        className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                      />
+                    </label>
+
+                    {resourceDraft.type === "reading" && (
+                      <label className="block text-xs text-stone-400">
+                        Reading link or file
+                        <input
+                          value={resourceDraft.linkUrl}
+                          onChange={(event) => setResourceDraft((previous) => ({ ...previous, linkUrl: event.target.value }))}
+                          placeholder="https://… or PDF file name"
+                          className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                        />
+                      </label>
+                    )}
+
+                    {(resourceDraft.type === "note" || resourceDraft.type === "quiz") && (
+                      <label className="block text-xs text-stone-400">
+                        {resourceDraft.type === "quiz" ? "Practice prompt" : "Notes"}
+                        <textarea
+                          value={resourceDraft.body}
+                          onChange={(event) => setResourceDraft((previous) => ({ ...previous, body: event.target.value }))}
+                          rows={5}
+                          placeholder={resourceDraft.type === "quiz" ? "Write a practice exercise or prompt for the student." : "Add the material notes the student should review."}
+                          className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                        />
+                      </label>
+                    )}
+
+                    {resourceDraft.type === "flashcard" && (
+                      <>
+                        <label className="block text-xs text-stone-400">
+                          Front / Question
+                          <textarea
+                            value={resourceDraft.question}
+                            onChange={(event) => setResourceDraft((previous) => ({ ...previous, question: event.target.value }))}
+                            rows={3}
+                            placeholder="What is the term for … ?"
+                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                          />
+                        </label>
+                        <label className="block text-xs text-stone-400">
+                          Back / Answer
+                          <textarea
+                            value={resourceDraft.answer}
+                            onChange={(event) => setResourceDraft((previous) => ({ ...previous, answer: event.target.value }))}
+                            rows={3}
+                            placeholder="A clear, student-friendly definition or explanation."
+                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                          />
+                        </label>
+                        <label className="block text-xs text-stone-400">
+                          Optional explanation
+                          <textarea
+                            value={resourceDraft.explanation}
+                            onChange={(event) => setResourceDraft((previous) => ({ ...previous, explanation: event.target.value }))}
+                            rows={3}
+                            placeholder="Optional AI-friendly nuance or extra context."
+                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                          />
+                        </label>
+                      </>
+                    )}
+
+                    <button type="button" onClick={() => void saveStudentResource()} className="w-full rounded-md bg-amber-500 px-4 py-2.5 text-xs font-semibold text-slate-950 transition hover:bg-amber-400">
+                      Save resource
+                    </button>
+                    {resourceStatus && <p role="status" className="text-xs leading-relaxed text-amber-300">{resourceStatus}</p>}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-[#202631] bg-[#0b1018] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Study Deck</p>
+                      <h3 className="mt-1 font-sans text-xl font-semibold text-stone-100">Flashcards</h3>
+                    </div>
+                    <span className="rounded-full border border-[#394252] bg-[#171d28] px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-stone-300">
+                      {flashcards.length} cards
+                    </span>
+                  </div>
+
+                  {currentFlashcard ? (
+                    <>
+                      <div className="relative h-[360px] w-full [perspective:1800px]">
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setFlashcardFlipped((current) => !current)}
+                          onKeyDown={(event) => {
+                            if (event.target !== event.currentTarget || !["Enter", " "].includes(event.key)) return;
+                            event.preventDefault();
+                            setFlashcardFlipped((current) => !current);
+                          }}
+                          className={`relative h-full w-full rounded-2xl border border-[#2b3342] bg-[#10181f] p-6 text-left shadow-[0_24px_60px_rgba(0,0,0,0.45)] transition-transform duration-700 [transform-style:preserve-3d] ${flashcardFlipped ? "[transform:rotateY(180deg)]" : ""}`}
+                        >
+                          <div className="absolute inset-0 flex flex-col justify-between rounded-2xl p-5 [backface-visibility:hidden]">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-300">{flashcardIndex + 1} / {flashcards.length}</span>
+                              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-200">Term</span>
+                            </div>
+                            <div className="flex-1 pt-8">
+                              <p className="text-2xl font-semibold leading-snug text-stone-100">{currentFlashcard.question || currentFlashcard.title}</p>
+                            </div>
+                            <div className="flex justify-center">
+                              <span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px] font-semibold text-stone-300">See answer</span>
+                            </div>
+                          </div>
+
+                          <div className="absolute inset-0 flex flex-col justify-between rounded-2xl p-5 [backface-visibility:hidden] [transform:rotateY(180deg)]">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300">Answer</span>
+                              <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-200">Key idea</span>
+                            </div>
+                            <div className="flex-1 pt-8">
+                              <p className="text-xl font-medium leading-relaxed text-stone-100">{currentFlashcard.answer || "No answer yet."}</p>
+                              {currentFlashcard.explanation && (
+                                <div className="mt-5">
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setShowFlashcardExplanation((value) => !value);
+                                    }}
+                                    className="rounded-full border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-200"
+                                  >
+                                    {showFlashcardExplanation ? "Hide explain" : "Explain"}
+                                  </button>
+                                  {showFlashcardExplanation && <p className="mt-3 text-sm leading-relaxed text-stone-300">{currentFlashcard.explanation}</p>}
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-stone-400">Press Space to flip, ← / → to navigate</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-[#202631] bg-[#0f141b] px-3 py-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFlashcardIndex((current) => Math.max(0, current - 1));
+                            setFlashcardFlipped(false);
+                            setShowFlashcardExplanation(false);
+                          }}
+                          disabled={flashcardIndex === 0}
+                          className="rounded-md border border-[#394252] px-3 py-2 text-xs font-semibold text-stone-200 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          ←
+                        </button>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setWrongCount((count) => count + 1);
+                              setFlashcardIndex((current) => Math.min(current + 1, flashcards.length - 1));
+                              setFlashcardFlipped(false);
+                              setShowFlashcardExplanation(false);
+                            }}
+                            className="flex items-center gap-2 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-200"
+                          >
+                            <span>✕</span>
+                            <span>{wrongCount}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRightCount((count) => count + 1);
+                              setFlashcardIndex((current) => Math.min(current + 1, flashcards.length - 1));
+                              setFlashcardFlipped(false);
+                              setShowFlashcardExplanation(false);
+                            }}
+                            className="flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-200"
+                          >
+                            <span>✓</span>
+                            <span>{rightCount}</span>
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFlashcardIndex((current) => Math.min(current + 1, flashcards.length - 1));
+                            setFlashcardFlipped(false);
+                            setShowFlashcardExplanation(false);
+                          }}
+                          disabled={flashcardIndex >= flashcards.length - 1}
+                          className="rounded-md border border-[#394252] px-3 py-2 text-xs font-semibold text-stone-200 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          →
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-[#394252] bg-[#10181f] p-10 text-center text-sm text-stone-500">
+                      Add one or more flashcards to turn this deck on.
+                    </div>
+                  )}
+
+                  <div className="mt-5 space-y-3">
+                    {studentResources.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-[#394252] bg-[#10181f] p-6 text-center text-sm text-stone-500">
+                        No student resources yet for this student.
+                      </div>
+                    ) : (
+                      studentResources.map((resource) => (
+                        <div key={resource.id} className="rounded-xl border border-[#202631] bg-[#10181f] p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">{resource.resource_type}</p>
+                              <h4 className="mt-1 font-semibold text-stone-100">{resource.title}</h4>
+                            </div>
+                            <button type="button" onClick={() => void deleteStudentResource(resource)} className="text-stone-500 hover:text-red-300" aria-label={`Delete ${resource.title}`}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                          {resource.resource_type === "flashcard" && (
+                            <div className="mt-3 space-y-2 text-sm text-stone-300">
+                              <p><span className="font-semibold text-stone-100">Q:</span> {resource.question || "No question"}</p>
+                              <p><span className="font-semibold text-stone-100">A:</span> {resource.answer || "No answer"}</p>
+                              {resource.explanation && <p className="text-stone-400">{resource.explanation}</p>}
+                            </div>
+                          )}
+                          {resource.resource_type === "reading" && resource.link_url && (
+                            <a href={resource.link_url} target="_blank" rel="noreferrer" className="mt-3 block truncate text-sm text-sky-300 underline">{resource.link_url}</a>
+                          )}
+                          {resource.resource_type === "note" && resource.body && <p className="mt-3 text-sm leading-relaxed text-stone-300">{resource.body}</p>}
+                          {resource.resource_type === "quiz" && resource.body && <p className="mt-3 text-sm leading-relaxed text-stone-300">{resource.body}</p>}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </section>
+          );
+        })()}
 
         {activeTab === "music" && <MusicLibraryManager />}
 
