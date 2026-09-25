@@ -299,7 +299,7 @@ export async function getLessons(): Promise<LessonWithVersion[]> {
       return { ...lesson, current_version: version || undefined, content: version?.content, assigned_student_ids: assignmentsByLesson.get(lesson.id) || [] };
     }));
   } catch (error) {
-    console.error("Error fetching lessons:", error);
+    console.error("Error fetching lessons:", (error as { message?: string })?.message || JSON.stringify(error));
     throw error;
   }
 }
