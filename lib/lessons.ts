@@ -214,24 +214,67 @@ export async function getLatestLessonVersion(lessonId: string): Promise<LessonVe
   }
 }
 
+function isMissingLessonSlugColumn(error: { code?: string; message?: string } | null) {
+  return Boolean(error && (error.code === "42703" || error.code === "PGRST204") && /slug/i.test(error.message || ""));
+}
+
+async function findLessonByIdOrSlug(idOrSlug: string): Promise<LessonWithVersion | null> {
+  let identity = idOrSlug.trim();
+  try {
+    identity = decodeURIComponent(identity).trim();
+  } catch {
+    // Keep the original route value when it contains malformed encoding.
+  }
+  if (!identity) return null;
+
+  if (isUuid(identity)) {
+    const { data, error } = await supabase
+      .from("lessons")
+      .select("*")
+      .eq("id", identity)
+      .maybeSingle();
+    if (error) throw error;
+    if (data) return data;
+  }
+
+  const { data: slugLesson, error: slugError } = await supabase
+    .from("lessons")
+    .select("*")
+    .eq("slug", identity)
+    .maybeSingle();
+  if (!slugError && slugLesson) return slugLesson;
+
+  // Older schemas store generated slugs in lesson_versions.content instead of lessons.slug.
+  const { data: version, error: versionError } = await supabase
+    .from("lesson_versions")
+    .select("lesson_id")
+    .contains("content", { slug: identity })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (versionError) throw versionError;
+
+  if (version?.lesson_id) {
+    const { data, error } = await supabase
+      .from("lessons")
+      .select("*")
+      .eq("id", version.lesson_id)
+      .maybeSingle();
+    if (error) throw error;
+    if (data) return data;
+  }
+
+  if (slugError && !isMissingLessonSlugColumn(slugError)) throw slugError;
+  return null;
+}
+
 export async function getLessonBaseById(idOrSlug: string): Promise<LessonWithVersion | null> {
   if (!isSupabaseConfigured()) return null;
 
   try {
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idOrSlug);
-    const lookupColumn = isUuid ? "id" : "slug";
-    const { data, error } = await supabase
-      .from("lessons")
-      .select("*")
-      .eq(lookupColumn, idOrSlug)
-      .maybeSingle();
-    if (error) {
-      console.warn(`Unable to load base lesson ${idOrSlug}:`, error);
-      return null;
-    }
-    return data || null;
+    return await findLessonByIdOrSlug(idOrSlug);
   } catch (error) {
-    console.warn(`Error loading base lesson ${idOrSlug}:`, error);
+    console.warn(`Error loading base lesson ${idOrSlug}:`, (error as { message?: string })?.message || JSON.stringify(error));
     return null;
   }
 }
@@ -329,32 +372,9 @@ export async function getLessonById(idOrSlug = BENCHMARK_LESSON_SLUG): Promise<L
   }
 
   try {
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idOrSlug);
-    const lookupColumn = isUuid ? "id" : "slug";
-    const { data: lesson, error } = await supabase
-      .from("lessons")
-      .select("*")
-      .eq(lookupColumn, idOrSlug)
-      .maybeSingle();
-
-    if (error) {
-      console.warn(`Error searching for lesson ${idOrSlug} by ${lookupColumn}:`, error);
-      if (demoDataEnabled()) return fallback;
-      throw error;
-    }
+    const lesson = await findLessonByIdOrSlug(idOrSlug);
 
     if (!lesson) {
-      if (!isUuid) {
-        const { data: lessonById, error: idError } = await supabase
-          .from("lessons")
-          .select("*")
-          .eq("id", idOrSlug)
-          .maybeSingle();
-        if (!idError && lessonById) {
-          const version = await getLatestLessonVersion(lessonById.id);
-          return { ...lessonById, current_version: version || undefined, content: version?.content };
-        }
-      }
       if (idOrSlug !== BENCHMARK_LESSON_SLUG && demoDataEnabled()) {
         const benchmark = await getLessonById(BENCHMARK_LESSON_SLUG);
         if (benchmark) return benchmark;
@@ -380,7 +400,7 @@ export async function getLessonById(idOrSlug = BENCHMARK_LESSON_SLUG): Promise<L
  * Fetches lessons by student ID
  */
 function isUuid(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
 async function resolveStudentLookupId(studentId: string): Promise<{ studentIds: string[]; studentTokens: string[] }> {
