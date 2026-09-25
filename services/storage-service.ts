@@ -324,17 +324,15 @@ export async function fetchLessonState(slug: string, studentToken?: string): Pro
         const lessonId = typeof lesson.id === "string" ? lesson.id.trim() : "";
         const studentId = typeof resolvedStudentId === "string" ? resolvedStudentId.trim() : "";
         if (UUID_PATTERN.test(lessonId) && UUID_PATTERN.test(studentId)) {
-          const submissionResult = await supabase.from("submissions").select("*").eq("lesson_id", lessonId).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
-          if (submissionResult.error) console.warn("Unable to load lesson submission:", submissionResult.error);
-          const feedbackResult = await supabase.from("instructor_feedback").select("*").eq("lesson_id", lessonId).eq("student_id", studentId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
-          if (feedbackResult.error) console.warn("Unable to load instructor feedback:", feedbackResult.error);
-          const { data: submission } = submissionResult;
-          const { data: feedback } = feedbackResult;
+          const submissionResult = await supabase.from("submissions").select("answers,status,submitted_at").eq("lesson_id", lessonId).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
+          const feedbackResult = await supabase.from("instructor_feedback").select("scores,comments,strengths,areas_to_improve,study_hub_prescription,voice_feedback_url,is_published,updated_at").eq("lesson_id", lessonId).eq("student_id", studentId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+          const submission = submissionResult.error ? null : submissionResult.data;
+          const feedback = feedbackResult.error ? null : feedbackResult.data;
           return {
             content: lesson.content || defaultContent(),
             bannerUrl: lesson.coverImage || "",
             studentProfile: defaultProfile(),
-            evaluation: feedback ? { scores: feedback.scores || (feedback.score ? { overall: feedback.score } : {}), comments: feedback.comments || feedback.comment || "", strengths: feedback.strengths, areasToImprove: feedback.areas_to_improve || feedback.areasToImprove, studyHubPrescription: feedback.study_hub_prescription || feedback.studyHubPrescription, voiceFeedbackUrl: feedback.voice_feedback_url || feedback.voiceFeedbackUrl, published: Boolean(feedback.is_published ?? feedback.published) } : emptyEvaluation(),
+            evaluation: feedback ? { scores: feedback?.scores || {}, comments: feedback?.comments || "", strengths: feedback?.strengths, areasToImprove: feedback?.areas_to_improve, studyHubPrescription: feedback?.study_hub_prescription, voiceFeedbackUrl: feedback?.voice_feedback_url, published: Boolean(feedback?.is_published) } : emptyEvaluation(),
             status: lesson.status === "draft" ? "draft" : "published",
             submission: submission ? mapSubmission(submission) : undefined,
           };
@@ -356,12 +354,11 @@ export async function fetchStudentProgress(slug: string, studentToken?: string):
       const lesson = studentId ? await fetchStudentLesson(slug, studentId) : null;
       if (lesson && studentId) { // has lesson + student -> save to Supabase
         const { data, error } = await supabase.from("submissions").select("answers,status,submitted_at").eq("lesson_id", lesson.id).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
-        if (error) console.warn("Unable to load student progress submission:", error);
         const progress = data?.answers?.progress;
-        if (progress) return { currentStep: progress.currentStep || "warm_up", completedSteps: progress.completedSteps || [], completed: Boolean(progress.completed), status: data.status || progress.status || "not_started", updatedAt: data.submitted_at || new Date(0).toISOString() };
+        if (progress) return { currentStep: progress.currentStep || "warm_up", completedSteps: progress.completedSteps || [], completed: Boolean(progress.completed), status: data?.status || progress.status || "not_started", updatedAt: data?.submitted_at || new Date(0).toISOString() };
       }
-    } catch (error) {
-      if (!demoDataEnabled()) throw error;
+    } catch {
+      // Progress reads are optional; return the default state when the query fails.
     }
   }
   if (isSupabaseConfigured() && !demoDataEnabled()) return {
