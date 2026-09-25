@@ -324,10 +324,20 @@ export async function fetchLessonState(slug: string, studentToken?: string): Pro
         const lessonId = typeof lesson.id === "string" ? lesson.id.trim() : "";
         const studentId = typeof resolvedStudentId === "string" ? resolvedStudentId.trim() : "";
         if (UUID_PATTERN.test(lessonId) && UUID_PATTERN.test(studentId)) {
-          const submissionResult = await supabase.from("submissions").select("answers,status,submitted_at").eq("lesson_id", lessonId).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
-          const feedbackResult = await supabase.from("instructor_feedback").select("scores,comments,strengths,areas_to_improve,study_hub_prescription,voice_feedback_url,is_published,updated_at").eq("lesson_id", lessonId).eq("student_id", studentId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
-          const submission = submissionResult.error ? null : submissionResult.data;
-          const feedback = feedbackResult.error ? null : feedbackResult.data;
+          let submission = null;
+          let feedback = null;
+          try {
+            const result = await supabase.from("submissions").select("answers,status,submitted_at").eq("lesson_id", lessonId).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
+            if (!result.error) submission = result.data;
+          } catch {
+            submission = null;
+          }
+          try {
+            const result = await supabase.from("instructor_feedback").select("scores,comments,strengths,areas_to_improve,study_hub_prescription,voice_feedback_url,is_published,updated_at").eq("lesson_id", lessonId).eq("student_id", studentId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+            if (!result.error) feedback = result.data;
+          } catch {
+            feedback = null;
+          }
           return {
             content: lesson.content || defaultContent(),
             bannerUrl: lesson.coverImage || "",
