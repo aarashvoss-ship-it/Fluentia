@@ -6,7 +6,7 @@ import { fetchChatMessages, saveChatMessage } from "@/services/storage-service";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { resolveUserUuid } from "@/lib/identity";
 import type { ChatMessage } from "@/types/lesson";
-import type { StudentUser } from "@/lib/users";
+import { deduplicateStudents, type StudentUser } from "@/lib/users";
 
 type ChatTab = "active" | "all" | "support";
 
@@ -64,6 +64,7 @@ const triggerChime = () => {
 };
 
 export function InstructorChatWidget({ activeStudent, students, instructorId, lessonContext }: InstructorChatWidgetProps) {
+  const uniqueStudents = useMemo(() => deduplicateStudents(students), [students]);
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<ChatTab>("active");
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
@@ -150,20 +151,20 @@ export function InstructorChatWidget({ activeStudent, students, instructorId, le
     if (isSupabaseConfigured()) return;
     let cancelled = false;
     const loadLocalMessages = async () => {
-      const entries = await Promise.all(students.map(async (student) => [studentKey(student), await fetchChatMessages(studentKey(student))] as const));
+      const entries = await Promise.all(uniqueStudents.map(async (student) => [studentKey(student), await fetchChatMessages(studentKey(student))] as const));
       if (cancelled) return;
       setThreadMessages(Object.fromEntries(entries));
       setSupportMessages((await fetchChatMessages("instructor-support")).filter((message) => message.tab === "support"));
     };
     void loadLocalMessages();
     return () => { cancelled = true; };
-  }, [students]);
+  }, [uniqueStudents]);
 
   const filteredStudents = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
-    return normalizedSearch ? students.filter((student) => student.name.toLowerCase().includes(normalizedSearch)) : students;
-  }, [search, students]);
-  const conversationStudent = selectedConversationId ? students.find((student) => student.id === selectedConversationId) || activeStudent : activeStudent;
+    return normalizedSearch ? uniqueStudents.filter((student) => student.name.toLowerCase().includes(normalizedSearch)) : uniqueStudents;
+  }, [search, uniqueStudents]);
+  const conversationStudent = selectedConversationId ? uniqueStudents.find((student) => student.id === selectedConversationId) || activeStudent : activeStudent;
   const activeMessages = conversationStudent ? threadMessages[studentKey(conversationStudent)] || [] : [];
   const visibleMessages = tab === "support" ? supportMessages : activeMessages;
   const currentLabel = tab === "support" ? "Fluentia Support" : conversationStudent?.name || "No student selected";

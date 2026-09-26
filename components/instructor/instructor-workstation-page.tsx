@@ -10,7 +10,7 @@ import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/su
 import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
 import { assignLessonToAllActiveStudents, assignLessonToStudent, createLesson, deleteLesson, getLessons, publishLessonAndAssign, setLessonAssignments, unassignLesson, updateLesson, type LessonWithVersion } from "@/lib/lessons";
 import { PublishedLessonState } from "@/lib/lesson-store";
-import { StudentUser } from "@/lib/users";
+import { deduplicateStudents, StudentUser } from "@/lib/users";
 import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/storage-service";
 import { AccessCard } from "@/components/access/access-card";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
@@ -1037,22 +1037,7 @@ export default function InstructorWorkstationPage({
         setPendingSubmissionCount(pendingResult.status === "fulfilled" ? pendingResult.value.count ?? 0 : 0);
         setPublishedLessonCount(publishedResult.status === "fulfilled" ? publishedResult.value.count ?? 0 : 0);
         setDraftLessonCount(draftsResult.status === "fulfilled" ? draftsResult.value.count ?? 0 : 0);
-        const uniqueStudents = new Map<string, (typeof studentRows)[number]>();
-        const seenStudentIds = new Set<string>();
-        const seenTokens = new Set<string>();
-        const seenEmails = new Set<string>();
-        (studentRows || []).forEach((student) => {
-          const row = student as typeof student & { user_id?: string | null };
-          const studentId = row.user_id?.trim() || row.id?.trim();
-          const token = row.token?.trim();
-          const email = row.email?.trim().toLowerCase();
-          if (!studentId || seenStudentIds.has(studentId) || (token && seenTokens.has(token)) || (email && seenEmails.has(email))) return;
-          seenStudentIds.add(studentId);
-          if (token) seenTokens.add(token);
-          if (email) seenEmails.add(email);
-          uniqueStudents.set(studentId, student);
-        });
-        const nextStudents: StudentUser[] = [...uniqueStudents.values()].map((student) => ({
+        const nextStudents: StudentUser[] = deduplicateStudents(studentRows || []).map((student) => ({
           id: student.id,
           token: student.token,
           name: student.name,

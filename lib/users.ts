@@ -58,9 +58,39 @@ export interface StudentUser extends FluentiaUser {
   profile: StudentProfile;
 }
 
-export const STUDENT_USERS: StudentUser[] = FLUENTIA_USERS.filter(
+type StudentIdentityRecord = {
+  id?: string | null;
+  user_id?: string | null;
+  token?: string | null;
+  email?: string | null;
+  name?: string | null;
+  full_name?: string | null;
+  profile?: { fullName?: string | null };
+};
+
+export function deduplicateStudents<T extends StudentIdentityRecord>(students: readonly T[]): T[] {
+  const seenIds = new Set<string>();
+  const seenTokens = new Set<string>();
+  const seenEmails = new Set<string>();
+  const seenNames = new Set<string>();
+
+  return students.filter((student) => {
+    const id = student.user_id?.trim() || student.id?.trim() || "";
+    const token = student.token?.trim().toLowerCase() || "";
+    const email = student.email?.trim().toLowerCase() || "";
+    const name = (student.name || student.full_name || student.profile?.fullName || "").trim().replace(/\s+/g, " ").toLowerCase();
+    if ((id && seenIds.has(id)) || (token && seenTokens.has(token)) || (email && seenEmails.has(email)) || (name && seenNames.has(name))) return false;
+    if (id) seenIds.add(id);
+    if (token) seenTokens.add(token);
+    if (email) seenEmails.add(email);
+    if (name) seenNames.add(name);
+    return true;
+  });
+}
+
+export const STUDENT_USERS: StudentUser[] = deduplicateStudents(FLUENTIA_USERS.filter(
   (user): user is StudentUser => user.role === "student" && Boolean(user.profile && user.token)
-);
+));
 
 export function findUser(value?: string | null) {
   if (!value) return undefined;
