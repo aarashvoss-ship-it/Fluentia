@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { Image, Upload, Check } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { Image, Upload, Check, LoaderCircle } from "lucide-react";
+import { supabase } from "@/lib/supabaseClient";
 
 interface BannerManagerProps {
   bannerUrl?: string;
@@ -15,6 +16,8 @@ const PRESET_BANNERS = [
   "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1200&q=80",
   "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1200&q=80",
 ];
+const MAX_BANNER_FILE_SIZE = 5 * 1024 * 1024;
+const ALLOWED_BANNER_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 
 export function InstructorBannerManager({
   bannerUrl = PRESET_BANNERS[0],
@@ -23,6 +26,9 @@ export function InstructorBannerManager({
   onUpdateCustomInput,
 }: BannerManagerProps) {
   const [selectedUrl, setSelectedUrl] = useState<string>(bannerUrl);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     setSelectedUrl(bannerUrl);
@@ -30,6 +36,7 @@ export function InstructorBannerManager({
 
   const handleSelect = (url: string) => {
     setSelectedUrl(url);
+    setUploadMessage(null);
     onUpdateBanner(url);
   };
 
@@ -37,8 +44,53 @@ export function InstructorBannerManager({
     if (customInput.trim()) {
       handleSelect(customInput.trim());
       onUpdateCustomInput?.("");
+      setUploadMessage(null);
     }
   };
+
+  const handleFileSelection = async (file?: File) => {
+    if (!file) return;
+    setUploadMessage(null);
+    if (!ALLOWED_BANNER_TYPES.has(file.type)) {
+      setUploadMessage("Choose a PNG, JPG, or WebP image.");
+      return;
+    }
+    if (file.size > MAX_BANNER_FILE_SIZE) {
+      setUploadMessage("Banner images must be 5 MB or smaller.");
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadMessage("Uploading banner...");
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const path = `banners/${Date.now()}-${safeName}`;
+    try {
+      const { error } = await supabase.storage.from("lesson-assets").upload(path, file, {
+        cacheControl: "3600",
+        contentType: file.type,
+        upsert: false,
+      });
+      if (error) throw error;
+      const { data } = supabase.storage.from("lesson-assets").getPublicUrl(path);
+      if (!data.publicUrl) throw new Error("Supabase did not return a public banner URL.");
+      handleSelect(data.publicUrl);
+      onUpdateCustomInput?.("");
+      setUploadMessage("Banner uploaded and applied.");
+    } catch (error) {
+      const details = error && typeof error === "object" ? error as { message?: string } : undefined;
+      console.error("Hero banner upload failed:", error);
+      setUploadMessage(details?.message ? `Upload failed: ${details.message}` : "Upload failed. Check the lesson-assets bucket permissions and try again.");
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const uploadMessageIsError = Boolean(uploadMessage && (
+    uploadMessage.startsWith("Upload failed")
+    || uploadMessage.startsWith("Choose")
+    || uploadMessage.startsWith("Banner images")
+  ));
 
   return (
     <div className="bg-[#171d28]/60 border border-[#202631] rounded-xl p-5 text-[#d9dce0]">
@@ -91,6 +143,30 @@ export function InstructorBannerManager({
               </button>
             );
           })}
+        </div>
+
+        <div className="pt-2">
+          <label className="text-xs text-slate-400 font-medium block mb-1.5">Upload Custom Banner</label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="sr-only"
+            aria-label="Upload custom banner image"
+            disabled={isUploading}
+            onChange={(event) => void handleFileSelection(event.target.files?.[0])}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#394252] bg-[#0c1017] px-3 py-2.5 text-xs font-medium text-stone-200 transition hover:border-amber-500/60 hover:text-amber-300 disabled:cursor-wait disabled:opacity-60"
+          >
+            {isUploading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            {isUploading ? "Uploading..." : "Choose image to upload"}
+          </button>
+          <p className="mt-1.5 text-[10px] text-stone-500">PNG, JPG, or WebP. Maximum 5 MB.</p>
+          {uploadMessage && <p className={`mt-2 text-xs ${uploadMessageIsError ? "text-red-300" : "text-amber-300"}`} role={uploadMessageIsError ? "alert" : "status"}>{uploadMessage}</p>}
         </div>
 
         <div className="pt-2">
