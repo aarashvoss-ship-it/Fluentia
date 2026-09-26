@@ -9,6 +9,7 @@ import type { StrictStepContent, ContentBlock } from "@/types/lesson";
 import {
   getLatestLessonVersion,
   getLessonBaseById,
+  resolveLessonContent,
   updateLesson,
   type LessonWithVersion,
 } from "@/lib/lessons";
@@ -125,11 +126,12 @@ export const useLessonEditorStore = create<LessonEditorState>()(
 
         void getLatestLessonVersion(lesson.id).then((version) => {
           if (!version) return;
+          const resolvedContent = resolveLessonContent(lesson, version);
           set((state) => {
             if (state.lesson?.id !== lesson.id) return;
-            state.lesson.current_version = version;
-            state.lesson.content = version.content;
-            state.content = version.content as StrictStepContent;
+            if (resolvedContent === version.content) state.lesson.current_version = version;
+            state.lesson.content = resolvedContent;
+            state.content = resolvedContent as StrictStepContent;
           });
         }).catch((versionError) => {
           console.warn(`Background version load failed for ${lesson.id}:`, versionError);

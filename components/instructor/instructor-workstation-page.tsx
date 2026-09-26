@@ -249,6 +249,7 @@ export default function InstructorWorkstationPage({
   async function handleStudentChange(student: StudentUser, requestedLessonSlug = lessonId) {
     saveRequestId.current += 1;
     pendingAutoSave.current = false;
+    saveInFlight.current = false;
     activeLessonIdRef.current = null;
     hasLoadedLesson.current = false;
     lastSavedDraftSignature.current = null;
@@ -342,6 +343,7 @@ export default function InstructorWorkstationPage({
   const activateLesson = (lesson: LessonWithVersion) => {
     saveRequestId.current += 1;
     pendingAutoSave.current = false;
+    saveInFlight.current = false;
     activeLessonIdRef.current = lesson.id;
     lastSavedDraftSignature.current = null;
     bindLesson(lesson);
@@ -392,6 +394,7 @@ export default function InstructorWorkstationPage({
   const duplicateLesson = (lesson?: LessonWithVersion) => {
     saveRequestId.current += 1;
     pendingAutoSave.current = false;
+    saveInFlight.current = false;
     activeLessonIdRef.current = null;
     resetStore();
     const sourceContent = (lesson?.content || workstationState.content) as Record<string, any>;
@@ -922,7 +925,7 @@ export default function InstructorWorkstationPage({
       void saveLessonChanges(newLesson.status === "published" ? "published" : "draft", true);
       return undefined;
     };
-    const timer = window.setTimeout(saveAfterInactivity, 3000);
+    const timer = window.setTimeout(saveAfterInactivity, 5000);
     return () => window.clearTimeout(timer);
   }, [workstationState.content, workstationState.bannerUrl, newLesson.title, newLesson.subtitle, newLesson.moduleNumber, sidebarBlocksByStep, databaseLessonId]);
 

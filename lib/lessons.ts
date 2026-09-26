@@ -218,6 +218,28 @@ export async function getLatestLessonVersion(lessonId: string): Promise<LessonVe
   }
 }
 
+function stableSerialize(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableSerialize).join(",")}]`;
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${stableSerialize(record[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "undefined";
+}
+
+export function resolveLessonContent(lesson: LessonWithVersion, version: LessonVersionRow | null) {
+  const directContent = lesson.content && typeof lesson.content === "object" && !Array.isArray(lesson.content)
+    ? lesson.content
+    : undefined;
+  const versionContent = version?.content && typeof version.content === "object" && !Array.isArray(version.content)
+    ? version.content as Record<string, any>
+    : undefined;
+  const versionTitle = typeof versionContent?.title === "string" ? versionContent.title.trim() : "";
+  const lessonTitle = typeof lesson.title === "string" ? lesson.title.trim() : "";
+  if (versionTitle && lessonTitle && versionTitle !== lessonTitle) return directContent || {};
+  return versionContent || directContent || {};
+}
+
 function isMissingLessonSlugColumn(error: { code?: string; message?: string } | null) {
   return Boolean(error && (error.code === "42703" || error.code === "PGRST204") && /slug/i.test(error.message || ""));
 }
@@ -248,27 +270,17 @@ async function findLessonByIdOrSlug(idOrSlug: string): Promise<LessonWithVersion
     .maybeSingle();
   if (!slugError && slugLesson) return slugLesson;
 
-  // Older schemas store generated slugs in lesson_versions.content instead of lessons.slug.
-  const { data: version, error: versionError } = await supabase
-    .from("lesson_versions")
-    .select("lesson_id")
-    .contains("content", { slug: identity })
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (versionError) throw versionError;
-
-  if (version?.lesson_id) {
-    const { data, error } = await supabase
-      .from("lessons")
-      .select("*")
-      .eq("id", version.lesson_id)
-      .maybeSingle();
-    if (error) throw error;
-    if (data) return data;
-  }
-
   if (slugError && !isMissingLessonSlugColumn(slugError)) throw slugError;
+  // Legacy schemas may store the slug only in version content. Resolve it only
+  // through versions scoped to each known lesson, never through a global latest row.
+  const { data: lessons, error: lessonsError } = await supabase.from("lessons").select("*");
+  if (lessonsError) throw lessonsError;
+  for (const lesson of lessons || []) {
+    const directSlug = typeof lesson.slug === "string" ? lesson.slug : "";
+    if (directSlug === identity) return lesson;
+    const version = await getLatestLessonVersion(lesson.id);
+    if (typeof version?.content?.slug === "string" && version.content.slug === identity) return lesson;
+  }
   return null;
 }
 
@@ -355,7 +367,7 @@ export async function getLessons(): Promise<LessonWithVersion[]> {
 
     return Promise.all((lessons || []).map(async (lesson) => {
       const version = await getLatestLessonVersion(lesson.id);
-      return { ...lesson, current_version: version || undefined, content: version?.content, assigned_student_ids: assignmentsByLesson.get(lesson.id) || [] };
+      return { ...lesson, current_version: version || undefined, content: resolveLessonContent(lesson, version), assigned_student_ids: assignmentsByLesson.get(lesson.id) || [] };
     }));
   } catch (error) {
     console.error("Error fetching lessons:", (error as { message?: string })?.message || JSON.stringify(error));
@@ -390,7 +402,7 @@ export async function getLessonById(idOrSlug = BENCHMARK_LESSON_SLUG): Promise<L
     return {
       ...lesson,
       current_version: version || undefined,
-      content: version?.content,
+      content: resolveLessonContent(lesson, version),
     };
   } catch (error) {
     // Catch all unexpected errors and return null gracefully
@@ -485,7 +497,7 @@ export async function getLessonsByStudentId(studentId: string): Promise<LessonWi
 
     return Promise.all([...uniqueLessons.values()].map(async (lesson) => {
       const version = await getLatestLessonVersion(lesson.id);
-      return { ...lesson, current_version: version || undefined, content: version?.content };
+      return { ...lesson, current_version: version || undefined, content: resolveLessonContent(lesson, version) };
     }));
   } catch (error) {
     console.warn(`Unable to load assigned lessons for student ${studentId}; using published fallback.`, error);
@@ -629,7 +641,7 @@ export async function getLessonsByInstructorId(instructorId: string): Promise<Le
         return {
           ...lesson,
           current_version: version || undefined,
-          content: version?.content,
+          content: resolveLessonContent(lesson, version),
         };
       })
     );
@@ -831,34 +843,40 @@ export async function updateLesson(
 
     // If content is provided, create a new version
     let newVersion: LessonVersionRow | null = null;
+    let latestVersion: LessonVersionRow | null = null;
     if (safeContent) {
-      const nextVersionNumber = await getNextVersionNumber(id);
+      latestVersion = await getLatestLessonVersion(id);
+      const latestContent = latestVersion ? sanitizeLessonContent(latestVersion.content) : undefined;
+      const contentChanged = !latestContent || stableSerialize(latestContent) !== stableSerialize(safeContent);
 
-      const { data: version, error: versionError } = await supabase
-        .from("lesson_versions")
-        .insert([
-          {
-            lesson_id: id,
-            version_number: nextVersionNumber,
-            content: safeContent,
-            changes_summary: changes_summary || "Updated version",
-          },
-        ])
-        .select()
-        .single();
+      if (contentChanged) {
+        const nextVersionNumber = await getNextVersionNumber(id);
+        const { data: version, error: versionError } = await supabase
+          .from("lesson_versions")
+          .insert([
+            {
+              lesson_id: id,
+              version_number: nextVersionNumber,
+              content: safeContent,
+              changes_summary: changes_summary || "Updated version",
+            },
+          ])
+          .select()
+          .single();
 
-      if (versionError) {
-        const errorDetails = describeSupabaseError(versionError);
-        console.error("Supabase lesson version error details:", {
-          code: errorDetails.code,
-          message: errorDetails.message,
-          details: errorDetails.details,
-          hint: errorDetails.hint,
-          status: errorDetails.status,
-        });
-        throw toSupabaseError(versionError, `Failed to save lesson version ${id}`);
+        if (versionError) {
+          const errorDetails = describeSupabaseError(versionError);
+          console.error("Supabase lesson version error details:", {
+            code: errorDetails.code,
+            message: errorDetails.message,
+            details: errorDetails.details,
+            hint: errorDetails.hint,
+            status: errorDetails.status,
+          });
+          throw toSupabaseError(versionError, `Failed to save lesson version ${id}`);
+        }
+        newVersion = version;
       }
-      newVersion = version;
     }
 
     // Fetch and return the updated lesson
@@ -870,12 +888,12 @@ export async function updateLesson(
 
     if (fetchError) throw toSupabaseError(fetchError, `Failed to reload lesson ${id}`);
 
-    const latestVersion = newVersion || (await getLatestLessonVersion(id));
+    latestVersion = newVersion || latestVersion || (await getLatestLessonVersion(id));
 
     return {
       ...lesson,
       current_version: latestVersion || undefined,
-      content: latestVersion?.content,
+      content: resolveLessonContent(lesson, latestVersion),
     };
   } catch (error) {
     const normalizedError = error instanceof Error ? error : toSupabaseError(error, `Failed to update lesson ${id}`);
