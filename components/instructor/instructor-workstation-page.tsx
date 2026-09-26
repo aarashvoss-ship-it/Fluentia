@@ -15,7 +15,7 @@ import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/
 import { AccessCard } from "@/components/access/access-card";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { WritingBlockRenderer } from "@/components/shared/writing-block";
-import { DataTableResource, DATA_TABLE_RESOURCE_TITLE_PREFIX, getDataTableResourceTitle, isDataTableResourceTitle } from "@/components/shared/data-table-resource";
+import { DataTableResource, getDataTableResourceTitle, isDataTableResourceTitle } from "@/components/shared/data-table-resource";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { Stepper } from "@/components/study-room/stepper";
@@ -726,8 +726,7 @@ export default function InstructorWorkstationPage({
     }
 
     const studentToken = selectedStudent.token || selectedStudent.id;
-    const storedResourceType: StudentResourceType = resourceType === "data_table" ? "note" : resourceType;
-    const storedTitle = resourceType === "data_table" ? `${DATA_TABLE_RESOURCE_TITLE_PREFIX}${trimmedTitle}` : trimmedTitle;
+    const storedResourceType: StudentResourceType = resourceType;
     try {
       let audioUrl = resourceDraft.linkUrl.trim();
       if (resourceType === "audio" && !audioUrl && audioFile) {
@@ -749,7 +748,7 @@ export default function InstructorWorkstationPage({
           lesson_id: resourceLessonId,
           type: storedResourceType,
           resource_type: storedResourceType,
-          title: storedTitle,
+          title: trimmedTitle,
           updated_at: new Date().toISOString(),
           ...(resourceType === "note" || resourceType === "quiz" || resourceType === "audio" || resourceType === "data_table"
             ? { body: resourceDraft.body.trim() || undefined }
