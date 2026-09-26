@@ -177,6 +177,7 @@ export default function InstructorWorkstationPage({
   const lastSavedDraftSignature = useRef<string | null>(null);
   const saveRequestId = useRef(0);
   const activeLessonIdRef = useRef<string | null>(null);
+  const lastEditQueryRef = useRef<string | null>(null);
   const workstationMountedRef = useRef(false);
   const saveInFlight = useRef(false);
   const pendingAutoSave = useRef(false);
@@ -208,6 +209,7 @@ export default function InstructorWorkstationPage({
     url.searchParams.delete("edit");
     if (lessonId) url.searchParams.set("lessonId", lessonId);
     window.history.pushState({}, "", url);
+    lastEditQueryRef.current = lessonId;
   };
 
   const resetBuilderState = (studentId = "") => {
@@ -949,9 +951,14 @@ export default function InstructorWorkstationPage({
   useEffect(() => {
     const syncLessonFromUrl = () => {
       const editId = readEditLessonQuery();
+      const previousEditId = lastEditQueryRef.current;
+      lastEditQueryRef.current = editId;
       if (!editId) {
-        if (activeTab === "builder" && databaseLessonId) resetBuilderState();
-        if (window.location.pathname.endsWith("/builder")) setActiveTab("builder");
+        if (activeTab === "builder" && previousEditId) resetBuilderState();
+        if (window.location.pathname.endsWith("/builder") && activeTab !== "builder") {
+          resetBuilderState();
+          setActiveTab("builder");
+        }
         return;
       }
       const requestedLesson = createdLessons.find((lesson) =>
@@ -1031,17 +1038,19 @@ export default function InstructorWorkstationPage({
         setPublishedLessonCount(publishedResult.status === "fulfilled" ? publishedResult.value.count ?? 0 : 0);
         setDraftLessonCount(draftsResult.status === "fulfilled" ? draftsResult.value.count ?? 0 : 0);
         const uniqueStudents = new Map<string, (typeof studentRows)[number]>();
+        const seenStudentIds = new Set<string>();
+        const seenTokens = new Set<string>();
+        const seenEmails = new Set<string>();
         (studentRows || []).forEach((student) => {
-          const normalizedEmail = student.email?.trim().toLowerCase();
-          const identityKey = student.id || normalizedEmail;
-          if (!identityKey || uniqueStudents.has(identityKey)) return;
-          if (normalizedEmail) {
-            const existingEmailMatch = [...uniqueStudents.values()].find(
-              (existingStudent) => existingStudent.email?.trim().toLowerCase() === normalizedEmail,
-            );
-            if (existingEmailMatch) return;
-          }
-          uniqueStudents.set(identityKey, student);
+          const row = student as typeof student & { user_id?: string | null };
+          const studentId = row.user_id?.trim() || row.id?.trim();
+          const token = row.token?.trim();
+          const email = row.email?.trim().toLowerCase();
+          if (!studentId || seenStudentIds.has(studentId) || (token && seenTokens.has(token)) || (email && seenEmails.has(email))) return;
+          seenStudentIds.add(studentId);
+          if (token) seenTokens.add(token);
+          if (email) seenEmails.add(email);
+          uniqueStudents.set(studentId, student);
         });
         const nextStudents: StudentUser[] = [...uniqueStudents.values()].map((student) => ({
           id: student.id,
