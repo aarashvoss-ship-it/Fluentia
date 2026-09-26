@@ -1942,7 +1942,7 @@ export default function InstructorWorkstationPage({
                           <div className="flex items-start justify-between gap-3">
                             <div>
                               <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">{isDataTable ? "data_table" : resource.resource_type}</p>
-                              <h4 className="mt-1 font-semibold text-stone-100">{resourceTitle}</h4>
+                              {!isDataTable && <h4 className="mt-1 font-semibold text-stone-100">{resourceTitle}</h4>}
                             </div>
                             <button type="button" onClick={() => void deleteStudentResource(resource)} className="text-stone-500 hover:text-red-300" aria-label={`Delete ${resource.title}`}>
                               <Trash2 className="h-3.5 w-3.5" />

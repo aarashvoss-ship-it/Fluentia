@@ -442,7 +442,7 @@ export function LearningSidebar({
               <h3 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Data Tables</h3>
               {dataTableResources.length === 0 ? <p className="text-sm text-stone-500">Your instructor has not assigned a Data Table yet.</p> : dataTableResources.map((item) => (
                 <article key={item.id} className="space-y-3 rounded-lg border border-[#29303c] bg-[#0c1017] p-3">
-                  <h4 className="text-sm font-semibold text-stone-100">{getDataTableResourceTitle(item.title)}</h4>
+                  {!isDataTableResourceTitle(item.title) && <h4 className="text-sm font-semibold text-stone-100">{getDataTableResourceTitle(item.title)}</h4>}
                   {item.body && <DataTableResource title={getDataTableResourceTitle(item.title)} markdown={item.body} />}
                 </article>
               ))}

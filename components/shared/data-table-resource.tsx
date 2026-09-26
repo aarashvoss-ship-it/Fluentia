@@ -54,8 +54,9 @@ function escapeHtml(value: string) {
 function printTables(title: string, tables: ParsedTable[]) {
   const printWindow = window.open("", "_blank");
   if (!printWindow) return false;
+  const logoUrl = new URL("/logo.png", window.location.origin).href;
   const tableMarkup = tables.map(({ headers, rows }) => `<table><thead><tr>${headers.map((cell) => `<th>${escapeHtml(cell)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${headers.map((_, cellIndex) => `<td>${escapeHtml(row[cellIndex] || "")}</td>`).join("")}</tr>`).join("")}</tbody></table>`).join("");
-  printWindow.document.write(`<!doctype html><html><head><title>${escapeHtml(title)}</title><meta charset="utf-8"><style>@page{size:A4;margin:18mm}body{color:#1f2937;font:11pt/1.45 Arial,sans-serif}h1{font-size:18pt;margin:0 0 18pt}table{border-collapse:collapse;margin:0 0 18pt;width:100%;break-inside:avoid}th,td{border:1px solid #cbd5e1;padding:8px 10px;text-align:left;vertical-align:top;overflow-wrap:anywhere}th{background:#fef3c7;color:#b45309;font-weight:700}tbody tr:nth-child(even){background:#f8fafc}</style></head><body><h1>${escapeHtml(title)}</h1>${tableMarkup || `<pre>${escapeHtml(markdownTextFallback(tables))}</pre>`}</body></html>`);
+  printWindow.document.write(`<!doctype html><html><head><title>${escapeHtml(title)}</title><meta charset="utf-8"><style>@page{size:A4;margin:18mm}body{color:#1f2937;font:11pt/1.45 Arial,sans-serif}.report-header{display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid #cbd5e1;margin:0 0 18pt;padding:0 0 12pt}.report-header h1{font-size:18pt;margin:0}.report-header img{display:block;height:36px;width:auto;max-width:160px;object-fit:contain;print-color-adjust:exact;-webkit-print-color-adjust:exact}table{border-collapse:collapse;margin:0 0 18pt;width:100%;break-inside:avoid}th,td{border:1px solid #cbd5e1;padding:8px 10px;text-align:left;vertical-align:top;overflow-wrap:anywhere}th{background:#fef3c7;color:#b45309;font-weight:700}tbody tr:nth-child(even){background:#f8fafc}</style></head><body><header class="report-header"><h1>${escapeHtml(title)}</h1><img src="${escapeHtml(logoUrl)}" alt="Fluentia"></header>${tableMarkup || `<pre>${escapeHtml(markdownTextFallback(tables))}</pre>`}</body></html>`);
   printWindow.document.close();
   printWindow.addEventListener("load", () => {
     printWindow.focus();
@@ -89,6 +90,10 @@ export function DataTableResource({ title, markdown }: { title: string; markdown
 
   return (
     <div className="min-w-0">
+      <header className="mb-4 flex items-center justify-between gap-4 border-b border-[#394252] pb-3">
+        <h3 className="min-w-0 flex-1 break-words text-sm font-semibold text-stone-100">{title}</h3>
+        <img src="/logo.png" alt="Fluentia" className="h-9 w-auto max-w-24 shrink-0 object-contain" />
+      </header>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <button type="button" onClick={() => { if (!printTables(title, tables)) setStatus("Allow pop-ups to print this table as PDF."); }} className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 px-2.5 py-1.5 text-[11px] font-semibold text-amber-300 transition hover:bg-amber-500/10">
           <FileDown className="h-3.5 w-3.5" /> Download PDF
