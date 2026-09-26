@@ -177,6 +177,7 @@ export default function InstructorWorkstationPage({
   const lastSavedDraftSignature = useRef<string | null>(null);
   const saveRequestId = useRef(0);
   const activeLessonIdRef = useRef<string | null>(null);
+  const workstationMountedRef = useRef(false);
   const saveInFlight = useRef(false);
   const pendingAutoSave = useRef(false);
   const lastInputAt = useRef(0);
@@ -195,6 +196,56 @@ export default function InstructorWorkstationPage({
     status: "draft" as "draft" | "published",
   });
 
+  const readEditLessonQuery = () => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("lessonId") || params.get("edit");
+  };
+
+  const writeEditLessonQuery = (lessonId: string | null) => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("lessonId");
+    url.searchParams.delete("edit");
+    if (lessonId) url.searchParams.set("lessonId", lessonId);
+    window.history.pushState({}, "", url);
+  };
+
+  const resetBuilderState = (studentId = "") => {
+    saveRequestId.current += 1;
+    pendingAutoSave.current = false;
+    saveInFlight.current = false;
+    activeLessonIdRef.current = null;
+    hasLoadedLesson.current = false;
+    lastSavedDraftSignature.current = null;
+    resetStore();
+    setDatabaseLessonId(null);
+    setResourceLessonId(null);
+    setSidebarBlocksByStep({});
+    setSidebarStep("warm_up");
+    setLessonResources([]);
+    setSelectedStudentId(studentId || null);
+    setSelectedStudent(studentId ? students.find((student) => student.id === studentId) || null : null);
+    setNewLesson({ studentId, title: "", slug: "", subtitle: "", instructorGuidance: "", moduleNumber: "", status: "draft" });
+    setWorkstationState((previous) => ({
+      ...previous,
+      content: {},
+      bannerUrl: "",
+      customBannerUrl: "",
+      studentProfile: { fullName: "", level: "", targetGoal: "", weaknesses: [], teacherNotes: "", attendanceRate: 0, completedModulesCount: 0 },
+      evaluation: { scores: { task: 4, coherence: 4, lexical: 3, grammar: 4 }, comments: "", criterionFeedback: {}, published: false },
+      submission: undefined,
+    }));
+    setLessonStatus("draft");
+    setSaveIndicator("idle");
+    setValidationErrors({});
+    setPublishStatus(null);
+    setViewMode("instructor");
+    setPreviewStep("warm_up");
+    setAudioFile(null);
+    setResourceDraft(EMPTY_RESOURCE_DRAFT);
+    setResourceStatus(null);
+  };
+
   const resetNewLessonForm = (studentId = "") => {
     setNewLesson({
       studentId,
@@ -209,31 +260,8 @@ export default function InstructorWorkstationPage({
   };
 
   const startNewLesson = () => {
-    resetStore();
-    hasLoadedLesson.current = false;
-    lastSavedDraftSignature.current = null;
-    saveRequestId.current += 1;
-    activeLessonIdRef.current = null;
-    saveInFlight.current = false;
-    pendingAutoSave.current = false;
-    setDatabaseLessonId(null);
-    setResourceLessonId(null);
-    setSelectedStudentId(null);
-    setSelectedStudent(null);
-    setWorkstationState((previous) => ({
-      ...previous,
-      content: {},
-      bannerUrl: "",
-      customBannerUrl: "",
-      submission: undefined,
-    }));
-    setSidebarBlocksByStep({});
-    setSidebarStep("warm_up");
-    setLessonStatus("draft");
-    setSaveIndicator("idle");
-    setValidationErrors({});
-    setPublishStatus(null);
-    resetNewLessonForm();
+    writeEditLessonQuery(null);
+    resetBuilderState();
     setActiveTab("builder");
   };
 
@@ -249,33 +277,16 @@ export default function InstructorWorkstationPage({
       lessonResources,
     });
 
-  async function handleStudentChange(student: StudentUser, requestedLessonSlug = lessonId) {
-    saveRequestId.current += 1;
-    pendingAutoSave.current = false;
-    saveInFlight.current = false;
-    activeLessonIdRef.current = null;
-    hasLoadedLesson.current = false;
-    lastSavedDraftSignature.current = null;
-    setPublishStatus(null);
-    setResourceLessonId(null);
+  async function handleStudentChange(student: StudentUser) {
     const id = student?.id?.trim();
     if (!id) {
-      setSelectedStudentId(null);
-      resetNewLessonForm();
+      writeEditLessonQuery(null);
+      resetBuilderState();
       return;
     }
+    writeEditLessonQuery(null);
+    resetBuilderState(id);
     setSelectedStudentId(id);
-    setNewLesson((previous) => ({ ...previous, studentId: id }));
-
-    const lessons = await getLessons();
-    const loadedLesson = lessons.find((lesson) => {
-      const lessonSlug = typeof lesson.content?.slug === "string" ? lesson.content.slug : lesson.id;
-      return lesson.student_id === id && (!requestedLessonSlug || lessonSlug === requestedLessonSlug || lesson.id === requestedLessonSlug);
-    });
-    if (!loadedLesson) {
-      resetNewLessonForm(id);
-    }
-
     setSelectedStudent(student);
     setWorkstationState((previous) => ({ ...previous, studentProfile: student.profile }));
     const studentToken = student.token || student.id;
@@ -294,15 +305,20 @@ export default function InstructorWorkstationPage({
         },
       }));
     }
-    if (loadedLesson) activateLesson(loadedLesson);
-    else {
-      setSidebarBlocksByStep({});
-      setLessonResources([]);
-      setDatabaseLessonId(null);
-      setResourceLessonId(null);
-      setWorkstationState((previous) => ({ ...previous, content: {}, bannerUrl: "", customBannerUrl: "", submission: undefined }));
-    }
   }
+
+  const handleWorkspaceTabChange = (tab: typeof activeTab) => {
+    if (tab === "builder") {
+      if (!readEditLessonQuery()) {
+        writeEditLessonQuery(null);
+        resetBuilderState();
+      }
+    } else if (activeTab === "builder") {
+      writeEditLessonQuery(null);
+      resetBuilderState();
+    }
+    setActiveTab(tab);
+  };
 
   const createSlug = (title: string) => {
     const normalizedTitle = title
@@ -390,11 +406,13 @@ export default function InstructorWorkstationPage({
   };
 
   const handleEditLesson = (lesson: LessonWithVersion) => {
+    writeEditLessonQuery(lesson.id);
     activateLesson(lesson);
     setActiveTab("builder");
   };
 
   const duplicateLesson = (lesson?: LessonWithVersion) => {
+    writeEditLessonQuery(null);
     saveRequestId.current += 1;
     pendingAutoSave.current = false;
     saveInFlight.current = false;
@@ -910,8 +928,46 @@ export default function InstructorWorkstationPage({
   useEffect(() => setIsMounted(true), []);
 
   useEffect(() => {
+    workstationMountedRef.current = true;
+    return () => {
+      workstationMountedRef.current = false;
+      window.setTimeout(() => {
+        if (workstationMountedRef.current) return;
+        saveRequestId.current += 1;
+        pendingAutoSave.current = false;
+        activeLessonIdRef.current = null;
+        hasLoadedLesson.current = false;
+        resetStore();
+      }, 0);
+    };
+  }, [resetStore]);
+
+  useEffect(() => {
     void refreshCreatedLessons();
   }, []);
+
+  useEffect(() => {
+    const syncLessonFromUrl = () => {
+      const editId = readEditLessonQuery();
+      if (!editId) {
+        if (activeTab === "builder" && databaseLessonId) resetBuilderState();
+        if (window.location.pathname.endsWith("/builder")) setActiveTab("builder");
+        return;
+      }
+      const requestedLesson = createdLessons.find((lesson) =>
+        lesson.id === editId || lesson.slug === editId || lesson.content?.slug === editId,
+      );
+      if (requestedLesson && requestedLesson.id !== databaseLessonId) {
+        activateLesson(requestedLesson);
+        setActiveTab("builder");
+      } else if (!requestedLesson && databaseLessonId) {
+        resetBuilderState();
+      }
+    };
+    syncLessonFromUrl();
+    window.addEventListener("popstate", syncLessonFromUrl);
+    return () => window.removeEventListener("popstate", syncLessonFromUrl);
+  }, [createdLessons, activeTab, databaseLessonId]);
 
   useEffect(() => {
     if (!databaseLessonId || !hasLoadedLesson.current) return;
@@ -1403,8 +1459,8 @@ export default function InstructorWorkstationPage({
         <nav className="sticky top-0 z-20 mb-8 border-b border-[#202631] bg-[#0c1017]/95 backdrop-blur" aria-label="Instructor workstation views">
           <div className="flex items-center justify-between gap-4 overflow-x-auto">
             <div className="flex shrink-0 gap-1">
-              {([["dashboard", "Dashboard"], ["library", "Lesson Library"], ["builder", "Lesson Builder"], ["evaluation", "Student Evaluation"], ["music", "Music Library"]] as const).map(([tab, label]) => <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`whitespace-nowrap border-b-2 px-4 py-3 text-xs font-semibold transition ${activeTab === tab ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}>{label}</button>)}
-              <button type="button" onClick={() => setActiveTab("resources")} className={`whitespace-nowrap border-b-2 px-4 py-3 text-xs font-semibold transition ${activeTab === "resources" ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}>Resources</button>
+              {([["dashboard", "Dashboard"], ["library", "Lesson Library"], ["builder", "Lesson Builder"], ["evaluation", "Student Evaluation"], ["music", "Music Library"]] as const).map(([tab, label]) => <button key={tab} type="button" onClick={() => handleWorkspaceTabChange(tab)} className={`whitespace-nowrap border-b-2 px-4 py-3 text-xs font-semibold transition ${activeTab === tab ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}>{label}</button>)}
+              <button type="button" onClick={() => handleWorkspaceTabChange("resources")} className={`whitespace-nowrap border-b-2 px-4 py-3 text-xs font-semibold transition ${activeTab === "resources" ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}>Resources</button>
             </div>
             <label className="flex w-64 max-w-[240px] shrink-0 items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400">
               <span className="sr-only">Active student</span>
@@ -1423,12 +1479,12 @@ export default function InstructorWorkstationPage({
 <p className="mt-2 text-2xl font-semibold text-stone-100">{pendingSubmissionCount}</p>
 <p className="mt-1 text-xs text-stone-500">Student submissions awaiting review</p>
 </button>
-            <button type="button" onClick={() => setActiveTab("builder")} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-left transition hover:border-amber-500/60">
+            <button type="button" onClick={() => handleWorkspaceTabChange("builder")} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-left transition hover:border-amber-500/60">
 <p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Drafts</p>
 <p className="mt-2 text-2xl font-semibold text-stone-100">{draftLessonCount}</p>
 <p className="mt-1 text-xs text-stone-500">Open the lesson builder</p>
 </button>
-            <button type="button" onClick={() => setActiveTab("builder")} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-left transition hover:border-amber-500/60">
+            <button type="button" onClick={() => handleWorkspaceTabChange("builder")} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-left transition hover:border-amber-500/60">
 <p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Published Lessons</p>
 <p className="mt-2 text-2xl font-semibold text-stone-100">{publishedLessonCount}</p>
 <p className="mt-1 text-xs text-stone-500">Open the lesson builder</p>
