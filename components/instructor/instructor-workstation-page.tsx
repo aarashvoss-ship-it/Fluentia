@@ -167,7 +167,7 @@ export default function InstructorWorkstationPage({
   });
 
   const [isPublishing, setIsPublishing] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
+  const [viewMode, setViewMode] = useState<"instructor" | "student">("instructor");
   const [previewStep, setPreviewStep] = useState<"warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking" | "results">("warm_up");
   const [saveIndicator, setSaveIndicator] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const hasLoadedLesson = useRef(false);
@@ -1256,12 +1256,16 @@ export default function InstructorWorkstationPage({
 
   const handleSaveDraft = () => {
     console.log("Saving lesson...", { ...newLesson, content: workstationState.content });
-    void saveLessonChanges("draft");
+    void saveLessonChanges(lessonStatus);
   };
 
   const handleConfirmPublish = () => {
-    setShowPreview(false);
     void saveLessonChanges("published");
+  };
+
+  const handleUnpublish = () => {
+    if (lessonStatus !== "published") return;
+    void saveLessonChanges("draft");
   };
 
   const submissionState = workstationState.submission?.status === "reviewed" || workstationState.evaluation.published
@@ -1374,9 +1378,14 @@ export default function InstructorWorkstationPage({
             <div className="flex flex-wrap items-center justify-end gap-2">
               {newLesson.instructorGuidance.trim() && <button type="button" onClick={() => setGuidanceOpen(true)} aria-expanded={guidanceOpen} className="flex items-center gap-1.5 rounded-full border border-amber-500/40 px-3 py-2 text-xs font-semibold text-amber-300 transition hover:border-amber-400 hover:bg-amber-500/10"><Lightbulb className="h-3.5 w-3.5" />Lesson Guidance</button>}
               <select value={databaseLessonId && createdLessons.some((lesson) => lesson.id === databaseLessonId && lesson.status === "draft") ? databaseLessonId : ""} onChange={(event) => { const draft = createdLessons.find((lesson) => lesson.id === event.target.value); if (draft) activateLesson(draft); }} aria-label="Drafts" className="min-w-[220px] max-w-[320px] truncate rounded-md border border-[#394252] bg-[#171d28] px-3 py-2 text-xs font-semibold text-white outline-none [color-scheme:dark]"><option value="" className="bg-slate-900 text-white">Drafts</option>{createdLessons.filter((lesson) => lesson.status === "draft").slice(0, 8).map((lesson) => <option key={lesson.id} value={lesson.id} className="bg-slate-900 text-white">{lesson.title}</option>)}</select>
-              <button type="button" onClick={()=>setShowPreview(true)} className="rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500 hover:text-black">Preview</button>
-              <button type="button" onClick={handleSaveDraft} className="rounded-md border border-[#394252] px-3 py-2 text-xs font-semibold text-stone-300 transition hover:border-amber-500/60 hover:text-amber-300">Save Draft</button>
-              <button type="button" onClick={handleConfirmPublish} disabled={isPublishing} className="rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60">Publish to Student</button>
+              <div role="group" aria-label="Workstation view" className="inline-flex rounded-md border border-[#394252] bg-[#0c1017] p-0.5">
+                <button type="button" aria-pressed={viewMode === "instructor"} onClick={() => setViewMode("instructor")} className={`rounded px-2.5 py-1.5 text-[11px] font-semibold transition ${viewMode === "instructor" ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-100"}`}>Instructor View</button>
+                <button type="button" aria-pressed={viewMode === "student"} onClick={() => setViewMode("student")} className={`rounded px-2.5 py-1.5 text-[11px] font-semibold transition ${viewMode === "student" ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-100"}`}>Student View</button>
+              </div>
+              <span className="rounded-md border border-[#394252] px-2.5 py-2 text-[11px] font-semibold text-stone-400">{lessonStatus === "published" ? "Published" : "Draft"}</span>
+              <button type="button" onClick={handleSaveDraft} className="rounded-md border border-[#394252] px-3 py-2 text-xs font-semibold text-stone-300 transition hover:border-amber-500/60 hover:text-amber-300">Save Changes</button>
+              {lessonStatus === "published" && databaseLessonId && <button type="button" onClick={handleUnpublish} disabled={isPublishing} className="rounded-md border border-red-500/40 px-3 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-500/10 disabled:cursor-wait disabled:opacity-60">Unpublish</button>}
+              <button type="button" onClick={handleConfirmPublish} disabled={isPublishing} className="rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60">{lessonStatus === "published" ? "Publish Changes" : "Publish to Student"}</button>
             </div>
             <div className="flex min-h-5 w-full max-w-xl justify-end gap-3 text-xs" aria-live="polite">
               {publishStatus && <span className="truncate text-amber-300">{publishStatus}</span>}
@@ -1856,7 +1865,19 @@ export default function InstructorWorkstationPage({
 
         {activeTab === "music" && <MusicLibraryManager />}
 
-        {activeTab === "builder" && <>
+        {activeTab === "builder" && viewMode === "student" && <section className="overflow-hidden rounded-xl border border-[#202631] bg-[#121721]" aria-label="Student Study Room preview">
+          <header className="flex flex-wrap items-center gap-4 border-b border-[#293343] p-5">
+            {workstationState.bannerUrl && <img src={workstationState.bannerUrl} alt="" className="h-16 w-28 rounded-md object-cover" />}
+            <div className="min-w-0 flex-1"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">{newLesson.moduleNumber ? `Module ${newLesson.moduleNumber}` : "Student Study Room"}</p><h2 className="mt-1 truncate text-xl font-semibold text-stone-100">{newLesson.title || "Untitled Lesson"}</h2><p className="mt-1 text-sm text-stone-400">{newLesson.subtitle || "Your instructor has prepared this lesson for you."}</p></div>
+            {workstationState.content.ambientMusicUrl && <AmbientMusicPlayer src={workstationState.content.ambientMusicUrl} />}
+          </header>
+          <div className="grid min-h-[560px] md:grid-cols-[180px_1fr]">
+            <nav className="flex gap-2 overflow-x-auto border-b border-[#293343] p-3 md:block md:space-y-1 md:border-b-0 md:border-r" aria-label="Lesson steps">{previewSteps.map(([step, label]) => <button key={step} type="button" onClick={() => setPreviewStep(step)} aria-current={previewStep === step ? "step" : undefined} className={`block shrink-0 rounded-md px-3 py-2 text-left text-xs transition-colors md:w-full ${previewStep === step ? "bg-amber-500 text-black" : "text-stone-400 hover:bg-amber-500/10 hover:text-amber-300"}`}>{label}</button>)}</nav>
+            <div className="min-w-0 p-5"><div className="mb-5 border-b border-[#293343] pb-4"><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">{previewSteps.find(([step]) => step === previewStep)?.[1]}</p><p className="mt-2 text-sm text-stone-400">{newLesson.subtitle || "Your instructor has prepared this lesson for you."}</p></div>{renderPreviewStep()}</div>
+          </div>
+        </section>}
+
+        {activeTab === "builder" && viewMode === "instructor" && <>
           <section className="mb-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" aria-labelledby="lesson-details-title">
                 {Object.keys(validationErrors).length > 0 && <div className="mb-4 space-y-1 rounded-md border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300" role="alert">{Object.entries(validationErrors).map(([field, message]) => <p key={field}>{message}</p>)}</div>}
             <div className="mb-4">
@@ -1870,11 +1891,7 @@ export default function InstructorWorkstationPage({
 </label>
 <label className="text-xs text-stone-400">Module Number<input value={newLesson.moduleNumber} onChange={(event) => setNewLesson((previous) => ({ ...previous, moduleNumber: event.target.value }))} placeholder="1" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" />
 </label>
-<label className="text-xs text-stone-400">Visibility<select value={newLesson.status} onChange={(event) => setNewLesson((previous) => ({ ...previous, status: event.target.value as "draft" | "published" }))} className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-white">
-<option value="draft" className="bg-[#0c1017] text-white">Draft</option>
-<option value="published" className="bg-[#0c1017] text-white">Published</option>
-</select>
-</label>
+<div className="text-xs text-stone-400">Visibility<p className="mt-1 rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200">{lessonStatus === "published" ? "Published" : "Draft"}</p></div>
 </div>
             
             <label className="mt-3 block text-xs text-stone-400">Subtitle<input value={newLesson.subtitle} onChange={(event) => setNewLesson((previous) => ({ ...previous, subtitle: event.target.value }))} placeholder="Lesson summary" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" />
@@ -1956,18 +1973,6 @@ export default function InstructorWorkstationPage({
         instructorId={instructorId}
     lessonContext={newLesson.title || newLesson.slug || lessonId}
   />
-      {showPreview && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="lesson-preview-title" onClick={(e)=>{ if(e.target===e.currentTarget) setShowPreview(false); }}>
-        <div className="flex h-[88vh] max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-[#394252] bg-[#171d28] shadow-2xl" onClick={(e)=>e.stopPropagation()}>
-          <div className="flex flex-col gap-4 border-b border-[#293343] p-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-4">{workstationState.bannerUrl && <img src={workstationState.bannerUrl} alt="" className="h-12 w-20 rounded object-cover" />}<div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Student View Preview</p><h2 id="lesson-preview-title" className="mt-1 font-sans text-xl font-semibold text-stone-100">{newLesson.title || "Untitled Lesson"}</h2><p className="mt-1 text-sm text-stone-400">{newLesson.subtitle || "Your instructor has prepared this lesson for you."}</p></div></div>
-            <div className="flex items-center gap-2">{workstationState.content.ambientMusicUrl && <AmbientMusicPlayer src={workstationState.content.ambientMusicUrl} />}<button type="button" onClick={() => setShowPreview(false)} aria-label="Close preview" className="rounded-md p-2 text-stone-400 hover:bg-white/10 hover:text-stone-100"><X className="h-4 w-4" /></button><button type="button" onClick={() => setShowPreview(false)} className="rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500 hover:text-black">Back to Editing</button><button type="button" onClick={handleConfirmPublish} disabled={isPublishing} className="rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-black transition-colors hover:bg-amber-400 disabled:opacity-50">Publish Lesson</button></div>
-          </div>
-          <div className="grid min-h-0 flex-1 overflow-hidden md:grid-cols-[180px_1fr]">
-            <nav className="flex gap-2 overflow-x-auto border-b border-[#293343] p-3 md:block md:space-y-1 md:border-b-0 md:border-r" aria-label="Preview lesson steps">{previewSteps.map(([step, label]) => <button key={step} type="button" onClick={() => setPreviewStep(step)} className={`block shrink-0 rounded-md px-3 py-2 text-left text-xs transition-colors md:w-full ${previewStep === step ? "bg-amber-500 text-black" : "text-stone-400 hover:bg-amber-500/10 hover:text-amber-300"}`}>{label}</button>)}</nav>
-            <div className="min-h-0 overflow-y-auto p-5"><div className="mb-5 border-b border-[#293343] pb-4"><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">{previewSteps.find(([step]) => step === previewStep)?.[1]}</p><p className="mt-2 text-sm text-stone-400">{newLesson.subtitle || "Your instructor has prepared this lesson for you."}</p></div>{renderPreviewStep()}</div>
-          </div>
-        </div>
-      </div>}
       {lessonPendingDelete && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-lesson-title"><div className="w-full max-w-md rounded-xl border border-[#394252] bg-[#171d28] p-6 shadow-2xl"><h2 id="delete-lesson-title" className="font-sans text-xl font-semibold text-stone-100">Delete lesson?</h2><p className="mt-3 text-sm leading-relaxed text-stone-400">Are you sure you want to delete this lesson?</p><p className="mt-2 truncate text-xs text-amber-300">{lessonPendingDelete.title}</p><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setLessonPendingDelete(null)} className="rounded-md border border-[#394252] px-4 py-2 text-xs font-semibold text-stone-300 hover:border-stone-300">Cancel</button><button type="button" onClick={() => void handleDeleteLesson()} className="rounded-md bg-red-500 px-4 py-2 text-xs font-semibold text-white hover:bg-red-400">Delete lesson</button></div></div></div>}
     </div>
   );
