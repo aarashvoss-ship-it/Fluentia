@@ -94,6 +94,37 @@ const EMPTY_RESOURCE_DRAFT = {
   explanation: "",
 };
 
+function AudioTranscriptAccordion({ resourceId, transcript }: { resourceId: string; transcript: string }) {
+  const [isExpanded, setIsExpanded] = useState(true);
+  const transcriptLines = parseInteractiveTranscript(transcript);
+  const contentId = `audio-transcript-${resourceId.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-[#293343] bg-[#0c1017]/70">
+      <button
+        type="button"
+        aria-expanded={isExpanded}
+        aria-controls={contentId}
+        onClick={() => setIsExpanded((expanded) => !expanded)}
+        className="flex w-full items-center justify-between gap-3 border-b border-[#293343] px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-400 transition hover:bg-amber-500/5 hover:text-amber-300"
+      >
+        <span>Transcript</span>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-amber-400 transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`} aria-hidden="true" />
+      </button>
+      <div id={contentId} className={`grid transition-[grid-template-rows] duration-300 ease-out ${isExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+        <div className="min-h-0 overflow-hidden">
+          {transcriptLines.length > 0 ? <div className="divide-y divide-[#202631]">
+            {transcriptLines.map((line, index) => <div key={`${line.seconds}-${index}`} className="flex items-start gap-3 px-3 py-2.5">
+              <span className="shrink-0 rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-amber-300">{line.timestamp}</span>
+              <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-stone-300">{line.text}</p>
+            </div>)}
+          </div> : <p className="whitespace-pre-wrap break-words p-3 text-xs leading-relaxed text-stone-300">{transcript}</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function InstructorWorkstationPage({
   instructorId,
   lessonSlug,
@@ -1908,18 +1939,7 @@ export default function InstructorWorkstationPage({
                             <div className="mt-3 space-y-3">
                               {resource.link_url ? <CustomAudioPlayer src={resource.link_url} label={resource.title} /> : <p className="text-xs text-stone-500">No audio URL is available.</p>}
                               {resource.link_url && <a href={resource.link_url} target="_blank" rel="noreferrer" className="block truncate text-[11px] text-sky-300 underline">Open audio file</a>}
-                              {resource.body && (() => {
-                                const transcriptLines = parseInteractiveTranscript(resource.body);
-                                return <div className="overflow-hidden rounded-lg border border-[#293343] bg-[#0c1017]/70">
-                                  <h5 className="border-b border-[#293343] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-400">Transcript</h5>
-                                  {transcriptLines.length > 0 ? <div className="divide-y divide-[#202631]">
-                                    {transcriptLines.map((line, index) => <div key={`${line.seconds}-${index}`} className="flex items-start gap-3 px-3 py-2.5">
-                                      <span className="shrink-0 rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-amber-300">{line.timestamp}</span>
-                                      <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-stone-300">{line.text}</p>
-                                    </div>)}
-                                  </div> : <p className="whitespace-pre-wrap break-words p-3 text-xs leading-relaxed text-stone-300">{resource.body}</p>}
-                                </div>;
-                              })()}
+                              {resource.body && <AudioTranscriptAccordion resourceId={resource.id} transcript={resource.body} />}
                             </div>
                           )}
                           {resource.resource_type === "note" && resource.body && <p className="mt-3 text-sm leading-relaxed text-stone-300">{resource.body}</p>}
