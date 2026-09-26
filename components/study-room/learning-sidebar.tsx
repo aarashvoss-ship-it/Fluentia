@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight, BookMarked, Check, Copy, Download, FileDown, FileText, Headphones, Layers3, Library, Table, Trash2, X } from "lucide-react";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
-import { DataTableResource } from "@/components/shared/data-table-resource";
+import { DataTableResource, getDataTableResourceTitle, isDataTableResourceTitle } from "@/components/shared/data-table-resource";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { supabase } from "@/lib/supabaseClient";
 import { SavedVocabularyWord, StudentNote } from "@/types/lesson";
@@ -330,11 +330,11 @@ export function LearningSidebar({
     goToCard(cardIndex + 1);
   };
 
-  const noteResources = assignedResources.filter((item) => item.resource_type === "note");
+  const noteResources = assignedResources.filter((item) => item.resource_type === "note" && !isDataTableResourceTitle(item.title));
   const readingResources = assignedResources.filter((item) => item.resource_type === "reading");
   const quizResources = assignedResources.filter((item) => item.resource_type === "quiz");
   const audioResources = assignedResources.filter((item) => item.resource_type === "audio");
-  const dataTableResources = assignedResources.filter((item) => item.resource_type === "data_table");
+  const dataTableResources = assignedResources.filter((item) => item.resource_type === "data_table" || isDataTableResourceTitle(item.title));
 
   return (
     <>
@@ -442,8 +442,8 @@ export function LearningSidebar({
               <h3 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Data Tables</h3>
               {dataTableResources.length === 0 ? <p className="text-sm text-stone-500">Your instructor has not assigned a Data Table yet.</p> : dataTableResources.map((item) => (
                 <article key={item.id} className="space-y-3 rounded-lg border border-[#29303c] bg-[#0c1017] p-3">
-                  <h4 className="text-sm font-semibold text-stone-100">{item.title}</h4>
-                  {item.body && <DataTableResource title={item.title} markdown={item.body} />}
+                  <h4 className="text-sm font-semibold text-stone-100">{getDataTableResourceTitle(item.title)}</h4>
+                  {item.body && <DataTableResource title={getDataTableResourceTitle(item.title)} markdown={item.body} />}
                 </article>
               ))}
             </section>

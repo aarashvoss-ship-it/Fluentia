@@ -4,6 +4,16 @@ import { useState } from "react";
 import { Copy, FileDown } from "lucide-react";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 
+export const DATA_TABLE_RESOURCE_TITLE_PREFIX = "[Data Table] ";
+
+export function isDataTableResourceTitle(title: string) {
+  return title.startsWith(DATA_TABLE_RESOURCE_TITLE_PREFIX);
+}
+
+export function getDataTableResourceTitle(title: string) {
+  return isDataTableResourceTitle(title) ? title.slice(DATA_TABLE_RESOURCE_TITLE_PREFIX.length) : title;
+}
+
 type ParsedTable = { headers: string[]; rows: string[][] };
 
 function splitRow(line: string) {

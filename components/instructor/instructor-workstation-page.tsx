@@ -15,7 +15,7 @@ import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/
 import { AccessCard } from "@/components/access/access-card";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { WritingBlockRenderer } from "@/components/shared/writing-block";
-import { DataTableResource } from "@/components/shared/data-table-resource";
+import { DataTableResource, DATA_TABLE_RESOURCE_TITLE_PREFIX, getDataTableResourceTitle, isDataTableResourceTitle } from "@/components/shared/data-table-resource";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { Stepper } from "@/components/study-room/stepper";
@@ -726,6 +726,8 @@ export default function InstructorWorkstationPage({
     }
 
     const studentToken = selectedStudent.token || selectedStudent.id;
+    const storedResourceType: StudentResourceType = resourceType === "data_table" ? "note" : resourceType;
+    const storedTitle = resourceType === "data_table" ? `${DATA_TABLE_RESOURCE_TITLE_PREFIX}${trimmedTitle}` : trimmedTitle;
     try {
       let audioUrl = resourceDraft.linkUrl.trim();
       if (resourceType === "audio" && !audioUrl && audioFile) {
@@ -745,9 +747,9 @@ export default function InstructorWorkstationPage({
           student_id: selectedStudent.id,
           student_token: studentToken,
           lesson_id: resourceLessonId,
-          type: resourceType,
-          resource_type: resourceType,
-          title: trimmedTitle,
+          type: storedResourceType,
+          resource_type: storedResourceType,
+          title: storedTitle,
           updated_at: new Date().toISOString(),
           ...(resourceType === "note" || resourceType === "quiz" || resourceType === "audio" || resourceType === "data_table"
             ? { body: resourceDraft.body.trim() || undefined }
@@ -1933,12 +1935,15 @@ export default function InstructorWorkstationPage({
                         No student resources yet for this student.
                       </div>
                     ) : (
-                      studentResources.map((resource) => (
+                      studentResources.map((resource) => {
+                        const isDataTable = resource.resource_type === "data_table" || isDataTableResourceTitle(resource.title);
+                        const resourceTitle = isDataTable ? getDataTableResourceTitle(resource.title) : resource.title;
+                        return (
                         <div key={resource.id} className="rounded-xl border border-[#202631] bg-[#10181f] p-3">
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">{resource.resource_type}</p>
-                              <h4 className="mt-1 font-semibold text-stone-100">{resource.title}</h4>
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">{isDataTable ? "data_table" : resource.resource_type}</p>
+                              <h4 className="mt-1 font-semibold text-stone-100">{resourceTitle}</h4>
                             </div>
                             <button type="button" onClick={() => void deleteStudentResource(resource)} className="text-stone-500 hover:text-red-300" aria-label={`Delete ${resource.title}`}>
                               <Trash2 className="h-3.5 w-3.5" />
@@ -1961,11 +1966,12 @@ export default function InstructorWorkstationPage({
                               {resource.body && <AudioTranscriptAccordion resourceId={resource.id} transcript={resource.body} />}
                             </div>
                           )}
-                          {resource.resource_type === "data_table" && resource.body && <div className="mt-3"><DataTableResource title={resource.title} markdown={resource.body} /></div>}
-                          {resource.resource_type === "note" && resource.body && <p className="mt-3 text-sm leading-relaxed text-stone-300">{resource.body}</p>}
+                          {isDataTable && resource.body && <div className="mt-3"><DataTableResource title={resourceTitle} markdown={resource.body} /></div>}
+                          {resource.resource_type === "note" && !isDataTable && resource.body && <p className="mt-3 text-sm leading-relaxed text-stone-300">{resource.body}</p>}
                           {resource.resource_type === "quiz" && resource.body && <p className="mt-3 text-sm leading-relaxed text-stone-300">{resource.body}</p>}
                         </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </div>
