@@ -15,6 +15,7 @@ import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/
 import { AccessCard } from "@/components/access/access-card";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { WritingBlockRenderer } from "@/components/shared/writing-block";
+import { DataTableResource } from "@/components/shared/data-table-resource";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { Stepper } from "@/components/study-room/stepper";
@@ -66,7 +67,7 @@ function cloneSidebarBlocksByStep(blocks: SidebarBlocksByStep): SidebarBlocksByS
 }
 
 type LessonResource = { id: string; title: string; url: string; type: "PDF" | "Article" | "Video" };
-type StudentResourceType = "note" | "reading" | "flashcard" | "quiz" | "audio";
+type StudentResourceType = "note" | "reading" | "flashcard" | "quiz" | "audio" | "data_table";
 type StudentResourceEntry = {
   id: string;
   student_id: string;
@@ -709,6 +710,11 @@ export default function InstructorWorkstationPage({
       return;
     }
 
+    if (resourceType === "data_table" && !resourceDraft.body.trim()) {
+      setResourceStatus("Add Markdown table content before saving this Data Table.");
+      return;
+    }
+
     if (resourceType === "audio" && !resourceDraft.linkUrl.trim() && !audioFile) {
       setResourceStatus("Add an audio URL or choose an audio file.");
       return;
@@ -743,7 +749,7 @@ export default function InstructorWorkstationPage({
           resource_type: resourceType,
           title: trimmedTitle,
           updated_at: new Date().toISOString(),
-          ...(resourceType === "note" || resourceType === "quiz" || resourceType === "audio"
+          ...(resourceType === "note" || resourceType === "quiz" || resourceType === "audio" || resourceType === "data_table"
             ? { body: resourceDraft.body.trim() || undefined }
             : {}),
           ...(resourceType === "reading" || resourceType === "audio"
@@ -1655,7 +1661,7 @@ export default function InstructorWorkstationPage({
               <div className="grid min-w-0 grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.35fr)]">
                 <div className="w-full min-w-0 rounded-2xl border border-[#202631] bg-[#171d28]/60 p-5">
                   <div className="mb-4 flex flex-wrap gap-2">
-                    {([['note', 'Notes'], ['reading', 'Reading'], ['flashcard', 'Flashcards'], ['quiz', 'Quiz'], ['audio', 'Audio']] as const).map(([type, label]) => (
+                    {([['note', 'Notes'], ['reading', 'Reading'], ['flashcard', 'Flashcards'], ['quiz', 'Quiz'], ['audio', 'Audio'], ['data_table', 'Data Table']] as const).map(([type, label]) => (
                       <button
                         key={type}
                         type="button"
@@ -1673,7 +1679,7 @@ export default function InstructorWorkstationPage({
                       <input
                         value={resourceDraft.title}
                         onChange={(event) => setResourceDraft((previous) => ({ ...previous, title: event.target.value }))}
-                        placeholder={resourceDraft.type === "audio" ? "Podcast / Deep Dive Audio" : "Vocabulary set / reading summary / quiz idea"}
+                        placeholder={resourceDraft.type === "audio" ? "Podcast / Deep Dive Audio" : resourceDraft.type === "data_table" ? "Lesson 3: Core Summary Matrix" : "Vocabulary set / reading summary / quiz idea"}
                         className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
                       />
                     </label>
@@ -1722,6 +1728,19 @@ export default function InstructorWorkstationPage({
                           />
                         </label>
                       </>
+                    )}
+
+                    {resourceDraft.type === "data_table" && (
+                      <label className="block text-xs text-stone-400">
+                        Markdown Content
+                        <textarea
+                          value={resourceDraft.body}
+                          onChange={(event) => setResourceDraft((previous) => ({ ...previous, body: event.target.value }))}
+                          rows={12}
+                          placeholder="Paste Markdown Table here..."
+                          className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 font-mono text-xs text-stone-200 outline-none focus:border-amber-500"
+                        />
+                      </label>
                     )}
 
                     {(resourceDraft.type === "note" || resourceDraft.type === "quiz") && (
@@ -1773,7 +1792,7 @@ export default function InstructorWorkstationPage({
                     )}
 
                     <button type="button" onClick={() => void saveStudentResource()} className="w-full rounded-md bg-amber-500 px-4 py-2.5 text-xs font-semibold text-slate-950 transition hover:bg-amber-400">
-                      Save resource
+                      {resourceDraft.type === "data_table" ? "Save Data Table" : "Save resource"}
                     </button>
                     {resourceStatus && <p role="status" className="text-xs leading-relaxed text-amber-300">{resourceStatus}</p>}
                   </div>
@@ -1942,6 +1961,7 @@ export default function InstructorWorkstationPage({
                               {resource.body && <AudioTranscriptAccordion resourceId={resource.id} transcript={resource.body} />}
                             </div>
                           )}
+                          {resource.resource_type === "data_table" && resource.body && <div className="mt-3"><DataTableResource title={resource.title} markdown={resource.body} /></div>}
                           {resource.resource_type === "note" && resource.body && <p className="mt-3 text-sm leading-relaxed text-stone-300">{resource.body}</p>}
                           {resource.resource_type === "quiz" && resource.body && <p className="mt-3 text-sm leading-relaxed text-stone-300">{resource.body}</p>}
                         </div>

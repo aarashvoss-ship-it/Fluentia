@@ -1,17 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, BookMarked, Check, Copy, Download, FileDown, FileText, Headphones, Layers3, Library, Trash2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookMarked, Check, Copy, Download, FileDown, FileText, Headphones, Layers3, Library, Table, Trash2, X } from "lucide-react";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
+import { DataTableResource } from "@/components/shared/data-table-resource";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { supabase } from "@/lib/supabaseClient";
 import { SavedVocabularyWord, StudentNote } from "@/types/lesson";
 
-type LearningTab = "vocab" | "notes" | "reading" | "flashcards" | "quizzes" | "audio";
+type LearningTab = "vocab" | "notes" | "reading" | "flashcards" | "quizzes" | "audio" | "data_table";
 type StudentResource = {
   id: string;
   lesson_id: string | null;
-  resource_type: "note" | "reading" | "flashcard" | "quiz" | "audio";
+  resource_type: "note" | "reading" | "flashcard" | "quiz" | "audio" | "data_table";
   title: string;
   body?: string | null;
   link_url?: string | null;
@@ -314,6 +315,7 @@ export function LearningSidebar({
     ["flashcards", "Cards", Layers3],
     ["quizzes", "Quizzes", Check],
     ["audio", "Audio", Headphones],
+    ["data_table", "Data Table", Table],
   ] as const;
 
   const goToCard = (index: number) => {
@@ -332,6 +334,7 @@ export function LearningSidebar({
   const readingResources = assignedResources.filter((item) => item.resource_type === "reading");
   const quizResources = assignedResources.filter((item) => item.resource_type === "quiz");
   const audioResources = assignedResources.filter((item) => item.resource_type === "audio");
+  const dataTableResources = assignedResources.filter((item) => item.resource_type === "data_table");
 
   return (
     <>
@@ -431,6 +434,18 @@ export function LearningSidebar({
                   <DownloadMaterialButton title={item.title || item.type} href={href} />
                 </div>;
               })}
+            </section>
+          )}
+
+          {tab === "data_table" && (
+            <section className="space-y-3" aria-label="Data table resources">
+              <h3 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Data Tables</h3>
+              {dataTableResources.length === 0 ? <p className="text-sm text-stone-500">Your instructor has not assigned a Data Table yet.</p> : dataTableResources.map((item) => (
+                <article key={item.id} className="space-y-3 rounded-lg border border-[#29303c] bg-[#0c1017] p-3">
+                  <h4 className="text-sm font-semibold text-stone-100">{item.title}</h4>
+                  {item.body && <DataTableResource title={item.title} markdown={item.body} />}
+                </article>
+              ))}
             </section>
           )}
 
