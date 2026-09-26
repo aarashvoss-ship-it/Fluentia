@@ -173,6 +173,7 @@ export default function InstructorWorkstationPage({
   const hasLoadedLesson = useRef(false);
   const lastSavedDraftSignature = useRef<string | null>(null);
   const saveRequestId = useRef(0);
+  const activeLessonIdRef = useRef<string | null>(null);
   const saveInFlight = useRef(false);
   const pendingAutoSave = useRef(false);
   const lastInputAt = useRef(0);
@@ -209,6 +210,7 @@ export default function InstructorWorkstationPage({
     hasLoadedLesson.current = false;
     lastSavedDraftSignature.current = null;
     saveRequestId.current += 1;
+    activeLessonIdRef.current = null;
     saveInFlight.current = false;
     pendingAutoSave.current = false;
     setDatabaseLessonId(null);
@@ -245,6 +247,11 @@ export default function InstructorWorkstationPage({
     });
 
   async function handleStudentChange(student: StudentUser, requestedLessonSlug = lessonId) {
+    saveRequestId.current += 1;
+    pendingAutoSave.current = false;
+    activeLessonIdRef.current = null;
+    hasLoadedLesson.current = false;
+    lastSavedDraftSignature.current = null;
     setPublishStatus(null);
     setResourceLessonId(null);
     const id = student?.id?.trim();
@@ -289,6 +296,7 @@ export default function InstructorWorkstationPage({
       setLessonResources([]);
       setDatabaseLessonId(null);
       setResourceLessonId(null);
+      setWorkstationState((previous) => ({ ...previous, content: {}, bannerUrl: "", customBannerUrl: "", submission: undefined }));
     }
   }
 
@@ -332,6 +340,10 @@ export default function InstructorWorkstationPage({
   };
 
   const activateLesson = (lesson: LessonWithVersion) => {
+    saveRequestId.current += 1;
+    pendingAutoSave.current = false;
+    activeLessonIdRef.current = lesson.id;
+    lastSavedDraftSignature.current = null;
     bindLesson(lesson);
     const content = lesson.content || {};
     const lessonSlug = typeof content.slug === "string" ? content.slug : lesson.id;
@@ -368,7 +380,7 @@ export default function InstructorWorkstationPage({
     setResourceLessonId(lesson.id);
     setLessonStatus(lesson.status === "published" ? "published" : "draft");
     window.setTimeout(() => {
-      hasLoadedLesson.current = true;
+      if (activeLessonIdRef.current === lesson.id) hasLoadedLesson.current = true;
     }, 0);
   };
 
@@ -378,6 +390,9 @@ export default function InstructorWorkstationPage({
   };
 
   const duplicateLesson = (lesson?: LessonWithVersion) => {
+    saveRequestId.current += 1;
+    pendingAutoSave.current = false;
+    activeLessonIdRef.current = null;
     resetStore();
     const sourceContent = (lesson?.content || workstationState.content) as Record<string, any>;
     const sourceTitle = lesson?.title || newLesson.title || "Untitled Lesson";
@@ -866,6 +881,7 @@ export default function InstructorWorkstationPage({
       setNewLesson((previous) => ({ ...previous, studentId: student.id, title: lesson.title, slug, moduleNumber: String(moduleNumber), status: "draft" }));
       setWorkstationState((previous) => ({ ...previous, content: created.content || previous.content }));
       setDatabaseLessonId(created.id);
+      activeLessonIdRef.current = created.id;
       hasLoadedLesson.current = true;
       setSaveIndicator("saved");
       await refreshCreatedLessons();
@@ -1066,6 +1082,8 @@ export default function InstructorWorkstationPage({
   };
 
   const saveLessonChanges = async (status: "draft" | "published", isAutoSave = false) => {
+    const selectedLessonId = databaseLessonId;
+    if (selectedLessonId && activeLessonIdRef.current !== selectedLessonId) return;
     if (isAutoSave && saveInFlight.current) {
       pendingAutoSave.current = true;
       return;
@@ -1122,11 +1140,11 @@ export default function InstructorWorkstationPage({
     };
     const requestId = ++saveRequestId.current;
     try {
-      if (databaseLessonId && editorLesson?.id !== databaseLessonId) {
+      if (selectedLessonId && editorLesson?.id !== selectedLessonId) {
         throw new Error("The active lesson identity is not synchronized with the database record");
       }
-      const lesson = databaseLessonId
-        ? await updateLesson(databaseLessonId, {
+      const lesson = selectedLessonId
+        ? await updateLesson(selectedLessonId, {
           title,
           subtitle: newLesson.subtitle.trim() || "A new Fluentia learning journey.",
           module_number: moduleNumber,
@@ -1154,8 +1172,9 @@ export default function InstructorWorkstationPage({
             changes_summary: `Initial lesson created as ${status}`,
           });
       const savedSlug = typeof lesson.content?.slug === "string" ? lesson.content.slug : slug;
-      if (requestId !== saveRequestId.current) return;
+      if (requestId !== saveRequestId.current || activeLessonIdRef.current !== selectedLessonId) return;
       setDatabaseLessonId(lesson.id);
+      activeLessonIdRef.current = lesson.id;
       bindLesson(lesson);
       setNewLesson((previous) => ({
         ...previous,
@@ -1195,6 +1214,7 @@ export default function InstructorWorkstationPage({
       console.log("Lesson saved successfully", { lessonId: lesson.id, status });
       if (!isAutoSave) setPublishStatus(`Lesson saved as ${status}.${assignmentSyncWarning || " Synced with student view."}`);
     } catch (error) {
+      if (requestId !== saveRequestId.current || activeLessonIdRef.current !== selectedLessonId) return;
       console.error("Lesson save failed raw:", JSON.stringify(error, Object.getOwnPropertyNames(error)), error);
       const details = error && typeof error === "object"
         ? error as { code?: string; message?: string; details?: string; hint?: string; status?: number }
@@ -1217,13 +1237,15 @@ export default function InstructorWorkstationPage({
       setSaveIndicator("error");
       if (!isAutoSave) setPublishStatus("Lesson save failed. Check the Supabase connection and try again.");
     } finally {
-      saveInFlight.current = false;
-      if (!isAutoSave) setIsPublishing(false);
-      if (pendingAutoSave.current) {
-        pendingAutoSave.current = false;
-        const latestSignature = getDraftSignature(workstationState.content, newLesson.title, newLesson.subtitle, newLesson.moduleNumber);
-        if (latestSignature !== lastSavedDraftSignature.current) {
-          window.setTimeout(() => void saveLessonChanges(status, true), 0);
+      if (requestId === saveRequestId.current) {
+        saveInFlight.current = false;
+        if (!isAutoSave) setIsPublishing(false);
+        if (pendingAutoSave.current) {
+          pendingAutoSave.current = false;
+          const latestSignature = getDraftSignature(workstationState.content, newLesson.title, newLesson.subtitle, newLesson.moduleNumber);
+          if (latestSignature !== lastSavedDraftSignature.current) {
+            window.setTimeout(() => void saveLessonChanges(status, true), 0);
+          }
         }
       }
     }
@@ -1858,7 +1880,7 @@ export default function InstructorWorkstationPage({
           </section>
           <main className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-12">
             <div className="h-full min-w-0 lg:col-span-8">
-              <LessonTailorEditor content={workstationState.content} sidebarBlocksByStep={sidebarBlocksByStep} onChange={(content: StrictStepContent) => setWorkstationState((previous) => ({ ...previous, content }))} />
+              <LessonTailorEditor key={databaseLessonId || "new-lesson"} content={workstationState.content} sidebarBlocksByStep={sidebarBlocksByStep} onChange={(content: StrictStepContent) => setWorkstationState((previous) => ({ ...previous, content }))} />
             </div>
             <aside className="h-full space-y-6 lg:col-span-4">
               <details className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" open={heroBannerOpen} onToggle={(event) => setHeroBannerOpen(event.currentTarget.open)}>

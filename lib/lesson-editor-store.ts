@@ -113,6 +113,7 @@ export const useLessonEditorStore = create<LessonEditorState>()(
         if (!lesson) {
           throw new Error(`Lesson ${lessonId} not found`);
         }
+        if (normalizeLessonIdentity(get().routeLessonId) !== normalizeLessonIdentity(lessonId)) return;
 
         set((state) => {
           state.lesson = lesson;
@@ -134,12 +135,15 @@ export const useLessonEditorStore = create<LessonEditorState>()(
           console.warn(`Background version load failed for ${lesson.id}:`, versionError);
         });
       } catch (error) {
+        if (normalizeLessonIdentity(get().routeLessonId) !== normalizeLessonIdentity(lessonId)) return;
         const errorMessage =
           error instanceof Error ? error.message : "Failed to load lesson";
         set({ error: errorMessage, isLoading: false });
         throw error;
       } finally {
-        set({ isLoading: false });
+        if (normalizeLessonIdentity(get().routeLessonId) === normalizeLessonIdentity(lessonId)) {
+          set({ isLoading: false });
+        }
       }
     },
 
