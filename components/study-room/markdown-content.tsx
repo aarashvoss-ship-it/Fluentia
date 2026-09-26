@@ -65,7 +65,7 @@ function normalizeMarkdown(value: string) {
   return normalized;
 }
 
-export function MarkdownContent({ value, className = "", plainCode = false }: { value: string; className?: string; plainCode?: boolean }) {
+export function MarkdownContent({ value, className = "", plainCode = false, dataTables = false }: { value: string; className?: string; plainCode?: boolean; dataTables?: boolean }) {
   const renderPlainCode = plainCode || className.includes("text-slate-300");
   return (
     <div className={className}>
@@ -98,6 +98,16 @@ export function MarkdownContent({ value, className = "", plainCode = false }: { 
           },
           blockquote: ({ children }) => <blockquote className="my-4 border-l-4 border-amber-500/70 bg-amber-500/10 px-4 py-2 leading-7 italic text-amber-100/90">{children}</blockquote>,
           hr: () => <hr className="my-5 border-[#394252]" />,
+          table: ({ children }) => dataTables ? (
+            <div className="my-4 max-w-full overflow-x-auto rounded-lg border border-[#394252]">
+              <table className="w-full min-w-max border-collapse text-left text-xs text-stone-300">{children}</table>
+            </div>
+          ) : <table>{children}</table>,
+          thead: ({ children }) => <thead className={dataTables ? "bg-[#f59e0b]/15 text-[#f59e0b]" : undefined}>{children}</thead>,
+          th: ({ children }) => <th className={dataTables ? "border-b border-[#394252] px-3 py-2.5 text-left text-[11px] font-semibold text-[#f59e0b]" : undefined}>{children}</th>,
+          tbody: ({ children }) => <tbody>{children}</tbody>,
+          tr: ({ children }) => <tr className={dataTables ? "odd:bg-[#10151d] even:bg-[#171d28] hover:bg-amber-500/10" : undefined}>{children}</tr>,
+          td: ({ children }) => <td className={dataTables ? "border-t border-[#29303c] px-3 py-2.5 align-top leading-relaxed" : undefined}>{children}</td>,
           pre: ({ children }) => renderPlainCode
             ? <p className="mb-4 whitespace-pre-wrap leading-7 last:mb-0">{children}</p>
             : <pre className="mb-4 max-w-full overflow-x-auto rounded-lg border border-white/10 bg-black/30 p-3 text-sm leading-6 text-stone-200">{children}</pre>,
