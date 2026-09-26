@@ -1423,8 +1423,8 @@ export default function InstructorWorkstationPage({
   if (accessDenied) return <AccessCard title="Access Denied" message="Your instructor account does not have access to this workspace." />;
 
   return (
-    <div className="min-h-screen bg-[#0c1017] font-sans text-[#e8e7e4]">
-      <div className="mx-auto max-w-6xl px-6 py-6 md:py-8">
+    <div className="min-h-screen w-full bg-[#0c1017] font-sans text-[#e8e7e4]">
+      <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 md:py-8">
         <div className="mb-6 flex items-center">
           <img src="/logo.png" alt="Fluentia" className="h-10 w-auto object-contain" />
         </div>
@@ -1580,7 +1580,7 @@ export default function InstructorWorkstationPage({
           const flashcards = studentResources.filter((resource) => resource.resource_type === "flashcard");
           const currentFlashcard = flashcards[flashcardIndex] || null;
           return (
-            <section className="space-y-6" aria-label="Student resources panel">
+            <section className="mx-auto w-full min-w-0 max-w-6xl space-y-6" aria-label="Student resources panel">
               <div className="rounded-2xl border border-[#202631] bg-[#171d28]/60 p-5">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div>
@@ -1620,8 +1620,8 @@ export default function InstructorWorkstationPage({
                 </div>
               </div>
 
-              <div className="grid gap-6 xl:grid-cols-[1.1fr_1.4fr]">
-                <div className="rounded-2xl border border-[#202631] bg-[#171d28]/60 p-5">
+              <div className="grid min-w-0 grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.35fr)]">
+                <div className="w-full min-w-0 rounded-2xl border border-[#202631] bg-[#171d28]/60 p-5">
                   <div className="mb-4 flex flex-wrap gap-2">
                     {([['note', 'Notes'], ['reading', 'Reading'], ['flashcard', 'Flashcards'], ['quiz', 'Quiz'], ['audio', 'Audio']] as const).map(([type, label]) => (
                       <button
@@ -1747,7 +1747,7 @@ export default function InstructorWorkstationPage({
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-[#202631] bg-[#0b1018] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
+                <div className="w-full min-w-0 rounded-2xl border border-[#202631] bg-[#0b1018] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
                   <div className="mb-4 flex items-center justify-between gap-3">
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Study Deck</p>
