@@ -21,6 +21,7 @@ import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { FillInBlanksMarkdown } from "@/components/study-room/fill-in-blanks-markdown";
 import { WritingBlockRenderer } from "@/components/shared/writing-block";
+import { StudyRoomBlockRow } from "@/components/study-room/study-room-block-row";
 import { parseFillInBlanks } from "@/lib/fill-in-blanks";
 import { uploadStudentAudio } from "@/services/storage-service";
 import type { OptionIndexingStyle } from "@/types/lesson";
@@ -815,10 +816,7 @@ export default function LessonPage() {
           </div>
         );
         return (
-          <div key={block.id} className={`grid grid-cols-1 gap-6 items-stretch my-6 w-full ${expandsInlineRow ? "lg:grid-cols-12" : "lg:grid-cols-3"}`}>
-            <div className={`${expandsInlineRow ? "lg:col-span-12" : "lg:col-span-2"} h-full w-full`}>{article}</div>
-            {!expandsInlineRow && sidebarContent}
-          </div>
+          <StudyRoomBlockRow key={block.id} fullWidth={expandsInlineRow} sidebar={sidebarContent}>{article}</StudyRoomBlockRow>
         );
       })}
       {visibleBlocks.length === 0 && <p className="rounded-xl border border-dashed border-[#394252] p-6 text-sm text-stone-500">This step has no content blocks yet.</p>}

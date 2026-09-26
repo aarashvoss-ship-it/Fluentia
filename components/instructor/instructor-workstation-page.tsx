@@ -15,7 +15,10 @@ import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/
 import { AccessCard } from "@/components/access/access-card";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { WritingBlockRenderer } from "@/components/shared/writing-block";
+import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
+import { Stepper } from "@/components/study-room/stepper";
+import { StudyRoomBlockRow } from "@/components/study-room/study-room-block-row";
 import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player";
 import { getStudentProfile, saveStudentProfile } from "@/lib/student-profiles";
 import { MusicLibraryManager } from "@/components/instructor/music-library-manager";
@@ -1294,6 +1297,8 @@ export default function InstructorWorkstationPage({
   const previewBlocks: ContentBlock[] = previewStep==="results" ? [] : Array.isArray(previewContent?.blocks)
     ? (previewContent.blocks as ContentBlock[]).filter((block: ContentBlock) => block.is_active !== false && block.enabled !== false)
     : [];
+  const conceptualFramingBlock = previewBlocks.find((block): block is Extract<ContentBlock, { type: "text" }> => block.type === "text" && /conceptual framing/i.test(block.title || ""));
+  const stageContentBlocks = conceptualFramingBlock ? previewBlocks.filter((block) => block.id !== conceptualFramingBlock.id) : previewBlocks;
 
   const renderPreviewStep = () => {
     if (previewStep==="results") {
@@ -1317,27 +1322,31 @@ export default function InstructorWorkstationPage({
     const topSidebarBlocks = previewSidebarBlocks.filter((sidebarBlock) => !linkedSidebarIds.has(sidebarBlock.id));
     return (
     <div className="w-full space-y-6">
-      {previewBlocks.map((block: ContentBlock, blockIndex) => {
+      {conceptualFramingBlock && <article key={conceptualFramingBlock.id} className="mb-6 w-full rounded-xl border border-[#202631] bg-[#121721] p-5">
+        {conceptualFramingBlock.title && <h3 className="mb-3 font-sans text-xl font-semibold text-stone-100">{conceptualFramingBlock.title}</h3>}
+        <MarkdownContent value={conceptualFramingBlock.body || ""} className="text-sm leading-relaxed text-stone-300" />
+      </article>}
+      {stageContentBlocks.map((block: ContentBlock, blockIndex) => {
         const sidebarBlock = (sidebarBlocksByStep[previewStep as keyof SidebarBlocksByStep] || []).find((candidate) => candidate.parentMainBlockId === block.id)
           || (block.layoutMode === "inline-row" && block.sidebarBlockId
             ? (sidebarBlocksByStep[previewStep as keyof SidebarBlocksByStep] || []).find((candidate) => candidate.id === block.sidebarBlockId)
             : undefined);
         const article = (
-        <article key={block.id} className="rounded-lg border border-[#293343] bg-[#0c1017] p-4">
-          {block.title && <h4 className="mb-2 text-sm font-semibold text-stone-100">{block.title}</h4>}
+        <article key={block.id} className="rounded-xl border border-[#202631] bg-[#121721] p-5">
+          {block.title && <h3 className="mb-3 font-sans text-xl font-semibold text-stone-100">{block.title}</h3>}
           {block.type === "text" && <>{<MarkdownContent value={block.body || "No text added yet."} className="text-sm leading-relaxed text-stone-300" />}{block.hasStudentResponseInput === true && <textarea rows={6} placeholder="Write your response here..." readOnly className="mt-4 min-h-[140px] w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" aria-label="Student response field preview" />}</>}
           {block.type === "image" && <>{block.imageUrl ? <img src={block.imageUrl} alt={block.caption || block.title || "Lesson image"} className="max-h-72 w-full rounded-md object-cover" onError={(e)=>{(e.target as HTMLImageElement).style.display="none";}} /> : <p className="text-xs text-stone-500">Image not configured.</p>}{block.caption && <p className="mt-2 text-xs text-stone-500">{block.caption}</p>}</>}
           {block.type === "audio" && <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio lesson"} />}
-          {block.type === "video" && <><div className="rounded-md border border-dashed border-[#394252] p-4 text-xs text-stone-500">Video preview: {block.videoUrl || "URL not configured"}</div>{block.show_reflection_prompt !== false && <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-4"><p className="text-sm font-semibold text-amber-200">Reflection Question</p><p className="mt-2 text-sm leading-relaxed text-stone-300">{block.reflection_prompt_text?.trim() || "Think of an everyday product or app you use that frustrates you. Is it a problem of aesthetics or functionality? How would you redesign it?"}</p><textarea rows={4} placeholder="Write your reflection here..." readOnly className="mt-3 w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" aria-label="Reflection question response preview" /></div>}</>}
+          {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} />{block.show_reflection_prompt !== false && <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-4"><p className="text-sm font-semibold text-amber-200">Reflection Question</p><p className="mt-2 text-sm leading-relaxed text-stone-300">{block.reflection_prompt_text?.trim() || "Think of an everyday product or app you use that frustrates you. Is it a problem of aesthetics or functionality? How would you redesign it?"}</p><textarea rows={4} placeholder="Write your reflection here..." readOnly className="mt-3 w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" aria-label="Reflection question response preview" /></div>}</>}
           {block.type === "resource" && <a href={block.resourceUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-200 hover:border-amber-400">Open document{block.description ? `: ${block.description}` : ""}</a>}
           {block.type === "question" && <div className="space-y-2"><MarkdownContent value={block.prompt || "Question not configured."} className="text-sm text-stone-300" />{(block.question_type || "multiple_choice") === "open_ended" ? <><textarea rows={6} placeholder="Student response" readOnly className="min-h-[140px] w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" />{block.sample_answer && <MarkdownContent value={block.sample_answer} className="rounded border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-stone-300" />}</> : <div className="flex flex-wrap gap-2">{block.options.filter(Boolean).map((option) => <span key={option} className="rounded border border-[#394252] px-2 py-1 text-xs text-stone-400">{option}</span>)}</div>}</div>}
           {block.type === "quiz" && <div className="space-y-3">{(block.questions || []).map((question, index) => <div key={`${block.id}-${index}`}><MarkdownContent value={question.prompt || "Question not configured."} className="text-sm text-stone-300" /><div className="mt-2 flex flex-wrap gap-2">{question.options.map((option) => <span key={option} className="rounded border border-[#394252] px-2 py-1 text-xs text-stone-400">{option || "Option"}</span>)}</div></div>)}</div>}
           {block.type === "writing" && <WritingBlockRenderer block={block} isPreview />}
         </article>
         );
-        return <div key={block.id} className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start my-6 w-full"><div className="lg:col-span-2 w-full">{article}</div><div className="lg:col-span-1 w-full space-y-4">{blockIndex === 0 && topSidebarBlocks.map((topSidebarBlock) => <div key={topSidebarBlock.id} className="rounded-lg border border-[#293343] bg-[#171d28] p-3"><p className="text-xs font-semibold text-amber-400">{topSidebarBlock.title}</p><MarkdownContent value={topSidebarBlock.body || "—"} className="mt-2 text-sm leading-relaxed text-slate-300 [&_strong]:font-semibold [&_strong]:text-amber-400" /></div>)}{sidebarBlock ? <div className="rounded-lg border border-[#293343] bg-[#171d28] p-3"><p className="text-xs font-semibold text-amber-400">{sidebarBlock.title}</p><MarkdownContent value={sidebarBlock.body || "—"} className="mt-2 text-sm leading-relaxed text-slate-300 [&_strong]:font-semibold [&_strong]:text-amber-400" /></div> : null}</div></div>;
+        return <StudyRoomBlockRow key={block.id} sidebar={<>{blockIndex === 0 && topSidebarBlocks.map((topSidebarBlock) => <div key={topSidebarBlock.id} className="rounded-xl border border-[#202631] bg-[#121721] p-4"><p className="text-xs font-semibold text-amber-400">{topSidebarBlock.title}</p><MarkdownContent value={topSidebarBlock.body || "—"} className="mt-2 text-sm leading-relaxed text-stone-300 [&_strong]:font-semibold [&_strong]:text-amber-400" /></div>)}{sidebarBlock && <div className="rounded-xl border border-[#202631] bg-[#121721] p-4"><p className="text-xs font-semibold text-amber-400">{sidebarBlock.title}</p><MarkdownContent value={sidebarBlock.body || "—"} className="mt-2 text-sm leading-relaxed text-stone-300 [&_strong]:font-semibold [&_strong]:text-amber-400" /></div>}</>}>{article}</StudyRoomBlockRow>;
       })}
-      {previewBlocks.length === 0 && <p className="rounded-lg border border-dashed border-[#394252] p-6 text-sm text-stone-500">This step has no content blocks yet.</p>}
+      {stageContentBlocks.length === 0 && !conceptualFramingBlock && <p className="rounded-lg border border-dashed border-[#394252] p-6 text-sm text-stone-500">This step has no content blocks yet.</p>}
     </div>
   );};
 
@@ -1376,16 +1385,13 @@ export default function InstructorWorkstationPage({
 </div>
           {activeTab === "builder" && <div className="flex min-w-0 flex-col items-stretch gap-2 md:items-end">
             <div className="flex flex-wrap items-center justify-end gap-2">
-              {newLesson.instructorGuidance.trim() && <button type="button" onClick={() => setGuidanceOpen(true)} aria-expanded={guidanceOpen} className="flex items-center gap-1.5 rounded-full border border-amber-500/40 px-3 py-2 text-xs font-semibold text-amber-300 transition hover:border-amber-400 hover:bg-amber-500/10"><Lightbulb className="h-3.5 w-3.5" />Lesson Guidance</button>}
-              <select value={databaseLessonId && createdLessons.some((lesson) => lesson.id === databaseLessonId && lesson.status === "draft") ? databaseLessonId : ""} onChange={(event) => { const draft = createdLessons.find((lesson) => lesson.id === event.target.value); if (draft) activateLesson(draft); }} aria-label="Drafts" className="min-w-[220px] max-w-[320px] truncate rounded-md border border-[#394252] bg-[#171d28] px-3 py-2 text-xs font-semibold text-white outline-none [color-scheme:dark]"><option value="" className="bg-slate-900 text-white">Drafts</option>{createdLessons.filter((lesson) => lesson.status === "draft").slice(0, 8).map((lesson) => <option key={lesson.id} value={lesson.id} className="bg-slate-900 text-white">{lesson.title}</option>)}</select>
+              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold ${lessonStatus === "published" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/30 bg-amber-500/10 text-amber-300"}`}><span className={`h-1.5 w-1.5 rounded-full ${lessonStatus === "published" ? "bg-emerald-400" : "bg-amber-400"}`} />{lessonStatus === "published" ? "Published" : "Draft"}</span>
               <div role="group" aria-label="Workstation view" className="inline-flex rounded-md border border-[#394252] bg-[#0c1017] p-0.5">
-                <button type="button" aria-pressed={viewMode === "instructor"} onClick={() => setViewMode("instructor")} className={`rounded px-2.5 py-1.5 text-[11px] font-semibold transition ${viewMode === "instructor" ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-100"}`}>Instructor View</button>
+                <button type="button" aria-pressed={viewMode === "instructor"} onClick={() => setViewMode("instructor")} className={`rounded px-2.5 py-1.5 text-[11px] font-semibold transition ${viewMode === "instructor" ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-100"}`}>Edit Mode</button>
                 <button type="button" aria-pressed={viewMode === "student"} onClick={() => setViewMode("student")} className={`rounded px-2.5 py-1.5 text-[11px] font-semibold transition ${viewMode === "student" ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-100"}`}>Student View</button>
               </div>
-              <span className="rounded-md border border-[#394252] px-2.5 py-2 text-[11px] font-semibold text-stone-400">{lessonStatus === "published" ? "Published" : "Draft"}</span>
-              <button type="button" onClick={handleSaveDraft} className="rounded-md border border-[#394252] px-3 py-2 text-xs font-semibold text-stone-300 transition hover:border-amber-500/60 hover:text-amber-300">Save Changes</button>
-              {lessonStatus === "published" && databaseLessonId && <button type="button" onClick={handleUnpublish} disabled={isPublishing} className="rounded-md border border-red-500/40 px-3 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-500/10 disabled:cursor-wait disabled:opacity-60">Unpublish</button>}
-              <button type="button" onClick={handleConfirmPublish} disabled={isPublishing} className="rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60">{lessonStatus === "published" ? "Publish Changes" : "Publish to Student"}</button>
+              <button type="button" onClick={handleSaveDraft} className="rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-amber-400">Save Changes</button>
+              {lessonStatus === "published" ? <button type="button" onClick={handleUnpublish} disabled={isPublishing || !databaseLessonId} className="rounded-md border border-[#394252] px-3 py-2 text-xs font-semibold text-stone-300 transition hover:border-red-400 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50">Unpublish</button> : <button type="button" onClick={handleConfirmPublish} disabled={isPublishing} className="rounded-md border border-[#394252] px-3 py-2 text-xs font-semibold text-stone-300 transition hover:border-amber-500/60 hover:text-amber-300 disabled:cursor-wait disabled:opacity-60">Publish</button>}
             </div>
             <div className="flex min-h-5 w-full max-w-xl justify-end gap-3 text-xs" aria-live="polite">
               {publishStatus && <span className="truncate text-amber-300">{publishStatus}</span>}
@@ -1871,10 +1877,9 @@ export default function InstructorWorkstationPage({
             <div className="min-w-0 flex-1"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">{newLesson.moduleNumber ? `Module ${newLesson.moduleNumber}` : "Student Study Room"}</p><h2 className="mt-1 truncate text-xl font-semibold text-stone-100">{newLesson.title || "Untitled Lesson"}</h2><p className="mt-1 text-sm text-stone-400">{newLesson.subtitle || "Your instructor has prepared this lesson for you."}</p></div>
             {workstationState.content.ambientMusicUrl && <AmbientMusicPlayer src={workstationState.content.ambientMusicUrl} />}
           </header>
-          <div className="grid min-h-[560px] md:grid-cols-[180px_1fr]">
-            <nav className="flex gap-2 overflow-x-auto border-b border-[#293343] p-3 md:block md:space-y-1 md:border-b-0 md:border-r" aria-label="Lesson steps">{previewSteps.map(([step, label]) => <button key={step} type="button" onClick={() => setPreviewStep(step)} aria-current={previewStep === step ? "step" : undefined} className={`block shrink-0 rounded-md px-3 py-2 text-left text-xs transition-colors md:w-full ${previewStep === step ? "bg-amber-500 text-black" : "text-stone-400 hover:bg-amber-500/10 hover:text-amber-300"}`}>{label}</button>)}</nav>
-            <div className="min-w-0 p-5"><div className="mb-5 border-b border-[#293343] pb-4"><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">{previewSteps.find(([step]) => step === previewStep)?.[1]}</p><p className="mt-2 text-sm text-stone-400">{newLesson.subtitle || "Your instructor has prepared this lesson for you."}</p></div>{renderPreviewStep()}</div>
-          </div>
+          <div className="border-b border-[#293343] px-5 pb-4 pt-5"><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">{previewSteps.find(([step]) => step === previewStep)?.[1]}</p><h3 className="mt-1 text-lg font-semibold text-stone-100">{previewStep === "lesson" ? "Conceptual Framing" : previewSteps.find(([step]) => step === previewStep)?.[1]}</h3><p className="mt-2 text-sm text-stone-400">{newLesson.subtitle || "Your instructor has prepared this lesson for you."}</p></div>
+          <div className="p-5"><Stepper currentStep={previewStep} completedSteps={[]} lockedSteps={[]} onStepClick={(step) => setPreviewStep(step)} /></div>
+          <div className="min-h-[560px] border-t border-[#293343] p-5">{renderPreviewStep()}</div>
         </section>}
 
         {activeTab === "builder" && viewMode === "instructor" && <>
