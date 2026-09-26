@@ -19,6 +19,7 @@ import { InteractiveVideoBlock } from "@/components/shared/interactive-video-blo
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { Stepper } from "@/components/study-room/stepper";
 import { StudyRoomBlockRow } from "@/components/study-room/study-room-block-row";
+import { parseInteractiveTranscript } from "@/lib/transcripts";
 import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player";
 import { getStudentProfile, saveStudentProfile } from "@/lib/student-profiles";
 import { MusicLibraryManager } from "@/components/instructor/music-library-manager";
@@ -1903,10 +1904,24 @@ export default function InstructorWorkstationPage({
                           {resource.resource_type === "reading" && resource.link_url && (
                             <a href={resource.link_url} target="_blank" rel="noreferrer" className="mt-3 block truncate text-sm text-sky-300 underline">{resource.link_url}</a>
                           )}
-                          {resource.resource_type === "audio" && resource.link_url && (
-                            <a href={resource.link_url} target="_blank" rel="noreferrer" className="mt-3 block truncate text-sm text-sky-300 underline">{resource.link_url}</a>
+                          {resource.resource_type === "audio" && (
+                            <div className="mt-3 space-y-3">
+                              {resource.link_url ? <CustomAudioPlayer src={resource.link_url} label={resource.title} /> : <p className="text-xs text-stone-500">No audio URL is available.</p>}
+                              {resource.link_url && <a href={resource.link_url} target="_blank" rel="noreferrer" className="block truncate text-[11px] text-sky-300 underline">Open audio file</a>}
+                              {resource.body && (() => {
+                                const transcriptLines = parseInteractiveTranscript(resource.body);
+                                return <div className="overflow-hidden rounded-lg border border-[#293343] bg-[#0c1017]/70">
+                                  <h5 className="border-b border-[#293343] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-400">Transcript</h5>
+                                  {transcriptLines.length > 0 ? <div className="divide-y divide-[#202631]">
+                                    {transcriptLines.map((line, index) => <div key={`${line.seconds}-${index}`} className="flex items-start gap-3 px-3 py-2.5">
+                                      <span className="shrink-0 rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-amber-300">{line.timestamp}</span>
+                                      <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-stone-300">{line.text}</p>
+                                    </div>)}
+                                  </div> : <p className="whitespace-pre-wrap break-words p-3 text-xs leading-relaxed text-stone-300">{resource.body}</p>}
+                                </div>;
+                              })()}
+                            </div>
                           )}
-                          {resource.resource_type === "audio" && resource.body && <p className="mt-3 text-sm leading-relaxed text-stone-300">{resource.body}</p>}
                           {resource.resource_type === "note" && resource.body && <p className="mt-3 text-sm leading-relaxed text-stone-300">{resource.body}</p>}
                           {resource.resource_type === "quiz" && resource.body && <p className="mt-3 text-sm leading-relaxed text-stone-300">{resource.body}</p>}
                         </div>
