@@ -219,6 +219,8 @@ export default function InstructorWorkstationPage({
   const [validationErrors, setValidationErrors] = useState<Partial<Record<"selectedStudentId" | "title" | "slug" | "moduleNumber", string>>>({});
   const [createdLessons, setCreatedLessons] = useState<LessonWithVersion[]>([]);
   const [lessonPendingDelete, setLessonPendingDelete] = useState<LessonWithVersion | null>(null);
+  const activeBuilderStudent = selectedStudent ?? (selectedStudentId ? students.find((student) => student.id === selectedStudentId) ?? null : null);
+  const activeBuilderLessonId = resourceLessonId || databaseLessonId || null;
   const [openLessonMenuId, setOpenLessonMenuId] = useState<string | null>(null);
   const [newLesson, setNewLesson] = useState({
     studentId: "",
@@ -684,12 +686,14 @@ export default function InstructorWorkstationPage({
   };
 
   const saveStudentResource = async () => {
-    if (!selectedStudent) {
-      setResourceStatus("Select a student before saving a resource.");
+    const resolvedStudent = selectedStudent ?? (selectedStudentId ? students.find((student) => student.id === selectedStudentId) ?? null : null);
+    const resolvedLessonId = resourceLessonId || databaseLessonId || null;
+    if (!resolvedStudent) {
+      setResourceStatus("Select a student in Lesson Details before saving a resource.");
       return;
     }
-    if (!resourceLessonId) {
-      setResourceStatus("Select a lesson before saving a resource.");
+    if (!resolvedLessonId) {
+      setResourceStatus("Save the lesson draft first so the current builder lesson has an active lesson ID.");
       return;
     }
 
@@ -725,12 +729,12 @@ export default function InstructorWorkstationPage({
       return;
     }
 
-    const studentToken = selectedStudent.token || selectedStudent.id;
+    const studentToken = resolvedStudent.token || resolvedStudent.id;
     const storedResourceType: StudentResourceType = resourceType;
     try {
       let audioUrl = resourceDraft.linkUrl.trim();
       if (resourceType === "audio" && !audioUrl && audioFile) {
-        const path = `student-resources/${selectedStudent.id}/${Date.now()}-${audioFile.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+        const path = `student-resources/${resolvedStudent.id}/${Date.now()}-${audioFile.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
         const { error: uploadError } = await supabase.storage.from("lesson-audio").upload(path, audioFile, {
           contentType: audioFile.type,
           upsert: false,
@@ -743,9 +747,9 @@ export default function InstructorWorkstationPage({
       }
       const payload = Object.fromEntries(
         Object.entries({
-          student_id: selectedStudent.id,
+          student_id: resolvedStudent.id,
           student_token: studentToken,
-          lesson_id: resourceLessonId,
+          lesson_id: resolvedLessonId,
           type: storedResourceType,
           resource_type: storedResourceType,
           title: trimmedTitle,
@@ -824,8 +828,9 @@ export default function InstructorWorkstationPage({
   };
 
   const deleteStudentResource = async (resource: StudentResourceEntry) => {
-    if (!selectedStudent) return;
-    const studentToken = selectedStudent.token || selectedStudent.id;
+    const resolvedStudent = selectedStudent ?? (selectedStudentId ? students.find((student) => student.id === selectedStudentId) ?? null : null);
+    if (!resolvedStudent) return;
+    const studentToken = resolvedStudent.token || resolvedStudent.id;
 
     if (resource.id.startsWith("local-")) {
       const next = studentResources.filter((item) => item.id !== resource.id);
@@ -838,7 +843,7 @@ export default function InstructorWorkstationPage({
       .from("student_resources")
       .delete()
       .eq("id", resource.id)
-      .eq("student_id", selectedStudent.id);
+      .eq("student_id", resolvedStudent.id);
 
     if (error) {
       console.error("Student resource delete failed:", error.message);
@@ -1493,7 +1498,6 @@ export default function InstructorWorkstationPage({
           <div className="flex items-center justify-between gap-4 overflow-x-auto">
             <div className="flex shrink-0 gap-1">
               {([["dashboard", "Dashboard"], ["library", "Lesson Library"], ["builder", "Lesson Builder"], ["evaluation", "Student Evaluation"], ["music", "Music Library"]] as const).map(([tab, label]) => <button key={tab} type="button" onClick={() => handleWorkspaceTabChange(tab)} className={`whitespace-nowrap border-b-2 px-4 py-3 text-xs font-semibold transition ${activeTab === tab ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}>{label}</button>)}
-              <button type="button" onClick={() => handleWorkspaceTabChange("resources")} className={`whitespace-nowrap border-b-2 px-4 py-3 text-xs font-semibold transition ${activeTab === "resources" ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}>Resources</button>
             </div>
             <label className="flex w-64 max-w-[240px] shrink-0 items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400">
               <span className="sr-only">Active student</span>
@@ -2027,28 +2031,335 @@ export default function InstructorWorkstationPage({
                 <select value={sidebarStep} onChange={(event) => setSidebarStep(event.target.value as keyof SidebarBlocksByStep)} className="mt-3 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2 text-xs text-white [color-scheme:dark]" aria-label="Sidebar step"><option value="warm_up" className="bg-[#0c1017] text-white">Warm-up</option><option value="lesson" className="bg-[#0c1017] text-white">Lesson</option><option value="listening" className="bg-[#0c1017] text-white">Listening</option><option value="reading" className="bg-[#0c1017] text-white">Reading</option><option value="writing" className="bg-[#0c1017] text-white">Writing</option><option value="speaking" className="bg-[#0c1017] text-white">Speaking</option></select>
                 <div className="mt-4 space-y-3">{(sidebarBlocksByStep[sidebarStep] || []).map((block) => <div key={block.id} className="rounded-lg border border-[#202631] bg-[#0c1017] p-3"><div className="flex gap-2"><input value={block.title} onChange={(event) => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, title: event.target.value } : item) }))} className="min-w-0 flex-1 border-b border-[#394252] bg-transparent pb-1 text-xs font-semibold text-stone-200" aria-label="Sidebar block title" /><button type="button" onClick={() => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: (current[sidebarStep] || []).filter((item) => item.id !== block.id) }))} aria-label={`Delete ${block.title}`}><Trash2 className="h-3.5 w-3.5" /></button></div><label className="mt-3 block text-[11px] text-stone-500">Align Next To (Main Block):<select value={block.parentMainBlockId || ""} onChange={(event) => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, parentMainBlockId: event.target.value || undefined } : item) }))} className="mt-1 w-full rounded-md border border-[#202631] bg-[#171d28] p-2 text-xs text-stone-200 [color-scheme:dark]" aria-label={`Align ${block.title || "sidebar block"} next to main block`}><option value="">Top of Sidebar (Default Unlinked)</option>{((((workstationState.content[sidebarStep] as { blocks?: ContentBlock[] } | undefined)?.blocks || []) as ContentBlock[]).map((mainBlock, mainIndex) => <option key={mainBlock.id} value={mainBlock.id}>{mainIndex + 1}. {mainBlock.title || `${mainBlock.type} block`}</option>))}</select></label><textarea value={block.body} onChange={(event) => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, body: event.target.value } : item) }))} rows={3} className="mt-3 w-full resize-y rounded-md border border-[#202631] bg-[#171d28] p-2.5 text-xs text-stone-300" /></div>)}</div>
               </section>
-              <section className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" aria-labelledby="lesson-resources-title">
-                <div className="flex items-center justify-between gap-3"><h3 id="lesson-resources-title" className="font-sans text-xl font-semibold text-stone-100">Lesson Resources</h3><button type="button" onClick={() => setLessonResources((prev) => [...prev, { id: `res-${Date.now()}`, title: "", url: "", type: "PDF" }])} className="flex items-center gap-1.5 rounded-md border border-amber-500 px-3 py-2 text-sm text-amber-500"><Plus className="h-3.5 w-3.5" />Add Resource</button></div>
-                <p className="mt-2 text-[11px] leading-relaxed text-stone-500">PDF links, articles, and videos appear in the student Study Hub &amp; Learning Hub. Empty titles show the URL as the label.</p>
-                {lessonResources.length === 0 ? (
-                  <p className="mt-4 rounded-lg border border-dashed border-[#202631] bg-[#0c1017] px-3 py-4 text-center text-xs text-stone-500">No resources yet. Add a PDF, Article, or Video link.</p>
-                ) : (
-                  <div className="mt-4 space-y-3">
-                    {lessonResources.map((res) => (
-                      <div key={res.id} className="rounded-lg border border-[#202631] bg-[#0c1017] p-3">
-                        <div className="flex items-start gap-2">
-                          <input value={res.title} onChange={(e) => setLessonResources((prev) => prev.map((r) => r.id === res.id ? { ...r, title: e.target.value } : r))} placeholder="Title (e.g. Reading Guide PDF)" className="min-w-0 flex-1 rounded-md border border-[#202631] bg-[#171d28] px-2.5 py-1.5 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Resource title" />
-                          <select value={res.type} onChange={(e) => setLessonResources((prev) => prev.map((r) => r.id === res.id ? { ...r, type: e.target.value as LessonResource["type"] } : r))} className="shrink-0 rounded-md border border-[#202631] bg-[#171d28] px-2 py-1.5 text-xs text-white [color-scheme:dark]" aria-label="Resource type"><option value="PDF">PDF</option><option value="Article">Article</option><option value="Video">Video</option></select>
-                          <button type="button" onClick={() => setLessonResources((prev) => prev.filter((r) => r.id !== res.id))} aria-label={`Delete ${res.title || res.url || "resource"}`} className="shrink-0 rounded-md p-1.5 text-stone-500 hover:bg-red-500/10 hover:text-red-400"><Trash2 className="h-3.5 w-3.5" /></button>
-                        </div>
-                        <input value={res.url} onChange={(e) => setLessonResources((prev) => prev.map((r) => r.id === res.id ? { ...r, url: e.target.value } : r))} placeholder="https://…" className="mt-2 w-full rounded-md border border-[#202631] bg-[#171d28] px-2.5 py-1.5 text-xs text-stone-300 outline-none focus:border-amber-500" aria-label="Resource URL" />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
             </aside>
           </main>
+
+          <section className="mt-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" aria-label="Lesson builder resource panel">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Student Materials</p>
+                <h3 className="mt-1 font-sans text-xl font-semibold text-stone-100">Resources</h3>
+              </div>
+              <div className="rounded-full border border-[#394252] bg-[#0c1017] px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-stone-300">
+                {activeBuilderStudent ? `${activeBuilderStudent.name} · ${activeBuilderLessonId ? "Bound" : "Lesson not saved yet"}` : "Select student in Lesson Details"}
+              </div>
+            </div>
+
+            {!activeBuilderStudent || !activeBuilderLessonId ? (
+              <div className="mt-4 rounded-lg border border-dashed border-[#202631] bg-[#0c1017] px-4 py-5 text-sm text-stone-400">
+                Choose a student and save the lesson draft in Lesson Details to bind resource uploads to the active lesson context.
+              </div>
+            ) : (
+              <div className="mt-5 space-y-6">
+                <div className="grid min-w-0 grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.35fr)]">
+                  <div className="w-full min-w-0 rounded-2xl border border-[#202631] bg-[#171d28]/60 p-5">
+                    <div className="mb-4 flex flex-wrap gap-2">
+                      {([['note', 'Notes'], ['reading', 'Reading'], ['flashcard', 'Flashcards'], ['quiz', 'Quiz'], ['audio', 'Audio'], ['data_table', 'Data Table']] as const).map(([type, label]) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => setResourceDraft((previous) => ({ ...previous, type }))}
+                          className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold transition ${resourceDraft.type === type ? 'border-amber-500 bg-amber-500/10 text-amber-300' : 'border-[#394252] text-stone-400 hover:text-stone-200'}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="block text-xs text-stone-400">
+                        Title
+                        <input
+                          value={resourceDraft.title}
+                          onChange={(event) => setResourceDraft((previous) => ({ ...previous, title: event.target.value }))}
+                          placeholder={resourceDraft.type === "audio" ? "Podcast / Deep Dive Audio" : resourceDraft.type === "data_table" ? "Lesson 3: Core Summary Matrix" : "Vocabulary set / reading summary / quiz idea"}
+                          className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                        />
+                      </label>
+
+                      {resourceDraft.type === "reading" && (
+                        <label className="block text-xs text-stone-400">
+                          Reading link or file
+                          <input
+                            value={resourceDraft.linkUrl}
+                            onChange={(event) => setResourceDraft((previous) => ({ ...previous, linkUrl: event.target.value }))}
+                            placeholder="https://… or PDF file name"
+                            className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                          />
+                        </label>
+                      )}
+
+                      {resourceDraft.type === "audio" && (
+                        <>
+                          <label className="block text-xs text-stone-400">
+                            Audio file URL
+                            <input
+                              type="url"
+                              value={resourceDraft.linkUrl}
+                              onChange={(event) => setResourceDraft((previous) => ({ ...previous, linkUrl: event.target.value }))}
+                              placeholder="https://…"
+                              className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                            />
+                          </label>
+                          <label className="block text-xs text-stone-400">
+                            Or upload an audio file
+                            <input
+                              type="file"
+                              accept="audio/*"
+                              onChange={(event) => setAudioFile(event.target.files?.[0] || null)}
+                              className="mt-1 block w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-300 file:mr-3 file:rounded file:border-0 file:bg-amber-500 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-950"
+                            />
+                          </label>
+                          <label className="block text-xs text-stone-400">
+                            Optional description / transcript notes
+                            <textarea
+                              value={resourceDraft.body}
+                              onChange={(event) => setResourceDraft((previous) => ({ ...previous, body: event.target.value }))}
+                              rows={4}
+                              placeholder="Add context or transcript notes for the student."
+                              className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                            />
+                          </label>
+                        </>
+                      )}
+
+                      {resourceDraft.type === "data_table" && (
+                        <label className="block text-xs text-stone-400">
+                          Markdown Content
+                          <textarea
+                            value={resourceDraft.body}
+                            onChange={(event) => setResourceDraft((previous) => ({ ...previous, body: event.target.value }))}
+                            rows={12}
+                            placeholder="Paste Markdown Table here..."
+                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 font-mono text-xs text-stone-200 outline-none focus:border-amber-500"
+                          />
+                        </label>
+                      )}
+
+                      {(resourceDraft.type === "note" || resourceDraft.type === "quiz") && (
+                        <label className="block text-xs text-stone-400">
+                          {resourceDraft.type === "quiz" ? "Practice prompt" : "Notes"}
+                          <textarea
+                            value={resourceDraft.body}
+                            onChange={(event) => setResourceDraft((previous) => ({ ...previous, body: event.target.value }))}
+                            rows={5}
+                            placeholder={resourceDraft.type === "quiz" ? "Write a practice exercise or prompt for the student." : "Add the material notes the student should review."}
+                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                          />
+                        </label>
+                      )}
+
+                      {resourceDraft.type === "flashcard" && (
+                        <>
+                          <label className="block text-xs text-stone-400">
+                            Front / Question
+                            <textarea
+                              value={resourceDraft.question}
+                              onChange={(event) => setResourceDraft((previous) => ({ ...previous, question: event.target.value }))}
+                              rows={3}
+                              placeholder="What is the term for … ?"
+                              className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                            />
+                          </label>
+                          <label className="block text-xs text-stone-400">
+                            Back / Answer
+                            <textarea
+                              value={resourceDraft.answer}
+                              onChange={(event) => setResourceDraft((previous) => ({ ...previous, answer: event.target.value }))}
+                              rows={3}
+                              placeholder="A clear, student-friendly definition or explanation."
+                              className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                            />
+                          </label>
+                          <label className="block text-xs text-stone-400">
+                            Optional explanation
+                            <textarea
+                              value={resourceDraft.explanation}
+                              onChange={(event) => setResourceDraft((previous) => ({ ...previous, explanation: event.target.value }))}
+                              rows={3}
+                              placeholder="Optional AI-friendly nuance or extra context."
+                              className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                            />
+                          </label>
+                        </>
+                      )}
+
+                      <button type="button" onClick={() => void saveStudentResource()} className="w-full rounded-md bg-amber-500 px-4 py-2.5 text-xs font-semibold text-slate-950 transition hover:bg-amber-400">
+                        {resourceDraft.type === "data_table" ? "Save Data Table" : "Save resource"}
+                      </button>
+                      {resourceStatus && <p role="status" className="text-xs leading-relaxed text-amber-300">{resourceStatus}</p>}
+                    </div>
+                  </div>
+
+                  <div className="w-full min-w-0 rounded-2xl border border-[#202631] bg-[#0b1018] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Study Deck</p>
+                        <h3 className="mt-1 font-sans text-xl font-semibold text-stone-100">Flashcards</h3>
+                      </div>
+                      <span className="rounded-full border border-[#394252] bg-[#171d28] px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-stone-300">
+                        {studentResources.filter((resource) => resource.resource_type === "flashcard").length} cards
+                      </span>
+                    </div>
+
+                    {(() => {
+                      const flashcards = studentResources.filter((resource) => resource.resource_type === "flashcard");
+                      const currentFlashcard = flashcards[flashcardIndex] || null;
+                      return currentFlashcard ? (
+                        <>
+                          <div className="relative h-[360px] w-full [perspective:1800px]">
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => setFlashcardFlipped((current) => !current)}
+                              onKeyDown={(event) => {
+                                if (event.target !== event.currentTarget || !["Enter", " "].includes(event.key)) return;
+                                event.preventDefault();
+                                setFlashcardFlipped((current) => !current);
+                              }}
+                              className={`relative h-full w-full rounded-2xl border border-[#2b3342] bg-[#10181f] p-6 text-left shadow-[0_24px_60px_rgba(0,0,0,0.45)] transition-transform duration-700 [transform-style:preserve-3d] ${flashcardFlipped ? "[transform:rotateY(180deg)]" : ""}`}
+                            >
+                              <div className="absolute inset-0 flex flex-col justify-between rounded-2xl p-5 [backface-visibility:hidden]">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-300">{flashcardIndex + 1} / {flashcards.length}</span>
+                                  <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-200">Term</span>
+                                </div>
+                                <div className="flex-1 pt-8">
+                                  <p className="text-2xl font-semibold leading-snug text-stone-100">{currentFlashcard.question || currentFlashcard.title}</p>
+                                </div>
+                                <div className="flex justify-center">
+                                  <span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px] font-semibold text-stone-300">See answer</span>
+                                </div>
+                              </div>
+
+                              <div className="absolute inset-0 flex flex-col justify-between rounded-2xl p-5 [backface-visibility:hidden] [transform:rotateY(180deg)]">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300">Answer</span>
+                                  <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-200">Key idea</span>
+                                </div>
+                                <div className="flex-1 pt-8">
+                                  <p className="text-xl font-medium leading-relaxed text-stone-100">{currentFlashcard.answer || "No answer yet."}</p>
+                                  {currentFlashcard.explanation && (
+                                    <div className="mt-5">
+                                      <button
+                                        type="button"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          setShowFlashcardExplanation((value) => !value);
+                                        }}
+                                        className="rounded-full border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-200"
+                                      >
+                                        {showFlashcardExplanation ? "Hide note" : "Show note"}
+                                      </button>
+                                      {showFlashcardExplanation && <p className="mt-3 text-sm leading-relaxed text-stone-300">{currentFlashcard.explanation}</p>}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex justify-center">
+                                  <span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px] font-semibold text-stone-300">Flip back</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-5 flex items-center justify-between gap-3">
+                            <button type="button" onClick={() => setFlashcardIndex((index) => (index === 0 ? flashcards.length - 1 : index - 1))} className="rounded-md border border-[#394252] bg-[#171d28] px-3 py-2 text-xs font-medium text-stone-300 hover:text-stone-100">
+                              Previous
+                            </button>
+                            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-stone-500">
+                              <button type="button" onClick={() => setRightCount((count) => count + 1)} className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-emerald-300">
+                                Right
+                              </button>
+                              <button type="button" onClick={() => setWrongCount((count) => count + 1)} className="rounded-full border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-red-300">
+                                Wrong
+                              </button>
+                            </div>
+                            <button type="button" onClick={() => setFlashcardIndex((index) => (index + 1) % flashcards.length)} className="rounded-md border border-[#394252] bg-[#171d28] px-3 py-2 text-xs font-medium text-stone-300 hover:text-stone-100">
+                              Next
+                            </button>
+                          </div>
+
+                          <div className="mt-4 flex items-center justify-between rounded-xl border border-[#202631] bg-[#0c1017] px-3 py-2 text-[10px] uppercase tracking-[0.14em] text-stone-500">
+                            <span>Right: {rightCount}</span>
+                            <span>Wrong: {wrongCount}</span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-[#394252] bg-[#0c1017] p-6 text-center text-sm text-stone-500">
+                          No flashcards saved for this active student and lesson yet.
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-[#202631] bg-[#0c1017] p-5">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Library</p>
+                      <h4 className="mt-1 font-sans text-lg font-semibold text-stone-100">Saved resources</h4>
+                    </div>
+                    <span className="rounded-full border border-[#394252] bg-[#171d28] px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-stone-300">
+                      {studentResources.length} items
+                    </span>
+                  </div>
+
+                  {studentResources.length === 0 ? (
+                    <p className="rounded-lg border border-dashed border-[#202631] bg-[#0b1018] px-4 py-5 text-sm text-stone-500">
+                      No resources yet for the active student in this lesson context.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {studentResources.map((resource) => {
+                        const isDataTable = resource.resource_type === "data_table" || isDataTableResourceTitle(resource.title);
+                        const resourceTitle = isDataTable ? getDataTableResourceTitle(resource.title) : resource.title;
+                        const resourceStudent = selectedStudent ?? (selectedStudentId ? students.find((student) => student.id === selectedStudentId) ?? null : null);
+                        return (
+                          <div key={resource.id} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-stone-100">{resourceTitle}</p>
+                                <p className="mt-1 text-[10px] uppercase tracking-[0.12em] text-stone-500">{resource.resource_type}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = studentResources.filter((item) => item.id !== resource.id);
+                                  setStudentResources(next);
+                                  if (resourceStudent) {
+                                    writeStudentResourcesLocally(resourceStudent.token || resourceStudent.id, next);
+                                  }
+                                }}
+                                className="rounded-md p-1.5 text-stone-500 transition hover:bg-red-500/10 hover:text-red-400"
+                                aria-label={`Delete ${resource.title}`}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                            {resource.resource_type === "reading" && resource.link_url && (
+                              <a href={resource.link_url} target="_blank" rel="noreferrer" className="mt-3 block truncate text-xs text-sky-300 underline">
+                                Open reading link
+                              </a>
+                            )}
+                            {resource.resource_type === "audio" && (
+                              <div className="mt-3 space-y-3">
+                                {resource.link_url ? <CustomAudioPlayer src={resource.link_url} label={resource.title} /> : <p className="text-xs text-stone-500">No audio URL is available.</p>}
+                                {resource.link_url && <a href={resource.link_url} target="_blank" rel="noreferrer" className="block truncate text-[11px] text-sky-300 underline">Open audio file</a>}
+                                {resource.body && <AudioTranscriptAccordion resourceId={resource.id} transcript={resource.body} />}
+                              </div>
+                            )}
+                            {isDataTable && resource.body && <div className="mt-3"><DataTableResource title={resourceTitle} markdown={resource.body} /></div>}
+                            {resource.resource_type === "note" && !isDataTable && resource.body && <p className="mt-3 text-sm leading-relaxed text-stone-300">{resource.body}</p>}
+                            {resource.resource_type === "quiz" && resource.body && <p className="mt-3 text-sm leading-relaxed text-stone-300">{resource.body}</p>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </section>
         </>}
 
         {activeTab === "evaluation" && <>
