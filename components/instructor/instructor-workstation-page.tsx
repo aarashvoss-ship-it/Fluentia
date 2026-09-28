@@ -1310,23 +1310,25 @@ export default function InstructorWorkstationPage({
         setPendingSubmissionCount(pendingResult.status === "fulfilled" ? pendingResult.value.count ?? 0 : 0);
         setPublishedLessonCount(publishedResult.status === "fulfilled" ? publishedResult.value.count ?? 0 : 0);
         setDraftLessonCount(draftsResult.status === "fulfilled" ? draftsResult.value.count ?? 0 : 0);
-        const nextStudents: StudentUser[] = deduplicateStudents(studentRows || []).map((student) => ({
-          id: student.id,
-          token: student.token,
-          name: student.name,
-          email: student.email,
-          role: "student",
-          profile: {
+        const nextStudents: StudentUser[] = deduplicateStudents(studentRows || [])
+          .filter((student) => student.name.trim() !== "Navid Kabazi")
+          .map((student) => ({
             id: student.id,
-            fullName: student.name,
-            level: "",
-            targetGoal: "",
-            weaknesses: [],
-            teacherNotes: "",
-            attendanceRate: 0,
-            completedModulesCount: 0,
-          },
-        }));
+            token: student.token,
+            name: student.name,
+            email: student.email,
+            role: "student",
+            profile: {
+              id: student.id,
+              fullName: student.name,
+              level: "",
+              targetGoal: "",
+              weaknesses: [],
+              teacherNotes: "",
+              attendanceRate: 0,
+              completedModulesCount: 0,
+            },
+          }));
         setStudents(nextStudents);
         if (nextStudents.length > 0 && (!selectedStudent || !nextStudents.some((student) => student.id === selectedStudent.id))) {
           setSelectedStudent(nextStudents[0]);
