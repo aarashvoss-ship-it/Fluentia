@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   BookOpen,
@@ -158,6 +158,7 @@ function DashboardContent() {
   const [accessDenied, setAccessDenied] = useState(false);
   const [activeStudent, setActiveStudent] = useState<StudentUser | null>(null);
   const [lessons, setLessons] = useState<LessonWithVersion[]>([]);
+  const lessonsRef = useRef<LessonWithVersion[]>([]);
   const [lessonStates, setLessonStates] = useState<
     Record<string, PublishedLessonState | null>
   >({});
@@ -391,13 +392,18 @@ function DashboardContent() {
         );
 
       const lessonRows =
-        lessonResult.status === "fulfilled" ? lessonResult.value : [];
+        lessonResult.status === "fulfilled"
+          ? lessonResult.value
+          : lessonsRef.current;
       const savedWords =
         vocabularyResult.status === "fulfilled" ? vocabularyResult.value : [];
       const studentNotes =
         notesResult.status === "fulfilled" ? notesResult.value : [];
       const availableLessons = lessonRows;
-      setLessons(availableLessons);
+      if (lessonResult.status === "fulfilled") {
+        lessonsRef.current = lessonRows;
+        setLessons(lessonRows);
+      }
       const lessonStateResults = await Promise.allSettled(
         availableLessons.map(
           async (lesson) =>

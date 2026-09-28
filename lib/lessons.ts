@@ -357,7 +357,12 @@ export async function getLessons(): Promise<LessonWithVersion[]> {
         .select("lesson_id, student_id, assigned_at")
         .in("lesson_id", lessonIds);
     }
-    if (assignmentResult.error) throw assignmentResult.error;
+    if (assignmentResult.error) {
+      console.warn("Lesson rows loaded, but student assignment metadata is unavailable:", {
+        code: assignmentResult.error.code,
+        message: assignmentResult.error.message,
+      });
+    }
     const assignmentsByLesson = new Map<string, string[]>();
     for (const assignment of assignmentResult.data || []) {
       const current = assignmentsByLesson.get(assignment.lesson_id) || [];
@@ -371,7 +376,7 @@ export async function getLessons(): Promise<LessonWithVersion[]> {
     }));
   } catch (error) {
     console.error("Error fetching lessons:", (error as { message?: string })?.message || JSON.stringify(error));
-    return [{ ...FALLBACK_LESSON, content: { ...FALLBACK_LESSON.content } }];
+    throw error;
   }
 }
 
@@ -487,21 +492,36 @@ export async function getLessonsByStudentId(studentId: string): Promise<LessonWi
       ? await supabase.from("lessons").select("*").eq("status", "published").in("student_token", normalizedStudentTokens)
       : { data: [], error: null };
 
-    const firstError = directResult.error || tokenResult.error || assignmentIdsResult.error || assignedResult.error || allStudentsResult.error;
-    if (firstError) throw firstError;
+    const lookupErrors = [
+      directResult.error,
+      assignmentIdsResult.error,
+      assignedResult.error,
+      tokenResult.error,
+      allStudentsResult.error,
+    ].filter((error) => error !== null);
+    const successfulLookupCount = [directResult, assignmentIdsResult, tokenResult, allStudentsResult]
+      .filter((result) => !result.error).length;
+    if (successfulLookupCount === 0 && lookupErrors.length > 0) throw lookupErrors[0];
+    if (lookupErrors.length > 0) {
+      console.warn("Some student lesson lookup paths failed; keeping results from successful paths:", lookupErrors.map((error) => ({ code: error?.code, message: error?.message })));
+    }
 
     const uniqueLessons = new Map<string, LessonRow>();
     [...(directResult.data || []), ...(tokenResult.data || []), ...(assignedResult.data || []), ...(allStudentsResult.data || [])].forEach((lesson) => {
       uniqueLessons.set(lesson.id, lesson as LessonRow);
     });
 
+    if (uniqueLessons.size === 0) {
+      console.warn("No published lessons were visible for this student; verify student UUID/token mapping, assignment rows, and lessons SELECT policies.");
+    }
+
     return Promise.all([...uniqueLessons.values()].map(async (lesson) => {
       const version = await getLatestLessonVersion(lesson.id);
       return { ...lesson, current_version: version || undefined, content: resolveLessonContent(lesson, version) };
     }));
   } catch (error) {
-    console.warn(`Unable to load assigned lessons for student ${studentId}; using published fallback.`, error);
-    return [];
+    console.error(`Unable to load assigned lessons for student ${studentId}:`, error);
+    throw error;
   }
 }
 
