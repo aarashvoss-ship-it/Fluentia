@@ -1,5 +1,8 @@
 'use client'
 
+import { useEffect } from "react";
+import { reloadAfterChunkError } from "@/components/shared/chunk-error-recovery";
+
 export default function Error({
   error,
   reset,
@@ -7,6 +10,10 @@ export default function Error({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  useEffect(() => {
+    reloadAfterChunkError(error);
+  }, [error]);
+
   return (
     <div className="p-8 text-center">
       <h2 className="text-xl font-bold mb-4">Something went wrong!</h2>

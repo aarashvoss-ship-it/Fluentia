@@ -1,11 +1,19 @@
 'use client'
 
+import { useEffect } from "react";
+import { reloadAfterChunkError } from "@/components/shared/chunk-error-recovery";
+
 export default function GlobalError({
+  error,
   reset,
 }: {
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  useEffect(() => {
+    reloadAfterChunkError(error);
+  }, [error]);
+
   return (
     <html lang="en">
       <body className="min-h-screen bg-[#0c1017] text-[#e8e7e4] antialiased">
