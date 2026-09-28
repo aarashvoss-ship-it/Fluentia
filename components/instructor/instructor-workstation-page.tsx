@@ -1462,6 +1462,7 @@ export default function InstructorWorkstationPage({
       && (libraryDomain === "all" || metadata.domain === libraryDomain);
   });
   const libraryDomains = [...new Set(createdLessons.map((lesson) => getLessonMetadata(lesson).domain))].sort();
+  const activeResourceType = resourceDraft.type;
 
   if (!isMounted) return null;
   if (accessDenied) return <AccessCard title="Access Denied" message="Your instructor account does not have access to this workspace." />;
@@ -2035,13 +2036,28 @@ export default function InstructorWorkstationPage({
           </main>
 
           <section className="mt-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" aria-label="Lesson builder resource panel">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Student Materials</p>
-                <h3 className="mt-1 font-sans text-xl font-semibold text-stone-100">Resources</h3>
+            <div className="space-y-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Student Materials</p>
+                  <h3 className="mt-1 font-sans text-xl font-semibold text-stone-100">Resources</h3>
+                </div>
+                <div className="rounded-full border border-[#394252] bg-[#0c1017] px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-stone-300">
+                  {activeBuilderStudent ? `${activeBuilderStudent.name} · ${activeBuilderLessonId ? "Bound" : "Lesson not saved yet"}` : "Select student in Lesson Details"}
+                </div>
               </div>
-              <div className="rounded-full border border-[#394252] bg-[#0c1017] px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-stone-300">
-                {activeBuilderStudent ? `${activeBuilderStudent.name} · ${activeBuilderLessonId ? "Bound" : "Lesson not saved yet"}` : "Select student in Lesson Details"}
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Resource type">
+                {([['note', 'Notes'], ['reading', 'Reading'], ['flashcard', 'Flashcards'], ['quiz', 'Quiz'], ['audio', 'Audio'], ['data_table', 'Data Table']] as const).map(([type, label]) => (
+                  <button
+                    key={type}
+                    type="button"
+                    aria-pressed={activeResourceType === type}
+                    onClick={() => setResourceDraft((previous) => ({ ...previous, type }))}
+                    className={`rounded-md border px-3 py-2 text-xs font-semibold transition ${activeResourceType === type ? 'border-amber-400 bg-amber-500 text-slate-950 shadow-sm' : 'border-[#394252] bg-[#0c1017] text-stone-400 hover:border-amber-500/60 hover:text-stone-100'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -2053,17 +2069,11 @@ export default function InstructorWorkstationPage({
               <div className="mt-5 space-y-6">
                 <div className="grid min-w-0 grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.35fr)]">
                   <div className="w-full min-w-0 rounded-2xl border border-[#202631] bg-[#171d28]/60 p-5">
-                    <div className="mb-4 flex flex-wrap gap-2">
-                      {([['note', 'Notes'], ['reading', 'Reading'], ['flashcard', 'Flashcards'], ['quiz', 'Quiz'], ['audio', 'Audio'], ['data_table', 'Data Table']] as const).map(([type, label]) => (
-                        <button
-                          key={type}
-                          type="button"
-                          onClick={() => setResourceDraft((previous) => ({ ...previous, type }))}
-                          className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold transition ${resourceDraft.type === type ? 'border-amber-500 bg-amber-500/10 text-amber-300' : 'border-[#394252] text-stone-400 hover:text-stone-200'}`}
-                        >
-                          {label}
-                        </button>
-                      ))}
+                    <div className="mb-4 border-b border-[#202631] pb-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Resource Editor</p>
+                      <h4 className="mt-1 font-sans text-lg font-semibold text-stone-100">
+                        {activeResourceType === "note" ? "Note Editor" : activeResourceType === "reading" ? "Reading Editor" : activeResourceType === "flashcard" ? "Flashcard Builder" : activeResourceType === "quiz" ? "Quiz Editor" : activeResourceType === "audio" ? "Audio Editor" : "Data Table Editor"}
+                      </h4>
                     </div>
 
                     <div className="space-y-3">
@@ -2191,10 +2201,11 @@ export default function InstructorWorkstationPage({
                     </div>
                   </div>
 
+                  {activeResourceType === "flashcard" ? (
                   <div className="w-full min-w-0 rounded-2xl border border-[#202631] bg-[#0b1018] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
                     <div className="mb-4 flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Study Deck</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Deck Preview</p>
                         <h3 className="mt-1 font-sans text-xl font-semibold text-stone-100">Flashcards</h3>
                       </div>
                       <span className="rounded-full border border-[#394252] bg-[#171d28] px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-stone-300">
@@ -2291,6 +2302,35 @@ export default function InstructorWorkstationPage({
                       );
                     })()}
                   </div>
+                  ) : (
+                    <div className="w-full min-w-0 rounded-2xl border border-[#202631] bg-[#0b1018] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
+                      <div className="mb-4 border-b border-[#202631] pb-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">{activeResourceType === "note" ? "Note Preview" : activeResourceType === "reading" ? "Reading Preview" : activeResourceType === "quiz" ? "Quiz Preview" : activeResourceType === "audio" ? "Audio Preview" : "Data Table Preview"}</p>
+                        <h3 className="mt-1 font-sans text-xl font-semibold text-stone-100">{resourceDraft.title.trim() || "Untitled resource"}</h3>
+                      </div>
+                      {activeResourceType === "note" && (
+                        <p className="whitespace-pre-wrap text-sm leading-relaxed text-stone-300">{resourceDraft.body.trim() || "Your note preview will appear here as you type."}</p>
+                      )}
+                      {activeResourceType === "reading" && (
+                        resourceDraft.linkUrl.trim() ? <p className="break-all text-sm text-sky-300">{resourceDraft.linkUrl}</p> : <p className="text-sm text-stone-500">Add a reading link to preview it here.</p>
+                      )}
+                      {activeResourceType === "quiz" && (
+                        <div className="rounded-lg border border-[#293343] bg-[#10181f] p-4">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-300">Practice prompt</p>
+                          <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-stone-200">{resourceDraft.body.trim() || "Your practice prompt will appear here as you type."}</p>
+                        </div>
+                      )}
+                      {activeResourceType === "audio" && (
+                        <div className="space-y-3">
+                          {resourceDraft.linkUrl.trim() ? <CustomAudioPlayer src={resourceDraft.linkUrl.trim()} label={resourceDraft.title.trim() || "Audio preview"} /> : audioFile ? <p className="text-sm text-stone-300">Selected file: {audioFile.name}</p> : <p className="text-sm text-stone-500">Add an audio URL or choose a file to preview it here.</p>}
+                          {resourceDraft.body.trim() && <p className="whitespace-pre-wrap text-sm leading-relaxed text-stone-400">{resourceDraft.body}</p>}
+                        </div>
+                      )}
+                      {activeResourceType === "data_table" && (
+                        resourceDraft.body.trim() ? <DataTableResource title={resourceDraft.title.trim() || "Data Table"} markdown={resourceDraft.body} /> : <p className="text-sm text-stone-500">Paste Markdown table content to preview it here.</p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="rounded-2xl border border-[#202631] bg-[#0c1017] p-5">
