@@ -44,7 +44,6 @@ export const INSTRUCTOR_USER: FluentiaUser = {
 
 export const FLUENTIA_USERS: FluentiaUser[] = [
   student("fatemeh-8421", "fatemeh-8421", "Fatemeh Soheilikia", "f.soheilikia.lastqueen2002@gmail.com", "B2 Upper Intermediate", "Advanced fluency"),
-  student("navid-3912", "navid-3912", "Navid Kabazi", "navidws@gmail.com", "B1 Intermediate", "Confident conversation"),
   student("yasaman-5184", "yasaman-5184", "Yasaman Sheybani", "yasamansheybani7192@gmail.com", "B2 Upper Intermediate", "Professional writing"),
   student("arezo-7741", "arezo-7741", "Arezo Moghadasi", "arezomoghadasi1996@gmail.com", "B1 Intermediate", "Academic vocabulary"),
   student("morad-3529", "morad-3529", "Morad Abdi Varmazan", "moradabdi@gmail.com", "B1 Intermediate", "Professional writing"),
@@ -72,19 +71,20 @@ export function deduplicateStudents<T extends StudentIdentityRecord>(students: r
   const seenIds = new Set<string>();
   const seenTokens = new Set<string>();
   const seenEmails = new Set<string>();
-  const seenNames = new Set<string>();
 
   return students.filter((student) => {
-    const id = student.user_id?.trim() || student.id?.trim() || "";
+    const ids = [student.user_id, student.id]
+      .map((value) => value?.trim().toLowerCase())
+      .filter((value): value is string => Boolean(value));
     const token = student.token?.trim().toLowerCase() || "";
     const email = student.email?.trim().toLowerCase() || "";
-    const name = (student.name || student.full_name || student.profile?.fullName || "").trim().replace(/\s+/g, " ").toLowerCase();
-    if ((id && seenIds.has(id)) || (token && seenTokens.has(token)) || (email && seenEmails.has(email)) || (name && seenNames.has(name))) return false;
-    if (id) seenIds.add(id);
+    const isDuplicate = ids.some((id) => seenIds.has(id))
+      || (token && seenTokens.has(token))
+      || (email && seenEmails.has(email));
+    ids.forEach((id) => seenIds.add(id));
     if (token) seenTokens.add(token);
     if (email) seenEmails.add(email);
-    if (name) seenNames.add(name);
-    return true;
+    return !isDuplicate;
   });
 }
 
