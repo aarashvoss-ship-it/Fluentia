@@ -95,6 +95,17 @@ const EMPTY_RESOURCE_DRAFT = {
   explanation: "",
 };
 
+function getResourcePreviewHref(value?: string | null) {
+  if (!value?.trim()) return null;
+  const rawUrl = value.trim();
+  try {
+    const url = new URL(rawUrl, "https://fluentia.invalid");
+    return url.protocol === "http:" || url.protocol === "https:" ? rawUrl : null;
+  } catch {
+    return null;
+  }
+}
+
 function AudioTranscriptAccordion({ resourceId, transcript }: { resourceId: string; transcript: string }) {
   const [isExpanded, setIsExpanded] = useState(true);
   const transcriptLines = parseInteractiveTranscript(transcript);
@@ -166,12 +177,24 @@ export default function InstructorWorkstationPage({
   const [studentResources, setStudentResources] = useState<StudentResourceEntry[]>([]);
   const [resourceDraft, setResourceDraft] = useState(EMPTY_RESOURCE_DRAFT);
   const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [audioFilePreviewUrl, setAudioFilePreviewUrl] = useState<string | null>(null);
   const [resourceStatus, setResourceStatus] = useState<string | null>(null);
   const [flashcardIndex, setFlashcardIndex] = useState(0);
   const [flashcardFlipped, setFlashcardFlipped] = useState(false);
+  const [draftFlashcardFlipped, setDraftFlashcardFlipped] = useState(false);
   const [showFlashcardExplanation, setShowFlashcardExplanation] = useState(false);
   const [wrongCount, setWrongCount] = useState(0);
   const [rightCount, setRightCount] = useState(0);
+
+  useEffect(() => {
+    if (!audioFile) {
+      setAudioFilePreviewUrl(null);
+      return;
+    }
+    const previewUrl = URL.createObjectURL(audioFile);
+    setAudioFilePreviewUrl(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [audioFile]);
 
   const [workstationState, setWorkstationState] = useState<{
     content: StrictStepContent;
@@ -1691,15 +1714,27 @@ export default function InstructorWorkstationPage({
                     </label>
 
                     {resourceDraft.type === "reading" && (
-                      <label className="block text-xs text-stone-400">
-                        Reading link or file
-                        <input
-                          value={resourceDraft.linkUrl}
-                          onChange={(event) => setResourceDraft((previous) => ({ ...previous, linkUrl: event.target.value }))}
-                          placeholder="https://… or PDF file name"
-                          className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
-                        />
-                      </label>
+                      <>
+                        <label className="block text-xs text-stone-400">
+                          Reading link or file
+                          <input
+                            value={resourceDraft.linkUrl}
+                            onChange={(event) => setResourceDraft((previous) => ({ ...previous, linkUrl: event.target.value }))}
+                            placeholder="https://… or PDF file name"
+                            className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                          />
+                        </label>
+                        <label className="block text-xs text-stone-400">
+                          Reading notes (Markdown)
+                          <textarea
+                            value={resourceDraft.body}
+                            onChange={(event) => setResourceDraft((previous) => ({ ...previous, body: event.target.value }))}
+                            rows={8}
+                            placeholder="Add a short introduction or reading notes. Markdown is supported."
+                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                          />
+                        </label>
+                      </>
                     )}
 
                     {resourceDraft.type === "audio" && (
@@ -2206,12 +2241,41 @@ export default function InstructorWorkstationPage({
                     <div className="mb-4 flex items-center justify-between gap-3">
                       <div>
                         <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Deck Preview</p>
-                        <h3 className="mt-1 font-sans text-xl font-semibold text-stone-100">Flashcards</h3>
+                        <h3 className="mt-1 font-sans text-xl font-semibold text-stone-100">Live Preview</h3>
                       </div>
                       <span className="rounded-full border border-[#394252] bg-[#171d28] px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-stone-300">
                         {studentResources.filter((resource) => resource.resource_type === "flashcard").length} cards
                       </span>
                     </div>
+
+                    <p className="mb-3 text-xs font-medium text-stone-400">{resourceDraft.title.trim() || "Untitled flashcard"}</p>
+                    <div className="relative mb-6 h-[280px] w-full [perspective:1600px]">
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        aria-label={draftFlashcardFlipped ? "Draft flashcard answer; activate to show question" : "Draft flashcard question; activate to show answer"}
+                        onClick={() => setDraftFlashcardFlipped((current) => !current)}
+                        onKeyDown={(event) => {
+                          if (event.target !== event.currentTarget || !["Enter", " "].includes(event.key)) return;
+                          event.preventDefault();
+                          setDraftFlashcardFlipped((current) => !current);
+                        }}
+                        className={`relative h-full w-full cursor-pointer rounded-2xl border border-[#2b3342] bg-[#10181f] p-5 text-left shadow-[0_24px_60px_rgba(0,0,0,0.4)] transition-transform duration-700 [transform-style:preserve-3d] ${draftFlashcardFlipped ? "[transform:rotateY(180deg)]" : ""}`}
+                      >
+                        <div className="absolute inset-0 flex flex-col justify-between rounded-2xl p-5 [backface-visibility:hidden]">
+                          <div className="flex items-center justify-between gap-2"><span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-300">Draft question</span><span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold uppercase text-amber-200">Question</span></div>
+                          <p className="max-h-[170px] overflow-y-auto break-words text-xl font-semibold leading-snug text-stone-100">{resourceDraft.question.trim() || "Your question will appear here as you type."}</p>
+                          <div className="flex justify-center"><span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px] font-semibold text-stone-300">See answer</span></div>
+                        </div>
+                        <div className="absolute inset-0 flex flex-col justify-between rounded-2xl p-5 [backface-visibility:hidden] [transform:rotateY(180deg)]">
+                          <div className="flex items-center justify-between gap-2"><span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-300">Draft answer</span><span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase text-emerald-200">Key idea</span></div>
+                          <div className="max-h-[170px] overflow-y-auto"><p className="break-words text-lg font-medium leading-relaxed text-stone-100">{resourceDraft.answer.trim() || "Your answer will appear here as you type."}</p>{resourceDraft.explanation.trim() && <p className="mt-3 text-xs leading-relaxed text-stone-400">{resourceDraft.explanation}</p>}</div>
+                          <div className="flex justify-center"><span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px] font-semibold text-stone-300">Flip back</span></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <h4 className="mb-3 border-t border-[#202631] pt-4 text-xs font-semibold uppercase tracking-[0.12em] text-stone-400">Saved deck</h4>
 
                     {(() => {
                       const flashcards = studentResources.filter((resource) => resource.resource_type === "flashcard");
@@ -2309,21 +2373,24 @@ export default function InstructorWorkstationPage({
                         <h3 className="mt-1 font-sans text-xl font-semibold text-stone-100">{resourceDraft.title.trim() || "Untitled resource"}</h3>
                       </div>
                       {activeResourceType === "note" && (
-                        <p className="whitespace-pre-wrap text-sm leading-relaxed text-stone-300">{resourceDraft.body.trim() || "Your note preview will appear here as you type."}</p>
+                        <MarkdownContent value={resourceDraft.body.trim() || "Your note preview will appear here as you type."} className="text-sm leading-relaxed text-stone-300" dataTables />
                       )}
                       {activeResourceType === "reading" && (
-                        resourceDraft.linkUrl.trim() ? <p className="break-all text-sm text-sky-300">{resourceDraft.linkUrl}</p> : <p className="text-sm text-stone-500">Add a reading link to preview it here.</p>
+                        <div className="space-y-3">
+                          {resourceDraft.body.trim() ? <MarkdownContent value={resourceDraft.body} className="text-sm leading-relaxed text-stone-300" dataTables /> : <p className="text-sm text-stone-500">Add reading notes to preview the Markdown here.</p>}
+                          {getResourcePreviewHref(resourceDraft.linkUrl) ? <a href={getResourcePreviewHref(resourceDraft.linkUrl) || undefined} target="_blank" rel="noreferrer" className="inline-flex rounded-md border border-amber-500/30 px-3 py-2 text-xs font-semibold text-amber-300 hover:border-amber-400">Open or download</a> : resourceDraft.linkUrl.trim() ? <p className="break-all text-xs text-stone-500">{resourceDraft.linkUrl}</p> : <p className="text-xs text-stone-500">Add a reading link or file to preview it here.</p>}
+                        </div>
                       )}
                       {activeResourceType === "quiz" && (
                         <div className="rounded-lg border border-[#293343] bg-[#10181f] p-4">
                           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-300">Practice prompt</p>
-                          <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-stone-200">{resourceDraft.body.trim() || "Your practice prompt will appear here as you type."}</p>
+                          <MarkdownContent value={resourceDraft.body.trim() || "Your practice prompt will appear here as you type."} className="mt-3 text-sm leading-relaxed text-stone-200" dataTables />
                         </div>
                       )}
                       {activeResourceType === "audio" && (
                         <div className="space-y-3">
-                          {resourceDraft.linkUrl.trim() ? <CustomAudioPlayer src={resourceDraft.linkUrl.trim()} label={resourceDraft.title.trim() || "Audio preview"} /> : audioFile ? <p className="text-sm text-stone-300">Selected file: {audioFile.name}</p> : <p className="text-sm text-stone-500">Add an audio URL or choose a file to preview it here.</p>}
-                          {resourceDraft.body.trim() && <p className="whitespace-pre-wrap text-sm leading-relaxed text-stone-400">{resourceDraft.body}</p>}
+                          {audioFilePreviewUrl ? <CustomAudioPlayer src={audioFilePreviewUrl} label={resourceDraft.title.trim() || audioFile?.name || "Audio preview"} /> : getResourcePreviewHref(resourceDraft.linkUrl) ? <CustomAudioPlayer src={getResourcePreviewHref(resourceDraft.linkUrl) || ""} label={resourceDraft.title.trim() || "Audio preview"} /> : <p className="text-sm text-stone-500">Add a valid audio URL or choose a file to preview it here.</p>}
+                          {resourceDraft.body.trim() && <MarkdownContent value={resourceDraft.body} className="text-sm leading-relaxed text-stone-400" dataTables />}
                         </div>
                       )}
                       {activeResourceType === "data_table" && (
