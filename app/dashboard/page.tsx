@@ -33,6 +33,7 @@ import {
 } from "@/services/storage-service";
 import { ChatMessage, SavedVocabularyWord, StudentNote } from "@/types/lesson";
 import { DictionaryModal } from "@/components/study-room/dictionary-modal";
+import { Tooltip } from "@/components/shared/tooltip";
 import { LearningSidebar } from "@/components/study-room/learning-sidebar";
 import { ChatWidget } from "@/components/study-room/chat-widget";
 import { AccessCard } from "@/components/access/access-card";
@@ -1057,6 +1058,7 @@ function DashboardContent() {
             Welcome back, <span className="text-[#e6e4e0]">{displayName}</span>.
           </p>
           <div className="ml-auto flex items-center gap-2">
+            <Tooltip content="Look up a word in the dictionary">
             <button
               type="button"
               onClick={() => setDictionaryOpen(true)}
@@ -1067,6 +1069,8 @@ function DashboardContent() {
                 className={`w-4 h-4 shrink-0 ${dictionaryOpen ? "text-amber-400" : "text-slate-400 group-hover:text-amber-400"}`}
               />
             </button>
+            </Tooltip>
+            <Tooltip content="Open your Learning Hub, notes, and study resources">
             <button
               type="button"
               onClick={() => setSidebarOpen((open) => !open)}
@@ -1079,6 +1083,7 @@ function DashboardContent() {
               />
               Learning Hub
             </button>
+            </Tooltip>
           </div>
         </div>
 
@@ -1092,6 +1097,7 @@ function DashboardContent() {
               aria-label="Student profile"
             >
               <div className="flex items-center gap-3">
+                <Tooltip content="Open your student profile">
                 <button
                   type="button"
                   onClick={() => setProfileOpen((open) => !open)}
@@ -1114,6 +1120,7 @@ function DashboardContent() {
                     profileInitials
                   )}
                 </button>
+                </Tooltip>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-semibold text-stone-100">
                     {displayName}
@@ -1122,6 +1129,7 @@ function DashboardContent() {
                     {activeStudent.profile?.level || "B2 Upper Intermediate"}
                   </p>
                 </div>
+                <Tooltip content="Edit profile and dashboard appearance">
                 <button
                   type="button"
                   onClick={() => {
@@ -1134,6 +1142,7 @@ function DashboardContent() {
                 >
                   <Settings2 className="h-4 w-4" />
                 </button>
+                </Tooltip>
               </div>
               {profileOpen && (
                 <div
@@ -1149,6 +1158,7 @@ function DashboardContent() {
                         {displayName}
                       </p>
                     </div>
+                    <Tooltip content="Close your student profile">
                     <button
                       type="button"
                       onClick={() => setProfileOpen(false)}
@@ -1157,8 +1167,10 @@ function DashboardContent() {
                     >
                       <X className="h-4 w-4" />
                     </button>
+                    </Tooltip>
                   </div>
                   <div className="grid grid-cols-2 border-b border-[#29303c] px-4 pt-3">
+                    <Tooltip content="View your profile and learning preferences">
                     <button
                       type="button"
                       onClick={() => setProfileTab("profile")}
@@ -1166,6 +1178,8 @@ function DashboardContent() {
                     >
                       Profile &amp; Preferences
                     </button>
+                    </Tooltip>
+                    <Tooltip content="Choose your dashboard appearance">
                     <button
                       type="button"
                       onClick={() => setProfileTab("customization")}
@@ -1173,6 +1187,7 @@ function DashboardContent() {
                     >
                       Customization
                     </button>
+                    </Tooltip>
                   </div>
                   <div className="space-y-4 p-4 text-xs">
                     {profileTab === "profile" ? (
@@ -1218,12 +1233,14 @@ function DashboardContent() {
                             Theme options
                           </p>
                           <div className="mt-2 flex gap-2">
+                            <Tooltip content="The dashboard currently uses Fluentia's dark theme">
                             <button
                               type="button"
                               className="rounded-md border border-amber-500 bg-amber-500/10 px-2 py-1.5 text-[10px] text-amber-300"
                             >
                               Dark
                             </button>
+                            </Tooltip>
                             <span className="rounded-md border border-[#394252] px-2 py-1.5 text-[10px] text-stone-500">
                               Fluentia dark theme
                             </span>
@@ -1255,6 +1272,7 @@ function DashboardContent() {
                     )}
                   </div>
                   <div className="border-t border-[#29303c] bg-[#171d28] p-4">
+                    <Tooltip content="Save your profile and appearance settings">
                     <button
                       type="button"
                       onClick={() => {
@@ -1291,11 +1309,13 @@ function DashboardContent() {
                     >
                       Save settings
                     </button>
+                    </Tooltip>
                   </div>
                 </div>
               )}
             </div>
-            <div className="rounded-xl border border-[#202631] bg-[#121721] p-4">
+            <Tooltip content={`${completedLessons} of ${displayLessons.length} available lessons are complete`}>
+            <div className="w-full rounded-xl border border-[#202631] bg-[#121721] p-4">
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#667084]">
                 Lessons Completed
               </p>
@@ -1306,7 +1326,9 @@ function DashboardContent() {
                 </span>
               </p>
             </div>
-            <div className="rounded-xl border border-[#202631] bg-[#121721] p-4">
+            </Tooltip>
+            <Tooltip content={hasFeedback ? "Your latest evaluation feedback is available" : "Your instructor has not published evaluation feedback yet"}>
+            <div className="w-full rounded-xl border border-[#202631] bg-[#121721] p-4">
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#667084]">
                 Overall Evaluation Status
               </p>
@@ -1325,6 +1347,7 @@ function DashboardContent() {
                     : "Pending Review"}
               </p>
             </div>
+            </Tooltip>
           </section>
 
           <section
@@ -1361,6 +1384,7 @@ function DashboardContent() {
                 </p>
               </div>
               {displayLessons[0] && (
+                <Tooltip content="Open the Study Room to review your saved vocabulary">
                 <Link
                   href={getLessonHref(
                     displayLessons[0],
@@ -1371,10 +1395,12 @@ function DashboardContent() {
                 >
                   Open Study Room
                 </Link>
+                </Tooltip>
               )}
             </div>
             {currentCard ? (
               <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <Tooltip content={showDefinition ? "Show the vocabulary word" : "Reveal the word definition"}>
                 <button
                   type="button"
                   onClick={() => setShowDefinition((shown) => !shown)}
@@ -1384,10 +1410,12 @@ function DashboardContent() {
                     {showDefinition ? currentCard.definition : currentCard.word}
                   </span>
                 </button>
+                </Tooltip>
                 <div className="flex items-center justify-between gap-4 sm:w-36 sm:flex-col">
                   <span className="text-xs text-stone-500">
                     {cardIndex + 1} / {savedWords.length} cards
                   </span>
+                  <Tooltip content="Move to the next saved vocabulary card">
                   <button
                     type="button"
                     onClick={() => {
@@ -1398,6 +1426,7 @@ function DashboardContent() {
                   >
                     Next card
                   </button>
+                  </Tooltip>
                 </div>
               </div>
             ) : (
@@ -1410,6 +1439,7 @@ function DashboardContent() {
 
           {nextLesson && (
             <section className="mt-6" aria-label="Continue learning">
+              <Tooltip content={`Continue to ${nextLesson.title}. Course progress: ${progressPercent}% (${completedLessons} of ${displayLessons.length} lessons).`}>
               <Link
                 href={getLessonHref(
                   nextLesson,
@@ -1421,7 +1451,7 @@ function DashboardContent() {
                     ? { backgroundImage: `url(${instructorLessonBanner})` }
                     : undefined
                 }
-                className="group relative block h-64 overflow-hidden rounded-xl border border-[#202631] bg-cover bg-center bg-no-repeat transition-colors hover:border-amber-400/70"
+                className="group relative block h-64 w-full overflow-hidden rounded-xl border border-[#202631] bg-cover bg-center bg-no-repeat transition-colors hover:border-amber-400/70"
               >
                 <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,11,17,.95),rgba(7,11,17,.6)_52%,rgba(7,11,17,.82)),linear-gradient(0deg,rgba(7,11,17,.92),transparent_65%)]" />
                 <div className="relative flex h-full flex-col justify-between p-5 md:p-7">
@@ -1448,12 +1478,21 @@ function DashboardContent() {
                           {completedLessons}/{displayLessons.length}
                         </span>
                       </div>
-                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#0c1017]/80">
+                      <Tooltip content={`You have completed ${completedLessons} of ${displayLessons.length} lessons (${progressPercent}%).`}>
+                      <div
+                        className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[#0c1017]/80"
+                        role="progressbar"
+                        aria-label="Course progress"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={progressPercent}
+                      >
                         <div
                           className="h-full rounded-full bg-amber-500 transition-all"
                           style={{ width: `${progressPercent}%` }}
                         />
                       </div>
+                      </Tooltip>
                     </div>
                     <span className="inline-flex w-fit items-center rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 transition group-hover:bg-amber-400">
                       Start Lesson{" "}
@@ -1464,6 +1503,7 @@ function DashboardContent() {
                   </div>
                 </div>
               </Link>
+              </Tooltip>
             </section>
           )}
 
@@ -1526,12 +1566,14 @@ function DashboardContent() {
                     Voice Feedback
                   </p>
                   {latestReport.voiceFeedbackUrl ? (
+                    <Tooltip content="Open your instructor's voice feedback">
                     <a
                       href={latestReport.voiceFeedbackUrl}
-                      className="mt-1 block truncate text-sm text-amber-300 hover:text-amber-200"
+                      className="mt-1 block w-full truncate text-sm text-amber-300 hover:text-amber-200"
                     >
                       {latestReport.voiceFeedbackUrl}
                     </a>
+                    </Tooltip>
                   ) : (
                     <p className="mt-1 text-sm text-stone-400">
                       No voice feedback attached.
@@ -1603,6 +1645,7 @@ function DashboardContent() {
                               Lesson
                             </span>
                           </div>
+                          <Tooltip content={`Lesson status: ${statusCopy.toLowerCase()}`}>
                           <span
                             className={`rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${
                               status === "completed"
@@ -1616,6 +1659,7 @@ function DashboardContent() {
                           >
                             {statusCopy}
                           </span>
+                          </Tooltip>
                         </div>
                         <div>
                           <h2 className="mt-2 font-sans text-xl font-semibold text-stone-100">
@@ -1635,6 +1679,7 @@ function DashboardContent() {
                               assignedInstructorName}
                           </p>
                         </div>
+                        <Tooltip content={`${ctaCopy}: ${lesson.title}`}>
                         <Link
                           href={getLessonHref(lesson, status)}
                           onClick={() => rememberLesson(lesson.id)}
@@ -1646,12 +1691,15 @@ function DashboardContent() {
                         >
                           {ctaCopy}
                         </Link>
+                        </Tooltip>
                         {status === "completed" &&
                           lessonStates[lesson.id]?.evaluation?.published && (
                             <details className="mt-5 border-t border-[#202631] pt-4">
+                              <Tooltip content="Expand the evaluation scores and instructor feedback">
                               <summary className="cursor-pointer text-xs font-semibold text-amber-300 hover:text-amber-200">
                                 View analytical report
                               </summary>
+                              </Tooltip>
                               <div className="mt-4 grid gap-3 text-sm text-stone-400 sm:grid-cols-2">
                                 <div>
                                   <p className="text-xs font-semibold text-stone-300">
