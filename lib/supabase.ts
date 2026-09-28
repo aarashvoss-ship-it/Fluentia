@@ -25,6 +25,7 @@ export interface LessonRow {
 	grade: string | null;
 	status: "draft" | "published" | "evaluated";
 	student_id: StudentId | null;
+	tags: Record<string, unknown>;
 	/** @deprecated Use student_id and auth.uid() instead. */
 	student_token?: string | null;
 	instructor_id: string | null;

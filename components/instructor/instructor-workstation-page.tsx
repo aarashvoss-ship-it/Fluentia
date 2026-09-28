@@ -1,14 +1,14 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, Grid3X3, List, MoreVertical, Plus, Search, Trash2, X, Lightbulb, UploadCloud } from "lucide-react";
+import { Check, ChevronDown, Grid3X3, List, MoreVertical, Pencil, Plus, Search, Trash2, X, Lightbulb, UploadCloud } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { StudentContextPanel } from "@/components/instructor/student-context-panel";
 import { LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
 import { InstructorBannerManager } from "@/components/instructor/banner-manager";
 import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/submission-evaluator";
 import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
-import { assignLessonToAllActiveStudents, assignLessonToStudent, createLesson, deleteLesson, getLessons, publishLessonAndAssign, setLessonAssignments, unassignLesson, updateLesson, type LessonWithVersion } from "@/lib/lessons";
+import { assignLessonToAllActiveStudents, assignLessonToStudent, createLesson, deleteLesson, getLessons, publishLessonAndAssign, setLessonAssignments, unassignLesson, updateLesson, type LessonTags, type LessonWithVersion } from "@/lib/lessons";
 import { PublishedLessonState } from "@/lib/lesson-store";
 import { deduplicateStudents, StudentUser } from "@/lib/users";
 import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/storage-service";
@@ -34,6 +34,30 @@ interface InstructorWorkstationProps {
 
 type SidebarBlock = { id: string; title: string; body: string; parentMainBlockId?: string };
 type SidebarBlocksByStep = Partial<Record<"warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking", SidebarBlock[]>>;
+
+const CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
+const EMPTY_LESSON_TAGS: LessonTags = { domain: "", skill_focus: "", practice_type: "", custom: [] };
+
+function normalizeCefrLevel(value: unknown) {
+  const normalized = typeof value === "string" ? value.trim().toUpperCase() : "";
+  return CEFR_LEVELS.includes(normalized as (typeof CEFR_LEVELS)[number]) ? normalized : "B1";
+}
+
+function normalizeLessonTags(value: unknown, content: Record<string, any> = {}): LessonTags {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const custom = Array.isArray(source.custom) ? source.custom : Array.isArray(source.custom_tags) ? source.custom_tags : [];
+  const stringValue = (candidate: unknown, fallback: unknown) => typeof candidate === "string" ? candidate : typeof fallback === "string" ? fallback : "";
+  return {
+    domain: stringValue(source.domain, content.domain || content.topicDomain),
+    skill_focus: stringValue(source.skill_focus, content.skill_focus || content.skillFocus || content.primarySkill),
+    practice_type: stringValue(source.practice_type, content.practice_type || content.practiceType),
+    custom: custom.filter((tag): tag is string => typeof tag === "string").map((tag) => tag.trim()).filter(Boolean),
+  };
+}
+
+function parseCustomLessonTags(value: string) {
+  return [...new Set(value.split(",").map((tag) => tag.trim()).filter(Boolean))];
+}
 
 const SIDEBAR_STEP_KEYS = ["warm_up", "lesson", "listening", "reading", "writing", "speaking"] as const;
 
@@ -202,6 +226,9 @@ export default function InstructorWorkstationPage({
   const [libraryDomain, setLibraryDomain] = useState("all");
   const [libraryView, setLibraryView] = useState<"grid" | "table">("grid");
   const [assignmentEditorLessonId, setAssignmentEditorLessonId] = useState<string | null>(null);
+  const [quickTagEditor, setQuickTagEditor] = useState<{ lessonId: string; level: string; tags: LessonTags; customTagsText: string } | null>(null);
+  const [quickTagSaving, setQuickTagSaving] = useState(false);
+  const [quickTagError, setQuickTagError] = useState<string | null>(null);
   const [heroBannerOpen, setHeroBannerOpen] = useState(false);
   const [guidanceOpen, setGuidanceOpen] = useState(false);
   const [activeStudentsOpen, setActiveStudentsOpen] = useState(false);
@@ -299,8 +326,30 @@ export default function InstructorWorkstationPage({
     subtitle: "",
     instructorGuidance: "",
     moduleNumber: "",
+    level: "B1",
+    tags: { ...EMPTY_LESSON_TAGS },
+    customTagsText: "",
     status: "draft" as "draft" | "published",
   });
+
+  const updateBuilderLevel = (level: string) => {
+    setNewLesson((previous) => ({ ...previous, level }));
+    setWorkstationState((previous) => ({ ...previous, content: { ...previous.content, level } }));
+  };
+
+  const updateBuilderTags = (tags: LessonTags, customTagsText = tags.custom.join(", ")) => {
+    setNewLesson((previous) => ({ ...previous, tags, customTagsText }));
+    setWorkstationState((previous) => ({
+      ...previous,
+      content: {
+        ...previous.content,
+        tags,
+        domain: tags.domain,
+        skill_focus: tags.skill_focus,
+        practice_type: tags.practice_type,
+      },
+    }));
+  };
 
   const readEditLessonQuery = () => {
     const params = new URLSearchParams(window.location.search);
@@ -332,7 +381,7 @@ export default function InstructorWorkstationPage({
     setLessonResources([]);
     setSelectedStudentId(studentId || null);
     setSelectedStudent(studentId ? students.find((student) => student.id === studentId) || null : null);
-    setNewLesson({ studentId, title: "", slug: "", subtitle: "", instructorGuidance: "", moduleNumber: "", status: "draft" });
+    setNewLesson({ studentId, title: "", slug: "", subtitle: "", instructorGuidance: "", moduleNumber: "", level: "B1", tags: { ...EMPTY_LESSON_TAGS }, customTagsText: "", status: "draft" });
     setWorkstationState((previous) => ({
       ...previous,
       content: {},
@@ -362,6 +411,9 @@ export default function InstructorWorkstationPage({
       subtitle: "",
       instructorGuidance: "",
       moduleNumber: "",
+      level: "B1",
+      tags: { ...EMPTY_LESSON_TAGS },
+      customTagsText: "",
       status: "draft",
     });
     setLessonResources([]);
@@ -491,6 +543,9 @@ export default function InstructorWorkstationPage({
       subtitle: typeof content.subtitle === "string" ? content.subtitle : lesson.subtitle || "",
       instructorGuidance: typeof content.instructorGuidance === "string" ? content.instructorGuidance : "",
       moduleNumber: String(content.moduleNumber || lesson.module_number || 1),
+      level: normalizeCefrLevel(lesson.grade || content.level || content.cefrLevel),
+      tags: normalizeLessonTags(lesson.tags, { ...content, domain: content.domain ?? lesson.subject }),
+      customTagsText: normalizeLessonTags(lesson.tags, { ...content, domain: content.domain ?? lesson.subject }).custom.join(", "),
       status: lesson.status === "published" ? "published" : "draft",
     }));
     setWorkstationState((previous) => ({
@@ -558,6 +613,9 @@ export default function InstructorWorkstationPage({
       slug: copySlug,
       subtitle: typeof copyContent.subtitle === "string" ? copyContent.subtitle : "",
       moduleNumber: String(copyContent.moduleNumber || 1),
+      level: normalizeCefrLevel(lesson?.grade || copyContent.level || copyContent.cefrLevel),
+      tags: normalizeLessonTags(lesson?.tags, copyContent),
+      customTagsText: normalizeLessonTags(lesson?.tags, copyContent).custom.join(", "),
       status: "draft",
     }));
     setWorkstationState((previous) => ({
@@ -1083,6 +1141,11 @@ export default function InstructorWorkstationPage({
         title,
         subtitle: newLesson.subtitle.trim() || "A new Fluentia learning journey.",
         moduleNumber,
+        level: normalizeCefrLevel(newLesson.level),
+        tags: { ...newLesson.tags, custom: parseCustomLessonTags(newLesson.customTagsText) },
+        domain: newLesson.tags.domain,
+        skill_focus: newLesson.tags.skill_focus,
+        practice_type: newLesson.tags.practice_type,
         student_id: assignedStudentId,
         student_token: assignedStudentToken,
         coverImage: workstationState.bannerUrl,
@@ -1097,6 +1160,8 @@ export default function InstructorWorkstationPage({
         student_id: student.id,
         student_token: student.token,
         instructor_id: instructorId,
+        grade: normalizeCefrLevel(newLesson.level),
+        tags: { ...newLesson.tags, custom: parseCustomLessonTags(newLesson.customTagsText) },
         status: "draft",
         instructor_note: newLesson.instructorGuidance,
         content,
@@ -1387,6 +1452,11 @@ export default function InstructorWorkstationPage({
       title,
       subtitle: newLesson.subtitle.trim() || "A new Fluentia learning journey.",
       moduleNumber,
+      level: normalizeCefrLevel(newLesson.level),
+      tags: { ...newLesson.tags, custom: parseCustomLessonTags(newLesson.customTagsText) },
+      domain: newLesson.tags.domain,
+      skill_focus: newLesson.tags.skill_focus,
+      practice_type: newLesson.tags.practice_type,
       student_id: assignedStudent.id,
       student_token: assignedStudent.token,
       coverImage: workstationState.bannerUrl,
@@ -1410,6 +1480,8 @@ export default function InstructorWorkstationPage({
             student_token: assignedStudent.token,
             instructor_id: instructorId,
             status,
+            grade: normalizeCefrLevel(newLesson.level),
+            tags: { ...newLesson.tags, custom: parseCustomLessonTags(newLesson.customTagsText) },
             is_published: status === "published",
             instructor_note: newLesson.instructorGuidance,
             instructor_guidance: newLesson.instructorGuidance,
@@ -1423,6 +1495,8 @@ export default function InstructorWorkstationPage({
             student_token: assignedStudent.token,
             instructor_id: instructorId,
             status,
+            grade: normalizeCefrLevel(newLesson.level),
+            tags: { ...newLesson.tags, custom: parseCustomLessonTags(newLesson.customTagsText) },
             is_published: status === "published",
             instructor_note: newLesson.instructorGuidance,
             content,
@@ -1448,6 +1522,7 @@ export default function InstructorWorkstationPage({
       }));
       hasLoadedLesson.current = true;
       await refreshCreatedLessons();
+      window.dispatchEvent(new Event("fluentia:lesson-updated"));
       setLessonStatus(status);
       setSaveIndicator("saved");
       lastSavedDraftSignature.current = getDraftSignature(content, title, content.subtitle, String(moduleNumber));
@@ -1511,6 +1586,52 @@ export default function InstructorWorkstationPage({
   const handleSaveDraft = () => {
     console.log("Saving lesson...", { ...newLesson, content: workstationState.content });
     void saveLessonChanges(lessonStatus);
+  };
+
+  const openQuickTagEditor = (lesson: LessonWithVersion) => {
+    const content = (lesson.content || {}) as Record<string, any>;
+    const tags = normalizeLessonTags(lesson.tags, content);
+    setQuickTagError(null);
+    setQuickTagEditor({
+      lessonId: lesson.id,
+      level: normalizeCefrLevel(lesson.grade || content.level || content.cefrLevel),
+      tags,
+      customTagsText: tags.custom.join(", "),
+    });
+  };
+
+  const saveQuickTagEditor = async () => {
+    if (!quickTagEditor) return;
+    const lesson = createdLessons.find((item) => item.id === quickTagEditor.lessonId);
+    if (!lesson) return;
+    const tags = { ...quickTagEditor.tags, custom: parseCustomLessonTags(quickTagEditor.customTagsText) };
+    const content = {
+      ...(lesson.content || {}),
+      level: normalizeCefrLevel(quickTagEditor.level),
+      tags,
+      domain: tags.domain,
+      skill_focus: tags.skill_focus,
+      practice_type: tags.practice_type,
+    };
+    setQuickTagSaving(true);
+    setQuickTagError(null);
+    try {
+      const updatedLesson = await updateLesson(lesson.id, {
+        grade: normalizeCefrLevel(quickTagEditor.level),
+        tags,
+        content,
+        changes_summary: "Lesson level and tags updated",
+      });
+      setCreatedLessons((current) => current.map((item) => item.id === updatedLesson.id
+        ? { ...updatedLesson, assigned_student_ids: item.assigned_student_ids || [] }
+        : item));
+      window.dispatchEvent(new Event("fluentia:lesson-updated"));
+      setQuickTagEditor(null);
+    } catch (error) {
+      setQuickTagError(error instanceof Error ? error.message : "Unable to save lesson tags.");
+    } finally {
+      setQuickTagSaving(false);
+    }
   };
 
   const handleConfirmPublish = () => {
@@ -1603,11 +1724,17 @@ export default function InstructorWorkstationPage({
 
   const getLessonMetadata = (lesson: LessonWithVersion) => {
     const content = (lesson.content || {}) as Record<string, any>;
+    const tags = normalizeLessonTags(lesson.tags, { ...content, domain: content.domain ?? lesson.subject });
+    const hasStoredDomain = Object.prototype.hasOwnProperty.call(lesson.tags || {}, "domain")
+      || Object.prototype.hasOwnProperty.call(content, "domain")
+      || Object.prototype.hasOwnProperty.call(content, "topicDomain");
     return {
-      level: String(content.level || content.cefrLevel || lesson.grade || "Unspecified"),
-      domain: String(content.domain || content.topicDomain || lesson.subject || "General"),
+      level: normalizeCefrLevel(lesson.grade || content.level || content.cefrLevel),
+      domain: hasStoredDomain ? tags.domain || "General" : lesson.subject || "General",
       theme: String(content.theme || content.lessonTheme || "Open practice"),
-      skillFocus: String(content.skill_focus || content.skillFocus || content.primarySkill || "Integrated skills"),
+      skillFocus: tags.skill_focus || "Integrated skills",
+      practiceType: tags.practice_type,
+      customTags: tags.custom,
       subtitle: String(content.subtitle || lesson.subtitle || "No subtitle"),
     };
   };
@@ -1768,13 +1895,14 @@ export default function InstructorWorkstationPage({
             </div>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
               <label className="relative min-w-0 flex-1"><span className="sr-only">Search lessons</span><Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-stone-500" /><input value={librarySearch} onChange={(event) => setLibrarySearch(event.target.value)} placeholder="Search by title or subtitle" className="w-full rounded-md border border-[#394252] bg-[#0c1017] py-2.5 pl-9 pr-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
-              <select value={libraryLevel} onChange={(event) => setLibraryLevel(event.target.value)} aria-label="Filter by level" className="rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2.5 text-xs text-white [color-scheme:dark]"><option value="all">All levels</option>{["B1", "B2", "C1", "C2"].map((level) => <option key={level} value={level}>{level}</option>)}</select>
+              <select value={libraryLevel} onChange={(event) => setLibraryLevel(event.target.value)} aria-label="Filter by level" className="rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2.5 text-xs text-white [color-scheme:dark]"><option value="all">All levels</option>{CEFR_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select>
               <select value={libraryDomain} onChange={(event) => setLibraryDomain(event.target.value)} aria-label="Filter by domain" className="rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2.5 text-xs text-white [color-scheme:dark]"><option value="all">All domains</option>{libraryDomains.map((domain) => <option key={domain} value={domain}>{domain}</option>)}</select>
               <div className="flex rounded-md border border-[#394252] bg-[#0c1017] p-1" role="group" aria-label="Lesson view mode"><button type="button" onClick={() => setLibraryView("grid")} aria-label="Grid view" className={`rounded p-1.5 ${libraryView === "grid" ? "bg-amber-500 text-slate-950" : "text-stone-500 hover:text-stone-200"}`}><Grid3X3 className="h-4 w-4" /></button><button type="button" onClick={() => setLibraryView("table")} aria-label="Table view" className={`rounded p-1.5 ${libraryView === "table" ? "bg-amber-500 text-slate-950" : "text-stone-500 hover:text-stone-200"}`}><List className="h-4 w-4" /></button></div>
             </div>
           </div>
-          {libraryView === "grid" ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{filteredLibraryLessons.map((lesson) => { const metadata = getLessonMetadata(lesson); const assignedIds = getAssignedStudentIds(lesson); return <article key={lesson.id} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 transition hover:border-amber-500/50"><div className="flex items-start justify-between gap-3"><button type="button" onClick={() => handleEditLesson(lesson)} className="min-w-0 text-left"><h3 className="truncate font-semibold text-stone-100">{lesson.title}</h3><p className="mt-1 line-clamp-2 text-xs leading-relaxed text-stone-500">{metadata.subtitle}</p></button><span className={`shrink-0 rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase ${lesson.status === "published" ? "border-emerald-500/30 text-emerald-300" : "border-amber-500/30 text-amber-300"}`}>{lesson.status}</span></div><div className="mt-4 flex flex-wrap gap-1.5"><span className="rounded-full bg-amber-500/15 px-2 py-1 text-[10px] text-amber-300">{metadata.level}</span><span className="rounded-full bg-sky-500/15 px-2 py-1 text-[10px] text-sky-300">{metadata.domain}</span><span className="rounded-full bg-stone-500/15 px-2 py-1 text-[10px] text-stone-300">{metadata.theme}</span><span className="rounded-full bg-emerald-500/15 px-2 py-1 text-[10px] text-emerald-300">{metadata.skillFocus}</span></div><div className="relative mt-5 border-t border-[#202631] pt-4" onClick={(event) => event.stopPropagation()}><div className="flex items-center justify-between gap-2"><div className="flex min-w-0 flex-wrap gap-1">{assignedIds.length === 0 ? <span className="text-xs text-stone-500">No students assigned</span> : assignedIds.map((id) => { const student = students.find((item) => item.id === id); return <span key={id} title={student?.name || id} className="flex h-7 w-7 items-center justify-center rounded-full border border-amber-500/40 bg-amber-500/10 text-[10px] font-semibold text-amber-200">{(student?.name || id).slice(0, 2).toUpperCase()}</span>; })}</div><button type="button" onClick={() => setAssignmentEditorLessonId((current) => current === lesson.id ? null : lesson.id)} className="rounded-md border border-amber-500/40 px-2.5 py-1.5 text-[11px] font-semibold text-amber-300">Assign</button></div>{assignmentEditorLessonId === lesson.id && <div className="absolute left-0 right-0 top-full z-30 mt-2 rounded-lg border border-[#394252] bg-[#171d28] p-3 shadow-xl"><p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Assign students</p>{students.map((student) => <label key={student.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs text-stone-300 hover:bg-[#202631]"><input type="checkbox" checked={assignedIds.includes(student.id)} onChange={() => void handleAssignmentToggle(lesson, student.id)} className="accent-amber-500" /><span className="min-w-0 flex-1 truncate">{student.name}</span>{assignedIds.includes(student.id) && <Check className="h-3.5 w-3.5 text-amber-400" />}</label>)}<button type="button" onClick={() => setAssignmentEditorLessonId(null)} className="mt-2 w-full rounded border border-[#394252] px-2 py-1.5 text-[11px] text-stone-400">Done</button></div>}</div><div className="mt-4 flex items-center justify-between"><span className="text-[11px] text-stone-500">Module {lesson.content?.moduleNumber || lesson.module_number || 1}</span><button type="button" onClick={() => handleEditLesson(lesson)} className="text-xs font-semibold text-amber-300 hover:text-amber-200">Edit / Continue</button></div></article>; })}</div> : <div className="overflow-x-auto rounded-xl border border-[#202631] bg-[#171d28]/60"><table className="min-w-[900px] w-full text-left text-xs"><thead className="border-b border-[#202631] bg-[#0c1017] text-[10px] uppercase tracking-[0.12em] text-stone-500"><tr><th className="px-5 py-3">Lesson</th><th className="px-4 py-3">Metadata</th><th className="px-4 py-3">Assigned students</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Action</th></tr></thead><tbody className="divide-y divide-[#202631]">{filteredLibraryLessons.map((lesson) => { const metadata = getLessonMetadata(lesson); return <tr key={lesson.id} className="text-stone-300 hover:bg-[#202631]/30"><td className="px-5 py-4"><button type="button" onClick={() => handleEditLesson(lesson)} className="text-left"><p className="font-semibold text-stone-100">{lesson.title}</p><p className="mt-1 text-[11px] text-stone-500">{metadata.subtitle}</p></button></td><td className="px-4 py-4"><div className="flex max-w-xs flex-wrap gap-1"><span className="rounded bg-amber-500/15 px-1.5 py-1 text-[10px] text-amber-300">{metadata.level}</span><span className="rounded bg-sky-500/15 px-1.5 py-1 text-[10px] text-sky-300">{metadata.domain}</span><span className="rounded bg-stone-500/15 px-1.5 py-1 text-[10px] text-stone-300">{metadata.theme}</span><span className="rounded bg-emerald-500/15 px-1.5 py-1 text-[10px] text-emerald-300">{metadata.skillFocus}</span></div></td><td className="px-4 py-4">{renderAssignedStudents(lesson)}</td><td className="px-4 py-4 capitalize">{lesson.status}</td><td className="px-4 py-4 text-right"><button type="button" onClick={() => handleEditLesson(lesson)} className="text-xs font-semibold text-amber-300">Edit</button></td></tr>; })}</tbody></table></div>}
+          {libraryView === "grid" ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{filteredLibraryLessons.map((lesson) => { const metadata = getLessonMetadata(lesson); const assignedIds = getAssignedStudentIds(lesson); return <article key={lesson.id} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 transition hover:border-amber-500/50"><div className="flex items-start justify-between gap-3"><button type="button" onClick={() => handleEditLesson(lesson)} className="min-w-0 text-left"><h3 className="truncate font-semibold text-stone-100">{lesson.title}</h3><p className="mt-1 line-clamp-2 text-xs leading-relaxed text-stone-500">{metadata.subtitle}</p></button><span className={`shrink-0 rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase ${lesson.status === "published" ? "border-emerald-500/30 text-emerald-300" : "border-amber-500/30 text-amber-300"}`}>{lesson.status}</span></div><div className="mt-4 flex flex-wrap gap-1.5"><span className="rounded-full bg-amber-500/15 px-2 py-1 text-[10px] text-amber-300">{metadata.level}</span><span className="rounded-full bg-sky-500/15 px-2 py-1 text-[10px] text-sky-300">{metadata.domain}</span><span className="rounded-full bg-stone-500/15 px-2 py-1 text-[10px] text-stone-300">{metadata.theme}</span><span className="rounded-full bg-emerald-500/15 px-2 py-1 text-[10px] text-emerald-300">{metadata.skillFocus}</span>{metadata.practiceType && <span className="rounded-full bg-rose-500/15 px-2 py-1 text-[10px] text-rose-300">{metadata.practiceType}</span>}{metadata.customTags.map((tag) => <span key={tag} className="rounded-full bg-stone-500/15 px-2 py-1 text-[10px] text-stone-300">{tag}</span>)}</div><div className="mt-2"><button type="button" onClick={() => openQuickTagEditor(lesson)} aria-label={`Edit tags for ${lesson.title}`} className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-300 hover:text-amber-200"><Pencil className="h-3 w-3" />Edit level & tags</button></div><div className="relative mt-5 border-t border-[#202631] pt-4" onClick={(event) => event.stopPropagation()}><div className="flex items-center justify-between gap-2"><div className="flex min-w-0 flex-wrap gap-1">{assignedIds.length === 0 ? <span className="text-xs text-stone-500">No students assigned</span> : assignedIds.map((id) => { const student = students.find((item) => item.id === id); return <span key={id} title={student?.name || id} className="flex h-7 w-7 items-center justify-center rounded-full border border-amber-500/40 bg-amber-500/10 text-[10px] font-semibold text-amber-200">{(student?.name || id).slice(0, 2).toUpperCase()}</span>; })}</div><button type="button" onClick={() => setAssignmentEditorLessonId((current) => current === lesson.id ? null : lesson.id)} className="rounded-md border border-amber-500/40 px-2.5 py-1.5 text-[11px] font-semibold text-amber-300">Assign</button></div>{assignmentEditorLessonId === lesson.id && <div className="absolute left-0 right-0 top-full z-30 mt-2 rounded-lg border border-[#394252] bg-[#171d28] p-3 shadow-xl"><p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Assign students</p>{students.map((student) => <label key={student.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs text-stone-300 hover:bg-[#202631]"><input type="checkbox" checked={assignedIds.includes(student.id)} onChange={() => void handleAssignmentToggle(lesson, student.id)} className="accent-amber-500" /><span className="min-w-0 flex-1 truncate">{student.name}</span>{assignedIds.includes(student.id) && <Check className="h-3.5 w-3.5 text-amber-400" />}</label>)}<button type="button" onClick={() => setAssignmentEditorLessonId(null)} className="mt-2 w-full rounded border border-[#394252] px-2 py-1.5 text-[11px] text-stone-400">Done</button></div>}</div><div className="mt-4 flex items-center justify-between"><span className="text-[11px] text-stone-500">Module {lesson.content?.moduleNumber || lesson.module_number || 1}</span><button type="button" onClick={() => handleEditLesson(lesson)} className="text-xs font-semibold text-amber-300 hover:text-amber-200">Edit / Continue</button></div></article>; })}</div> : <div className="overflow-x-auto rounded-xl border border-[#202631] bg-[#171d28]/60"><table className="min-w-[900px] w-full text-left text-xs"><thead className="border-b border-[#202631] bg-[#0c1017] text-[10px] uppercase tracking-[0.12em] text-stone-500"><tr><th className="px-5 py-3">Lesson</th><th className="px-4 py-3">Metadata</th><th className="px-4 py-3">Assigned students</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Action</th></tr></thead><tbody className="divide-y divide-[#202631]">{filteredLibraryLessons.map((lesson) => { const metadata = getLessonMetadata(lesson); return <tr key={lesson.id} className="text-stone-300 hover:bg-[#202631]/30"><td className="px-5 py-4"><button type="button" onClick={() => handleEditLesson(lesson)} className="text-left"><p className="font-semibold text-stone-100">{lesson.title}</p><p className="mt-1 text-[11px] text-stone-500">{metadata.subtitle}</p></button></td><td className="px-4 py-4"><div className="flex max-w-xs flex-wrap gap-1"><span className="rounded bg-amber-500/15 px-1.5 py-1 text-[10px] text-amber-300">{metadata.level}</span><span className="rounded bg-sky-500/15 px-1.5 py-1 text-[10px] text-sky-300">{metadata.domain}</span><span className="rounded bg-stone-500/15 px-1.5 py-1 text-[10px] text-stone-300">{metadata.theme}</span><span className="rounded bg-emerald-500/15 px-1.5 py-1 text-[10px] text-emerald-300">{metadata.skillFocus}</span>{metadata.practiceType && <span className="rounded bg-rose-500/15 px-1.5 py-1 text-[10px] text-rose-300">{metadata.practiceType}</span>}{metadata.customTags.map((tag) => <span key={tag} className="rounded bg-stone-500/15 px-1.5 py-1 text-[10px] text-stone-300">{tag}</span>)}</div></td><td className="px-4 py-4">{renderAssignedStudents(lesson)}</td><td className="px-4 py-4 capitalize">{lesson.status}</td><td className="px-4 py-4 text-right"><button type="button" onClick={() => openQuickTagEditor(lesson)} className="text-xs font-semibold text-amber-300">Edit tags</button><button type="button" onClick={() => handleEditLesson(lesson)} className="ml-3 text-xs font-semibold text-amber-300">Edit</button></td></tr>; })}</tbody></table></div>}
           {filteredLibraryLessons.length === 0 && <div className="rounded-xl border border-dashed border-[#394252] p-10 text-center text-sm text-stone-500">No lessons match these filters.</div>}
+          {quickTagEditor && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !quickTagSaving) setQuickTagEditor(null); }}><section role="dialog" aria-modal="true" aria-labelledby="quick-tag-editor-title" className="w-full max-w-lg rounded-lg border border-[#394252] bg-[#171d28] p-5 shadow-2xl"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Lesson metadata</p><h3 id="quick-tag-editor-title" className="mt-1 text-lg font-semibold text-stone-100">Edit level & tags</h3></div><button type="button" aria-label="Close tag editor" disabled={quickTagSaving} onClick={() => setQuickTagEditor(null)} className="rounded border border-[#394252] p-1.5 text-stone-400 hover:text-stone-100 disabled:opacity-50"><X className="h-4 w-4" /></button></div><div className="mt-5 grid gap-3 sm:grid-cols-2"><label className="text-xs text-stone-400">CEFR Level<select value={quickTagEditor.level} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, level: event.target.value } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-white [color-scheme:dark]">{CEFR_LEVELS.map((level) => <option key={level}>{level}</option>)}</select></label><label className="text-xs text-stone-400">Domain<input value={quickTagEditor.tags.domain} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, domain: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Skill Focus<input value={quickTagEditor.tags.skill_focus} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, skill_focus: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Practice Type<input value={quickTagEditor.tags.practice_type} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, practice_type: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400 sm:col-span-2">Custom Tags<input value={quickTagEditor.customTagsText} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, customTagsText: event.target.value } : current)} placeholder="Comma-separated custom tags" className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label></div>{quickTagError && <p role="alert" className="mt-3 text-xs text-red-300">{quickTagError}</p>}<div className="mt-5 flex justify-end gap-2"><button type="button" disabled={quickTagSaving} onClick={() => setQuickTagEditor(null)} className="rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 disabled:opacity-50">Cancel</button><button type="button" disabled={quickTagSaving} onClick={() => void saveQuickTagEditor()} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 disabled:opacity-50">{quickTagSaving ? "Saving..." : <><Check className="h-3.5 w-3.5" />Save tags</>}</button></div></section></div>}
         </section>}
 
         {activeTab === "resources" && (() => {
@@ -2173,18 +2301,26 @@ export default function InstructorWorkstationPage({
 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Lesson Builder</p>
 <h2 id="lesson-details-title" className="mt-1 font-sans text-xl font-semibold text-stone-100">Lesson Details</h2>
 </div>
-            <div className="grid gap-3 md:grid-cols-4">
+            <div className="grid gap-3 md:grid-cols-5">
 <label className="text-xs text-stone-400">Lesson Title<input value={newLesson.title} onChange={(event) => setLessonTitle(event.target.value)} placeholder="A new lesson" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" />
 </label>
 <label className="text-xs text-stone-400">Select Student<select value={selectedStudentId || ""} onChange={(event) => { const nextStudent = students.find((student) => student.id === event.target.value); if (nextStudent) void handleStudentChange(nextStudent); }} className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-white [color-scheme:dark]" aria-label="Select student for lesson"><option value="" className="bg-[#0c1017] text-white">{studentsLoading ? "Loading students..." : studentsError ? "Unable to load students" : students.length === 0 ? "No registered students" : "Choose a student"}</option>{students.map((student) => <option key={student.id} value={student.id} className="bg-[#0c1017] text-white">{student.name}</option>)}</select>
 </label>
 <label className="text-xs text-stone-400">Module Number<input value={newLesson.moduleNumber} onChange={(event) => setNewLesson((previous) => ({ ...previous, moduleNumber: event.target.value }))} placeholder="1" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" />
 </label>
+<label className="text-xs text-stone-400">CEFR Level<select value={newLesson.level} onChange={(event) => updateBuilderLevel(event.target.value)} className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-white [color-scheme:dark]" aria-label="Lesson CEFR level">{CEFR_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select>
+</label>
 <div className="text-xs text-stone-400">Visibility<p className="mt-1 rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200">{lessonStatus === "published" ? "Published" : "Draft"}</p></div>
 </div>
             
             <label className="mt-3 block text-xs text-stone-400">Subtitle<input value={newLesson.subtitle} onChange={(event) => setNewLesson((previous) => ({ ...previous, subtitle: event.target.value }))} placeholder="Lesson summary" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" />
 </label>
+            <div className="mt-3 grid gap-3 md:grid-cols-3">
+              <label className="text-xs text-stone-400">Domain<input value={newLesson.tags.domain} onChange={(event) => updateBuilderTags({ ...newLesson.tags, domain: event.target.value }, newLesson.customTagsText)} placeholder="Work, travel, culture..." className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label>
+              <label className="text-xs text-stone-400">Skill Focus<input value={newLesson.tags.skill_focus} onChange={(event) => updateBuilderTags({ ...newLesson.tags, skill_focus: event.target.value }, newLesson.customTagsText)} placeholder="Speaking, listening..." className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label>
+              <label className="text-xs text-stone-400">Practice Type<input value={newLesson.tags.practice_type} onChange={(event) => updateBuilderTags({ ...newLesson.tags, practice_type: event.target.value }, newLesson.customTagsText)} placeholder="Role-play, reflection..." className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label>
+              <label className="text-xs text-stone-400 md:col-span-3">Custom Tags<input value={newLesson.customTagsText} onChange={(event) => updateBuilderTags({ ...newLesson.tags, custom: parseCustomLessonTags(event.target.value) }, event.target.value)} placeholder="Comma-separated custom tags" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label>
+            </div>
 <label className="mt-3 block text-xs text-stone-400">Lesson-Specific Guidance<textarea value={newLesson.instructorGuidance} onChange={(e) => setNewLesson((previous) => ({ ...previous, instructorGuidance: e.target.value }))} placeholder="Guidance shown inside this lesson's Study Room" rows={3} className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
           </section>
           <main className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-12">

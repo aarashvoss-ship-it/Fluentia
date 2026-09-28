@@ -20,6 +20,7 @@ export interface CreateLessonInput {
   student_token?: string;
   subject?: string;
   grade?: string;
+  tags?: LessonTags;
   status?: "draft" | "published" | "evaluated";
   is_published?: boolean;
   instructor_id?: string;
@@ -44,10 +45,18 @@ export interface UpdateLessonInput {
   assigned_all_students?: boolean;
   subject?: string;
   grade?: string;
+  tags?: LessonTags;
   status?: "draft" | "published" | "evaluated";
   is_published?: boolean;
   content?: Record<string, any>;
   changes_summary?: string;
+}
+
+export interface LessonTags {
+  domain: string;
+  skill_focus: string;
+  practice_type: string;
+  custom: string[];
 }
 
 export interface LessonWithVersion extends LessonRow {
@@ -69,6 +78,7 @@ const FALLBACK_LESSON: LessonWithVersion = {
   slug: BENCHMARK_LESSON_SLUG,
   subject: "English",
   grade: "B1",
+  tags: {},
   status: "published",
   student_token: null,
   student_id: null,
@@ -135,6 +145,7 @@ const LESSON_UPDATE_COLUMNS = [
   "status",
   "subject",
   "grade",
+  "tags",
   "assigned_all_students",
   "banner_url",
   "student_id",
@@ -709,7 +720,8 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
       ...(typeof student_token === "string" && student_token.trim() ? { student_token: student_token.trim() } : {}),
       ...(resolvedInstructorId ? { instructor_id: resolvedInstructorId } : {}),
       ...(typeof lessonData.subject === "string" && lessonData.subject.trim() ? { subject: lessonData.subject.trim() } : {}),
-      ...(typeof lessonData.grade === "string" && lessonData.grade.trim() ? { grade: lessonData.grade.trim() } : {}),
+      grade: typeof lessonData.grade === "string" && lessonData.grade.trim() ? lessonData.grade.trim() : "B1",
+      tags: lessonData.tags || {},
       ...(typeof lessonData.assigned_all_students === "boolean" ? { assigned_all_students: lessonData.assigned_all_students } : {}),
     };
     let { data: lesson, error: lessonError } = await supabase
@@ -775,13 +787,13 @@ export async function updateLesson(
   }
 
   try {
-    const { content, changes_summary, banner_url, student_id, student_token, instructor_id, is_published, slug, title, subtitle, module_number, status, subject, grade, assigned_all_students } = input;
+    const { content, changes_summary, banner_url, student_id, student_token, instructor_id, is_published, slug, title, subtitle, module_number, status, subject, grade, tags, assigned_all_students } = input;
     const safeContent = sanitizeLessonContent(content);
     const resolvedStudentId = student_id || undefined;
     const resolvedInstructorId = instructor_id || undefined;
     // Update the lesson metadata
     const hasStudentTokenUpdate = Object.prototype.hasOwnProperty.call(input, "student_token");
-    if (title !== undefined || subtitle !== undefined || module_number !== undefined || slug !== undefined || status !== undefined || subject !== undefined || grade !== undefined || assigned_all_students !== undefined || banner_url !== undefined || resolvedStudentId || resolvedInstructorId || hasStudentTokenUpdate || is_published !== undefined) {
+    if (title !== undefined || subtitle !== undefined || module_number !== undefined || slug !== undefined || status !== undefined || subject !== undefined || grade !== undefined || tags !== undefined || assigned_all_students !== undefined || banner_url !== undefined || resolvedStudentId || resolvedInstructorId || hasStudentTokenUpdate || is_published !== undefined) {
       const updatePayload = sanitizeLessonUpdatePayload({
         ...(title !== undefined ? { title } : {}),
         ...(subtitle !== undefined ? { subtitle: typeof subtitle === "string" ? subtitle.trim() : subtitle } : {}),
@@ -790,6 +802,7 @@ export async function updateLesson(
         ...(status !== undefined ? { status } : is_published !== undefined ? { status: is_published ? "published" : "draft" } : {}),
         ...(subject !== undefined ? { subject } : {}),
         ...(grade !== undefined ? { grade } : {}),
+        ...(tags !== undefined ? { tags } : {}),
         ...(assigned_all_students !== undefined ? { assigned_all_students } : {}),
         ...(banner_url !== undefined ? { banner_url } : {}),
         ...(resolvedStudentId ? { student_id: resolvedStudentId } : {}),
