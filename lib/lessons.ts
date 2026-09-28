@@ -951,11 +951,33 @@ export async function deleteLesson(id: string): Promise<void> {
   }
 
   try {
+    const { data: linkedResources, error: resourceLookupError } = await supabase
+      .from("student_resources")
+      .select("resource_type, link_url")
+      .eq("lesson_id", id);
+    if (resourceLookupError) {
+      console.warn(`Unable to inspect lesson resources before deleting ${id}:`, resourceLookupError.message);
+    }
+    const storagePaths = [...new Set((linkedResources || [])
+      .filter((resource) => resource.resource_type === "file" && typeof resource.link_url === "string")
+      .map((resource) => {
+        try {
+          const url = new URL(resource.link_url);
+          const prefix = "/storage/v1/object/public/student-resources/";
+          const prefixIndex = url.pathname.indexOf(prefix);
+          return prefixIndex < 0 ? null : decodeURIComponent(url.pathname.slice(prefixIndex + prefix.length));
+        } catch {
+          return null;
+        }
+      })
+      .filter((path): path is string => Boolean(path)))];
+
     const childTables = [
       "lesson_versions",
       "submissions",
       "instructor_feedback",
       "lesson_assignments",
+      "student_resources",
     ] as const;
 
     for (const table of childTables) {
@@ -983,7 +1005,12 @@ export async function deleteLesson(id: string): Promise<void> {
       }
     }
 
-    const { error } = await supabase.from("lessons").delete().eq("id", id);
+    const { data: deletedLesson, error } = await supabase
+      .from("lessons")
+      .delete()
+      .eq("id", id)
+      .select("id")
+      .maybeSingle();
 
     if (error) {
       const details = describeSupabaseError(error);
@@ -995,6 +1022,14 @@ export async function deleteLesson(id: string): Promise<void> {
         status: details.status,
       });
       throw toSupabaseError(error, `Unable to delete lesson ${id}`);
+    }
+    if (!deletedLesson) throw new Error(`Lesson ${id} was not deleted. Check the instructor's delete permission.`);
+
+    if (storagePaths.length > 0) {
+      const { error: storageError } = await supabase.storage.from("student-resources").remove(storagePaths);
+      if (storageError) {
+        console.warn(`Lesson ${id} was deleted, but linked resource files could not be removed:`, storageError.message);
+      }
     }
   } catch (error) {
     const normalizedError = error instanceof Error ? error : toSupabaseError(error, `Unable to delete lesson ${id}`);
