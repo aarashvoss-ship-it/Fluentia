@@ -108,7 +108,7 @@ export function InstructorBannerManager({
         {selectedUrl ? (
           <img
             src={selectedUrl}
-            alt="Hero Preview"
+            alt="Current live hero banner preview"
             className="w-full h-full object-cover"
           />
         ) : (
@@ -134,7 +134,7 @@ export function InstructorBannerManager({
                   isSelected ? "border-amber-500 ring-1 ring-amber-500" : "border-[#202631] opacity-70 hover:opacity-100"
                 }`}
               >
-                <img src={preset} alt={`Preset ${index + 1}`} className="w-full h-full object-cover" />
+                <img src={preset} alt={`Preset banner ${index + 1}`} className="w-full h-full object-cover" />
                 {isSelected && (
                     <div className="absolute inset-0 bg-amber-500/20 flex items-center justify-center">
                     <Check className="w-4 h-4 text-white drop-shadow" />
