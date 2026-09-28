@@ -55,6 +55,59 @@ body {
   display: none;
 }
 
+.fluentia-tooltip-trigger {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+.fluentia-tooltip-trigger:has(> .fluentia-tooltip-target.flex-1) {
+  flex: 1;
+  min-width: 0;
+}
+
+.fluentia-tooltip-trigger:has(> .fluentia-tooltip-target.w-full) {
+  display: block;
+  width: 100%;
+}
+
+.fluentia-tooltip-content {
+  position: absolute;
+  z-index: 100;
+  left: 50%;
+  bottom: calc(100% + 0.5rem);
+  width: max-content;
+  max-width: min(16rem, calc(100vw - 2rem));
+  padding: 0.375rem 0.5rem;
+  border: 1px solid #394252;
+  border-radius: 0.375rem;
+  background: #171d28;
+  color: #e7e5e4;
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  text-align: center;
+  white-space: normal;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, 0.25rem);
+  transition: opacity 120ms ease, transform 120ms ease, visibility 120ms;
+}
+
+.fluentia-tooltip-trigger > .fluentia-tooltip-target:focus-visible ~ .fluentia-tooltip-content {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .fluentia-tooltip-trigger:hover > .fluentia-tooltip-content {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(-50%, 0);
+  }
+}
+
 /* Student study rooms are intentionally dark and consistent across devices. */
 .fluentia-study-room,
 body {

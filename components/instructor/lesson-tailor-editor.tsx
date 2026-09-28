@@ -10,6 +10,7 @@ import { FillInBlanksMarkdown } from "@/components/study-room/fill-in-blanks-mar
 import { WritingBlockEditor } from "@/components/shared/writing-block";
 import { parseFillInBlanks } from "@/lib/fill-in-blanks";
 import { uploadLessonAsset, uploadLessonMedia } from "@/services/storage-service";
+import { Tooltip } from "@/components/shared/tooltip";
 import { Eye, FileText, Layers, Lightbulb, LoaderCircle, MoveDown, MoveUp, Plus, Trash2, UploadCloud, X, ChevronDown, ChevronUp, HelpCircle, Mic, Square } from "lucide-react";
 
 interface LessonTailorEditorProps {
@@ -86,28 +87,29 @@ function MarkdownEditor({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <button type="button" onClick={onHelp} className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.12em] text-stone-500 hover:text-amber-300" aria-label="Open Markdown help">
+        <Tooltip content="View Markdown formatting help"><button type="button" onClick={onHelp} className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.12em] text-stone-500 hover:text-amber-300" aria-label="Open Markdown help">
           Markdown <HelpCircle className="h-3.5 w-3.5" />
-        </button>
+        </button></Tooltip>
         <div className="flex rounded border border-[#394252] p-0.5" role="tablist" aria-label="Markdown editor mode">
-          <button type="button" role="tab" aria-selected={mode === "write"} onClick={() => setMode("write")} className={`px-2 py-1 text-[10px] ${mode === "write" ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-200"}`}>Write</button>
-          <button type="button" role="tab" aria-selected={mode === "preview"} onClick={() => setMode("preview")} className={`px-2 py-1 text-[10px] ${mode === "preview" ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-200"}`}>Preview</button>
+          <Tooltip content="Edit lesson text using Markdown"><button type="button" role="tab" aria-selected={mode === "write"} onClick={() => setMode("write")} className={`px-2 py-1 text-[10px] ${mode === "write" ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-200"}`}>Write</button></Tooltip>
+          <Tooltip content="Preview the formatted lesson text"><button type="button" role="tab" aria-selected={mode === "preview"} onClick={() => setMode("preview")} className={`px-2 py-1 text-[10px] ${mode === "preview" ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-200"}`}>Preview</button></Tooltip>
         </div>
       </div>
       {mode === "write" ? (
         <>
           <div className="flex flex-wrap items-center gap-1 rounded border border-[#202631] bg-[#0c1017] p-1" role="toolbar" aria-label="Markdown formatting">
-            <button type="button" onClick={() => prependLine("# ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]">H1</button>
-            <button type="button" onClick={() => prependLine("## ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]">H2</button>
-            <button type="button" onClick={() => prependLine("### ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]">H3</button>
-            <button type="button" onClick={() => updateSelection("**", "**")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]">B</button>
-            <button type="button" onClick={() => updateSelection("*", "*")} className="rounded px-2 py-1 text-xs italic text-stone-300 hover:bg-[#293343]">I</button>
-            <button type="button" onClick={() => prependLine("- ")} className="rounded px-2 py-1 text-xs text-stone-300 hover:bg-[#293343]">List</button>
-            <button type="button" onClick={() => onChange(`${value}\n---\n`)} className="rounded px-2 py-1 text-xs text-stone-300 hover:bg-[#293343]">HR</button>
-            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={insertCallout} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-amber-300 hover:bg-[#293343]" aria-label="Insert callout or executive template" title="Insert callout or executive template"><Lightbulb className="h-3.5 w-3.5" />Callout / Template</button>
+            <Tooltip content="Insert a level-one heading"><button type="button" onClick={() => prependLine("# ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]">H1</button></Tooltip>
+            <Tooltip content="Insert a level-two heading"><button type="button" onClick={() => prependLine("## ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]">H2</button></Tooltip>
+            <Tooltip content="Insert a level-three heading"><button type="button" onClick={() => prependLine("### ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]">H3</button></Tooltip>
+            <Tooltip content="Bold selected text"><button type="button" onClick={() => updateSelection("**", "**")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]">B</button></Tooltip>
+            <Tooltip content="Italicize selected text"><button type="button" onClick={() => updateSelection("*", "*")} className="rounded px-2 py-1 text-xs italic text-stone-300 hover:bg-[#293343]">I</button></Tooltip>
+            <Tooltip content="Start a bulleted list"><button type="button" onClick={() => prependLine("- ")} className="rounded px-2 py-1 text-xs text-stone-300 hover:bg-[#293343]">List</button></Tooltip>
+            <Tooltip content="Insert a horizontal divider"><button type="button" onClick={() => onChange(`${value}\n---\n`)} className="rounded px-2 py-1 text-xs text-stone-300 hover:bg-[#293343]">HR</button></Tooltip>
+            <Tooltip content="Insert a highlighted callout or executive template"><button type="button" onMouseDown={(event) => event.preventDefault()} onClick={insertCallout} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-amber-300 hover:bg-[#293343]" aria-label="Insert callout or executive template"><Lightbulb className="h-3.5 w-3.5" />Callout / Template</button></Tooltip>
             <span className="mx-1 h-4 w-px bg-[#394252]" aria-hidden="true" />
             <span className="sr-only">Text color</span>
             {colorPalette.map((color) => (
+              <Tooltip key={color.value} content={`Apply ${color.name} text color`}>
               <button
                 key={color.value}
                 type="button"
@@ -118,6 +120,7 @@ function MarkdownEditor({
                 aria-label={`Apply ${color.name} text color`}
                 title={color.name}
               />
+              </Tooltip>
             ))}
           </div>
           <textarea

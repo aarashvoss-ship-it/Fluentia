@@ -22,6 +22,7 @@ import { InteractiveVideoBlock } from "@/components/shared/interactive-video-blo
 import { FillInBlanksMarkdown } from "@/components/study-room/fill-in-blanks-markdown";
 import { WritingBlockRenderer } from "@/components/shared/writing-block";
 import { StudyRoomBlockRow } from "@/components/study-room/study-room-block-row";
+import { Tooltip } from "@/components/shared/tooltip";
 import { parseFillInBlanks } from "@/lib/fill-in-blanks";
 import { uploadStudentAudio } from "@/services/storage-service";
 import type { OptionIndexingStyle } from "@/types/lesson";
@@ -853,10 +854,10 @@ export default function LessonPage() {
           <p className="text-[#aeb2b9]">Welcome back, <span className="text-[#e6e4e0]">{studentDisplayName}</span>.</p>
           <div className="flex flex-wrap items-center gap-2">
             <AmbientMusicPlayer src={lessonContent.ambientMusicUrl} tracks={lessonContent.ambientTracks} studentScope={activeStudent?.id || activeStudent?.token || lesson?.student_id || lesson?.student_token || "student"} />
-            {((typeof lesson.instructor_note === "string" && lesson.instructor_note.trim()) || (typeof rawLessonContent.instructorGuidance === "string" && rawLessonContent.instructorGuidance.trim())) && <button type="button" onClick={() => setGuidanceOpen((open) => !open)} aria-expanded={guidanceOpen} aria-label="Open lesson guidance" title="Lesson Guidance" className={`flex h-8 w-8 items-center justify-center rounded-md border text-amber-300 transition ${guidanceOpen ? "border-amber-500/70 bg-amber-500/10" : "border-[#394252] bg-[#171d28]/90 hover:border-amber-500"}`}><Lightbulb className="h-4 w-4" /></button>}
-            <button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs transition ${sidebarOpen ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#171d28]/90 text-amber-300 hover:border-amber-500"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button>
-            <button type="button" onClick={() => setDictionaryWord("")} aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28]/90 text-stone-400 transition hover:border-amber-500 hover:text-amber-300"><BookOpen className="w-4 h-4" /></button>
-            <Link href="/dashboard" className="flex items-center gap-1 rounded-md border border-[#394252] bg-[#171d28]/90 px-3 py-2 text-xs text-[#b5bac2] transition-colors hover:border-amber-500/50 hover:text-amber-300"><ChevronRight className="h-3 w-3 rotate-180" />Course overview</Link>
+            {((typeof lesson.instructor_note === "string" && lesson.instructor_note.trim()) || (typeof rawLessonContent.instructorGuidance === "string" && rawLessonContent.instructorGuidance.trim())) && <Tooltip content="Open lesson guidance"><button type="button" onClick={() => setGuidanceOpen((open) => !open)} aria-expanded={guidanceOpen} aria-label="Open lesson guidance" className={`flex h-8 w-8 items-center justify-center rounded-md border text-amber-300 transition ${guidanceOpen ? "border-amber-500/70 bg-amber-500/10" : "border-[#394252] bg-[#171d28]/90 hover:border-amber-500"}`}><Lightbulb className="h-4 w-4" /></button></Tooltip>}
+            <Tooltip content="Open your notes, resources, and study tools"><button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs transition ${sidebarOpen ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#171d28]/90 text-amber-300 hover:border-amber-500"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button></Tooltip>
+            <Tooltip content="Look up a word"><button type="button" onClick={() => setDictionaryWord("")} aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28]/90 text-stone-400 transition hover:border-amber-500 hover:text-amber-300"><BookOpen className="w-4 h-4" /></button></Tooltip>
+            <Tooltip content="Return to your course overview"><Link href="/dashboard" className="flex items-center gap-1 rounded-md border border-[#394252] bg-[#171d28]/90 px-3 py-2 text-xs text-[#b5bac2] transition-colors hover:border-amber-500/50 hover:text-amber-300"><ChevronRight className="h-3 w-3 rotate-180" />Course overview</Link></Tooltip>
           </div>
         </div>
         <div className="mt-8">
@@ -1188,14 +1189,14 @@ export default function LessonPage() {
         {/* Bottom Navigation */}
         {!isResultsStep && (
           <div className="flex items-center justify-between border-t border-[#202631] pt-8">
-            <button
+            <Tooltip content="Return to the previous lesson step"><button
               onClick={handlePrev}
               disabled={currentIndex === 0}
               className="px-0 py-2 text-[11px] text-[#566078] transition-colors hover:text-[#b3b8c1] disabled:cursor-not-allowed disabled:opacity-30"
             >
               Previous
-            </button>
-            <button
+            </button></Tooltip>
+            <Tooltip content={currentIndex === STUDY_STEPS.length - 2 ? "Finish the lesson and view your results" : "Continue to the next lesson step"}><button
               onClick={handleNext}
               className="flex items-center gap-2 rounded-lg bg-amber-500 px-6 py-2.5 text-[12px] font-bold text-slate-950 shadow-md transition-all hover:bg-amber-400"
             >
@@ -1208,7 +1209,7 @@ export default function LessonPage() {
                   Next <ArrowRight className="w-4 h-4" />
                 </>
               )}
-            </button>
+            </button></Tooltip>
           </div>
         )}
       </main>

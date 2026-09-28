@@ -3,6 +3,7 @@
 import React from "react";
 import { Check } from "lucide-react";
 import { StudyStepId, STUDY_STEPS } from "@/types/lesson";
+import { Tooltip } from "@/components/shared/tooltip";
 
 interface StepperProps {
   currentStep: StudyStepId;
@@ -27,6 +28,7 @@ export function Stepper({
           const isLocked = lockedSteps.includes(step.id);
 
           return (
+            <Tooltip key={step.id} content={isLocked ? `${step.label} is locked until earlier work is complete.` : `Go to ${step.label}${isActive ? " (current step)" : ""}.`}>
             <button
               key={step.id}
               onClick={() => onStepClick(step.id)}
@@ -57,6 +59,7 @@ export function Stepper({
               </div>
               <span>{step.label}</span>
             </button>
+            </Tooltip>
           );
         })}
       </div>
