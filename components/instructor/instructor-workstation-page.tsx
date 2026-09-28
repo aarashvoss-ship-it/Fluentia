@@ -2340,7 +2340,7 @@ export default function InstructorWorkstationPage({
           </section>
           <main className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-12">
             <div className="h-full min-w-0 lg:col-span-8">
-              <LessonTailorEditor key={databaseLessonId || "new-lesson"} content={workstationState.content} sidebarBlocksByStep={sidebarBlocksByStep} onChange={(content: StrictStepContent) => setWorkstationState((previous) => ({ ...previous, content }))} />
+              <LessonTailorEditor key={databaseLessonId || "new-lesson"} content={workstationState.content} sidebarBlocksByStep={sidebarBlocksByStep} onActiveStepChange={setSidebarStep} onChange={(content: StrictStepContent) => setWorkstationState((previous) => ({ ...previous, content }))} />
             </div>
             <aside className="h-full space-y-6 lg:col-span-4">
               <details className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" open={heroBannerOpen} onToggle={(event) => setHeroBannerOpen(event.currentTarget.open)}>

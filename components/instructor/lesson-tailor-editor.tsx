@@ -17,6 +17,7 @@ interface LessonTailorEditorProps {
   content: StrictStepContent;
   onChange?: (updatedContent: StrictStepContent) => void;
   onPreview?: () => void;
+  onActiveStepChange?: (step: Exclude<StudyStepId, "results">) => void;
   sidebarBlocksByStep?: Partial<Record<StudyStepId, { id: string; title: string; body: string }[]>>;
 }
 
@@ -243,6 +244,7 @@ export function LessonTailorEditor({
   content,
   onChange,
   onPreview,
+  onActiveStepChange,
   sidebarBlocksByStep = {},
 }: LessonTailorEditorProps) {
   const [activeStep, setActiveStep] = useState<StudyStepId>("warm_up");
@@ -841,7 +843,10 @@ export function LessonTailorEditor({
           return (
             <button
               key={step.id}
-              onClick={() => setActiveStep(step.id)}
+              onClick={() => {
+                setActiveStep(step.id);
+                if (step.id !== "results") onActiveStepChange?.(step.id);
+              }}
               className={`group flex shrink-0 items-center gap-2 rounded-none border-0 px-0 py-1 text-[12px] font-medium leading-none transition-all duration-200 ease-out whitespace-nowrap ${
                 isActive
                   ? "text-amber-400"
