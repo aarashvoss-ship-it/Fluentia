@@ -37,8 +37,20 @@ CREATE POLICY "Student resource files are publicly readable"
   USING (bucket_id = 'student-resources');
 
 DROP POLICY IF EXISTS "Authenticated users can upload student resource files" ON storage.objects;
-CREATE POLICY "Authenticated users can upload student resource files"
+DROP POLICY IF EXISTS "Instructors can upload student resource files" ON storage.objects;
+CREATE POLICY "Instructors can upload student resource files"
   ON storage.objects FOR INSERT
-  WITH CHECK (bucket_id = 'student-resources' AND auth.role() = 'authenticated');
+  WITH CHECK (
+    bucket_id = 'student-resources'
+    AND EXISTS (SELECT 1 FROM public.instructors WHERE instructors.id = auth.uid())
+  );
+
+DROP POLICY IF EXISTS "Instructors can delete student resource files" ON storage.objects;
+CREATE POLICY "Instructors can delete student resource files"
+  ON storage.objects FOR DELETE
+  USING (
+    bucket_id = 'student-resources'
+    AND EXISTS (SELECT 1 FROM public.instructors WHERE instructors.id = auth.uid())
+  );
 
 NOTIFY pgrst, 'reload schema';

@@ -507,6 +507,7 @@ export default function InstructorWorkstationPage({
     );
     setDatabaseLessonId(lesson.id);
     setResourceLessonId(lesson.id);
+    setResourceFile(null);
     setLessonStatus(lesson.status === "published" ? "published" : "draft");
     window.setTimeout(() => {
       if (activeLessonIdRef.current === lesson.id) hasLoadedLesson.current = true;
@@ -546,6 +547,8 @@ export default function InstructorWorkstationPage({
     copyContent = { ...copyContent, sidebarBlocks: nextSidebar, lessonResources: nextResources };
     hasLoadedLesson.current = false;
     setDatabaseLessonId(null);
+    setResourceLessonId(null);
+    setResourceFile(null);
     setSelectedStudentId(null);
     setSelectedStudent(null);
     setNewLesson((previous) => ({
@@ -759,10 +762,12 @@ export default function InstructorWorkstationPage({
   const handleResourceFileSelection = (file: File | undefined) => {
     if (!file) return;
     if (!getSupportedResourceMediaType(file)) {
+      setResourceFile(null);
       setResourceStatus("Choose an image, text document, PDF, audio, or video file.");
       return;
     }
     if (file.size > 50 * 1024 * 1024) {
+      setResourceFile(null);
       setResourceStatus("Files must be 50 MB or smaller.");
       return;
     }
@@ -836,6 +841,7 @@ export default function InstructorWorkstationPage({
 
     const studentToken = resolvedStudent.token || resolvedStudent.id;
     const storedResourceType: StudentResourceType = resourceType;
+    let resourceFileStoragePath: string | null = null;
     try {
       let audioUrl = resourceDraft.linkUrl.trim();
       let resourceFileUrl = "";
@@ -853,8 +859,8 @@ export default function InstructorWorkstationPage({
       }
       if (resourceType === "file" && resourceFile && resourceFileMediaType) {
         const safeFileName = resourceFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const path = `${resolvedStudent.id}/${resolvedLessonId}/${crypto.randomUUID()}-${safeFileName}`;
-        const { error: uploadError } = await supabase.storage.from("student-resources").upload(path, resourceFile, {
+        resourceFileStoragePath = `${resolvedStudent.id}/${resolvedLessonId}/${crypto.randomUUID()}-${safeFileName}`;
+        const { error: uploadError } = await supabase.storage.from("student-resources").upload(resourceFileStoragePath, resourceFile, {
           contentType: resourceFileMediaType,
           upsert: false,
         });
@@ -862,7 +868,7 @@ export default function InstructorWorkstationPage({
           setResourceStatus("File upload failed. Check the student-resources bucket permissions and try again.");
           return;
         }
-        resourceFileUrl = supabase.storage.from("student-resources").getPublicUrl(path).data.publicUrl;
+        resourceFileUrl = supabase.storage.from("student-resources").getPublicUrl(resourceFileStoragePath).data.publicUrl;
       }
       const payload = Object.fromEntries(
         Object.entries({
@@ -873,7 +879,7 @@ export default function InstructorWorkstationPage({
           resource_type: storedResourceType,
           title: trimmedTitle,
           updated_at: new Date().toISOString(),
-          ...(resourceType === "note" || resourceType === "quiz" || resourceType === "audio" || resourceType === "data_table"
+          ...(resourceType === "note" || resourceType === "reading" || resourceType === "quiz" || resourceType === "audio" || resourceType === "data_table"
             ? { body: resourceDraft.body.trim() || undefined }
             : {}),
           ...(resourceType === "reading" || resourceType === "audio" || resourceType === "file"
@@ -902,7 +908,14 @@ export default function InstructorWorkstationPage({
         .single();
 
       if (error) {
+        if (resourceFileStoragePath) {
+          await supabase.storage.from("student-resources").remove([resourceFileStoragePath]);
+          resourceFileStoragePath = null;
+        }
         if (error.code === "PGRST205" || /does not exist|42P01/i.test(error.message || "")) {
+          if (resourceType === "file") {
+            throw new Error("Apply migration 022 before saving file resources.");
+          }
           const localEntry: StudentResourceEntry = {
             id: `local-${Date.now()}`,
             ...payload,
@@ -931,6 +944,9 @@ export default function InstructorWorkstationPage({
       setResourceFile(null);
       setResourceStatus("Resource saved to the selected student.");
     } catch (error: any) {
+      if (resourceFileStoragePath) {
+        await supabase.storage.from("student-resources").remove([resourceFileStoragePath]);
+      }
       console.error("Full Student resource save error:", error);
       const errorObject = error && typeof error === "object" ? error as Record<string, unknown> : null;
       let serializedError = "";
@@ -978,6 +994,23 @@ export default function InstructorWorkstationPage({
     const next = studentResources.filter((item) => item.id !== resource.id);
     setStudentResources(next);
     writeStudentResourcesLocally(studentToken, next);
+    if (resource.resource_type === "file" && resource.link_url) {
+      try {
+        const resourceUrl = new URL(resource.link_url);
+        const storagePrefix = "/storage/v1/object/public/student-resources/";
+        const storagePath = resourceUrl.pathname.includes(storagePrefix)
+          ? decodeURIComponent(resourceUrl.pathname.split(storagePrefix)[1] || "")
+          : "";
+        if (storagePath) {
+          const { error: storageError } = await supabase.storage.from("student-resources").remove([storagePath]);
+          if (storageError) throw storageError;
+        }
+      } catch (error) {
+        console.error("Student resource file cleanup failed:", error);
+        setResourceStatus("Resource deleted, but its stored file could not be removed.");
+        return;
+      }
+    }
     setResourceStatus("Resource deleted.");
   };
 
@@ -2559,7 +2592,6 @@ export default function InstructorWorkstationPage({
                       {studentResources.map((resource) => {
                         const isDataTable = resource.resource_type === "data_table" || isDataTableResourceTitle(resource.title);
                         const resourceTitle = isDataTable ? getDataTableResourceTitle(resource.title) : resource.title;
-                        const resourceStudent = selectedStudent ?? (selectedStudentId ? students.find((student) => student.id === selectedStudentId) ?? null : null);
                         return (
                           <div key={resource.id} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-4">
                             <div className="flex items-start justify-between gap-3">
@@ -2569,13 +2601,7 @@ export default function InstructorWorkstationPage({
                               </div>
                               <button
                                 type="button"
-                                onClick={() => {
-                                  const next = studentResources.filter((item) => item.id !== resource.id);
-                                  setStudentResources(next);
-                                  if (resourceStudent) {
-                                    writeStudentResourcesLocally(resourceStudent.token || resourceStudent.id, next);
-                                  }
-                                }}
+                                onClick={() => void deleteStudentResource(resource)}
                                 className="rounded-md p-1.5 text-stone-500 transition hover:bg-red-500/10 hover:text-red-400"
                                 aria-label={`Delete ${resource.title}`}
                               >
@@ -2592,6 +2618,16 @@ export default function InstructorWorkstationPage({
                                 {resource.link_url ? <CustomAudioPlayer src={resource.link_url} label={resource.title} /> : <p className="text-xs text-stone-500">No audio URL is available.</p>}
                                 {resource.link_url && <a href={resource.link_url} target="_blank" rel="noreferrer" className="block truncate text-[11px] text-sky-300 underline">Open audio file</a>}
                                 {resource.body && <AudioTranscriptAccordion resourceId={resource.id} transcript={resource.body} />}
+                              </div>
+                            )}
+                            {resource.resource_type === "file" && resource.link_url && (
+                              <div className="mt-3 space-y-2">
+                                <p className="break-all text-xs text-stone-400">{resource.original_filename || "Uploaded file"}</p>
+                                {resource.media_type?.startsWith("image/") && <img src={resource.link_url} alt={resource.original_filename || resource.title} className="max-h-64 w-full rounded-md border border-[#293343] object-contain" />}
+                                {resource.media_type === "application/pdf" && <iframe src={resource.link_url} title={`Preview of ${resource.original_filename || resource.title}`} className="h-64 w-full rounded-md border border-[#293343] bg-white" />}
+                                {resource.media_type?.startsWith("audio/") && <CustomAudioPlayer src={resource.link_url} label={resource.title} />}
+                                {resource.media_type?.startsWith("video/") && <video src={resource.link_url} controls preload="metadata" className="max-h-64 w-full rounded-md bg-black" aria-label={`Preview of ${resource.original_filename || resource.title}`} />}
+                                <a href={resource.link_url} target="_blank" rel="noreferrer" download={resource.original_filename || undefined} className="inline-flex text-xs text-sky-300 underline">Open or download file</a>
                               </div>
                             )}
                             {isDataTable && resource.body && <div className="mt-3"><DataTableResource title={resourceTitle} markdown={resource.body} /></div>}
