@@ -1,42 +1,95 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Music, Pause, Play, Volume2, VolumeX } from "lucide-react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
+import { Music, Pause, Play, Plus, Trash2, Volume2, VolumeX, X } from "lucide-react";
 import { AMBIENT_TRACKS, type LessonAudioTrack } from "@/lib/musicTracks";
 import { getAmbientTracks } from "@/lib/music-library";
 
 const PLAYBACK_KEY = "fluentia:ambient-music:playing";
 const ENABLED_KEY = "fluentia:ambient-music:enabled";
 const VOLUME_KEY = "fluentia:ambient-music:volume";
+const STUDENT_TRACKS_KEY = "fluentia:ambient-music:student-tracks";
+
+type StudentTrack = LessonAudioTrack & { id: string; temporaryFile?: boolean };
+type AvailableTrack = LessonAudioTrack & { id: string; source: "global" | "lesson" | "student"; temporaryFile?: boolean };
+
 interface AmbientMusicPlayerProps {
   src?: string;
   tracks?: LessonAudioTrack[];
+  studentScope?: string;
 }
 
-export function AmbientMusicPlayer({ src, tracks }: AmbientMusicPlayerProps) {
+function isHttpUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function readStudentTracks(storageKey: string): StudentTrack[] {
+  try {
+    const value: unknown = JSON.parse(window.localStorage.getItem(storageKey) || "[]");
+    if (!Array.isArray(value)) return [];
+    return value.filter((item): item is StudentTrack =>
+      Boolean(item)
+      && typeof item.id === "string"
+      && typeof item.title === "string"
+      && typeof item.url === "string"
+      && isHttpUrl(item.url)
+      && item.temporaryFile !== true,
+    );
+  } catch {
+    return [];
+  }
+}
+
+export function AmbientMusicPlayer({ src, tracks, studentScope = "student" }: AmbientMusicPlayerProps) {
   const [libraryTracks, setLibraryTracks] = useState<LessonAudioTrack[]>(tracks || []);
-  const availableTracks = libraryTracks.length > 0 ? libraryTracks : AMBIENT_TRACKS.map(({ label, url }) => ({ title: label, url }));
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [trackIndex, setTrackIndex] = useState(() => Math.max(0, availableTracks.findIndex((item) => item.url === src)));
-  const [selectedTrack, setSelectedTrack] = useState(src || availableTracks[0].url);
-  const track = selectedTrack || availableTracks[trackIndex]?.url || availableTracks[0].url;
+  const [studentTracks, setStudentTracks] = useState<StudentTrack[]>([]);
+  const [loadedStorageKey, setLoadedStorageKey] = useState("");
+  const [selectedTrack, setSelectedTrack] = useState(src || tracks?.[0]?.url || AMBIENT_TRACKS[0]?.url || "");
   const [isEnabled, setIsEnabled] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.35);
   const [showVolume, setShowVolume] = useState(false);
   const [showTracks, setShowTracks] = useState(false);
+  const [showAddTrack, setShowAddTrack] = useState(false);
+  const [customTitle, setCustomTitle] = useState("");
+  const [customUrl, setCustomUrl] = useState("");
+  const [trackError, setTrackError] = useState<string | null>(null);
+  const [trackNotice, setTrackNotice] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const objectUrlsRef = useRef(new Set<string>());
+  const failedTrackUrlsRef = useRef(new Set<string>());
+  const storageKey = `${STUDENT_TRACKS_KEY}:${encodeURIComponent(studentScope || "student")}`;
+
+  const globalTracks = (() => {
+    const source = libraryTracks.length > 0
+      ? libraryTracks
+      : AMBIENT_TRACKS.map(({ label, url }) => ({ title: label, url }));
+    const urls = new Set(source.map((track) => track.url));
+    return [
+      ...source,
+      ...AMBIENT_TRACKS.filter((track) => !urls.has(track.url)).map(({ label, url }) => ({ title: label, url })),
+    ];
+  })();
+  const hasLessonTrack = Boolean(src && !globalTracks.some((track) => track.url === src));
+  const availableTracks: AvailableTrack[] = [
+    ...(hasLessonTrack ? [{ id: `lesson-${src}`, title: "Lesson track", url: src!, source: "lesson" as const }] : []),
+    ...globalTracks.map((track, index) => ({ ...track, id: `global-${index}-${track.url}`, source: "global" as const })),
+    ...studentTracks.map((track) => ({ ...track, source: "student" as const })),
+  ];
+  const currentTrack = selectedTrack || src || globalTracks[0]?.url || "";
 
   useEffect(() => {
     let mounted = true;
+    if (tracks?.length) setLibraryTracks(tracks);
     void getAmbientTracks().then((nextTracks) => {
-      if (!mounted) return;
-      setLibraryTracks(nextTracks);
-      if (!src && nextTracks[0]) {
-        setTrackIndex(0);
-        setSelectedTrack(nextTracks[0].url);
-      }
+      if (mounted) setLibraryTracks(nextTracks);
     }).catch(() => {
-      if (mounted && tracks && tracks.length > 0) setLibraryTracks(tracks);
+      if (mounted && tracks?.length) setLibraryTracks(tracks);
     });
     return () => {
       mounted = false;
@@ -44,152 +97,206 @@ export function AmbientMusicPlayer({ src, tracks }: AmbientMusicPlayerProps) {
   }, [tracks]);
 
   useEffect(() => {
-    if (!src) return;
-    const nextIndex = availableTracks.findIndex((item) => item.url === src);
-    setTrackIndex(Math.max(0, nextIndex));
-    setSelectedTrack(src);
+    setLoadedStorageKey("");
+    objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    objectUrlsRef.current.clear();
+    setStudentTracks(readStudentTracks(storageKey));
+    setSelectedTrack(AMBIENT_TRACKS[0]?.url || "");
+    setIsPlaying(false);
+    persistPlayback(PLAYBACK_KEY, "false");
+    setLoadedStorageKey(storageKey);
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (loadedStorageKey !== storageKey) return;
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(studentTracks.filter((track) => !track.temporaryFile)));
+    } catch {
+      setTrackNotice("Custom URL tracks are available for this session but could not be saved in this browser.");
+    }
+  }, [studentTracks, storageKey, loadedStorageKey]);
+
+  useEffect(() => {
+    if (src) setSelectedTrack(src);
   }, [src]);
 
   useEffect(() => {
-    const storedPlaying = window.localStorage.getItem(PLAYBACK_KEY) === "true";
-    const storedEnabled = window.localStorage.getItem(ENABLED_KEY);
-    const storedVolume = Number(window.localStorage.getItem(VOLUME_KEY));
-    if (!Number.isNaN(storedVolume) && storedVolume >= 0 && storedVolume <= 1) setVolume(storedVolume);
-    if (storedEnabled !== null) setIsEnabled(storedEnabled === "true");
-    if (storedPlaying && storedEnabled !== "false") setIsPlaying(true);
+    try {
+      const storedPlaying = window.localStorage.getItem(PLAYBACK_KEY) === "true";
+      const storedEnabled = window.localStorage.getItem(ENABLED_KEY);
+      const storedVolume = Number(window.localStorage.getItem(VOLUME_KEY));
+      if (!Number.isNaN(storedVolume) && storedVolume >= 0 && storedVolume <= 1) setVolume(storedVolume);
+      if (storedEnabled !== null) setIsEnabled(storedEnabled === "true");
+      if (storedPlaying && storedEnabled !== "false") setIsPlaying(true);
+    } catch {
+      setIsPlaying(false);
+    }
   }, []);
+
+  useEffect(() => () => {
+    objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    objectUrlsRef.current.clear();
+  }, []);
+
+  function persistPlayback(key: string, value: string) {
+    try {
+      window.localStorage.setItem(key, value);
+    } catch {
+      // Playback remains usable when browser storage is unavailable.
+    }
+  }
+
+  function failOverToGlobalTrack(failedUrl: string) {
+    failedTrackUrlsRef.current.add(failedUrl);
+    const fallback = availableTracks.find((item) => item.source === "global" && !failedTrackUrlsRef.current.has(item.url));
+    if (fallback) {
+      setSelectedTrack(fallback.url);
+      setTrackNotice("That audio could not be played. Switched to another ambient track.");
+      setIsPlaying(true);
+      persistPlayback(PLAYBACK_KEY, "true");
+      return;
+    }
+    setIsPlaying(false);
+    setTrackError("Audio playback failed. Choose another track to continue.");
+    persistPlayback(PLAYBACK_KEY, "false");
+  }
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
     audio.volume = volume;
-    window.localStorage.setItem(VOLUME_KEY, String(volume));
-  }, [volume]);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
+    try {
+      window.localStorage.setItem(VOLUME_KEY, String(volume));
+    } catch {
+      // Volume still applies to the current audio element.
+    }
     if (!isEnabled || !isPlaying) {
       audio.pause();
       return;
     }
-    void audio.play().catch(() => {
-      setIsPlaying(false);
-      window.localStorage.setItem(PLAYBACK_KEY, "false");
-    });
-  }, [isEnabled, isPlaying, track]);
+    void audio.play().catch(() => failOverToGlobalTrack(currentTrack));
+  }, [volume, isEnabled, isPlaying, currentTrack]);
 
-  async function togglePlayback() {
-    if (!isEnabled) {
-      setIsEnabled(true);
-      window.localStorage.setItem(ENABLED_KEY, "true");
+  function selectTrack(item: AvailableTrack) {
+    failedTrackUrlsRef.current.clear();
+    setTrackError(null);
+    setTrackNotice(null);
+    setSelectedTrack(item.url);
+    setShowTracks(false);
+    setIsEnabled(true);
+    setIsPlaying(true);
+    persistPlayback(ENABLED_KEY, "true");
+    persistPlayback(PLAYBACK_KEY, "true");
+  }
+
+  function addCustomUrl(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const title = customTitle.trim();
+    const url = customUrl.trim();
+    if (!title) {
+      setTrackError("Enter a title for your track.");
+      return;
     }
+    if (!isHttpUrl(url)) {
+      setTrackError("Enter a valid direct audio URL beginning with http or https.");
+      return;
+    }
+    const item: StudentTrack = { id: `student-${crypto.randomUUID()}`, title, url };
+    setStudentTracks((current) => [...current, item]);
+    selectTrack({ ...item, source: "student" });
+    setCustomTitle("");
+    setCustomUrl("");
+    setTrackError(null);
+    setShowAddTrack(false);
+  }
+
+  function addLocalFile(file?: File) {
+    if (!file) return;
+    const extension = file.name.split(".").pop()?.toLowerCase() || "";
+    if (!file.type.startsWith("audio/") && !["mp3", "wav", "m4a", "aac", "ogg", "webm"].includes(extension)) {
+      setTrackError("Choose a supported audio file.");
+      return;
+    }
+    if (file.size > 25 * 1024 * 1024) {
+      setTrackError("Choose an audio file smaller than 25 MB.");
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    objectUrlsRef.current.add(url);
+    const item: StudentTrack = {
+      id: `student-file-${crypto.randomUUID()}`,
+      title: customTitle.trim() || file.name.replace(/\.[^.]+$/, ""),
+      url,
+      temporaryFile: true,
+    };
+    setStudentTracks((current) => [...current, item]);
+    selectTrack({ ...item, source: "student" });
+    setCustomTitle("");
+    setTrackError(null);
+    setShowAddTrack(false);
+  }
+
+  function removeStudentTrack(item: StudentTrack) {
+    setStudentTracks((current) => current.filter((track) => track.id !== item.id));
+    if (item.temporaryFile) {
+      URL.revokeObjectURL(item.url);
+      objectUrlsRef.current.delete(item.url);
+    }
+    if (selectedTrack === item.url) {
+      const fallback = globalTracks[0];
+      if (fallback) selectTrack({ ...fallback, id: `global-${fallback.url}`, source: "global" });
+      else setIsPlaying(false);
+    }
+  }
+
+  function togglePlayback() {
     const nextPlaying = !isPlaying;
-    setIsPlaying(nextPlaying);
-    window.localStorage.setItem(PLAYBACK_KEY, String(nextPlaying));
     if (nextPlaying) {
-      try {
-        await audioRef.current?.play();
-      } catch {
-        setIsPlaying(false);
-        window.localStorage.setItem(PLAYBACK_KEY, "false");
-      }
-    } else {
-      audioRef.current?.pause();
+      failedTrackUrlsRef.current.clear();
+      setTrackError(null);
     }
+    setIsEnabled(true);
+    setIsPlaying(nextPlaying);
+    persistPlayback(ENABLED_KEY, "true");
+    persistPlayback(PLAYBACK_KEY, String(nextPlaying));
   }
 
   function toggleEnabled() {
     const nextEnabled = !isEnabled;
     setIsEnabled(nextEnabled);
-    window.localStorage.setItem(ENABLED_KEY, String(nextEnabled));
+    persistPlayback(ENABLED_KEY, String(nextEnabled));
     if (!nextEnabled) {
       setIsPlaying(false);
-      window.localStorage.setItem(PLAYBACK_KEY, "false");
-    }
-  }
-
-  function handleVolumeChange(value: number) {
-    setVolume(value);
-    if (value > 0 && audioRef.current?.paused === false) setIsPlaying(true);
-  }
-
-  async function selectTrack(index: number) {
-    const nextTrack = availableTracks[index];
-    if (!nextTrack) return;
-    setTrackIndex(index);
-    setSelectedTrack(nextTrack.url);
-    setShowTracks(false);
-    setIsEnabled(true);
-    setIsPlaying(true);
-    window.localStorage.setItem(ENABLED_KEY, "true");
-    window.localStorage.setItem(PLAYBACK_KEY, "true");
-    const audio = audioRef.current;
-    if (!audio) return;
-    audio.src = nextTrack.url;
-    audio.load();
-    try {
-      await audio.play();
-    } catch {
-      setIsPlaying(false);
-      window.localStorage.setItem(PLAYBACK_KEY, "false");
+      persistPlayback(PLAYBACK_KEY, "false");
     }
   }
 
   return (
     <div className="relative flex items-center gap-1">
-      <audio
-        ref={audioRef}
-        src={track}
-        loop
-        preload="auto"
-        onError={() => {
-          if (!src && trackIndex < availableTracks.length - 1) {
-            setTrackIndex((index) => index + 1);
-            return;
-          }
-          setIsPlaying(false);
-          window.localStorage.setItem(PLAYBACK_KEY, "false");
-        }}
-        onEnded={() => setIsPlaying(false)}
-      />
-      <button
-        type="button"
-        onClick={() => setShowTracks((open) => !open)}
-        aria-label="Choose ambient music track"
-        aria-expanded={showTracks}
-        className={`flex h-8 w-8 items-center justify-center p-2 rounded-lg bg-slate-800/80 border border-slate-700 hover:border-amber-500/50 hover:shadow-amber-500/10 transition-all ${isEnabled ? "border-amber-500/70 bg-amber-500/10 text-amber-300 shadow-[0_0_14px_rgba(245,158,11,.18)]" : "text-stone-400 hover:text-amber-300"}`}
-      >
+      <audio ref={audioRef} src={currentTrack} loop preload="none" onError={() => failOverToGlobalTrack(currentTrack)} onEnded={() => setIsPlaying(false)} />
+      <button type="button" onClick={() => setShowTracks((open) => !open)} aria-label="Choose ambient music track" aria-expanded={showTracks} className={`flex h-8 w-8 items-center justify-center rounded-lg border p-2 transition-all ${isEnabled ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-slate-700 bg-slate-800/80 text-stone-400 hover:text-amber-300"}`}>
         <Music className="h-3.5 w-3.5" aria-hidden="true" />
       </button>
-      {showTracks && <div className="absolute right-0 top-10 z-40 w-52 rounded-md border border-[#394252] bg-[#171d28] p-2 shadow-xl">
-        <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Music library</p>
-        {availableTracks.map((item, index) => <button key={`${item.title}-${item.url}`} type="button" onClick={() => void selectTrack(index)} className={`block w-full rounded px-2 py-2 text-left text-xs transition hover:bg-amber-500/10 hover:text-amber-300 ${track === item.url ? "text-amber-300" : "text-stone-400"}`}>{item.title}</button>)}
-        {src && !availableTracks.some((item) => item.url === src) && <p className="px-2 py-2 text-[10px] text-stone-500">Custom lesson track</p>}
+      {showTracks && <div className="absolute right-0 top-10 z-40 max-h-[min(80vh,34rem)] w-72 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-md border border-[#394252] bg-[#171d28] p-2 shadow-xl">
+        <div className="flex items-center justify-between px-2 py-1"><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Music library</p><button type="button" onClick={() => { setShowAddTrack((open) => !open); setTrackError(null); }} aria-expanded={showAddTrack} aria-label={showAddTrack ? "Close add track form" : "Add your own track"} className="rounded border border-[#394252] p-1 text-stone-300 hover:border-amber-500 hover:text-amber-300">{showAddTrack ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}</button></div>
+        {showAddTrack && <div className="my-2 space-y-3 rounded-md border border-[#394252] bg-[#0c1017] p-3">
+          <label className="block text-[11px] text-stone-400">Track title<input value={customTitle} onChange={(event) => setCustomTitle(event.target.value)} maxLength={80} className="mt-1 w-full rounded border border-[#394252] bg-[#171d28] px-2 py-1.5 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
+          <form onSubmit={addCustomUrl} className="space-y-2"><label className="block text-[11px] text-stone-400">Direct audio URL<input type="url" value={customUrl} onChange={(event) => setCustomUrl(event.target.value)} placeholder="https://…" className="mt-1 w-full rounded border border-[#394252] bg-[#171d28] px-2 py-1.5 text-xs text-stone-200 outline-none focus:border-amber-500" /></label><button type="submit" className="w-full rounded bg-amber-500 px-2 py-1.5 text-xs font-semibold text-slate-950 hover:bg-amber-400">Add URL track</button></form>
+          <label className="flex cursor-pointer items-center justify-center gap-1.5 rounded border border-[#394252] px-2 py-2 text-xs text-stone-300 hover:border-amber-500 hover:text-amber-300"><Plus className="h-3.5 w-3.5" />Choose local audio file<input type="file" accept="audio/*,.mp3,.wav,.m4a,.aac" onChange={(event) => { addLocalFile(event.target.files?.[0]); event.currentTarget.value = ""; }} className="sr-only" /></label>
+          <p className="text-[10px] leading-relaxed text-stone-500">Your tracks stay in this browser session and are not shared with other students.</p>
+        </div>}
+        {trackError && <p role="alert" className="px-2 py-1 text-[10px] text-red-300">{trackError}</p>}
+        {trackNotice && <p role="status" className="px-2 py-1 text-[10px] text-amber-300">{trackNotice}</p>}
+        <div className="mt-1 space-y-0.5">{availableTracks.map((item) => <div key={item.id} className="flex items-center gap-1"><button type="button" onClick={() => selectTrack(item)} className={`min-w-0 flex-1 truncate rounded px-2 py-2 text-left text-xs transition hover:bg-amber-500/10 hover:text-amber-300 ${currentTrack === item.url ? "text-amber-300" : "text-stone-400"}`} title={item.title}>{item.title}{item.source === "student" && <span className="ml-1 text-[9px] text-stone-600">Yours</span>}</button>{item.source === "student" && <button type="button" onClick={() => removeStudentTrack(item as StudentTrack)} aria-label={`Remove ${item.title}`} className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-stone-500 hover:bg-red-500/10 hover:text-red-300"><Trash2 className="h-3.5 w-3.5" /></button>}</div>)}</div>
       </div>}
-      <button
-        type="button"
-        onClick={() => setShowVolume((open) => !open)}
-        aria-label="Adjust ambient music volume"
-        aria-expanded={showVolume}
-        className="flex h-8 w-8 items-center justify-center p-2 rounded-lg bg-slate-800/80 border border-slate-700 text-stone-400 hover:border-amber-500/50 hover:shadow-amber-500/10 transition-all hover:text-amber-300"
-      >
+      <button type="button" onClick={() => setShowVolume((open) => !open)} aria-label="Adjust ambient music volume" aria-expanded={showVolume} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-800/80 p-2 text-stone-400 transition-all hover:border-amber-500/50 hover:text-amber-300">
         {volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
       </button>
-      {showVolume && (
-        <div className="absolute right-0 top-10 z-40 flex w-36 items-center gap-2 rounded-md border border-[#394252] bg-[#171d28] p-3 shadow-xl">
-          <VolumeX className="h-3.5 w-3.5 text-stone-500" />
-          <input type="range" min="0" max="1" step="0.01" value={volume} onChange={(event) => handleVolumeChange(Number(event.target.value))} aria-label="Ambient music volume" className="h-1 w-full accent-amber-500" />
-          <Volume2 className="h-3.5 w-3.5 text-amber-400" />
-        </div>
-      )}
-      <button
-        type="button"
-        onClick={() => void togglePlayback()}
-        aria-label={isPlaying ? "Pause ambient focus music" : "Play ambient focus music"}
-        aria-pressed={isPlaying}
-        className={`flex h-8 w-8 items-center justify-center p-2 rounded-lg bg-slate-800/80 border border-slate-700 hover:border-amber-500/50 hover:shadow-amber-500/10 transition-all ${isPlaying ? "border-amber-500/70 bg-amber-500/10 text-amber-300 shadow-[0_0_14px_rgba(245,158,11,.18)]" : "text-stone-400 hover:text-amber-300"}`}
-      >
+      {showVolume && <div className="absolute right-0 top-10 z-40 flex w-36 items-center gap-2 rounded-md border border-[#394252] bg-[#171d28] p-3 shadow-xl"><VolumeX className="h-3.5 w-3.5 text-stone-500" /><input type="range" min="0" max="1" step="0.01" value={volume} onChange={(event) => setVolume(Number(event.target.value))} aria-label="Ambient music volume" className="h-1 w-full accent-amber-500" /><Volume2 className="h-3.5 w-3.5 text-amber-400" /></div>}
+      <button type="button" onClick={toggleEnabled} aria-label={isEnabled ? "Disable ambient music" : "Enable ambient music"} aria-pressed={isEnabled} className={`flex h-8 w-8 items-center justify-center rounded-lg border p-2 transition-all ${isEnabled ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-slate-700 bg-slate-800/80 text-stone-400 hover:text-amber-300"}`}>
+        {isEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+      </button>
+      <button type="button" onClick={togglePlayback} aria-label={isPlaying ? "Pause ambient focus music" : "Play ambient focus music"} aria-pressed={isPlaying} className={`flex h-8 w-8 items-center justify-center rounded-lg border p-2 transition-all ${isPlaying ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-slate-700 bg-slate-800/80 text-stone-400 hover:text-amber-300"}`}>
         {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
       </button>
     </div>

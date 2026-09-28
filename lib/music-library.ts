@@ -13,8 +13,12 @@ export async function getAmbientTracks(): Promise<LessonAudioTrack[]> {
       console.error('Supabase Error Details:', error);
       return DEFAULT_LESSON_AUDIO_TRACKS;
     }
-    if (!data || data.length === 0) return DEFAULT_LESSON_AUDIO_TRACKS;
-    return (data as AmbientTrackRow[]).map(({ title, url }) => ({ title, url }));
+    const persistedTracks = (data as AmbientTrackRow[] | null) || [];
+    const persistedUrls = new Set(persistedTracks.map((track) => track.url));
+    return [
+      ...persistedTracks.map(({ title, url }) => ({ title, url })),
+      ...DEFAULT_LESSON_AUDIO_TRACKS.filter((track) => !persistedUrls.has(track.url)),
+    ];
   } catch (error) {
     console.error('Supabase Error Details:', error);
     return DEFAULT_LESSON_AUDIO_TRACKS;
@@ -31,7 +35,23 @@ export async function createAmbientTrack(title: string, url: string): Promise<Am
   return data as AmbientTrackRow;
 }
 
-export async function deleteAmbientTrack(id: string): Promise<void> {
-  const { error } = await supabase.from("ambient_tracks").delete().eq("id", id);
+export async function deleteAmbientTrack(id: string, url: string): Promise<boolean> {
+  const { data, error } = await supabase.from("ambient_tracks").delete().eq("id", id).select("id").maybeSingle();
   if (error) throw error;
+  if (!data) throw new Error("Track was not removed. Check instructor permissions.");
+
+  try {
+    const trackUrl = new URL(url);
+    const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL
+      ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).origin
+      : "";
+    const storagePrefix = "/storage/v1/object/public/ambient-music/";
+    if (trackUrl.origin !== supabaseOrigin || !trackUrl.pathname.startsWith(storagePrefix)) return true;
+    const path = decodeURIComponent(trackUrl.pathname.slice(storagePrefix.length));
+    if (!path) return true;
+    const { error: storageError } = await supabase.storage.from("ambient-music").remove([path]);
+    return !storageError;
+  } catch {
+    return true;
+  }
 }
