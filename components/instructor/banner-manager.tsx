@@ -96,7 +96,7 @@ export function InstructorBannerManager({
     <div className="bg-[#171d28]/60 border border-[#202631] rounded-xl p-5 text-[#d9dce0]">
       <div className="mb-4 flex flex-nowrap items-center justify-between gap-3">
         <h3 className="flex min-w-0 shrink items-center gap-2 whitespace-nowrap font-sans text-xl font-semibold">
-          <Image className="h-5 w-5 shrink-0 text-amber-400" />
+          <Image aria-hidden="true" focusable="false" className="h-5 w-5 shrink-0 text-amber-400" />
           Hero Banner
         </h3>
         <span className="shrink-0 whitespace-nowrap rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-400">
