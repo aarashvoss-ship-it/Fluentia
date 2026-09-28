@@ -10,8 +10,13 @@ const ENABLED_KEY = "fluentia:ambient-music:enabled";
 const VOLUME_KEY = "fluentia:ambient-music:volume";
 const STUDENT_TRACKS_KEY = "fluentia:ambient-music:student-tracks";
 
-type StudentTrack = LessonAudioTrack & { id: string; temporaryFile?: boolean };
+type StudentTrack = LessonAudioTrack & { id: string; storedFile?: boolean };
+type StoredStudentTrack = { id: string; title: string; url?: string; storedFile?: boolean };
 type AvailableTrack = LessonAudioTrack & { id: string; source: "global" | "lesson" | "student"; temporaryFile?: boolean };
+type StoredAudioFile = { key: string; scope: string; id: string; title: string; blob: Blob };
+
+const STUDENT_AUDIO_DB = "fluentia-student-audio";
+const STUDENT_AUDIO_STORE = "tracks";
 
 interface AmbientMusicPlayerProps {
   src?: string;
@@ -28,21 +33,62 @@ function isHttpUrl(value: string) {
   }
 }
 
-function readStudentTracks(storageKey: string): StudentTrack[] {
+function readStudentTracks(storageKey: string): StoredStudentTrack[] {
   try {
     const value: unknown = JSON.parse(window.localStorage.getItem(storageKey) || "[]");
     if (!Array.isArray(value)) return [];
-    return value.filter((item): item is StudentTrack =>
+    return value.filter((item): item is StoredStudentTrack =>
       Boolean(item)
       && typeof item.id === "string"
       && typeof item.title === "string"
-      && typeof item.url === "string"
-      && isHttpUrl(item.url)
-      && item.temporaryFile !== true,
+      && ((typeof item.url === "string" && isHttpUrl(item.url)) || item.storedFile === true),
     );
   } catch {
     return [];
   }
+}
+
+function openStudentAudioDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = window.indexedDB.open(STUDENT_AUDIO_DB, 1);
+    request.onupgradeneeded = () => request.result.createObjectStore(STUDENT_AUDIO_STORE, { keyPath: "key" });
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("Unable to open local audio storage."));
+  });
+}
+
+async function saveStudentAudio(scope: string, id: string, title: string, blob: Blob): Promise<void> {
+  const database = await openStudentAudioDb();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = database.transaction(STUDENT_AUDIO_STORE, "readwrite");
+    transaction.objectStore(STUDENT_AUDIO_STORE).put({ key: `${scope}:${id}`, scope, id, title, blob } satisfies StoredAudioFile);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error || new Error("Unable to save this audio file locally."));
+    transaction.onabort = () => reject(transaction.error || new Error("Local audio storage was interrupted."));
+  }).finally(() => database.close());
+}
+
+async function getStudentAudio(scope: string): Promise<StoredAudioFile[]> {
+  const database = await openStudentAudioDb();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(STUDENT_AUDIO_STORE, "readonly");
+    const request = transaction.objectStore(STUDENT_AUDIO_STORE).getAll();
+    request.onsuccess = () => resolve((request.result as StoredAudioFile[]).filter((item) => item.scope === scope));
+    request.onerror = () => reject(request.error || new Error("Unable to load locally stored audio."));
+    transaction.oncomplete = () => database.close();
+    transaction.onerror = () => database.close();
+  });
+}
+
+async function deleteStudentAudio(scope: string, id: string): Promise<void> {
+  const database = await openStudentAudioDb();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = database.transaction(STUDENT_AUDIO_STORE, "readwrite");
+    transaction.objectStore(STUDENT_AUDIO_STORE).delete(`${scope}:${id}`);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error || new Error("Unable to remove locally stored audio."));
+    transaction.onabort = () => reject(transaction.error || new Error("Local audio removal was interrupted."));
+  }).finally(() => database.close());
 }
 
 export function AmbientMusicPlayer({ src, tracks, studentScope = "student" }: AmbientMusicPlayerProps) {
@@ -97,22 +143,44 @@ export function AmbientMusicPlayer({ src, tracks, studentScope = "student" }: Am
   }, [tracks]);
 
   useEffect(() => {
+    let mounted = true;
     setLoadedStorageKey("");
     objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     objectUrlsRef.current.clear();
-    setStudentTracks(readStudentTracks(storageKey));
+    const savedTracks = readStudentTracks(storageKey);
+    const urlTracks = savedTracks.filter((track): track is StoredStudentTrack & { url: string } => typeof track.url === "string").map((track) => ({ id: track.id, title: track.title, url: track.url }));
+    setStudentTracks(urlTracks);
+    void getStudentAudio(storageKey).then((files) => {
+      if (!mounted) return;
+      const fileTracks = savedTracks.filter((track) => track.storedFile).flatMap((track) => {
+        const storedFile = files.find((file) => file.id === track.id);
+        if (!storedFile) return [];
+        const url = URL.createObjectURL(storedFile.blob);
+        objectUrlsRef.current.add(url);
+        return [{ id: track.id, title: track.title, url, storedFile: true }];
+      });
+      setStudentTracks([...urlTracks, ...fileTracks]);
+      setLoadedStorageKey(storageKey);
+    }).catch(() => {
+      if (!mounted) return;
+      setStudentTracks(urlTracks);
+      setLoadedStorageKey(storageKey);
+      setTrackNotice("Some locally stored audio could not be loaded in this browser.");
+    });
     setSelectedTrack(AMBIENT_TRACKS[0]?.url || "");
     setIsPlaying(false);
     persistPlayback(PLAYBACK_KEY, "false");
-    setLoadedStorageKey(storageKey);
+    return () => {
+      mounted = false;
+    };
   }, [storageKey]);
 
   useEffect(() => {
     if (loadedStorageKey !== storageKey) return;
     try {
-      window.localStorage.setItem(storageKey, JSON.stringify(studentTracks.filter((track) => !track.temporaryFile)));
+      window.localStorage.setItem(storageKey, JSON.stringify(studentTracks.map(({ id, title, url, storedFile }) => storedFile ? { id, title, storedFile: true } : { id, title, url })));
     } catch {
-      setTrackNotice("Custom URL tracks are available for this session but could not be saved in this browser.");
+      setTrackNotice("Your custom tracks could not be saved in this browser.");
     }
   }, [studentTracks, storageKey, loadedStorageKey]);
 
@@ -210,7 +278,7 @@ export function AmbientMusicPlayer({ src, tracks, studentScope = "student" }: Am
     setShowAddTrack(false);
   }
 
-  function addLocalFile(file?: File) {
+  async function addLocalFile(file?: File) {
     if (!file) return;
     const extension = file.name.split(".").pop()?.toLowerCase() || "";
     if (!file.type.startsWith("audio/") && !["mp3", "wav", "m4a", "aac", "ogg", "webm"].includes(extension)) {
@@ -221,13 +289,21 @@ export function AmbientMusicPlayer({ src, tracks, studentScope = "student" }: Am
       setTrackError("Choose an audio file smaller than 25 MB.");
       return;
     }
+    const id = `student-file-${crypto.randomUUID()}`;
+    const title = customTitle.trim() || file.name.replace(/\.[^.]+$/, "");
+    try {
+      await saveStudentAudio(storageKey, id, title, file);
+    } catch {
+      setTrackError("This browser could not save the audio file locally.");
+      return;
+    }
     const url = URL.createObjectURL(file);
     objectUrlsRef.current.add(url);
     const item: StudentTrack = {
-      id: `student-file-${crypto.randomUUID()}`,
-      title: customTitle.trim() || file.name.replace(/\.[^.]+$/, ""),
+      id,
+      title,
       url,
-      temporaryFile: true,
+      storedFile: true,
     };
     setStudentTracks((current) => [...current, item]);
     selectTrack({ ...item, source: "student" });
@@ -238,9 +314,10 @@ export function AmbientMusicPlayer({ src, tracks, studentScope = "student" }: Am
 
   function removeStudentTrack(item: StudentTrack) {
     setStudentTracks((current) => current.filter((track) => track.id !== item.id));
-    if (item.temporaryFile) {
+    if (item.storedFile) {
       URL.revokeObjectURL(item.url);
       objectUrlsRef.current.delete(item.url);
+      void deleteStudentAudio(storageKey, item.id).catch(() => setTrackNotice("The audio was removed from the menu but could not be deleted from this browser."));
     }
     if (selectedTrack === item.url) {
       const fallback = globalTracks[0];
@@ -278,12 +355,12 @@ export function AmbientMusicPlayer({ src, tracks, studentScope = "student" }: Am
         <Music className="h-3.5 w-3.5" aria-hidden="true" />
       </button>
       {showTracks && <div className="absolute right-0 top-10 z-40 max-h-[min(80vh,34rem)] w-72 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-md border border-[#394252] bg-[#171d28] p-2 shadow-xl">
-        <div className="flex items-center justify-between px-2 py-1"><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Music library</p><button type="button" onClick={() => { setShowAddTrack((open) => !open); setTrackError(null); }} aria-expanded={showAddTrack} aria-label={showAddTrack ? "Close add track form" : "Add your own track"} className="rounded border border-[#394252] p-1 text-stone-300 hover:border-amber-500 hover:text-amber-300">{showAddTrack ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}</button></div>
+        <div className="flex items-center justify-between gap-2 px-2 py-1"><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Music library</p><button type="button" onClick={() => { setShowAddTrack((open) => !open); setTrackError(null); }} aria-expanded={showAddTrack} className="inline-flex items-center gap-1 rounded border border-[#394252] px-2 py-1 text-[10px] font-medium text-stone-300 hover:border-amber-500 hover:text-amber-300">{showAddTrack ? <X className="h-3 w-3" /> : <Plus className="h-3 w-3" />}{showAddTrack ? "Close" : "Add My Own Music"}</button></div>
         {showAddTrack && <div className="my-2 space-y-3 rounded-md border border-[#394252] bg-[#0c1017] p-3">
           <label className="block text-[11px] text-stone-400">Track title<input value={customTitle} onChange={(event) => setCustomTitle(event.target.value)} maxLength={80} className="mt-1 w-full rounded border border-[#394252] bg-[#171d28] px-2 py-1.5 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
           <form onSubmit={addCustomUrl} className="space-y-2"><label className="block text-[11px] text-stone-400">Direct audio URL<input type="url" value={customUrl} onChange={(event) => setCustomUrl(event.target.value)} placeholder="https://…" className="mt-1 w-full rounded border border-[#394252] bg-[#171d28] px-2 py-1.5 text-xs text-stone-200 outline-none focus:border-amber-500" /></label><button type="submit" className="w-full rounded bg-amber-500 px-2 py-1.5 text-xs font-semibold text-slate-950 hover:bg-amber-400">Add URL track</button></form>
-          <label className="flex cursor-pointer items-center justify-center gap-1.5 rounded border border-[#394252] px-2 py-2 text-xs text-stone-300 hover:border-amber-500 hover:text-amber-300"><Plus className="h-3.5 w-3.5" />Choose local audio file<input type="file" accept="audio/*,.mp3,.wav,.m4a,.aac" onChange={(event) => { addLocalFile(event.target.files?.[0]); event.currentTarget.value = ""; }} className="sr-only" /></label>
-          <p className="text-[10px] leading-relaxed text-stone-500">Your tracks stay in this browser session and are not shared with other students.</p>
+          <label className="flex cursor-pointer items-center justify-center gap-1.5 rounded border border-[#394252] px-2 py-2 text-xs text-stone-300 hover:border-amber-500 hover:text-amber-300"><Plus className="h-3.5 w-3.5" />Choose local audio file<input type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.webm" onChange={(event) => { void addLocalFile(event.target.files?.[0]); event.currentTarget.value = ""; }} className="sr-only" /></label>
+          <p className="text-[10px] leading-relaxed text-stone-500">Your tracks are stored only in this browser and are not shared with other students.</p>
         </div>}
         {trackError && <p role="alert" className="px-2 py-1 text-[10px] text-red-300">{trackError}</p>}
         {trackNotice && <p role="status" className="px-2 py-1 text-[10px] text-amber-300">{trackNotice}</p>}

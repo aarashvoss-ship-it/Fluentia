@@ -25,10 +25,10 @@ export async function getAmbientTracks(): Promise<LessonAudioTrack[]> {
   }
 }
 
-export async function createAmbientTrack(title: string, url: string): Promise<AmbientTrackRow> {
+export async function createAmbientTrack(title: string, url: string, sourceType: "upload" | "url" = "url"): Promise<AmbientTrackRow> {
   const { data, error } = await supabase
     .from("ambient_tracks")
-    .insert({ title: title.trim(), url: url.trim(), is_active: true })
+    .insert({ title: title.trim(), url: url.trim(), source_type: sourceType, is_active: true })
     .select("*")
     .single();
   if (error || !data) throw error || new Error("Unable to create ambient track");
