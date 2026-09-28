@@ -24,6 +24,14 @@ function getVideoEmbedUrl(url: string) {
       embedUrl = videoId ? `https://www.youtube.com/embed/${videoId}` : "";
     } else if (parsedUrl.hostname.endsWith("youtube.com") && parsedUrl.pathname.startsWith("/embed/")) {
       embedUrl = url;
+    } else if (parsedUrl.hostname === "vimeo.com" || parsedUrl.hostname.endsWith(".vimeo.com")) {
+      const videoId = parsedUrl.pathname.match(/^\/(?:video\/)?(\d+)/)?.[1];
+      if (videoId) {
+        const embed = new URL(`https://player.vimeo.com/video/${videoId}`);
+        const privacyHash = parsedUrl.pathname.split("/").filter(Boolean).find((part) => part !== videoId && !/^\d+$/.test(part));
+        if (privacyHash) embed.searchParams.set("h", privacyHash);
+        embedUrl = embed.toString();
+      }
     }
     if (!embedUrl) return "";
 
@@ -48,6 +56,7 @@ export function InteractiveVideoBlock({
   const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(false);
   const transcriptLines = parseInteractiveTranscript(transcript || "");
   const embedUrl = getVideoEmbedUrl(videoUrl);
+  const directVideoUrl = !embedUrl && /^https?:\/\//i.test(videoUrl.trim()) ? videoUrl.trim() : "";
 
   const seekToTimestamp = (seconds: number) => {
     iframeRef.current?.contentWindow?.postMessage(
@@ -68,6 +77,10 @@ export function InteractiveVideoBlock({
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
           />
+        </div>
+      ) : directVideoUrl ? (
+        <div className="overflow-hidden rounded border border-[#202631] bg-[#0c1017]">
+          <video src={directVideoUrl} controls preload="metadata" className="max-h-[480px] w-full bg-black" aria-label={title || "Lesson video"} />
         </div>
       ) : editable ? (
         <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Add a video URL to preview this block.</div>

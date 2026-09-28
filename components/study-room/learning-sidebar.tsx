@@ -1,18 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, BookMarked, Check, Copy, Download, FileDown, FileText, Headphones, Layers3, Library, Table, Trash2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookMarked, Check, Copy, Download, FileDown, FileText, Headphones, Image as ImageIcon, Layers3, Library, Table, Trash2, Video, X } from "lucide-react";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { DataTableResource, getDataTableResourceTitle, isDataTableResourceTitle } from "@/components/shared/data-table-resource";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
+import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { supabase } from "@/lib/supabaseClient";
 import { SavedVocabularyWord, StudentNote } from "@/types/lesson";
 
-type LearningTab = "vocab" | "notes" | "reading" | "flashcards" | "quizzes" | "audio" | "data_table" | "files";
+type LearningTab = "vocab" | "notes" | "reading" | "flashcards" | "quizzes" | "audio" | "video" | "image" | "data_table" | "files";
 type StudentResource = {
   id: string;
   lesson_id: string | null;
-  resource_type: "note" | "reading" | "flashcard" | "quiz" | "audio" | "data_table" | "file";
+  resource_type: "note" | "reading" | "flashcard" | "quiz" | "audio" | "data_table" | "file" | "image" | "video";
   title: string;
   body?: string | null;
   link_url?: string | null;
@@ -21,6 +22,8 @@ type StudentResource = {
   explanation?: string | null;
   original_filename?: string | null;
   media_type?: string | null;
+  storage_path?: string | null;
+  is_external_url?: boolean;
 };
 
 interface LearningSidebarProps {
@@ -208,6 +211,7 @@ export function LearningSidebar({
   const [assignedResources, setAssignedResources] = useState<StudentResource[]>([]);
   const [resourcesLoading, setResourcesLoading] = useState(false);
   const [resourcesError, setResourcesError] = useState<string | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<StudentResource | null>(null);
   const [cardIndex, setCardIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
   const [showExplanation, setShowExplanation] = useState(false);
@@ -217,11 +221,14 @@ export function LearningSidebar({
   useEffect(() => {
     if (!open) return;
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        if (lightboxImage) setLightboxImage(null);
+        else onClose();
+      }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, onClose]);
+  }, [open, onClose, lightboxImage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -317,6 +324,8 @@ export function LearningSidebar({
     ["flashcards", "Cards", Layers3],
     ["quizzes", "Quizzes", Check],
     ["audio", "Audio", Headphones],
+    ["video", "Video", Video],
+    ["image", "Images", ImageIcon],
     ["data_table", "Data Table", Table],
     ["files", "Files", FileText],
   ] as const;
@@ -337,6 +346,8 @@ export function LearningSidebar({
   const readingResources = assignedResources.filter((item) => item.resource_type === "reading");
   const quizResources = assignedResources.filter((item) => item.resource_type === "quiz");
   const audioResources = assignedResources.filter((item) => item.resource_type === "audio");
+  const videoResources = assignedResources.filter((item) => item.resource_type === "video");
+  const imageResources = assignedResources.filter((item) => item.resource_type === "image");
   const dataTableResources = assignedResources.filter((item) => item.resource_type === "data_table" || isDataTableResourceTitle(item.title));
   const fileResources = assignedResources.filter((item) => item.resource_type === "file");
 
@@ -528,6 +539,34 @@ export function LearningSidebar({
             </section>
           )}
 
+          {tab === "video" && (
+            <section className="space-y-3" aria-label="Video resources">
+              <h3 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Video Resources</h3>
+              {videoResources.length === 0 ? <p className="text-sm text-stone-500">Your instructor has not added videos yet.</p> : videoResources.map((item) => {
+                const videoHref = getSafeResourceHref(item.link_url);
+                return <article key={item.id} className="space-y-3 rounded-lg border border-[#29303c] bg-[#0c1017] p-3">
+                  <h4 className="text-sm font-semibold text-stone-100">{item.title}</h4>
+                  {videoHref ? <InteractiveVideoBlock videoUrl={videoHref} title={item.title} /> : <p className="text-xs text-stone-500">Video is not available.</p>}
+                  {item.body && <MarkdownContent value={item.body} className="text-xs leading-relaxed text-stone-400" />}
+                  <DownloadMaterialButton title={item.title} href={videoHref} content={item.body} />
+                </article>;
+              })}
+            </section>
+          )}
+
+          {tab === "image" && (
+            <section className="space-y-3" aria-label="Image resources">
+              <h3 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Image Resources</h3>
+              {imageResources.length === 0 ? <p className="text-sm text-stone-500">Your instructor has not added images yet.</p> : <div className="grid grid-cols-2 gap-3">{imageResources.map((item) => {
+                const imageHref = getSafeResourceHref(item.link_url);
+                return <article key={item.id} className="overflow-hidden rounded-lg border border-[#29303c] bg-[#0c1017]">
+                  {imageHref ? <button type="button" onClick={() => setLightboxImage(item)} aria-label={`View ${item.title}`} className="block w-full text-left"><img src={imageHref} alt={item.title} className="aspect-[4/3] w-full object-cover" /></button> : <div className="aspect-[4/3] bg-[#171d28]" />}
+                  <div className="space-y-2 p-3"><h4 className="text-xs font-semibold text-stone-100">{item.title}</h4>{item.body && <p className="line-clamp-3 text-[11px] leading-relaxed text-stone-400">{item.body}</p>}{imageHref && <DownloadMaterialButton title={item.title} href={imageHref} />}</div>
+                </article>;
+              })}</div>}
+            </section>
+          )}
+
           {tab === "files" && (
             <section className="space-y-3" aria-label="File resources">
               <h3 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Shared Files</h3>
@@ -536,7 +575,7 @@ export function LearningSidebar({
                 const mediaType = item.media_type || "";
                 return <article key={item.id} className="space-y-3 rounded-lg border border-[#29303c] bg-[#0c1017] p-3">
                   <div><h4 className="text-sm font-semibold text-stone-100">{item.title}</h4><p className="mt-1 break-all text-[11px] text-stone-500">{item.original_filename || "File resource"}</p></div>
-                  {fileHref && mediaType.startsWith("image/") && <img src={fileHref} alt={item.original_filename || item.title} className="max-h-[420px] w-full rounded-md border border-[#29303c] object-contain" />}
+                  {fileHref && mediaType.startsWith("image/") && <button type="button" onClick={() => setLightboxImage(item)} aria-label={`View ${item.title}`} className="block w-full"><img src={fileHref} alt={item.original_filename || item.title} className="max-h-[420px] w-full rounded-md border border-[#29303c] object-contain" /></button>}
                   {fileHref && mediaType === "application/pdf" && <iframe src={fileHref} title={`Preview of ${item.original_filename || item.title}`} className="h-[480px] w-full rounded-md border border-[#29303c] bg-white" />}
                   {fileHref && mediaType.startsWith("text/") && <iframe src={fileHref} title={`Preview of ${item.original_filename || item.title}`} className="h-[360px] w-full rounded-md border border-[#29303c] bg-white" />}
                   {fileHref && mediaType.startsWith("audio/") && <CustomAudioPlayer src={fileHref} label={item.title} />}
@@ -548,6 +587,12 @@ export function LearningSidebar({
           )}
         </div>
       </aside>
+      {open && lightboxImage && getSafeResourceHref(lightboxImage.link_url) && (
+        <div role="dialog" aria-modal="true" aria-label={`Image preview: ${lightboxImage.title}`} onClick={(event) => { if (event.target === event.currentTarget) setLightboxImage(null); }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 sm:p-8">
+          <button type="button" onClick={() => setLightboxImage(null)} aria-label="Close image preview" className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-md border border-white/20 bg-black/50 text-white hover:bg-black/80"><X className="h-5 w-5" /></button>
+          <img src={getSafeResourceHref(lightboxImage.link_url) || ""} alt={lightboxImage.title} className="max-h-full max-w-full object-contain" />
+        </div>
+      )}
     </>
   );
 }
