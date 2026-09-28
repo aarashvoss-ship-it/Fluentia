@@ -362,7 +362,7 @@ export function LearningSidebar({
         className={`fixed inset-0 z-20 bg-black/55 transition-opacity duration-200 ${open ? "opacity-100" : "pointer-events-none opacity-0"}`}
       />
       <aside
-        className={`fixed bottom-0 right-0 top-0 z-30 flex w-full max-w-lg flex-col border-l border-[#29303c] bg-[#121721] shadow-2xl transition-transform duration-200 ${open ? "translate-x-0" : "translate-x-full"}`}
+        className={`fixed bottom-0 right-0 top-0 z-30 flex w-full max-w-xl flex-col border-l border-[#29303c] bg-[#121721] shadow-2xl transition-transform duration-200 ${open ? "translate-x-0" : "translate-x-full"}`}
         id="learning-sidebar"
         aria-hidden={!open}
       >
@@ -376,11 +376,11 @@ export function LearningSidebar({
           </button>
         </div>
 
-        <div className="grid grid-cols-4 border-b border-[#29303c] sm:grid-cols-8">
+        <div className="grid grid-cols-2 gap-2 border-b border-[#29303c] p-3 min-[380px]:grid-cols-3 sm:grid-cols-5">
           {tabs.map(([id, label, Icon]) => (
-            <button key={id} type="button" onClick={() => setTab(id)} aria-pressed={tab === id} className={`flex min-w-0 flex-col items-center gap-1 px-1 py-3 text-[10px] ${tab === id ? "border-b-2 border-amber-500 text-amber-300" : "text-stone-500 hover:text-stone-300"}`}>
+            <button key={id} type="button" onClick={() => setTab(id)} aria-pressed={tab === id} className={`flex min-h-16 min-w-0 w-full flex-col items-center justify-center gap-1 rounded-md border px-1.5 py-2 text-[10px] transition-colors ${tab === id ? "border-amber-500/50 bg-amber-500/10 text-amber-300" : "border-transparent text-stone-500 hover:border-[#394252] hover:bg-[#171d28] hover:text-stone-300"}`}>
               <Icon className="h-4 w-4" />
-              <span className="truncate">{label}</span>
+              <span className="w-full truncate text-center">{label}</span>
             </button>
           ))}
         </div>
