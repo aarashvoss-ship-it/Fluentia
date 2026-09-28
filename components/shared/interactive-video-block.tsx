@@ -69,9 +69,9 @@ export function InteractiveVideoBlock({
             allowFullScreen
           />
         </div>
-      ) : (
-        <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Video embed placeholder</div>
-      )}
+      ) : editable ? (
+        <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Add a video URL to preview this block.</div>
+      ) : null}
 
       {editable && (
         <textarea

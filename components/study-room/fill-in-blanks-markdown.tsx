@@ -79,7 +79,7 @@ export function FillInBlanksMarkdown({
     <div className={className}>
       {text
         ? <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={components}>{markdownWithInputs}</ReactMarkdown>
-        : <p className="text-stone-500">Nothing to preview yet.</p>}
+        : null}
       {wordBank.length > 0 && <div className="mt-4 border-t border-[#394252] pt-3"><p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-amber-400">Word Bank</p><div className="flex flex-wrap gap-2" aria-label="Fill in the blanks word bank">{wordBank.map((word, wordIndex) => <button key={`${word}-${wordIndex}`} type="button" draggable={!readOnly} onDragStart={(event) => { if (!readOnly) event.dataTransfer.setData("text/plain", word); }} disabled={readOnly} className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-200 transition hover:border-amber-400 hover:bg-amber-500/20 disabled:cursor-default disabled:opacity-70">{word}</button>)}</div><p className="mt-2 text-[11px] text-stone-500">Drag a word onto a blank, or type your answer.</p></div>}
     </div>
   );

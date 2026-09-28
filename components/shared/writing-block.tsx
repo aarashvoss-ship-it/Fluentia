@@ -67,7 +67,7 @@ export function WritingBlockEditor({ block, onChange }: WritingBlockEditorProps)
       </label>
       <div className="rounded border border-[#202631] bg-[#0c1017]/50 p-3">
         <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400">Student preview</p>
-        <MarkdownContent value={block.prompt || "Writing instructions will appear here."} className="text-sm leading-relaxed text-stone-300" />
+        {block.prompt.trim() ? <MarkdownContent value={block.prompt} className="text-sm leading-relaxed text-stone-300" /> : <p className="text-sm text-stone-500">Add instructions to preview this writing task.</p>}
         <WritingBlockRenderer block={block} value="" isPreview />
       </div>
     </div>
@@ -103,7 +103,7 @@ export function WritingBlockRenderer({ block, value = "", onChange, isPreview = 
 
   return (
     <div className={`mt-4 space-y-2 ${className}`}>
-      {!isPreview && <MarkdownContent value={block.prompt || "Writing prompt"} className="text-sm leading-relaxed text-stone-300" />}
+      {!isPreview && block.prompt.trim() && <MarkdownContent value={block.prompt} className="text-sm leading-relaxed text-stone-300" />}
       <div className="relative">
         <textarea
           ref={textareaRef}
