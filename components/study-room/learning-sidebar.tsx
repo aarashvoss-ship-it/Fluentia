@@ -8,17 +8,19 @@ import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { supabase } from "@/lib/supabaseClient";
 import { SavedVocabularyWord, StudentNote } from "@/types/lesson";
 
-type LearningTab = "vocab" | "notes" | "reading" | "flashcards" | "quizzes" | "audio" | "data_table";
+type LearningTab = "vocab" | "notes" | "reading" | "flashcards" | "quizzes" | "audio" | "data_table" | "files";
 type StudentResource = {
   id: string;
   lesson_id: string | null;
-  resource_type: "note" | "reading" | "flashcard" | "quiz" | "audio" | "data_table";
+  resource_type: "note" | "reading" | "flashcard" | "quiz" | "audio" | "data_table" | "file";
   title: string;
   body?: string | null;
   link_url?: string | null;
   question?: string | null;
   answer?: string | null;
   explanation?: string | null;
+  original_filename?: string | null;
+  media_type?: string | null;
 };
 
 interface LearningSidebarProps {
@@ -316,6 +318,7 @@ export function LearningSidebar({
     ["quizzes", "Quizzes", Check],
     ["audio", "Audio", Headphones],
     ["data_table", "Data Table", Table],
+    ["files", "Files", FileText],
   ] as const;
 
   const goToCard = (index: number) => {
@@ -335,6 +338,7 @@ export function LearningSidebar({
   const quizResources = assignedResources.filter((item) => item.resource_type === "quiz");
   const audioResources = assignedResources.filter((item) => item.resource_type === "audio");
   const dataTableResources = assignedResources.filter((item) => item.resource_type === "data_table" || isDataTableResourceTitle(item.title));
+  const fileResources = assignedResources.filter((item) => item.resource_type === "file");
 
   return (
     <>
@@ -361,7 +365,7 @@ export function LearningSidebar({
           </button>
         </div>
 
-        <div className="grid grid-cols-6 border-b border-[#29303c]">
+        <div className="grid grid-cols-4 border-b border-[#29303c] sm:grid-cols-8">
           {tabs.map(([id, label, Icon]) => (
             <button key={id} type="button" onClick={() => setTab(id)} aria-pressed={tab === id} className={`flex min-w-0 flex-col items-center gap-1 px-1 py-3 text-[10px] ${tab === id ? "border-b-2 border-amber-500 text-amber-300" : "text-stone-500 hover:text-stone-300"}`}>
               <Icon className="h-4 w-4" />
@@ -519,6 +523,25 @@ export function LearningSidebar({
                   {audioHref ? <CustomAudioPlayer src={audioHref} label={item.title} /> : <p className="text-xs text-stone-500">Audio file is not available.</p>}
                   {item.body && <MarkdownContent value={item.body} className="text-xs leading-relaxed text-stone-400" />}
                   <DownloadMaterialButton title={item.title} href={audioHref} content={item.body} />
+                </article>;
+              })}
+            </section>
+          )}
+
+          {tab === "files" && (
+            <section className="space-y-3" aria-label="File resources">
+              <h3 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Shared Files</h3>
+              {fileResources.length === 0 ? <p className="text-sm text-stone-500">Your instructor has not shared any files yet.</p> : fileResources.map((item) => {
+                const fileHref = getSafeResourceHref(item.link_url);
+                const mediaType = item.media_type || "";
+                return <article key={item.id} className="space-y-3 rounded-lg border border-[#29303c] bg-[#0c1017] p-3">
+                  <div><h4 className="text-sm font-semibold text-stone-100">{item.title}</h4><p className="mt-1 break-all text-[11px] text-stone-500">{item.original_filename || "File resource"}</p></div>
+                  {fileHref && mediaType.startsWith("image/") && <img src={fileHref} alt={item.original_filename || item.title} className="max-h-[420px] w-full rounded-md border border-[#29303c] object-contain" />}
+                  {fileHref && mediaType === "application/pdf" && <iframe src={fileHref} title={`Preview of ${item.original_filename || item.title}`} className="h-[480px] w-full rounded-md border border-[#29303c] bg-white" />}
+                  {fileHref && mediaType.startsWith("text/") && <iframe src={fileHref} title={`Preview of ${item.original_filename || item.title}`} className="h-[360px] w-full rounded-md border border-[#29303c] bg-white" />}
+                  {fileHref && mediaType.startsWith("audio/") && <CustomAudioPlayer src={fileHref} label={item.title} />}
+                  {fileHref && mediaType.startsWith("video/") && <video src={fileHref} controls preload="metadata" className="max-h-[480px] w-full rounded-md bg-black" aria-label={`Preview of ${item.original_filename || item.title}`} />}
+                  {fileHref ? <a href={fileHref} target="_blank" rel="noreferrer" download={item.original_filename || undefined} className="inline-flex rounded-md border border-amber-500/30 px-3 py-2 text-xs font-semibold text-amber-300 hover:border-amber-400">Open or download</a> : <p className="text-xs text-stone-500">This file is not available.</p>}
                 </article>;
               })}
             </section>

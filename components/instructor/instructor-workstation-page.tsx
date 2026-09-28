@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, Grid3X3, List, MoreVertical, Plus, Search, Trash2, X, Lightbulb } from "lucide-react";
+import { Check, ChevronDown, Grid3X3, List, MoreVertical, Plus, Search, Trash2, X, Lightbulb, UploadCloud } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { StudentContextPanel } from "@/components/instructor/student-context-panel";
 import { LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
@@ -67,7 +67,7 @@ function cloneSidebarBlocksByStep(blocks: SidebarBlocksByStep): SidebarBlocksByS
 }
 
 type LessonResource = { id: string; title: string; url: string; type: "PDF" | "Article" | "Video" };
-type StudentResourceType = "note" | "reading" | "flashcard" | "quiz" | "audio" | "data_table";
+type StudentResourceType = "note" | "reading" | "flashcard" | "quiz" | "audio" | "data_table" | "file";
 type StudentResourceEntry = {
   id: string;
   student_id: string;
@@ -81,6 +81,8 @@ type StudentResourceEntry = {
   question?: string | null;
   answer?: string | null;
   explanation?: string | null;
+  original_filename?: string | null;
+  media_type?: string | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -104,6 +106,38 @@ function getResourcePreviewHref(value?: string | null) {
   } catch {
     return null;
   }
+}
+
+const RESOURCE_FILE_MEDIA_TYPES: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+  gif: "image/gif",
+  txt: "text/plain",
+  md: "text/markdown",
+  csv: "text/csv",
+  pdf: "application/pdf",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  rtf: "application/rtf",
+  odt: "application/vnd.oasis.opendocument.text",
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  ogg: "audio/ogg",
+  m4a: "audio/mp4",
+  aac: "audio/aac",
+  flac: "audio/flac",
+  mp4: "video/mp4",
+  webm: "video/webm",
+  mov: "video/quicktime",
+};
+
+function getSupportedResourceMediaType(file: File) {
+  const extension = file.name.split(".").pop()?.toLowerCase() || "";
+  const extensionType = RESOURCE_FILE_MEDIA_TYPES[extension];
+  if (extensionType && (!file.type || file.type === "application/octet-stream")) return extensionType;
+  return Object.values(RESOURCE_FILE_MEDIA_TYPES).includes(file.type.toLowerCase()) ? file.type.toLowerCase() : null;
 }
 
 function AudioTranscriptAccordion({ resourceId, transcript }: { resourceId: string; transcript: string }) {
@@ -178,6 +212,9 @@ export default function InstructorWorkstationPage({
   const [resourceDraft, setResourceDraft] = useState(EMPTY_RESOURCE_DRAFT);
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioFilePreviewUrl, setAudioFilePreviewUrl] = useState<string | null>(null);
+  const [resourceFile, setResourceFile] = useState<File | null>(null);
+  const [resourceFilePreviewUrl, setResourceFilePreviewUrl] = useState<string | null>(null);
+  const [isResourceFileDragging, setIsResourceFileDragging] = useState(false);
   const [resourceStatus, setResourceStatus] = useState<string | null>(null);
   const [flashcardIndex, setFlashcardIndex] = useState(0);
   const [flashcardFlipped, setFlashcardFlipped] = useState(false);
@@ -195,6 +232,16 @@ export default function InstructorWorkstationPage({
     setAudioFilePreviewUrl(previewUrl);
     return () => URL.revokeObjectURL(previewUrl);
   }, [audioFile]);
+
+  useEffect(() => {
+    if (!resourceFile) {
+      setResourceFilePreviewUrl(null);
+      return;
+    }
+    const previewUrl = URL.createObjectURL(resourceFile);
+    setResourceFilePreviewUrl(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [resourceFile]);
 
   const [workstationState, setWorkstationState] = useState<{
     content: StrictStepContent;
@@ -302,6 +349,7 @@ export default function InstructorWorkstationPage({
     setViewMode("instructor");
     setPreviewStep("warm_up");
     setAudioFile(null);
+    setResourceFile(null);
     setResourceDraft(EMPTY_RESOURCE_DRAFT);
     setResourceStatus(null);
   };
@@ -708,6 +756,24 @@ export default function InstructorWorkstationPage({
     }
   };
 
+  const handleResourceFileSelection = (file: File | undefined) => {
+    if (!file) return;
+    if (!getSupportedResourceMediaType(file)) {
+      setResourceStatus("Choose an image, text document, PDF, audio, or video file.");
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      setResourceStatus("Files must be 50 MB or smaller.");
+      return;
+    }
+    setResourceFile(file);
+    setResourceStatus(null);
+    setResourceDraft((previous) => ({
+      ...previous,
+      title: previous.title.trim() ? previous.title : file.name.replace(/\.[^.]+$/, ""),
+    }));
+  };
+
   const saveStudentResource = async () => {
     const resolvedStudent = selectedStudent ?? (selectedStudentId ? students.find((student) => student.id === selectedStudentId) ?? null : null);
     const resolvedLessonId = resourceLessonId || databaseLessonId || null;
@@ -752,10 +818,27 @@ export default function InstructorWorkstationPage({
       return;
     }
 
+    if (resourceType === "file" && !resourceFile) {
+      setResourceStatus("Choose a file to upload.");
+      return;
+    }
+
+    const resourceFileMediaType = resourceFile ? getSupportedResourceMediaType(resourceFile) : null;
+    if (resourceType === "file" && resourceFile && !resourceFileMediaType) {
+      setResourceStatus("Choose an image, text document, PDF, audio, or video file.");
+      return;
+    }
+
+    if (resourceType === "file" && resourceFile && resourceFile.size > 50 * 1024 * 1024) {
+      setResourceStatus("Files must be 50 MB or smaller.");
+      return;
+    }
+
     const studentToken = resolvedStudent.token || resolvedStudent.id;
     const storedResourceType: StudentResourceType = resourceType;
     try {
       let audioUrl = resourceDraft.linkUrl.trim();
+      let resourceFileUrl = "";
       if (resourceType === "audio" && !audioUrl && audioFile) {
         const path = `student-resources/${resolvedStudent.id}/${Date.now()}-${audioFile.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
         const { error: uploadError } = await supabase.storage.from("lesson-audio").upload(path, audioFile, {
@@ -767,6 +850,19 @@ export default function InstructorWorkstationPage({
           return;
         }
         audioUrl = supabase.storage.from("lesson-audio").getPublicUrl(path).data.publicUrl;
+      }
+      if (resourceType === "file" && resourceFile && resourceFileMediaType) {
+        const safeFileName = resourceFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const path = `${resolvedStudent.id}/${resolvedLessonId}/${crypto.randomUUID()}-${safeFileName}`;
+        const { error: uploadError } = await supabase.storage.from("student-resources").upload(path, resourceFile, {
+          contentType: resourceFileMediaType,
+          upsert: false,
+        });
+        if (uploadError) {
+          setResourceStatus("File upload failed. Check the student-resources bucket permissions and try again.");
+          return;
+        }
+        resourceFileUrl = supabase.storage.from("student-resources").getPublicUrl(path).data.publicUrl;
       }
       const payload = Object.fromEntries(
         Object.entries({
@@ -780,8 +876,11 @@ export default function InstructorWorkstationPage({
           ...(resourceType === "note" || resourceType === "quiz" || resourceType === "audio" || resourceType === "data_table"
             ? { body: resourceDraft.body.trim() || undefined }
             : {}),
-          ...(resourceType === "reading" || resourceType === "audio"
-            ? { link_url: audioUrl || undefined }
+          ...(resourceType === "reading" || resourceType === "audio" || resourceType === "file"
+            ? { link_url: (resourceType === "file" ? resourceFileUrl : audioUrl) || undefined }
+            : {}),
+          ...(resourceType === "file" && resourceFile
+            ? { original_filename: resourceFile.name, media_type: resourceFileMediaType || undefined }
             : {}),
           ...(resourceType === "flashcard"
             ? {
@@ -792,7 +891,7 @@ export default function InstructorWorkstationPage({
             : {}),
         }).filter(([, value]) => value !== undefined && value !== null && (typeof value !== "string" || value.trim() !== "")),
       ) as Pick<StudentResourceEntry, "student_id" | "student_token" | "lesson_id" | "resource_type" | "title">
-        & Partial<Pick<StudentResourceEntry, "body" | "link_url" | "question" | "answer" | "explanation">>
+        & Partial<Pick<StudentResourceEntry, "body" | "link_url" | "question" | "answer" | "explanation" | "original_filename" | "media_type">>
         & { updated_at: string };
 
       const { data, error } = await supabase
@@ -814,6 +913,7 @@ export default function InstructorWorkstationPage({
           writeStudentResourcesLocally(studentToken, next);
           setResourceDraft(EMPTY_RESOURCE_DRAFT);
           setAudioFile(null);
+          setResourceFile(null);
           setResourceStatus("Resource saved locally because the student_resources table is not available yet.");
           return;
         }
@@ -828,6 +928,7 @@ export default function InstructorWorkstationPage({
       writeStudentResourcesLocally(studentToken, next);
       setResourceDraft(EMPTY_RESOURCE_DRAFT);
       setAudioFile(null);
+      setResourceFile(null);
       setResourceStatus("Resource saved to the selected student.");
     } catch (error: any) {
       console.error("Full Student resource save error:", error);
@@ -2082,7 +2183,7 @@ export default function InstructorWorkstationPage({
                 </div>
               </div>
               <div className="flex flex-wrap gap-2" role="group" aria-label="Resource type">
-                {([['note', 'Notes'], ['reading', 'Reading'], ['flashcard', 'Flashcards'], ['quiz', 'Quiz'], ['audio', 'Audio'], ['data_table', 'Data Table']] as const).map(([type, label]) => (
+                {([['note', 'Notes'], ['reading', 'Reading'], ['flashcard', 'Flashcards'], ['quiz', 'Quiz'], ['audio', 'Audio'], ['data_table', 'Data Table'], ['file', 'File Upload']] as const).map(([type, label]) => (
                   <button
                     key={type}
                     type="button"
@@ -2107,7 +2208,7 @@ export default function InstructorWorkstationPage({
                     <div className="mb-4 border-b border-[#202631] pb-3">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Resource Editor</p>
                       <h4 className="mt-1 font-sans text-lg font-semibold text-stone-100">
-                        {activeResourceType === "note" ? "Note Editor" : activeResourceType === "reading" ? "Reading Editor" : activeResourceType === "flashcard" ? "Flashcard Builder" : activeResourceType === "quiz" ? "Quiz Editor" : activeResourceType === "audio" ? "Audio Editor" : "Data Table Editor"}
+                        {activeResourceType === "note" ? "Note Editor" : activeResourceType === "reading" ? "Reading Editor" : activeResourceType === "flashcard" ? "Flashcard Builder" : activeResourceType === "quiz" ? "Quiz Editor" : activeResourceType === "audio" ? "Audio Editor" : activeResourceType === "file" ? "File Upload" : "Data Table Editor"}
                       </h4>
                     </div>
 
@@ -2117,10 +2218,38 @@ export default function InstructorWorkstationPage({
                         <input
                           value={resourceDraft.title}
                           onChange={(event) => setResourceDraft((previous) => ({ ...previous, title: event.target.value }))}
-                          placeholder={resourceDraft.type === "audio" ? "Podcast / Deep Dive Audio" : resourceDraft.type === "data_table" ? "Lesson 3: Core Summary Matrix" : "Vocabulary set / reading summary / quiz idea"}
+                          placeholder={resourceDraft.type === "audio" ? "Podcast / Deep Dive Audio" : resourceDraft.type === "data_table" ? "Lesson 3: Core Summary Matrix" : resourceDraft.type === "file" ? "Resource title" : "Vocabulary set / reading summary / quiz idea"}
                           className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
                         />
                       </label>
+
+                      {resourceDraft.type === "file" && (
+                        <div
+                          onDragOver={(event) => { event.preventDefault(); setIsResourceFileDragging(true); }}
+                          onDragLeave={() => setIsResourceFileDragging(false)}
+                          onDrop={(event) => {
+                            event.preventDefault();
+                            setIsResourceFileDragging(false);
+                            handleResourceFileSelection(event.dataTransfer.files[0]);
+                          }}
+                          className={`rounded-lg border border-dashed p-5 text-center transition ${isResourceFileDragging ? "border-amber-400 bg-amber-500/10" : "border-[#394252] bg-[#0c1017]"}`}
+                        >
+                          <input
+                            id="student-resource-file-input"
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp,image/gif,text/plain,text/markdown,text/csv,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/rtf,application/vnd.oasis.opendocument.text,audio/mpeg,audio/wav,audio/ogg,audio/mp4,audio/aac,audio/flac,audio/webm,video/mp4,video/webm,video/ogg,video/quicktime,.png,.jpg,.jpeg,.webp,.gif,.txt,.md,.csv,.pdf,.doc,.docx,.rtf,.odt,.mp3,.wav,.ogg,.m4a,.aac,.flac,.mp4,.webm,.mov"
+                            onChange={(event) => handleResourceFileSelection(event.target.files?.[0])}
+                            className="sr-only"
+                          />
+                          <UploadCloud className="mx-auto h-7 w-7 text-amber-400" aria-hidden="true" />
+                          <p className="mt-2 text-sm font-medium text-stone-200">{isResourceFileDragging ? "Drop file to attach" : "Drag a file here or choose a file"}</p>
+                          <p className="mt-1 text-[11px] leading-relaxed text-stone-500">Images, text documents, PDFs, audio, and video · up to 50 MB</p>
+                          <label htmlFor="student-resource-file-input" className="mt-3 inline-flex cursor-pointer items-center rounded-md border border-amber-500/40 px-3 py-2 text-xs font-semibold text-amber-300 hover:border-amber-400">
+                            Choose file
+                          </label>
+                          {resourceFile && <div className="mt-3 flex items-center justify-center gap-2 text-xs text-stone-300"><span className="max-w-[220px] truncate">{resourceFile.name}</span><button type="button" onClick={() => setResourceFile(null)} className="text-red-300 hover:text-red-200">Remove</button></div>}
+                        </div>
+                      )}
 
                       {resourceDraft.type === "reading" && (
                         <label className="block text-xs text-stone-400">
@@ -2369,7 +2498,7 @@ export default function InstructorWorkstationPage({
                   ) : (
                     <div className="w-full min-w-0 rounded-2xl border border-[#202631] bg-[#0b1018] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
                       <div className="mb-4 border-b border-[#202631] pb-3">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">{activeResourceType === "note" ? "Note Preview" : activeResourceType === "reading" ? "Reading Preview" : activeResourceType === "quiz" ? "Quiz Preview" : activeResourceType === "audio" ? "Audio Preview" : "Data Table Preview"}</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">{activeResourceType === "note" ? "Note Preview" : activeResourceType === "reading" ? "Reading Preview" : activeResourceType === "quiz" ? "Quiz Preview" : activeResourceType === "audio" ? "Audio Preview" : activeResourceType === "file" ? "File Preview" : "Data Table Preview"}</p>
                         <h3 className="mt-1 font-sans text-xl font-semibold text-stone-100">{resourceDraft.title.trim() || "Untitled resource"}</h3>
                       </div>
                       {activeResourceType === "note" && (
@@ -2395,6 +2524,16 @@ export default function InstructorWorkstationPage({
                       )}
                       {activeResourceType === "data_table" && (
                         resourceDraft.body.trim() ? <DataTableResource title={resourceDraft.title.trim() || "Data Table"} markdown={resourceDraft.body} /> : <p className="text-sm text-stone-500">Paste Markdown table content to preview it here.</p>
+                      )}
+                      {activeResourceType === "file" && (
+                        resourceFile && resourceFilePreviewUrl ? (() => {
+                          const mediaType = getSupportedResourceMediaType(resourceFile);
+                          if (mediaType?.startsWith("image/")) return <img src={resourceFilePreviewUrl} alt={resourceFile.name} className="max-h-[520px] w-full rounded-lg border border-[#293343] object-contain" />;
+                          if (mediaType === "application/pdf" || mediaType?.startsWith("text/")) return <iframe src={resourceFilePreviewUrl} title={`Preview of ${resourceFile.name}`} className="h-[560px] w-full rounded-lg border border-[#293343] bg-white" />;
+                          if (mediaType?.startsWith("audio/")) return <CustomAudioPlayer src={resourceFilePreviewUrl} label={resourceFile.name} />;
+                          if (mediaType?.startsWith("video/")) return <video src={resourceFilePreviewUrl} controls preload="metadata" className="max-h-[560px] w-full rounded-lg bg-black" aria-label={`Preview of ${resourceFile.name}`} />;
+                          return <div className="space-y-3"><p className="text-sm text-stone-400">This document format opens or downloads instead of displaying inline.</p><a href={resourceFilePreviewUrl} download={resourceFile.name} className="inline-flex rounded-md border border-amber-500/30 px-3 py-2 text-xs font-semibold text-amber-300 hover:border-amber-400">Open or download {resourceFile.name}</a></div>;
+                        })() : <p className="rounded-lg border border-dashed border-[#394252] p-6 text-center text-sm text-stone-500">Choose or drop a file to preview it here.</p>
                       )}
                     </div>
                   )}
