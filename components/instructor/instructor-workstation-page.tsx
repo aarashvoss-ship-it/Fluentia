@@ -1731,8 +1731,27 @@ export default function InstructorWorkstationPage({
     const lesson = createdLessons.find((item) => item.id === quickTagEditor.lessonId);
     if (!lesson) return;
     const tags = { ...quickTagEditor.tags, custom: parseCustomLessonTags(quickTagEditor.customTagsText) };
+    const lessonFields = lesson as LessonWithVersion & { image_url?: string | null; banner?: string | null };
+    const lessonContent = (lesson.content || {}) as Record<string, unknown>;
+    const bannerUrl = [
+      lesson.banner_url,
+      lessonFields.image_url,
+      lessonFields.banner,
+      lessonContent.coverImage,
+      lessonContent.bannerUrl,
+      lessonContent.banner_url,
+      lessonContent.image_url,
+      lessonContent.banner,
+    ].find((value): value is string => typeof value === "string" && value.trim().length > 0)?.trim();
     const content = {
       ...(lesson.content || {}),
+      ...(bannerUrl ? {
+        coverImage: bannerUrl,
+        bannerUrl,
+        banner_url: bannerUrl,
+        image_url: bannerUrl,
+        banner: bannerUrl,
+      } : {}),
       level: normalizeCefrLevel(quickTagEditor.level),
       tags,
       domain: tags.domain,
@@ -1745,12 +1764,30 @@ export default function InstructorWorkstationPage({
       const updatedLesson = await updateLesson(lesson.id, {
         grade: normalizeCefrLevel(quickTagEditor.level),
         tags,
+        ...(bannerUrl ? { banner_url: bannerUrl } : {}),
         content,
         changes_summary: "Lesson level and tags updated",
       });
       setCreatedLessons((current) => current.map((item) => item.id === updatedLesson.id
-        ? { ...updatedLesson, assigned_student_ids: item.assigned_student_ids || [] }
+        ? {
+            ...updatedLesson,
+            banner_url: updatedLesson.banner_url || bannerUrl || item.banner_url,
+            content: {
+              ...(updatedLesson.content || {}),
+              ...(bannerUrl ? {
+                coverImage: bannerUrl,
+                bannerUrl,
+                banner_url: bannerUrl,
+                image_url: bannerUrl,
+                banner: bannerUrl,
+              } : {}),
+            },
+            assigned_student_ids: item.assigned_student_ids || [],
+          }
         : item));
+      if (databaseLessonId === lesson.id && bannerUrl) {
+        setWorkstationState((previous) => ({ ...previous, bannerUrl }));
+      }
       window.dispatchEvent(new Event("fluentia:lesson-updated"));
       setQuickTagEditor(null);
     } catch (error) {

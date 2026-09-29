@@ -161,6 +161,7 @@ const LESSON_UPDATE_COLUMNS = [
   "instructor_id",
   "is_published",
 ] as const;
+const PRESERVED_UPDATE_COLUMNS = new Set(["banner_url"]);
 
 function sanitizeJsonValue(value: unknown): unknown {
   if (value === undefined) return undefined;
@@ -848,6 +849,7 @@ export async function updateLesson(
         if (
           !missingColumn
           || triedMissingColumns.has(missingColumn)
+          || PRESERVED_UPDATE_COLUMNS.has(missingColumn)
           || !Object.prototype.hasOwnProperty.call(updatePayload, missingColumn)
         ) break;
         triedMissingColumns.add(missingColumn);
