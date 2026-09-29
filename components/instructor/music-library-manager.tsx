@@ -1,16 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Check, Pause, Play, Plus, Trash2, Upload, X } from "lucide-react";
+import { Check, Pause, Play, Plus, Trash2, Upload, Volume2, VolumeX, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { createAmbientTrack, deleteAmbientTrack } from "@/lib/music-library";
-import { DEFAULT_LESSON_AUDIO_TRACKS, getYoutubeEmbedUrl, getYoutubeVideoId, isYoutubeUrl } from "@/lib/musicTracks";
+import { DEFAULT_LESSON_AUDIO_TRACKS, getYoutubeVideoId, isYoutubeUrl } from "@/lib/musicTracks";
 import type { AmbientTrackRow } from "@/lib/supabase";
 import { Tooltip } from "@/components/shared/tooltip";
+import { YoutubeAudioController } from "@/components/shared/youtube-audio-controller";
 
 export function MusicLibraryManager() {
   const [tracks, setTracks] = useState<AmbientTrackRow[]>([]);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [previewedYoutubeTrack, setPreviewedYoutubeTrack] = useState<AmbientTrackRow | null>(null);
+  const [previewVolume, setPreviewVolume] = useState(0.4);
   const [status, setStatus] = useState<string | null>(null);
   const [isAddTrackOpen, setIsAddTrackOpen] = useState(false);
   const [trackTitle, setTrackTitle] = useState("");
@@ -114,11 +117,15 @@ export function MusicLibraryManager() {
       return;
     }
     audioRef.current?.pause();
-    if (getYoutubeVideoId(track.url)) {
+    const videoId = getYoutubeVideoId(track.url);
+    if (videoId) {
+      setPreviewedYoutubeTrack(track);
       setPlayingId(track.id);
       return;
     }
+    setPreviewedYoutubeTrack(null);
     const audio = new Audio(track.url);
+    audio.volume = previewVolume;
     audioRef.current = audio;
     audio.onended = () => setPlayingId(null);
     try {
@@ -217,6 +224,7 @@ export function MusicLibraryManager() {
         audioRef.current = null;
         setPlayingId(null);
       }
+      if (previewedYoutubeTrack?.id === track.id) setPreviewedYoutubeTrack(null);
       setTrackPendingDelete(null);
       setStatus(storageCleaned ? "Track removed from the shared library." : "Track removed. Its stored audio file could not be cleaned up.");
     } catch (error) {
@@ -232,7 +240,14 @@ export function MusicLibraryManager() {
       <Tooltip content="Add a shared audio upload or stream URL"><button type="button" onClick={() => setIsAddTrackOpen((open) => !open)} aria-expanded={isAddTrackOpen} className="inline-flex items-center gap-2 rounded-md bg-amber-500 px-4 py-2.5 text-xs font-semibold text-slate-950 transition hover:bg-amber-400"><Plus className="h-4 w-4" />Add New Track</button></Tooltip>
     </div>
     {status && <p className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300" role="status">{status}</p>}
-    {playingId && tracks.some((track) => track.id === playingId && getYoutubeVideoId(track.url)) && <div className="max-w-xl overflow-hidden rounded-md border border-[#394252] bg-[#0c1017]"><iframe src={getYoutubeEmbedUrl(tracks.find((track) => track.id === playingId)?.url || "", true) || undefined} title={`YouTube preview: ${tracks.find((track) => track.id === playingId)?.title || "track"}`} className="aspect-video w-full" allow="autoplay; encrypted-media; picture-in-picture; web-share" allowFullScreen /></div>}
+    {previewedYoutubeTrack && getYoutubeVideoId(previewedYoutubeTrack.url) && <div className="flex flex-wrap items-center gap-3 rounded-md border border-[#293343] bg-[#0c1017] px-3 py-2">
+      <YoutubeAudioController videoId={getYoutubeVideoId(previewedYoutubeTrack.url)!} isPlaying={playingId === previewedYoutubeTrack.id} volume={previewVolume} onError={() => setStatus("YouTube audio could not be started. Check that the video allows embedding.")} />
+      <p className="min-w-0 flex-1 truncate text-xs font-medium text-stone-200" title={previewedYoutubeTrack.title}>{previewedYoutubeTrack.title}</p>
+      <Tooltip content={playingId === previewedYoutubeTrack.id ? "Pause YouTube preview" : "Play YouTube preview"}><button type="button" onClick={() => setPlayingId((current) => current === previewedYoutubeTrack.id ? null : previewedYoutubeTrack.id)} aria-label={playingId === previewedYoutubeTrack.id ? "Pause YouTube preview" : "Play YouTube preview"} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-amber-500/40 text-amber-300 hover:bg-amber-500/10">{playingId === previewedYoutubeTrack.id ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</button></Tooltip>
+      <VolumeX className="h-3.5 w-3.5 text-stone-500" />
+      <input type="range" min="0" max="1" step="0.01" value={previewVolume} onChange={(event) => setPreviewVolume(Number(event.target.value))} aria-label={`${previewedYoutubeTrack.title} volume`} className="h-1 w-24 accent-amber-500" />
+      <Volume2 className="h-3.5 w-3.5 text-amber-400" />
+    </div>}
     {isAddTrackOpen && <section aria-label="Add a shared audio track" className="grid gap-4 rounded-lg border border-[#394252] bg-[#171d28]/60 p-4 md:grid-cols-2">
       <label className="text-xs text-stone-400 md:col-span-2">Track title<input value={trackTitle} onChange={(event) => setTrackTitle(event.target.value)} maxLength={120} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2.5 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
       <form onSubmit={(event) => void addDirectUrl(event)} className="space-y-3 rounded-md border border-[#293343] bg-[#0c1017] p-4">
