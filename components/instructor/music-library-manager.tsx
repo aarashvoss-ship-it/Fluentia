@@ -17,6 +17,7 @@ export function MusicLibraryManager() {
   const [trackUrl, setTrackUrl] = useState("");
   const [trackFile, setTrackFile] = useState<File | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isResolvingYoutube, setIsResolvingYoutube] = useState(false);
   const [trackPendingDelete, setTrackPendingDelete] = useState<AmbientTrackRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -62,6 +63,46 @@ export function MusicLibraryManager() {
       audioRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    setIsResolvingYoutube(false);
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(trackUrl.trim());
+    } catch {
+      return;
+    }
+    const youtubeHosts = ["youtube.com", "www.youtube.com", "music.youtube.com", "m.youtube.com", "youtu.be", "www.youtu.be"];
+    if (!youtubeHosts.includes(parsedUrl.hostname.toLowerCase())) return;
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      setIsResolvingYoutube(true);
+      setStatus("Processing YouTube link...");
+      try {
+        const response = await fetch("/api/music/youtube-metadata", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: trackUrl.trim() }),
+          signal: controller.signal,
+        });
+        const result = await response.json() as { title?: string; error?: string };
+        if (!response.ok || !result.title) throw new Error(result.error || "Unable to read this YouTube video.");
+        setTrackTitle((current) => current.trim() || result.title || "");
+        setStatus("Video title found. Upload an audio file you have permission to use; YouTube links are not playable audio streams.");
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setStatus(error instanceof Error ? error.message : "Unable to process this YouTube link.");
+      } finally {
+        if (!controller.signal.aborted) setIsResolvingYoutube(false);
+      }
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [trackUrl]);
 
   const togglePreview = async (track: AmbientTrackRow) => {
     if (playingId === track.id) {
@@ -129,6 +170,11 @@ export function MusicLibraryManager() {
       setStatus("Enter a valid direct audio URL.");
       return;
     }
+    const youtubeHosts = ["youtube.com", "www.youtube.com", "music.youtube.com", "m.youtube.com", "youtu.be", "www.youtu.be"];
+    if (youtubeHosts.includes(parsedUrl.hostname.toLowerCase())) {
+      setStatus("Upload an audio file you have permission to use. YouTube links cannot be added as audio streams.");
+      return;
+    }
     if (!title || !["http:", "https:"].includes(parsedUrl.protocol)) {
       setStatus("Enter a title and an http or https audio URL.");
       return;
@@ -179,8 +225,8 @@ export function MusicLibraryManager() {
       <form onSubmit={(event) => void addDirectUrl(event)} className="space-y-3 rounded-md border border-[#293343] bg-[#0c1017] p-4">
         <h3 className="text-sm font-semibold text-stone-200">Add audio stream or URL</h3>
         <label className="block text-xs text-stone-400">Stream or direct audio URL<input type="url" required value={trackUrl} onChange={(event) => setTrackUrl(event.target.value)} placeholder="https://radio.example.com/live or https://cdn.example.com/track.mp3" className="mt-1 w-full rounded-md border border-[#394252] bg-[#171d28] px-3 py-2.5 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
-        <p className="text-[10px] text-stone-500">Supports HTTP/HTTPS radio streams and direct audio links.</p>
-        <button type="submit" disabled={isSaving} className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500/10 disabled:opacity-50"><Plus className="h-3.5 w-3.5" />Add shared stream</button>
+        <p className="text-[10px] text-stone-500">Supports HTTP/HTTPS radio streams and direct audio links. YouTube links fill in the video title; upload authorized audio separately.</p>
+        <button type="submit" disabled={isSaving || isResolvingYoutube} className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500/10 disabled:opacity-50"><Plus className="h-3.5 w-3.5" />{isResolvingYoutube ? "Processing YouTube link..." : "Add shared stream"}</button>
       </form>
       <div className="space-y-3 rounded-md border border-[#293343] bg-[#0c1017] p-4">
         <h3 className="text-sm font-semibold text-stone-200">Upload an audio file</h3>
