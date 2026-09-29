@@ -737,13 +737,20 @@ function DashboardContent() {
 
   const token = activeStudent.token;
   const displayLessons = lessons;
-  const completedLessons = displayLessons.filter(
-    (lesson) => getLessonStatus(lessonStates[lesson.id]) === "completed",
-  ).length;
+  const completedLessons = new Set(
+    displayLessons
+      .filter((lesson) => {
+        const status = getLessonStatus(lessonStates[lesson.id]);
+        return status === "completed" || status === "pending-review";
+      })
+      .map((lesson) => lesson.id),
+  ).size;
   const hasPendingReview = displayLessons.some(
     (lesson) => getLessonStatus(lessonStates[lesson.id]) === "pending-review",
   );
-  const hasFeedback = completedLessons > 0;
+  const hasFeedback = displayLessons.some(
+    (lesson) => getLessonStatus(lessonStates[lesson.id]) === "completed",
+  );
   const instructorNote =
     savedInstructorNote ||
     activeStudent?.profile?.instructor_notes ||

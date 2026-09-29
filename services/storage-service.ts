@@ -328,8 +328,20 @@ export async function fetchLessonState(slug: string, studentToken?: string): Pro
           let feedback = null;
           try {
             const result = await supabase.from("submissions").select("answers,status,submitted_at").eq("lesson_id", lessonId).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
-            if (!result.error) submission = result.data;
-          } catch {
+            if (result.error) {
+              console.error("[Dashboard Progress] Failed to fetch lesson submission:", {
+                lessonId,
+                studentId,
+                code: result.error.code,
+                message: result.error.message,
+                details: result.error.details,
+                hint: result.error.hint,
+              });
+            } else {
+              submission = result.data;
+            }
+          } catch (error) {
+            console.error("[Dashboard Progress] Submission fetch threw an error:", { lessonId, studentId, error });
             submission = null;
           }
           try {
@@ -349,7 +361,8 @@ export async function fetchLessonState(slug: string, studentToken?: string): Pro
         }
       }
       return getState(slug, studentToken) || null;
-    } catch {
+    } catch (error) {
+      console.error("[Dashboard Progress] Failed to fetch lesson state:", { slug, studentToken, error });
       // Use local state when Supabase is unavailable or the lesson has no saved state yet.
       return getState(slug, studentToken) || null;
     }
@@ -364,10 +377,12 @@ export async function fetchStudentProgress(slug: string, studentToken?: string):
       const lesson = studentId ? await fetchStudentLesson(slug, studentId) : null;
       if (lesson && studentId) { // has lesson + student -> save to Supabase
         const { data, error } = await supabase.from("submissions").select("answers,status,submitted_at").eq("lesson_id", lesson.id).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
+        if (error) throw error;
         const progress = data?.answers?.progress;
         if (progress) return { currentStep: progress.currentStep || "warm_up", completedSteps: progress.completedSteps || [], completed: Boolean(progress.completed), status: data?.status || progress.status || "not_started", updatedAt: data?.submitted_at || new Date(0).toISOString() };
       }
-    } catch {
+    } catch (error) {
+      console.error("[Dashboard Progress] Failed to fetch student progress:", { slug, studentToken, error });
       // Progress reads are optional; return the default state when the query fails.
     }
   }
@@ -392,7 +407,11 @@ export async function saveStudentProgress(
   progress: StudentProgressRecord,
   studentToken?: string
 ): Promise<StudentProgressRecord> {
-  const updated = { ...progress, updatedAt: new Date().toISOString() };
+  const updated = {
+    ...progress,
+    completed: progress.completed ?? (progress.status === "submitted" || progress.status === "reviewed"),
+    updatedAt: new Date().toISOString(),
+  };
   if (isSupabaseConfigured()) {
     try {
       const studentId = await getStudentId();
@@ -400,7 +419,7 @@ export async function saveStudentProgress(
       if (lesson && studentId) {
         const { data: existingSubmission, error: lookupError } = await supabase.from("submissions").select("id,answers").eq("lesson_id", lesson.id).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
         if (lookupError) throw lookupError;
-        const answers = { ...(existingSubmission?.answers || {}), progress: { currentStep: updated.currentStep, completedSteps: updated.completedSteps, status: updated.status } };
+        const answers = { ...(existingSubmission?.answers || {}), progress: { currentStep: updated.currentStep, completedSteps: updated.completedSteps, completed: updated.completed, status: updated.status } };
         const { error } = existingSubmission
           ? await supabase.from("submissions").update({ answers, status: updated.status, submitted_at: updated.updatedAt }).eq("id", existingSubmission.id)
           : await supabase.from("submissions").insert({ lesson_id: lesson.id, student_id: studentId, answers, status: updated.status, submitted_at: updated.updatedAt });
@@ -408,8 +427,11 @@ export async function saveStudentProgress(
           notifyDataUpdated({ type: "progress", slug, studentToken });
           return updated;
         }
+        throw error;
       }
-    } catch {
+      console.error("[Dashboard Progress] Could not resolve a Supabase lesson/student for progress save:", { slug, studentToken });
+    } catch (error) {
+      console.error("[Dashboard Progress] Failed to save student progress:", { slug, studentToken, error });
       // Keep local progress as an offline fallback.
     }
   }
@@ -458,14 +480,22 @@ export async function submitStudentLesson(
           : await supabase.from("submissions").insert({ lesson_id: lesson.id, student_id: studentId, ...submissionPayload });
         if (error) throw error;
         if (progress) {
-          void saveStudentProgress(slug, { currentStep: progress.currentStep || "warm_up", completedSteps: progress.completedSteps || [], status: progress.status || (submission.status === "submitted" ? "submitted" : "in_progress"), updatedAt: new Date().toISOString() }, studentToken).catch((progressError) => {
-            console.error("Failed to save lesson progress:", progressError);
-          });
+          await saveStudentProgress(slug, {
+            currentStep: progress.currentStep || "warm_up",
+            completedSteps: progress.completedSteps || [],
+            completed: progress.completed ?? (submission.status === "submitted" || submission.status === "reviewed"),
+            status: progress.status || (submission.status === "submitted" ? "submitted" : "in_progress"),
+            updatedAt: new Date().toISOString(),
+          }, studentToken);
         }
         notifyDataUpdated({ type: "submission", slug, studentToken });
         return nextState;
       }
+      if (!demoDataEnabled()) {
+        throw new Error(`Unable to resolve the Supabase lesson or student for submission ${slug}.`);
+      }
     } catch (error) {
+      console.error("[Lesson Submission] Supabase submission/progress save failed:", { slug, studentToken, error });
       if (!demoDataEnabled()) throw toStorageError(error, `Unable to save submission for ${slug}`);
     }
   }
@@ -475,6 +505,7 @@ export async function submitStudentLesson(
     await saveStudentProgress(slug, {
       currentStep: progress.currentStep || "warm_up",
       completedSteps: progress.completedSteps || [],
+      completed: progress.completed ?? (submission.status === "submitted" || submission.status === "reviewed"),
       status: progress.status || (submission.status === "submitted" ? "submitted" : "in_progress"),
       updatedAt: new Date().toISOString(),
     }, studentToken);

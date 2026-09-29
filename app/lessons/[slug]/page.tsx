@@ -587,12 +587,12 @@ export default function LessonPage() {
         updatedAt: new Date().toISOString(),
       });
     } catch (error) {
-      try {
-        const sid = activeStudent?.id || lesson.student_id || "local";
-        const { saveLessonState: _sls } = await import("@/services/storage-service");
-        (_sls as unknown as (a:string,b:string,c:unknown)=>void)(lesson.id, sid, { submission: nextSubmission, progress: { currentStep: nextProgress?.currentStep || currentStep, completedSteps: nextProgress?.completedSteps || completedSteps, startedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } });
-      } catch {}
-      console.warn("Persist fallback to local", error);
+      console.error("[Lesson Submission] Failed to persist student submission:", {
+        lessonId: lesson.id,
+        studentId: activeStudent?.id || lesson.student_id,
+        error,
+      });
+      setSubmissionSaveError(error instanceof Error ? error.message : String(error));
     }
   }
 
@@ -719,7 +719,7 @@ export default function LessonPage() {
     markStepComplete("speaking");
     markStepComplete("results");
     setCurrentStep("results");
-    void persistSubmission({ ...submission, status: "submitted", submittedAt: new Date().toISOString() }, { currentStep: "results", completedSteps: [...STUDY_STEPS.map((step) => step.id)], status: "submitted" });
+    await persistSubmission({ ...submission, status: "submitted", submittedAt: new Date().toISOString() }, { currentStep: "results", completedSteps: [...STUDY_STEPS.map((step) => step.id)], status: "submitted" });
   }
 
   const isResultsStep = currentStep === "results";
