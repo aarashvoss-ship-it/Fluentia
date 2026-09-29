@@ -112,6 +112,7 @@ type ProfilePreferences = {
   avatar_bg_color?: string;
   avatar_initials?: string;
   avatar_url?: string;
+  custom_avatar_url?: string;
   banner_url?: string;
   customAvatarUrl?: string;
   bannerPreset?: (typeof BANNER_PRESETS)[number]["id"];
@@ -229,7 +230,10 @@ function DashboardContent() {
         if (preset) setAvatarPreset(preset.id);
         if (color) setAvatarColor(color);
         setAvatarInitials((customization.avatar_initials || "").replace(/[^a-z0-9]/gi, "").slice(0, 3).toUpperCase());
-        setCustomAvatarUrl(customization.avatar_url || "");
+        const avatarUrl = typeof customization.custom_avatar_url === "string"
+          ? customization.custom_avatar_url
+          : customization.avatar_url || "";
+        setCustomAvatarUrl(avatarUrl);
         setCustomBannerUrl(customization.banner_url || "");
         setActiveStudent((current) => current ? {
           ...current,
@@ -237,7 +241,7 @@ function DashboardContent() {
             ...current.profile,
             avatarBgColor: color || current.profile.avatarBgColor,
             avatarInitials: customization.avatar_initials || current.profile.avatarInitials,
-            avatarUrl: customization.avatar_url || current.profile.avatarUrl,
+            avatarUrl,
             bannerUrl: customization.banner_url || current.profile.bannerUrl,
           },
         } : current);
@@ -599,7 +603,9 @@ function DashboardContent() {
             targetGoal: "",
             avatarUrl: typeof roleProfile?.avatar_url === "string"
               ? roleProfile.avatar_url
-              : typeof userMetadata.avatar_url === "string" ? userMetadata.avatar_url : undefined,
+              : typeof userMetadata.custom_avatar_url === "string"
+                ? userMetadata.custom_avatar_url
+                : typeof userMetadata.avatar_url === "string" ? userMetadata.avatar_url : undefined,
             bannerUrl: typeof roleProfile?.banner_url === "string"
               ? roleProfile.banner_url
               : typeof userMetadata.banner_url === "string" ? userMetadata.banner_url : undefined,
@@ -663,9 +669,20 @@ function DashboardContent() {
             avatarInitials: savedAvatarInitials,
           },
         } : current);
-        setCustomAvatarUrl(
-          localCustomization.avatar_url || preferences.customAvatarUrl || preferences.avatar_url || active.profile.avatarUrl || "",
-        );
+        const savedAvatarUrl = typeof localCustomization.custom_avatar_url === "string"
+          ? localCustomization.custom_avatar_url
+          : typeof localCustomization.avatar_url === "string"
+            ? localCustomization.avatar_url
+            : typeof preferences.customAvatarUrl === "string"
+              ? preferences.customAvatarUrl
+              : typeof preferences.avatar_url === "string"
+                ? preferences.avatar_url
+                : typeof userMetadata.custom_avatar_url === "string"
+                  ? userMetadata.custom_avatar_url
+                  : typeof userMetadata.avatar_url === "string"
+                    ? userMetadata.avatar_url
+                    : active.profile.avatarUrl || "";
+        setCustomAvatarUrl(savedAvatarUrl);
         setBannerPreset(preferences.bannerPreset || "default-dark");
         setCustomBannerUrl(
           localCustomization.banner_url || preferences.customBannerUrl || preferences.banner_url || active.profile.bannerUrl || "",
@@ -856,16 +873,28 @@ function DashboardContent() {
       if (userError || !userData.user) throw userError || new Error("Sign in to upload a profile image.");
       const extension = file.type === "image/jpeg" ? "jpg" : file.type === "image/png" ? "png" : "webp";
       const path = `student-customization/${userData.user.id}/${kind}-${crypto.randomUUID()}.${extension}`;
-      const { error } = await supabase.storage.from("lesson-assets").upload(path, file, {
-        cacheControl: "3600",
-        contentType: file.type,
-        upsert: false,
-      });
-      if (error) throw error;
-      const { data } = supabase.storage.from("lesson-assets").getPublicUrl(path);
-      if (kind === "avatar") setCustomAvatarUrl(data.publicUrl);
+      const buckets = kind === "avatar"
+        ? ["avatars", "student-resources", "lesson-assets"]
+        : ["lesson-assets"];
+      let publicUrl = "";
+      let uploadError: Error | null = null;
+      for (const bucket of buckets) {
+        const { error } = await supabase.storage.from(bucket).upload(path, file, {
+          cacheControl: "3600",
+          contentType: file.type,
+          upsert: false,
+        });
+        if (!error) {
+          publicUrl = supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
+          uploadError = null;
+          break;
+        }
+        uploadError = error;
+      }
+      if (uploadError || !publicUrl) throw uploadError || new Error("The image could not be uploaded.");
+      if (kind === "avatar") setCustomAvatarUrl(publicUrl);
       else {
-        setCustomBannerUrl(data.publicUrl);
+        setCustomBannerUrl(publicUrl);
         setBannerLoadFailed(false);
       }
       setProfileImageStatus(`${kind === "avatar" ? "Avatar" : "Banner"} uploaded. Save settings to apply it.`);
@@ -896,6 +925,7 @@ function DashboardContent() {
       avatar_bg_color: nextAvatarColor,
       avatar_initials: initials,
       avatar_url: avatarUrl,
+      custom_avatar_url: avatarUrl,
       customAvatarUrl: avatarUrl,
       bannerPreset,
       banner_url: bannerUrl,
@@ -905,6 +935,7 @@ function DashboardContent() {
       avatar_bg_color: nextAvatarColor,
       avatar_initials: initials,
       avatar_url: avatarUrl,
+      custom_avatar_url: avatarUrl,
       banner_url: bannerUrl,
     };
     try {
@@ -931,14 +962,16 @@ function DashboardContent() {
       if (userError) throw userError;
       if (!userData.user) throw new Error("No authenticated user is available.");
 
-      const metadata = {
-        ...(userData.user.user_metadata || {}),
-        avatar_bg_color: nextAvatarColor,
-        avatar_initials: initials,
-        avatar_url: avatarUrl,
-        banner_url: bannerUrl,
-      };
-      const { error: metadataError } = await supabase.auth.updateUser({ data: metadata });
+      const { error: metadataError } = await supabase.auth.updateUser({
+        data: {
+          ...(userData.user.user_metadata || {}),
+          avatar_bg_color: nextAvatarColor,
+          avatar_initials: initials,
+          avatar_url: avatarUrl,
+          custom_avatar_url: avatarUrl,
+          banner_url: bannerUrl,
+        },
+      });
       if (metadataError) throw metadataError;
 
       const profileValues = {
@@ -991,13 +1024,21 @@ function DashboardContent() {
         const nextInitials = typeof refreshedProfile?.avatar_initials === "string"
           ? refreshedProfile.avatar_initials
           : typeof refreshedMetadata.avatar_initials === "string" ? refreshedMetadata.avatar_initials : initials;
+        const refreshedAvatarUrl = typeof refreshedProfile?.avatar_url === "string"
+          ? refreshedProfile.avatar_url
+          : typeof refreshedMetadata.custom_avatar_url === "string"
+            ? refreshedMetadata.custom_avatar_url
+            : typeof refreshedMetadata.avatar_url === "string" ? refreshedMetadata.avatar_url : avatarUrl;
+        setAvatarColor(refreshedAvatarColor);
+        setAvatarInitials(nextInitials);
+        setCustomAvatarUrl(refreshedAvatarUrl);
         setActiveStudent((current) => current ? {
           ...current,
           profile: {
             ...current.profile,
             avatarBgColor: refreshedAvatarColor,
             avatarInitials: nextInitials,
-            avatarUrl: typeof refreshedProfile?.avatar_url === "string" ? refreshedProfile.avatar_url : avatarUrl,
+            avatarUrl: refreshedAvatarUrl,
             bannerUrl: typeof refreshedProfile?.banner_url === "string" ? refreshedProfile.banner_url : bannerUrl,
           },
         } : current);
