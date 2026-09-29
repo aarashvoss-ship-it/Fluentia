@@ -12,6 +12,8 @@ const PLAYBACK_KEY = "fluentia:ambient-music:playing";
 const ENABLED_KEY = "fluentia:ambient-music:enabled";
 const VOLUME_KEY = "fluentia:ambient-music:volume";
 const STUDENT_TRACKS_KEY = "fluentia:ambient-music:student-tracks";
+const POMODORO_BREAK_EVENT = "fluentia:study-room-timer-break-start";
+const POMODORO_FOCUS_EVENT = "fluentia:study-room-timer-focus-start";
 
 type StudentTrack = LessonAudioTrack & { id: string; storedFile?: boolean };
 type StoredStudentTrack = { id: string; title: string; url?: string; storedFile?: boolean };
@@ -115,6 +117,8 @@ export function AmbientMusicPlayer({ src, studentScope = "student" }: AmbientMus
   const volumePanelRef = useRef<HTMLDivElement>(null);
   const objectUrlsRef = useRef(new Set<string>());
   const failedTrackUrlsRef = useRef(new Set<string>());
+  const timerPausedMusicRef = useRef(false);
+  const timerMusicOverrideRef = useRef(false);
   const storageKey = `${STUDENT_TRACKS_KEY}:${encodeURIComponent(studentScope || "student")}`;
 
   const globalTracks = libraryTracks.length > 0 ? libraryTracks : DEFAULT_LESSON_AUDIO_TRACKS;
@@ -223,6 +227,31 @@ export function AmbientMusicPlayer({ src, studentScope = "student" }: AmbientMus
     }
   }, []);
 
+  useEffect(() => {
+    const pauseForBreak = () => {
+      if (!isEnabled || !isPlaying) return;
+      timerPausedMusicRef.current = true;
+      timerMusicOverrideRef.current = false;
+      setIsPlaying(false);
+      persistPlayback(PLAYBACK_KEY, "false");
+    };
+    const resumeAfterBreak = () => {
+      if (!timerPausedMusicRef.current) return;
+      if (!timerMusicOverrideRef.current && isEnabled) {
+        setIsPlaying(true);
+        persistPlayback(PLAYBACK_KEY, "true");
+      }
+      timerPausedMusicRef.current = false;
+      timerMusicOverrideRef.current = false;
+    };
+    window.addEventListener(POMODORO_BREAK_EVENT, pauseForBreak);
+    window.addEventListener(POMODORO_FOCUS_EVENT, resumeAfterBreak);
+    return () => {
+      window.removeEventListener(POMODORO_BREAK_EVENT, pauseForBreak);
+      window.removeEventListener(POMODORO_FOCUS_EVENT, resumeAfterBreak);
+    };
+  }, [isEnabled, isPlaying]);
+
   useEffect(() => () => {
     objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     objectUrlsRef.current.clear();
@@ -283,6 +312,7 @@ export function AmbientMusicPlayer({ src, studentScope = "student" }: AmbientMus
   }, [volume, isEnabled, isPlaying, currentTrack]);
 
   function selectTrack(item: AvailableTrack) {
+    if (timerPausedMusicRef.current) timerMusicOverrideRef.current = true;
     failedTrackUrlsRef.current.clear();
     setTrackError(null);
     setTrackNotice(null);
@@ -368,6 +398,7 @@ export function AmbientMusicPlayer({ src, studentScope = "student" }: AmbientMus
   }
 
   function togglePlayback() {
+    if (timerPausedMusicRef.current) timerMusicOverrideRef.current = true;
     const nextPlaying = !isPlaying;
     if (nextPlaying) {
       failedTrackUrlsRef.current.clear();
@@ -380,6 +411,7 @@ export function AmbientMusicPlayer({ src, studentScope = "student" }: AmbientMus
   }
 
   function toggleEnabled() {
+    if (timerPausedMusicRef.current) timerMusicOverrideRef.current = true;
     const nextEnabled = !isEnabled;
     setIsEnabled(nextEnabled);
     persistPlayback(ENABLED_KEY, String(nextEnabled));
