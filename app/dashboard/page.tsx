@@ -1045,6 +1045,19 @@ function DashboardContent() {
           },
         } : current);
       }
+      setAvatarColor(nextAvatarColor);
+      setAvatarInitials(initials);
+      setCustomAvatarUrl(avatarUrl);
+      setActiveStudent((current) => current ? {
+        ...current,
+        profile: {
+          ...current.profile,
+          avatarBgColor: nextAvatarColor,
+          avatarInitials: initials,
+          avatarUrl,
+          bannerUrl,
+        },
+      } : current);
       setBannerLoadFailed(false);
       setProfileSaveNotice("Profile settings saved.");
       setProfileOpen(false);
