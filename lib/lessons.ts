@@ -137,6 +137,14 @@ function isMissingStatusColumn(error: { code?: string; message?: string } | null
   return Boolean(error && (error.code === "42703" || error.code === "PGRST204") && /\bstatus\b/i.test(error.message || ""));
 }
 
+function getMissingColumnName(error: { code?: string; message?: string } | null) {
+  if (!error || (error.code !== "42703" && error.code !== "PGRST204")) return null;
+  const message = error.message || "";
+  return message.match(/Could not find the ['"]([^'"]+)['"] column/i)?.[1]
+    || message.match(/column\s+(?:[a-z0-9_]+\.)?["']?([a-z0-9_]+)["']?\s+does not exist/i)?.[1]
+    || null;
+}
+
 const LESSON_UPDATE_COLUMNS = [
   "title",
   "subtitle",
@@ -176,7 +184,7 @@ function sanitizeLessonContent(content: Record<string, any> | undefined): Record
 function sanitizeLessonUpdatePayload(payload: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(
     LESSON_UPDATE_COLUMNS
-      .filter((column) => payload[column] !== undefined)
+      .filter((column) => payload[column] !== undefined && payload[column] !== null)
       .map((column) => [column, payload[column]]),
   );
 }
@@ -188,7 +196,10 @@ function describeSupabaseError(error: unknown) {
   }
   if (error && typeof error === "object") {
     const value = error as { code?: string; message?: string; details?: string; hint?: string; status?: number };
-    return { code: value.code, message: value.message, details: value.details, hint: value.hint, status: value.status };
+    const message = typeof value.message === "string" && value.message.trim()
+      ? value.message
+      : JSON.stringify(error, Object.getOwnPropertyNames(error)) || String(error);
+    return { code: value.code, message, details: value.details, hint: value.hint, status: value.status };
   }
   return { message: String(error) };
 }
@@ -794,7 +805,7 @@ export async function updateLesson(
     // Update the lesson metadata
     const hasStudentTokenUpdate = Object.prototype.hasOwnProperty.call(input, "student_token");
     if (title !== undefined || subtitle !== undefined || module_number !== undefined || slug !== undefined || status !== undefined || subject !== undefined || grade !== undefined || tags !== undefined || assigned_all_students !== undefined || banner_url !== undefined || resolvedStudentId || resolvedInstructorId || hasStudentTokenUpdate || is_published !== undefined) {
-      const updatePayload = sanitizeLessonUpdatePayload({
+      let updatePayload = sanitizeLessonUpdatePayload({
         ...(title !== undefined ? { title } : {}),
         ...(subtitle !== undefined ? { subtitle: typeof subtitle === "string" ? subtitle.trim() : subtitle } : {}),
         ...(module_number !== undefined ? { module_number } : {}),
@@ -821,26 +832,25 @@ export async function updateLesson(
       if (updateError) {
         console.error("Supabase lessons PATCH error response:", updateError);
       }
-      if (isMissingBannerColumn(updateError) || isMissingStudentColumn(updateError) || isMissingPublishedColumn(updateError) || isMissingStatusColumn(updateError)) {
-        const missingColumns = new Set<string>();
-        if (isMissingBannerColumn(updateError)) missingColumns.add("banner_url");
-        if (isMissingStudentColumn(updateError)) {
-          missingColumns.add("student_id");
-          missingColumns.add("student_token");
-        }
-        if (isMissingPublishedColumn(updateError)) missingColumns.add("is_published");
-        if (isMissingStatusColumn(updateError)) missingColumns.add("status");
-        const compatPayload = Object.fromEntries(Object.entries(updatePayload).filter(([column]) => !missingColumns.has(column)));
-        if (Object.keys(compatPayload).length > 0) {
-          ({ data: updatedRows, error: updateError } = await supabase
-            .from("lessons")
-            .update(compatPayload)
-            .eq("id", id)
-            .select("id")
-            .abortSignal(AbortSignal.timeout(8000)));
-        } else {
-          updateError = null;
-        }
+      while (updateError) {
+        const missingColumn = getMissingColumnName(updateError);
+        if (!missingColumn || !Object.prototype.hasOwnProperty.call(updatePayload, missingColumn)) break;
+        const retryPayload = Object.fromEntries(
+          Object.entries(updatePayload).filter(([column]) => column !== missingColumn),
+        );
+        if (Object.keys(retryPayload).length === 0) break;
+        console.warn(`Retrying lesson update without unavailable '${missingColumn}' column.`, {
+          lessonId: id,
+          code: updateError.code,
+          message: updateError.message,
+        });
+        updatePayload = retryPayload;
+        ({ data: updatedRows, error: updateError } = await supabase
+          .from("lessons")
+          .update(updatePayload)
+          .eq("id", id)
+          .select("id")
+          .abortSignal(AbortSignal.timeout(8000)));
       }
 
       if (updateError) {
