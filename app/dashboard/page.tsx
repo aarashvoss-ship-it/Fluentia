@@ -194,6 +194,7 @@ function DashboardContent() {
   const [customBannerUrl, setCustomBannerUrl] = useState("");
   const [profileImageStatus, setProfileImageStatus] = useState<string | null>(null);
   const [profileSaveNotice, setProfileSaveNotice] = useState<string | null>(null);
+  const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
   const [isSavingProfileCustomization, setIsSavingProfileCustomization] = useState(false);
@@ -585,10 +586,16 @@ function DashboardContent() {
         const metadataAvatarColor = typeof userMetadata.avatar_bg_color === "string"
           ? userMetadata.avatar_bg_color
           : "";
-        const savedAvatarColor = preferences.avatar_bg_color || metadataAvatarColor;
+        const profileAvatarColor = typeof roleProfile?.avatar_bg_color === "string"
+          ? roleProfile.avatar_bg_color
+          : "";
+        const savedAvatarColor = profileAvatarColor || preferences.avatar_bg_color || metadataAvatarColor;
         const colorPreset = AVATAR_PRESETS.find((preset) => preset.backgroundColor === savedAvatarColor)?.id;
-        setAvatarPreset(preferences.avatarPreset || colorPreset || "amber");
-        const savedAvatarInitials = (preferences.avatar_initials
+        setAvatarPreset(colorPreset || preferences.avatarPreset || "amber");
+        const profileAvatarInitials = typeof roleProfile?.avatar_initials === "string"
+          ? roleProfile.avatar_initials
+          : "";
+        const savedAvatarInitials = (profileAvatarInitials || preferences.avatar_initials
           || (typeof userMetadata.avatar_initials === "string" ? userMetadata.avatar_initials : ""))
           .replace(/[^a-z]/gi, "")
           .slice(0, 3)
@@ -720,6 +727,7 @@ function DashboardContent() {
   const selectedAvatar =
     AVATAR_PRESETS.find((preset) => preset.id === avatarPreset) ||
     AVATAR_PRESETS[0];
+  const badgeColor = selectedAvatar.backgroundColor || activeStudent.profile?.avatarBgColor || "#f59e0b";
   const selectedBanner =
     BANNER_PRESETS.find((preset) => preset.id === bannerPreset) ||
     BANNER_PRESETS[0];
@@ -821,6 +829,7 @@ function DashboardContent() {
     setIsSavingProfileCustomization(true);
     setProfileImageStatus(null);
     setProfileSaveNotice(null);
+    setProfileSaveError(null);
     const avatarUrl = customAvatarUrl.trim();
     const bannerUrl = customBannerUrl.trim();
     const initials = customizedInitials;
@@ -834,56 +843,109 @@ function DashboardContent() {
       banner_url: bannerUrl,
       customBannerUrl: bannerUrl,
     };
-    setActiveStudent((current) => current ? {
-      ...current,
-      profile: {
-        ...current.profile,
-        avatarUrl,
-        bannerUrl,
-        avatarBgColor: selectedAvatar.backgroundColor,
-        avatarInitials: initials,
-      },
-    } : current);
-
     try {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!userData.user) throw new Error("No authenticated user is available.");
+
+      const metadata = {
+        ...(userData.user.user_metadata || {}),
+        avatar_bg_color: selectedAvatar.backgroundColor,
+        avatar_initials: initials,
+        avatar_url: avatarUrl,
+        banner_url: bannerUrl,
+      };
+      const { error: metadataError } = await supabase.auth.updateUser({ data: metadata });
+      if (metadataError) throw metadataError;
+
+      const profileValues = {
+        id: userData.user.id,
+        token,
+        full_name: displayName,
+        role: "student",
+        avatar_bg_color: selectedAvatar.backgroundColor,
+        avatar_initials: initials,
+        avatar_url: avatarUrl || null,
+        banner_url: bannerUrl || null,
+        updated_at: new Date().toISOString(),
+      };
+      let { error: profileError } = await supabase
+        .from("profiles")
+        .upsert(profileValues, { onConflict: "id" });
+      if (profileError && (profileError.code === "42703" || profileError.code === "PGRST204")
+        && /(avatar_bg_color|avatar_initials|avatar_url|banner_url)/i.test(profileError.message || "")) {
+        console.warn("Profile customization columns unavailable; auth metadata was saved:", profileError);
+        const { avatar_bg_color: _avatarBgColor, avatar_initials: _avatarInitials, avatar_url: _avatarUrl, banner_url: _bannerUrl, ...fallbackProfileValues } = profileValues;
+        const fallback = await supabase
+          .from("profiles")
+          .upsert(fallbackProfileValues, { onConflict: "id" });
+        profileError = fallback.error;
+      }
+      if (profileError) throw profileError;
+
       const saveMode = await saveStudentProfile(token, {
         ...activeStudent.profile,
         fullName: displayName,
         avatarUrl,
         bannerUrl,
-      });
-      let metadataSaved = false;
-      try {
-        const { data: userData, error: userError } = await supabase.auth.getUser();
-        if (userError || !userData.user) throw userError || new Error("No authenticated user is available.");
-        const { error } = await supabase.auth.updateUser({
-          data: {
-            ...userData.user.user_metadata,
-            avatar_bg_color: selectedAvatar.backgroundColor,
-            avatar_initials: initials,
-            avatar_url: avatarUrl,
-            banner_url: bannerUrl,
-          },
-        });
-        if (error) throw error;
-        metadataSaved = true;
-      } catch (error) {
-        logDashboardError("Profile metadata sync unavailable; keeping local preferences:", error);
-      }
+      }, { strict: true });
+      if (saveMode !== "database") throw new Error("Supabase did not confirm that the student profile was saved.");
       try {
         window.localStorage.setItem(`fluentia:profile:${token}`, JSON.stringify(preferences));
       } catch (error) {
         logDashboardError("Profile preferences could not be cached locally:", error);
       }
       window.dispatchEvent(new CustomEvent("fluentia:student-profile-updated", { detail: preferences }));
+      setActiveStudent((current) => current ? {
+        ...current,
+        profile: {
+          ...current.profile,
+          avatarUrl,
+          bannerUrl,
+          avatarBgColor: selectedAvatar.backgroundColor,
+          avatarInitials: initials,
+        },
+      } : current);
+      setAvatarPreset(AVATAR_PRESETS.find((preset) => preset.backgroundColor === selectedAvatar.backgroundColor)?.id || "amber");
+      setAvatarInitials(initials);
+      setCustomAvatarUrl(avatarUrl);
+      setCustomBannerUrl(bannerUrl);
+      const { data: refreshedUser, error: refreshError } = await supabase.auth.getUser();
+      if (refreshError) throw refreshError;
+      if (refreshedUser.user) {
+        const { data: refreshedProfile, error: refreshedProfileError } = await supabase
+          .from("profiles")
+          .select("avatar_bg_color, avatar_initials, avatar_url, banner_url")
+          .eq("id", refreshedUser.user.id)
+          .maybeSingle();
+        if (refreshedProfileError && refreshedProfileError.code !== "42703" && refreshedProfileError.code !== "PGRST204") {
+          throw refreshedProfileError;
+        }
+        const refreshedMetadata = refreshedUser.user.user_metadata as Record<string, unknown>;
+        const nextAvatarColor = typeof refreshedProfile?.avatar_bg_color === "string"
+          ? refreshedProfile.avatar_bg_color
+          : typeof refreshedMetadata.avatar_bg_color === "string" ? refreshedMetadata.avatar_bg_color : selectedAvatar.backgroundColor;
+        const nextInitials = typeof refreshedProfile?.avatar_initials === "string"
+          ? refreshedProfile.avatar_initials
+          : typeof refreshedMetadata.avatar_initials === "string" ? refreshedMetadata.avatar_initials : initials;
+        setActiveStudent((current) => current ? {
+          ...current,
+          profile: {
+            ...current.profile,
+            avatarBgColor: nextAvatarColor,
+            avatarInitials: nextInitials,
+            avatarUrl: typeof refreshedProfile?.avatar_url === "string" ? refreshedProfile.avatar_url : avatarUrl,
+            bannerUrl: typeof refreshedProfile?.banner_url === "string" ? refreshedProfile.banner_url : bannerUrl,
+          },
+        } : current);
+      }
       setBannerLoadFailed(false);
-      setProfileSaveNotice(saveMode === "database" && metadataSaved
-        ? "Profile settings saved."
-        : "Settings saved with a local fallback for unavailable profile fields.");
+      setProfileSaveNotice("Profile settings saved.");
       setProfileOpen(false);
     } catch (error) {
-      logDashboardError("Failed to save student profile customization:", error);
-      setProfileImageStatus("Settings were kept on this device but could not be saved to your profile.");
+      console.error("Failed to save student profile customization:", error);
+      const details = error && typeof error === "object" ? error as DashboardError : undefined;
+      setProfileSaveError(details?.message || details?.details || (error instanceof Error ? error.message : String(error)));
     } finally {
       setIsSavingProfileCustomization(false);
     }
@@ -892,6 +954,7 @@ function DashboardContent() {
   return (
     <main className="min-h-screen bg-[#0c1017] text-[#e8e7e4] font-sans">
       {profileSaveNotice && <div role="status" className="fixed bottom-5 right-5 z-[100] flex items-center gap-3 rounded-md border border-emerald-500/30 bg-[#171d28] px-4 py-3 text-xs text-emerald-300 shadow-xl"><span>{profileSaveNotice}</span><button type="button" onClick={() => setProfileSaveNotice(null)} aria-label="Dismiss profile save notification" className="text-emerald-200/70 hover:text-emerald-100"><X className="h-4 w-4" /></button></div>}
+      {profileSaveError && <div role="alert" className="fixed bottom-5 right-5 z-[100] flex items-center gap-3 rounded-md border border-red-500/40 bg-[#241719] px-4 py-3 text-xs text-red-200 shadow-xl"><span>{profileSaveError}</span><button type="button" onClick={() => setProfileSaveError(null)} aria-label="Dismiss profile save error" className="text-red-200/70 hover:text-red-100"><X className="h-4 w-4" /></button></div>}
       <div className="mx-auto max-w-7xl px-4 pt-6 md:px-6">
         <header
           style={{
@@ -954,7 +1017,7 @@ function DashboardContent() {
                 aria-controls="student-profile-flyout"
                 style={
                   !avatarImage
-                    ? { backgroundColor: selectedAvatar.backgroundColor }
+                    ? { backgroundColor: badgeColor }
                     : undefined
                 }
                 className={`flex h-8 w-8 items-center justify-center overflow-hidden rounded-full text-xs font-bold transition hover:ring-2 hover:ring-amber-400/60 ${avatarImage ? "bg-[#283344]" : selectedAvatar.className}`}
@@ -1177,36 +1240,7 @@ function DashboardContent() {
                   <div className="border-t border-[#29303c] bg-[#171d28] p-4">
                     <button
                       type="button"
-                      onClick={() => {
-                        const preferences = {
-                          avatarPreset,
-                          customAvatarUrl,
-                          bannerPreset,
-                          customBannerUrl,
-                        };
-                        void saveStudentProfile(token, {
-                          ...activeStudent.profile,
-                          fullName: displayName,
-                          avatarUrl: customAvatarUrl,
-                          bannerUrl: customBannerUrl,
-                        }).catch((error) =>
-                          logDashboardError(
-                            "Failed to save student profile:",
-                            error,
-                          ),
-                        );
-                        window.localStorage.setItem(
-                          `fluentia:profile:${token}`,
-                          JSON.stringify(preferences),
-                        );
-                        window.dispatchEvent(
-                          new CustomEvent("fluentia:student-profile-updated", {
-                            detail: preferences,
-                          }),
-                        );
-                        setBannerLoadFailed(false);
-                        setProfileOpen(false);
-                      }}
+                      onClick={() => void saveProfileCustomization()}
                       className="w-full rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-amber-400"
                     >
                       Save settings
@@ -1269,7 +1303,7 @@ function DashboardContent() {
                   aria-controls="student-profile-flyout"
                   style={
                     !avatarImage
-                      ? { backgroundColor: selectedAvatar.backgroundColor }
+                      ? { backgroundColor: badgeColor }
                       : undefined
                   }
                   className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-bold transition hover:ring-2 hover:ring-amber-400/60 ${avatarImage ? "bg-[#283344]" : selectedAvatar.className}`}

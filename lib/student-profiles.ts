@@ -96,7 +96,11 @@ function getStudentProfileLocally(studentToken: string): Partial<StudentProfile>
   }
 }
 
-export async function saveStudentProfile(studentToken: string, profile: StudentProfile): Promise<StudentProfileSaveMode> {
+export async function saveStudentProfile(
+  studentToken: string,
+  profile: StudentProfile,
+  options: { strict?: boolean } = {},
+): Promise<StudentProfileSaveMode> {
   if (!isSupabaseConfigured()) {
     saveStudentProfileLocally(studentToken, profile);
     return "local";
@@ -161,6 +165,7 @@ export async function saveStudentProfile(studentToken: string, profile: StudentP
     }
     return "database";
   } catch (error) {
+    if (options.strict) throw error;
     const details = error && typeof error === "object"
       ? error as { message?: string; details?: string; hint?: string; code?: string }
       : {};
