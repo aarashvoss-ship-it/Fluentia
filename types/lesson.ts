@@ -272,6 +272,8 @@ export interface StudentProfile {
   fullName: string;
   avatarUrl?: string;
   bannerUrl?: string;
+  avatarBgColor?: string;
+  avatarInitials?: string;
   level: string;
   targetGoal: string;
   core_goal?: string;

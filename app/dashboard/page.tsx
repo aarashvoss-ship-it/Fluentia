@@ -193,6 +193,7 @@ function DashboardContent() {
     useState<ProfilePreferences["bannerPreset"]>("default-dark");
   const [customBannerUrl, setCustomBannerUrl] = useState("");
   const [profileImageStatus, setProfileImageStatus] = useState<string | null>(null);
+  const [profileSaveNotice, setProfileSaveNotice] = useState<string | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
   const [isSavingProfileCustomization, setIsSavingProfileCustomization] = useState(false);
@@ -587,10 +588,20 @@ function DashboardContent() {
         const savedAvatarColor = preferences.avatar_bg_color || metadataAvatarColor;
         const colorPreset = AVATAR_PRESETS.find((preset) => preset.backgroundColor === savedAvatarColor)?.id;
         setAvatarPreset(preferences.avatarPreset || colorPreset || "amber");
-        setAvatarInitials(
-          preferences.avatar_initials
-          || (typeof userMetadata.avatar_initials === "string" ? userMetadata.avatar_initials : ""),
-        );
+        const savedAvatarInitials = (preferences.avatar_initials
+          || (typeof userMetadata.avatar_initials === "string" ? userMetadata.avatar_initials : ""))
+          .replace(/[^a-z]/gi, "")
+          .slice(0, 3)
+          .toUpperCase();
+        setAvatarInitials(savedAvatarInitials);
+        setActiveStudent((current) => current ? {
+          ...current,
+          profile: {
+            ...current.profile,
+            avatarBgColor: savedAvatarColor || AVATAR_PRESETS[0].backgroundColor,
+            avatarInitials: savedAvatarInitials,
+          },
+        } : current);
         setCustomAvatarUrl(
           preferences.customAvatarUrl || preferences.avatar_url || active.profile.avatarUrl || "",
         );
@@ -696,7 +707,9 @@ function DashboardContent() {
       .slice(0, 2)
       .toUpperCase();
   const defaultProfileInitials = displayName
-    .split(" ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
     .map((part) => part[0])
     .join("")
     .slice(0, 2)
@@ -807,6 +820,7 @@ function DashboardContent() {
   const saveProfileCustomization = async () => {
     setIsSavingProfileCustomization(true);
     setProfileImageStatus(null);
+    setProfileSaveNotice(null);
     const avatarUrl = customAvatarUrl.trim();
     const bannerUrl = customBannerUrl.trim();
     const initials = customizedInitials;
@@ -820,14 +834,25 @@ function DashboardContent() {
       banner_url: bannerUrl,
       customBannerUrl: bannerUrl,
     };
+    setActiveStudent((current) => current ? {
+      ...current,
+      profile: {
+        ...current.profile,
+        avatarUrl,
+        bannerUrl,
+        avatarBgColor: selectedAvatar.backgroundColor,
+        avatarInitials: initials,
+      },
+    } : current);
 
     try {
-      await saveStudentProfile(token, {
+      const saveMode = await saveStudentProfile(token, {
         ...activeStudent.profile,
         fullName: displayName,
         avatarUrl,
         bannerUrl,
       });
+      let metadataSaved = false;
       try {
         const { data: userData, error: userError } = await supabase.auth.getUser();
         if (userError || !userData.user) throw userError || new Error("No authenticated user is available.");
@@ -841,6 +866,7 @@ function DashboardContent() {
           },
         });
         if (error) throw error;
+        metadataSaved = true;
       } catch (error) {
         logDashboardError("Profile metadata sync unavailable; keeping local preferences:", error);
       }
@@ -849,12 +875,11 @@ function DashboardContent() {
       } catch (error) {
         logDashboardError("Profile preferences could not be cached locally:", error);
       }
-      setActiveStudent((current) => current ? {
-        ...current,
-        profile: { ...current.profile, avatarUrl, bannerUrl },
-      } : current);
       window.dispatchEvent(new CustomEvent("fluentia:student-profile-updated", { detail: preferences }));
       setBannerLoadFailed(false);
+      setProfileSaveNotice(saveMode === "database" && metadataSaved
+        ? "Profile settings saved."
+        : "Settings saved with a local fallback for unavailable profile fields.");
       setProfileOpen(false);
     } catch (error) {
       logDashboardError("Failed to save student profile customization:", error);
@@ -866,6 +891,7 @@ function DashboardContent() {
 
   return (
     <main className="min-h-screen bg-[#0c1017] text-[#e8e7e4] font-sans">
+      {profileSaveNotice && <div role="status" className="fixed bottom-5 right-5 z-[100] flex items-center gap-3 rounded-md border border-emerald-500/30 bg-[#171d28] px-4 py-3 text-xs text-emerald-300 shadow-xl"><span>{profileSaveNotice}</span><button type="button" onClick={() => setProfileSaveNotice(null)} aria-label="Dismiss profile save notification" className="text-emerald-200/70 hover:text-emerald-100"><X className="h-4 w-4" /></button></div>}
       <div className="mx-auto max-w-7xl px-4 pt-6 md:px-6">
         <header
           style={{
@@ -1398,7 +1424,7 @@ function DashboardContent() {
                           </label>
                           <div className="mt-3 flex items-center gap-3 rounded-md border border-[#29303c] bg-[#0c1017] p-2">
                             <span style={{ backgroundColor: selectedAvatar.backgroundColor }} className={`flex h-10 w-10 items-center justify-center overflow-hidden rounded-full text-xs font-bold ${selectedAvatar.className}`}>
-                              {avatarImage ? <img src={avatarImage} alt="Custom avatar preview" className="h-full w-full object-cover" /> : visibleAvatarInitials}
+                              {visibleAvatarInitials}
                             </span>
                             <span className="text-xs text-stone-400">Live badge preview</span>
                           </div>
