@@ -2,7 +2,7 @@
 
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Music, Pause, Play, Plus, Trash2, Volume2, VolumeX, X } from "lucide-react";
-import { AMBIENT_TRACKS, type LessonAudioTrack } from "@/lib/musicTracks";
+import { AMBIENT_TRACKS, getYoutubeEmbedUrl, getYoutubeVideoId, isYoutubeUrl, type LessonAudioTrack } from "@/lib/musicTracks";
 import { getAmbientTracks } from "@/lib/music-library";
 import { Tooltip } from "@/components/shared/tooltip";
 
@@ -129,6 +129,8 @@ export function AmbientMusicPlayer({ src, tracks, studentScope = "student" }: Am
     ...studentTracks.map((track) => ({ ...track, source: "student" as const })),
   ];
   const currentTrack = selectedTrack || src || globalTracks[0]?.url || "";
+  const youtubeVideoId = getYoutubeVideoId(currentTrack);
+  const isYoutubeTrack = isYoutubeUrl(currentTrack);
 
   useEffect(() => {
     let mounted = true;
@@ -239,7 +241,7 @@ export function AmbientMusicPlayer({ src, tracks, studentScope = "student" }: Am
     } catch {
       // Volume still applies to the current audio element.
     }
-    if (!isEnabled || !isPlaying) {
+    if (isYoutubeTrack || !isEnabled || !isPlaying) {
       audio.pause();
       return;
     }
@@ -267,7 +269,11 @@ export function AmbientMusicPlayer({ src, tracks, studentScope = "student" }: Am
       return;
     }
     if (!isHttpUrl(url)) {
-      setTrackError("Enter a valid direct audio URL beginning with http or https.");
+      setTrackError("Enter a valid audio URL or YouTube video link.");
+      return;
+    }
+    if (isYoutubeUrl(url) && !getYoutubeVideoId(url)) {
+      setTrackError("Paste a link to an individual YouTube video, not a playlist.");
       return;
     }
     const item: StudentTrack = { id: `student-${crypto.randomUUID()}`, title, url };
@@ -351,7 +357,8 @@ export function AmbientMusicPlayer({ src, tracks, studentScope = "student" }: Am
 
   return (
     <div className="relative flex items-center gap-1">
-      <audio ref={audioRef} src={currentTrack} loop preload="none" onError={() => failOverToGlobalTrack(currentTrack)} onEnded={() => setIsPlaying(false)} />
+      {!isYoutubeTrack && <audio ref={audioRef} src={currentTrack} loop preload="none" onError={() => failOverToGlobalTrack(currentTrack)} onEnded={() => setIsPlaying(false)} />}
+      {youtubeVideoId && isEnabled && isPlaying && <div className="absolute bottom-10 right-0 z-50 w-[min(90vw,360px)] overflow-hidden rounded-md border border-[#394252] bg-[#0c1017] shadow-xl"><iframe key={currentTrack} src={getYoutubeEmbedUrl(currentTrack, true) || undefined} title={`YouTube player: ${availableTracks.find((track) => track.url === currentTrack)?.title || "ambient track"}`} className="aspect-video w-full" allow="autoplay; encrypted-media; picture-in-picture; web-share" allowFullScreen /><p className="px-3 py-2 text-[10px] text-stone-400">Use the YouTube player controls to adjust volume.</p></div>}
       <Tooltip content="Open the music library"><button type="button" onClick={() => setShowTracks((open) => !open)} aria-label="Choose ambient music track" aria-expanded={showTracks} className={`flex h-8 w-8 items-center justify-center rounded-lg border p-2 transition-all ${isEnabled ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-slate-700 bg-slate-800/80 text-stone-400 hover:text-amber-300"}`}>
         <Music className="h-3.5 w-3.5" aria-hidden="true" />
       </button></Tooltip>
@@ -367,10 +374,10 @@ export function AmbientMusicPlayer({ src, tracks, studentScope = "student" }: Am
         {trackNotice && <p role="status" className="px-2 py-1 text-[10px] text-amber-300">{trackNotice}</p>}
         <div className="mt-1 space-y-0.5">{availableTracks.map((item) => <div key={item.id} className="flex items-center gap-1"><Tooltip content={`Play ${item.title}${item.source === "student" ? " (your track)" : ""}`}><button type="button" onClick={() => selectTrack(item)} className={`min-w-0 flex-1 truncate rounded px-2 py-2 text-left text-xs transition hover:bg-amber-500/10 hover:text-amber-300 ${currentTrack === item.url ? "text-amber-300" : "text-stone-400"}`} title={item.title}>{item.title}{item.source === "student" && <span className="ml-1 text-[9px] text-stone-600">Yours</span>}</button></Tooltip>{item.source === "student" && <Tooltip content={`Remove ${item.title} from your local music list`}><button type="button" onClick={() => removeStudentTrack(item as StudentTrack)} aria-label={`Remove ${item.title}`} className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-stone-500 hover:bg-red-500/10 hover:text-red-300"><Trash2 className="h-3.5 w-3.5" /></button></Tooltip>}</div>)}</div>
       </div>}
-      <Tooltip content="Adjust music volume"><button type="button" onClick={() => setShowVolume((open) => !open)} aria-label="Adjust ambient music volume" aria-expanded={showVolume} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-800/80 p-2 text-stone-400 transition-all hover:border-amber-500/50 hover:text-amber-300">
+      {!isYoutubeTrack && <Tooltip content="Adjust music volume"><button type="button" onClick={() => setShowVolume((open) => !open)} aria-label="Adjust ambient music volume" aria-expanded={showVolume} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-800/80 p-2 text-stone-400 transition-all hover:border-amber-500/50 hover:text-amber-300">
         {volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-      </button></Tooltip>
-      {showVolume && <div className="absolute right-0 top-10 z-40 flex w-36 items-center gap-2 rounded-md border border-[#394252] bg-[#171d28] p-3 shadow-xl"><VolumeX className="h-3.5 w-3.5 text-stone-500" /><input type="range" min="0" max="1" step="0.01" value={volume} onChange={(event) => setVolume(Number(event.target.value))} aria-label="Ambient music volume" className="h-1 w-full accent-amber-500" /><Volume2 className="h-3.5 w-3.5 text-amber-400" /></div>}
+      </button></Tooltip>}
+      {showVolume && !isYoutubeTrack && <div className="absolute right-0 top-10 z-40 flex w-36 items-center gap-2 rounded-md border border-[#394252] bg-[#171d28] p-3 shadow-xl"><VolumeX className="h-3.5 w-3.5 text-stone-500" /><input type="range" min="0" max="1" step="0.01" value={volume} onChange={(event) => setVolume(Number(event.target.value))} aria-label="Ambient music volume" className="h-1 w-full accent-amber-500" /><Volume2 className="h-3.5 w-3.5 text-amber-400" /></div>}
       <Tooltip content={isEnabled ? "Mute ambient music" : "Unmute ambient music"}><button type="button" onClick={toggleEnabled} aria-label={isEnabled ? "Disable ambient music" : "Enable ambient music"} aria-pressed={isEnabled} className={`flex h-8 w-8 items-center justify-center rounded-lg border p-2 transition-all ${isEnabled ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-slate-700 bg-slate-800/80 text-stone-400 hover:text-amber-300"}`}>
         {isEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
       </button></Tooltip>

@@ -6,6 +6,46 @@ export interface AmbientTrack {
 
 export type LessonAudioTrack = { title: string; url: string };
 
+const YOUTUBE_HOSTS = new Set([
+  "youtube.com",
+  "www.youtube.com",
+  "music.youtube.com",
+  "m.youtube.com",
+  "youtu.be",
+  "www.youtu.be",
+]);
+
+export function getYoutubeVideoId(value: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
+  if (!['http:', 'https:'].includes(url.protocol) || !YOUTUBE_HOSTS.has(url.hostname.toLowerCase())) return null;
+
+  const videoId = url.hostname.toLowerCase().endsWith("youtu.be")
+    ? url.pathname.split("/").filter(Boolean)[0]
+    : url.searchParams.get("v") || url.pathname.match(/^\/(?:shorts|embed|live)\/([^/]+)/)?.[1];
+  return videoId && /^[A-Za-z0-9_-]{11}$/.test(videoId) ? videoId : null;
+}
+
+export function getYoutubeEmbedUrl(value: string, autoplay = false): string | null {
+  const videoId = getYoutubeVideoId(value);
+  return videoId
+    ? `https://www.youtube.com/embed/${videoId}?autoplay=${autoplay ? "1" : "0"}&controls=1&playsinline=1`
+    : null;
+}
+
+export function isYoutubeUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return ["http:", "https:"].includes(url.protocol) && YOUTUBE_HOSTS.has(url.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
 export const AMBIENT_TRACKS: AmbientTrack[] = [
   {
     id: "deep-focus",

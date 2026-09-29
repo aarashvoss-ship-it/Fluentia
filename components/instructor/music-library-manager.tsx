@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Check, Pause, Play, Plus, Trash2, Upload, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { createAmbientTrack, deleteAmbientTrack } from "@/lib/music-library";
-import { DEFAULT_LESSON_AUDIO_TRACKS } from "@/lib/musicTracks";
+import { DEFAULT_LESSON_AUDIO_TRACKS, getYoutubeEmbedUrl, getYoutubeVideoId, isYoutubeUrl } from "@/lib/musicTracks";
 import type { AmbientTrackRow } from "@/lib/supabase";
 import { Tooltip } from "@/components/shared/tooltip";
 
@@ -72,8 +72,11 @@ export function MusicLibraryManager() {
     } catch {
       return;
     }
-    const youtubeHosts = ["youtube.com", "www.youtube.com", "music.youtube.com", "m.youtube.com", "youtu.be", "www.youtu.be"];
-    if (!youtubeHosts.includes(parsedUrl.hostname.toLowerCase())) return;
+    if (!isYoutubeUrl(trackUrl.trim())) return;
+    if (!getYoutubeVideoId(trackUrl.trim())) {
+      setStatus("Playlist links cannot be added as one track. Paste an individual video link from the playlist.");
+      return;
+    }
 
     const controller = new AbortController();
     const timeout = window.setTimeout(async () => {
@@ -86,13 +89,13 @@ export function MusicLibraryManager() {
           body: JSON.stringify({ url: trackUrl.trim() }),
           signal: controller.signal,
         });
-        const result = await response.json() as { title?: string; error?: string };
+        const result = await response.json() as { title?: string; authorName?: string; error?: string };
         if (!response.ok || !result.title) throw new Error(result.error || "Unable to read this YouTube video.");
         setTrackTitle((current) => current.trim() || result.title || "");
-        setStatus("Video title found. Upload an audio file you have permission to use; YouTube links are not playable audio streams.");
+        setStatus(`Video title found${result.authorName ? ` by ${result.authorName}` : ""}. You can edit the title before adding.`);
       } catch (error) {
         if (controller.signal.aborted) return;
-        setStatus(error instanceof Error ? error.message : "Unable to process this YouTube link.");
+        setStatus("Couldn't load video details. Enter a title manually; the YouTube link can still be added.");
       } finally {
         if (!controller.signal.aborted) setIsResolvingYoutube(false);
       }
@@ -111,6 +114,10 @@ export function MusicLibraryManager() {
       return;
     }
     audioRef.current?.pause();
+    if (getYoutubeVideoId(track.url)) {
+      setPlayingId(track.id);
+      return;
+    }
     const audio = new Audio(track.url);
     audioRef.current = audio;
     audio.onended = () => setPlayingId(null);
@@ -170,13 +177,12 @@ export function MusicLibraryManager() {
       setStatus("Enter a valid direct audio URL.");
       return;
     }
-    const youtubeHosts = ["youtube.com", "www.youtube.com", "music.youtube.com", "m.youtube.com", "youtu.be", "www.youtu.be"];
-    if (youtubeHosts.includes(parsedUrl.hostname.toLowerCase())) {
-      setStatus("Upload an audio file you have permission to use. YouTube links cannot be added as audio streams.");
-      return;
-    }
     if (!title || !["http:", "https:"].includes(parsedUrl.protocol)) {
       setStatus("Enter a title and an http or https audio URL.");
+      return;
+    }
+    if (isYoutubeUrl(url) && !getYoutubeVideoId(url)) {
+      setStatus("Playlist links cannot be added as one track. Paste an individual video link from the playlist.");
       return;
     }
     setIsSaving(true);
@@ -185,7 +191,7 @@ export function MusicLibraryManager() {
       setTrackTitle("");
       setTrackUrl("");
       await loadTracks();
-      setStatus("Track added to the shared library.");
+      setStatus(isYoutubeUrl(url) ? "YouTube track added. Playback uses the embedded YouTube player." : "Track added to the shared library.");
     } catch (error) {
       setStatus(error instanceof Error ? `Unable to add track: ${error.message}` : "Unable to add this track.");
     } finally {
@@ -220,13 +226,14 @@ export function MusicLibraryManager() {
       <Tooltip content="Add a shared audio upload or stream URL"><button type="button" onClick={() => setIsAddTrackOpen((open) => !open)} aria-expanded={isAddTrackOpen} className="inline-flex items-center gap-2 rounded-md bg-amber-500 px-4 py-2.5 text-xs font-semibold text-slate-950 transition hover:bg-amber-400"><Plus className="h-4 w-4" />Add New Track</button></Tooltip>
     </div>
     {status && <p className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300" role="status">{status}</p>}
+    {playingId && tracks.some((track) => track.id === playingId && getYoutubeVideoId(track.url)) && <div className="max-w-xl overflow-hidden rounded-md border border-[#394252] bg-[#0c1017]"><iframe src={getYoutubeEmbedUrl(tracks.find((track) => track.id === playingId)?.url || "", true) || undefined} title={`YouTube preview: ${tracks.find((track) => track.id === playingId)?.title || "track"}`} className="aspect-video w-full" allow="autoplay; encrypted-media; picture-in-picture; web-share" allowFullScreen /></div>}
     {isAddTrackOpen && <section aria-label="Add a shared audio track" className="grid gap-4 rounded-lg border border-[#394252] bg-[#171d28]/60 p-4 md:grid-cols-2">
       <label className="text-xs text-stone-400 md:col-span-2">Track title<input value={trackTitle} onChange={(event) => setTrackTitle(event.target.value)} maxLength={120} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2.5 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
       <form onSubmit={(event) => void addDirectUrl(event)} className="space-y-3 rounded-md border border-[#293343] bg-[#0c1017] p-4">
         <h3 className="text-sm font-semibold text-stone-200">Add audio stream or URL</h3>
         <label className="block text-xs text-stone-400">Stream or direct audio URL<input type="url" required value={trackUrl} onChange={(event) => setTrackUrl(event.target.value)} placeholder="https://radio.example.com/live or https://cdn.example.com/track.mp3" className="mt-1 w-full rounded-md border border-[#394252] bg-[#171d28] px-3 py-2.5 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
-        <p className="text-[10px] text-stone-500">Supports HTTP/HTTPS radio streams and direct audio links. YouTube links fill in the video title; upload authorized audio separately.</p>
-        <button type="submit" disabled={isSaving || isResolvingYoutube} className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500/10 disabled:opacity-50"><Plus className="h-3.5 w-3.5" />{isResolvingYoutube ? "Processing YouTube link..." : "Add shared stream"}</button>
+        <p className="text-[10px] text-stone-500">Supports HTTP/HTTPS audio streams and individual YouTube video links. YouTube tracks play in an embedded player.</p>
+        <button type="submit" disabled={isSaving || isResolvingYoutube} className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500/10 disabled:opacity-50"><Plus className="h-3.5 w-3.5" />{isResolvingYoutube ? "Processing YouTube link..." : isYoutubeUrl(trackUrl) ? "Add YouTube track" : "Add shared stream"}</button>
       </form>
       <div className="space-y-3 rounded-md border border-[#293343] bg-[#0c1017] p-4">
         <h3 className="text-sm font-semibold text-stone-200">Upload an audio file</h3>
@@ -235,7 +242,7 @@ export function MusicLibraryManager() {
         <Tooltip content="Upload the selected audio file to the shared student library"><button type="button" disabled={!trackFile || isSaving} onClick={() => void uploadTrack(trackFile || undefined)} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"><Upload className="h-3.5 w-3.5" />{isSaving ? "Uploading..." : "Upload track"}</button></Tooltip>
       </div>
     </section>}
-    <div className="overflow-hidden rounded-xl border border-[#202631] bg-[#171d28]/60"><table className="w-full text-left text-xs"><thead className="border-b border-[#202631] bg-[#0c1017] text-[10px] uppercase tracking-[0.12em] text-stone-500"><tr><th className="px-5 py-3">Track Title</th><th className="px-4 py-3">Source</th><th className="px-4 py-3">URL</th><th className="px-4 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-[#202631]">{tracks.map((track) => <tr key={track.id}><td className="px-5 py-4 font-medium text-stone-200">{track.title}</td><td className="px-4 py-4 text-stone-400">{track.source_type === "upload" ? "Uploaded file" : "Stream / URL"}</td><td className="max-w-[360px] truncate px-4 py-4 text-stone-500">{track.url}</td><td className="px-4 py-4"><div className="flex justify-end gap-2"><Tooltip content={`Preview ${track.title}`}><button type="button" onClick={() => void togglePreview(track)} aria-label={`${playingId === track.id ? "Pause" : "Play"} ${track.title}`} className="flex h-8 w-8 items-center justify-center rounded-md border border-amber-500/40 text-amber-300 hover:bg-amber-500/10">{playingId === track.id ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</button></Tooltip><Tooltip content={`Delete ${track.title} from the shared library`}><button type="button" onClick={() => setTrackPendingDelete(track)} aria-label={`Remove ${track.title}`} disabled={track.id.startsWith("fallback-")} className="flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-40"><Trash2 className="h-4 w-4" /></button></Tooltip></div></td></tr>)}{tracks.length === 0 && <tr><td colSpan={4} className="px-5 py-10 text-center text-stone-500">No tracks in the shared library.</td></tr>}</tbody></table></div>
+    <div className="overflow-hidden rounded-xl border border-[#202631] bg-[#171d28]/60"><table className="w-full text-left text-xs"><thead className="border-b border-[#202631] bg-[#0c1017] text-[10px] uppercase tracking-[0.12em] text-stone-500"><tr><th className="px-5 py-3">Track Title</th><th className="px-4 py-3">Source</th><th className="px-4 py-3">URL</th><th className="px-4 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-[#202631]">{tracks.map((track) => <tr key={track.id}><td className="px-5 py-4 font-medium text-stone-200">{track.title}</td><td className="px-4 py-4 text-stone-400">{track.source_type === "upload" ? "Uploaded file" : getYoutubeVideoId(track.url) ? "YouTube" : "Stream / URL"}</td><td className="max-w-[360px] truncate px-4 py-4 text-stone-500">{track.url}</td><td className="px-4 py-4"><div className="flex justify-end gap-2"><Tooltip content={`Preview ${track.title}`}><button type="button" onClick={() => void togglePreview(track)} aria-label={`${playingId === track.id ? "Pause" : "Play"} ${track.title}`} className="flex h-8 w-8 items-center justify-center rounded-md border border-amber-500/40 text-amber-300 hover:bg-amber-500/10">{playingId === track.id ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</button></Tooltip><Tooltip content={`Delete ${track.title} from the shared library`}><button type="button" onClick={() => setTrackPendingDelete(track)} aria-label={`Remove ${track.title}`} disabled={track.id.startsWith("fallback-")} className="flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-40"><Trash2 className="h-4 w-4" /></button></Tooltip></div></td></tr>)}{tracks.length === 0 && <tr><td colSpan={4} className="px-5 py-10 text-center text-stone-500">No tracks in the shared library.</td></tr>}</tbody></table></div>
     {trackPendingDelete && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !isDeleting) setTrackPendingDelete(null); }}><section role="dialog" aria-modal="true" aria-labelledby="delete-track-title" aria-describedby="delete-track-warning" className="w-full max-w-md rounded-lg border border-red-500/30 bg-[#171d28] p-5 shadow-2xl"><div className="flex items-start justify-between gap-3"><h3 id="delete-track-title" className="text-lg font-semibold text-stone-100">Delete shared track?</h3><button type="button" disabled={isDeleting} onClick={() => setTrackPendingDelete(null)} aria-label="Close confirmation" className="rounded border border-[#394252] p-1.5 text-stone-400 hover:text-stone-100 disabled:opacity-50"><X className="h-4 w-4" /></button></div><p id="delete-track-warning" className="mt-3 text-sm leading-relaxed text-stone-400">This removes the track from the shared student library. Students currently listening may hear the audio stop.</p><p className="mt-2 truncate text-xs text-amber-300">{trackPendingDelete.title}</p><div className="mt-5 flex justify-end gap-2"><button type="button" disabled={isDeleting} onClick={() => setTrackPendingDelete(null)} className="rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 disabled:opacity-50">Cancel</button><button type="button" disabled={isDeleting} onClick={() => void removeTrack()} className="inline-flex items-center gap-1.5 rounded-md bg-red-500 px-3 py-2 text-xs font-semibold text-white hover:bg-red-400 disabled:opacity-50">{isDeleting ? "Deleting..." : <><Check className="h-3.5 w-3.5" />Delete track</>}</button></div></section></div>}
   </section>;
 }
