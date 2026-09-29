@@ -1314,6 +1314,21 @@ export default function InstructorWorkstationPage({
           supabase.from("lessons").select("id", { count: "exact", head: true }).eq("status", "published"),
           supabase.from("lessons").select("id", { count: "exact", head: true }).eq("status", "draft"),
         ]);
+        const logCountError = (label: string, result: PromiseSettledResult<{ count: number | null; error: { code?: string; message: string; details?: string; hint?: string } | null }>) => {
+          if (result.status === "rejected") {
+            console.error(`Failed to load ${label} count:`, result.reason);
+          } else if (result.value.error) {
+            console.error(`Failed to load ${label} count:`, {
+              code: result.value.error.code,
+              message: result.value.error.message,
+              details: result.value.error.details,
+              hint: result.value.error.hint,
+            });
+          }
+        };
+        logCountError("pending submission", pendingResult);
+        logCountError("published lesson", publishedResult);
+        logCountError("draft lesson", draftsResult);
         const { data: studentRows, error: studentError } = await supabase
           .from("students")
           .select("id, name, email, token")
@@ -1323,9 +1338,15 @@ export default function InstructorWorkstationPage({
           throw new Error(studentError.message || "Unable to load students");
         }
         if (cancelled) return;
-        setPendingSubmissionCount(pendingResult.status === "fulfilled" ? pendingResult.value.count ?? 0 : 0);
-        setPublishedLessonCount(publishedResult.status === "fulfilled" ? publishedResult.value.count ?? 0 : 0);
-        setDraftLessonCount(draftsResult.status === "fulfilled" ? draftsResult.value.count ?? 0 : 0);
+        if (pendingResult.status === "fulfilled" && !pendingResult.value.error && pendingResult.value.count !== null) {
+          setPendingSubmissionCount(pendingResult.value.count);
+        }
+        if (publishedResult.status === "fulfilled" && !publishedResult.value.error && publishedResult.value.count !== null) {
+          setPublishedLessonCount(publishedResult.value.count);
+        }
+        if (draftsResult.status === "fulfilled" && !draftsResult.value.error && draftsResult.value.count !== null) {
+          setDraftLessonCount(draftsResult.value.count);
+        }
         const nextStudents: StudentUser[] = deduplicateStudents(studentRows || [])
           .filter((student) => student.name.trim() !== "Navid Kabazi")
           .map((student) => ({
@@ -1362,13 +1383,18 @@ export default function InstructorWorkstationPage({
       }
     };
     const refreshCounts = () => void loadCounts();
+    const refreshCountsFromStorage = (event: StorageEvent) => {
+      if (event.key === "fluentia:data-updated") refreshCounts();
+    };
     void loadCounts();
     window.addEventListener(FLUENTIA_DATA_UPDATED_EVENT, refreshCounts);
     window.addEventListener("fluentia:lesson-updated", refreshCounts);
+    window.addEventListener("storage", refreshCountsFromStorage);
     return () => {
       cancelled = true;
       window.removeEventListener(FLUENTIA_DATA_UPDATED_EVENT, refreshCounts);
       window.removeEventListener("fluentia:lesson-updated", refreshCounts);
+      window.removeEventListener("storage", refreshCountsFromStorage);
     };
   }, []);
 

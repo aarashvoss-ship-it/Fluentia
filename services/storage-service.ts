@@ -39,11 +39,20 @@ const NOTES_PREFIX = "fluentia:notes:";
 const CHAT_PREFIX = "fluentia:chat:";
 const THEME_PREFIX = "fluentia:theme:";
 export const FLUENTIA_DATA_UPDATED_EVENT = "fluentia:data-updated";
+const FLUENTIA_DATA_UPDATED_STORAGE_KEY = "fluentia:data-updated";
 const demoDataEnabled = () => process.env.NEXT_PUBLIC_ENABLE_DEMO_DATA === "true";
 
 function notifyDataUpdated(detail: { type: string; slug?: string; studentToken?: string }) {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(FLUENTIA_DATA_UPDATED_EVENT, { detail }));
+    try {
+      window.localStorage.setItem(
+        FLUENTIA_DATA_UPDATED_STORAGE_KEY,
+        JSON.stringify({ ...detail, updatedAt: Date.now() }),
+      );
+    } catch (error) {
+      console.warn("Unable to broadcast Fluentia data update to other tabs:", error);
+    }
   }
 }
 
