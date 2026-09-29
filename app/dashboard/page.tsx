@@ -12,6 +12,7 @@ import {
   MessageSquareText,
   PanelRight,
   Settings2,
+  Upload,
   UserRound,
   X,
 } from "lucide-react";
@@ -75,6 +76,12 @@ const AVATAR_PRESETS = [
     backgroundColor: "#10b981",
     className: "text-slate-950",
   },
+  {
+    id: "crimson",
+    label: "Crimson Red",
+    backgroundColor: "#dc2626",
+    className: "text-white",
+  },
 ] as const;
 
 const BANNER_PRESETS = [
@@ -102,6 +109,10 @@ type ProfilePreferences = {
   level?: string;
   targetGoal?: string;
   avatarPreset?: (typeof AVATAR_PRESETS)[number]["id"];
+  avatar_bg_color?: string;
+  avatar_initials?: string;
+  avatar_url?: string;
+  banner_url?: string;
   customAvatarUrl?: string;
   bannerPreset?: (typeof BANNER_PRESETS)[number]["id"];
   customBannerUrl?: string;
@@ -176,10 +187,17 @@ function DashboardContent() {
   );
   const [avatarPreset, setAvatarPreset] =
     useState<ProfilePreferences["avatarPreset"]>("amber");
+  const [avatarInitials, setAvatarInitials] = useState("");
   const [customAvatarUrl, setCustomAvatarUrl] = useState("");
   const [bannerPreset, setBannerPreset] =
     useState<ProfilePreferences["bannerPreset"]>("default-dark");
   const [customBannerUrl, setCustomBannerUrl] = useState("");
+  const [profileImageStatus, setProfileImageStatus] = useState<string | null>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isUploadingBanner, setIsUploadingBanner] = useState(false);
+  const [isSavingProfileCustomization, setIsSavingProfileCustomization] = useState(false);
+  const avatarFileRef = useRef<HTMLInputElement | null>(null);
+  const bannerFileRef = useRef<HTMLInputElement | null>(null);
   const [bannerLoadFailed, setBannerLoadFailed] = useState(false);
   const [savedInstructorNote, setSavedInstructorNote] = useState("");
 
@@ -462,7 +480,7 @@ function DashboardContent() {
 
         const { data: roleProfile } = await supabase
           .from("profiles")
-          .select("role")
+          .select("*")
           .eq("id", userData.user.id)
           .maybeSingle();
         const instructorProfile = roleProfile
@@ -520,6 +538,7 @@ function DashboardContent() {
         const resolvedStudentId = student?.id || userData.user.id;
         const fallbackName =
           userData.user.user_metadata?.name || userEmail || "Student";
+        const userMetadata = userData.user.user_metadata as Record<string, unknown>;
 
         const active: StudentUser = {
           id: resolvedStudentId,
@@ -532,8 +551,12 @@ function DashboardContent() {
             fullName: student?.name || fallbackName,
             level: "",
             targetGoal: "",
-            avatarUrl: undefined,
-            bannerUrl: undefined,
+            avatarUrl: typeof roleProfile?.avatar_url === "string"
+              ? roleProfile.avatar_url
+              : typeof userMetadata.avatar_url === "string" ? userMetadata.avatar_url : undefined,
+            bannerUrl: typeof roleProfile?.banner_url === "string"
+              ? roleProfile.banner_url
+              : typeof userMetadata.banner_url === "string" ? userMetadata.banner_url : undefined,
             weaknesses: [],
             teacherNotes: "",
             attendanceRate: 0,
@@ -558,13 +581,22 @@ function DashboardContent() {
           );
           window.localStorage.removeItem(`fluentia:profile:${studentToken}`);
         }
-        setAvatarPreset(preferences.avatarPreset || "amber");
+        const metadataAvatarColor = typeof userMetadata.avatar_bg_color === "string"
+          ? userMetadata.avatar_bg_color
+          : "";
+        const savedAvatarColor = preferences.avatar_bg_color || metadataAvatarColor;
+        const colorPreset = AVATAR_PRESETS.find((preset) => preset.backgroundColor === savedAvatarColor)?.id;
+        setAvatarPreset(preferences.avatarPreset || colorPreset || "amber");
+        setAvatarInitials(
+          preferences.avatar_initials
+          || (typeof userMetadata.avatar_initials === "string" ? userMetadata.avatar_initials : ""),
+        );
         setCustomAvatarUrl(
-          preferences.customAvatarUrl || active.profile.avatarUrl || "",
+          preferences.customAvatarUrl || preferences.avatar_url || active.profile.avatarUrl || "",
         );
         setBannerPreset(preferences.bannerPreset || "default-dark");
         setCustomBannerUrl(
-          preferences.customBannerUrl || active.profile.bannerUrl || "",
+          preferences.customBannerUrl || preferences.banner_url || active.profile.bannerUrl || "",
         );
         setIsMounted(true);
         const refreshLessons = () =>
@@ -663,12 +695,15 @@ function DashboardContent() {
       .join("")
       .slice(0, 2)
       .toUpperCase();
-  const profileInitials = displayName
+  const defaultProfileInitials = displayName
     .split(" ")
     .map((part) => part[0])
     .join("")
     .slice(0, 2)
     .toUpperCase();
+  const customizedInitials = avatarInitials.trim().replace(/[^a-z0-9]/gi, "").slice(0, 3).toUpperCase();
+  const profileInitials = customizedInitials || defaultProfileInitials;
+  const visibleAvatarInitials = profileInitials;
   const selectedAvatar =
     AVATAR_PRESETS.find((preset) => preset.id === avatarPreset) ||
     AVATAR_PRESETS[0];
@@ -725,6 +760,109 @@ function DashboardContent() {
   };
   const rememberLesson = (lessonId: string) =>
     writeLastAccessedLesson(lessonId, token);
+
+  const uploadProfileImage = async (file: File | undefined, kind: "avatar" | "banner") => {
+    if (!file) return;
+    const maxSize = kind === "avatar" ? 2 * 1024 * 1024 : 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setProfileImageStatus(`${kind === "avatar" ? "Avatar" : "Banner"} images must be ${kind === "avatar" ? "2" : "5"} MB or smaller.`);
+      return;
+    }
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setProfileImageStatus("Choose a JPG, PNG, or WEBP image.");
+      return;
+    }
+
+    const setUploading = kind === "avatar" ? setIsUploadingAvatar : setIsUploadingBanner;
+    setUploading(true);
+    setProfileImageStatus(`Uploading ${kind} image...`);
+    try {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData.user) throw userError || new Error("Sign in to upload a profile image.");
+      const extension = file.type === "image/jpeg" ? "jpg" : file.type === "image/png" ? "png" : "webp";
+      const path = `student-customization/${userData.user.id}/${kind}-${crypto.randomUUID()}.${extension}`;
+      const { error } = await supabase.storage.from("lesson-assets").upload(path, file, {
+        cacheControl: "3600",
+        contentType: file.type,
+        upsert: false,
+      });
+      if (error) throw error;
+      const { data } = supabase.storage.from("lesson-assets").getPublicUrl(path);
+      if (kind === "avatar") setCustomAvatarUrl(data.publicUrl);
+      else {
+        setCustomBannerUrl(data.publicUrl);
+        setBannerLoadFailed(false);
+      }
+      setProfileImageStatus(`${kind === "avatar" ? "Avatar" : "Banner"} uploaded. Save settings to apply it.`);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Check your connection and upload permissions.";
+      setProfileImageStatus(`Upload failed: ${detail}`);
+    } finally {
+      setUploading(false);
+      if (kind === "avatar" && avatarFileRef.current) avatarFileRef.current.value = "";
+      if (kind === "banner" && bannerFileRef.current) bannerFileRef.current.value = "";
+    }
+  };
+
+  const saveProfileCustomization = async () => {
+    setIsSavingProfileCustomization(true);
+    setProfileImageStatus(null);
+    const avatarUrl = customAvatarUrl.trim();
+    const bannerUrl = customBannerUrl.trim();
+    const initials = customizedInitials;
+    const preferences: ProfilePreferences = {
+      avatarPreset,
+      avatar_bg_color: selectedAvatar.backgroundColor,
+      avatar_initials: initials,
+      avatar_url: avatarUrl,
+      customAvatarUrl: avatarUrl,
+      bannerPreset,
+      banner_url: bannerUrl,
+      customBannerUrl: bannerUrl,
+    };
+
+    try {
+      await saveStudentProfile(token, {
+        ...activeStudent.profile,
+        fullName: displayName,
+        avatarUrl,
+        bannerUrl,
+      });
+      try {
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        if (userError || !userData.user) throw userError || new Error("No authenticated user is available.");
+        const { error } = await supabase.auth.updateUser({
+          data: {
+            ...userData.user.user_metadata,
+            avatar_bg_color: selectedAvatar.backgroundColor,
+            avatar_initials: initials,
+            avatar_url: avatarUrl,
+            banner_url: bannerUrl,
+          },
+        });
+        if (error) throw error;
+      } catch (error) {
+        logDashboardError("Profile metadata sync unavailable; keeping local preferences:", error);
+      }
+      try {
+        window.localStorage.setItem(`fluentia:profile:${token}`, JSON.stringify(preferences));
+      } catch (error) {
+        logDashboardError("Profile preferences could not be cached locally:", error);
+      }
+      setActiveStudent((current) => current ? {
+        ...current,
+        profile: { ...current.profile, avatarUrl, bannerUrl },
+      } : current);
+      window.dispatchEvent(new CustomEvent("fluentia:student-profile-updated", { detail: preferences }));
+      setBannerLoadFailed(false);
+      setProfileOpen(false);
+    } catch (error) {
+      logDashboardError("Failed to save student profile customization:", error);
+      setProfileImageStatus("Settings were kept on this device but could not be saved to your profile.");
+    } finally {
+      setIsSavingProfileCustomization(false);
+    }
+  };
 
   return (
     <main className="min-h-screen bg-[#0c1017] text-[#e8e7e4] font-sans">
@@ -1230,44 +1368,64 @@ function DashboardContent() {
                       <>
                         <div>
                           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">
-                            Theme options
+                            Avatar badge
                           </p>
-                          <div className="mt-2 flex gap-2">
-                            <Tooltip content="The dashboard currently uses Fluentia's dark theme">
-                            <button
-                              type="button"
-                              className="rounded-md border border-amber-500 bg-amber-500/10 px-2 py-1.5 text-[10px] text-amber-300"
-                            >
-                              Dark
-                            </button>
-                            </Tooltip>
-                            <span className="rounded-md border border-[#394252] px-2 py-1.5 text-[10px] text-stone-500">
-                              Fluentia dark theme
+                          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                            {AVATAR_PRESETS.map((preset) => (
+                              <button
+                                key={preset.id}
+                                type="button"
+                                onClick={() => setAvatarPreset(preset.id)}
+                                aria-label={`Use ${preset.label} badge color`}
+                                aria-pressed={avatarPreset === preset.id}
+                                className={`flex items-center gap-2 rounded-md border px-2 py-2 text-left text-[10px] text-stone-300 ${avatarPreset === preset.id ? "border-amber-500" : "border-[#394252] hover:border-amber-500/50"}`}
+                              >
+                                <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: preset.backgroundColor }} />
+                                <span className="truncate">{preset.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                          <label className="mt-3 block text-stone-400">
+                            Badge initials
+                            <input
+                              value={avatarInitials}
+                              onChange={(event) => setAvatarInitials(event.target.value.replace(/[^a-z]/gi, "").slice(0, 3).toUpperCase())}
+                              maxLength={3}
+                              placeholder={defaultProfileInitials}
+                              className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2 text-xs uppercase text-stone-200"
+                            />
+                            <span className="mt-1 block text-[10px] text-stone-500">Leave blank to use your name initials.</span>
+                          </label>
+                          <div className="mt-3 flex items-center gap-3 rounded-md border border-[#29303c] bg-[#0c1017] p-2">
+                            <span style={{ backgroundColor: selectedAvatar.backgroundColor }} className={`flex h-10 w-10 items-center justify-center overflow-hidden rounded-full text-xs font-bold ${selectedAvatar.className}`}>
+                              {avatarImage ? <img src={avatarImage} alt="Custom avatar preview" className="h-full w-full object-cover" /> : visibleAvatarInitials}
                             </span>
+                            <span className="text-xs text-stone-400">Live badge preview</span>
                           </div>
                         </div>
-                        <label className="block text-stone-400">
-                          Custom Avatar URL
-                          <input
-                            value={customAvatarUrl}
-                            onChange={(event) =>
-                              setCustomAvatarUrl(event.target.value)
-                            }
-                            placeholder="https://..."
-                            className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2 text-xs text-stone-200"
-                          />
-                        </label>
-                        <label className="block text-stone-400">
-                          Custom Banner URL
-                          <input
-                            value={customBannerUrl}
-                            onChange={(event) =>
-                              setCustomBannerUrl(event.target.value)
-                            }
-                            placeholder="https://..."
-                            className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2 text-xs text-stone-200"
-                          />
-                        </label>
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Custom avatar image</p>
+                          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 hover:border-amber-500/50">
+                            <Upload className="h-4 w-4" />{isUploadingAvatar ? "Uploading avatar..." : "Upload avatar image"}
+                            <input ref={avatarFileRef} type="file" accept="image/jpeg,image/png,image/webp" disabled={isUploadingAvatar} onChange={(event) => void uploadProfileImage(event.target.files?.[0], "avatar")} className="sr-only" />
+                          </label>
+                          <p className="text-[10px] leading-relaxed text-stone-500">Recommended: 400×400 px (1:1). Max 2 MB. JPG, PNG, or WEBP.</p>
+                          <label className="block text-xs text-stone-400">Or use an image URL
+                            <input value={customAvatarUrl} onChange={(event) => setCustomAvatarUrl(event.target.value)} placeholder="https://..." className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2 text-xs text-stone-200" />
+                          </label>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Custom banner image</p>
+                          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 hover:border-amber-500/50">
+                            <Upload className="h-4 w-4" />{isUploadingBanner ? "Uploading banner..." : "Upload banner image"}
+                            <input ref={bannerFileRef} type="file" accept="image/jpeg,image/png,image/webp" disabled={isUploadingBanner} onChange={(event) => void uploadProfileImage(event.target.files?.[0], "banner")} className="sr-only" />
+                          </label>
+                          <p className="text-[10px] leading-relaxed text-stone-500">Recommended: 1200×300 px (4:1). Max 5 MB. JPG, PNG, or WEBP.</p>
+                          <label className="block text-xs text-stone-400">Or use an image URL
+                            <input value={customBannerUrl} onChange={(event) => setCustomBannerUrl(event.target.value)} placeholder="https://..." className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2 text-xs text-stone-200" />
+                          </label>
+                        </div>
+                        {profileImageStatus && <p role="status" className="rounded-md border border-amber-500/20 bg-amber-500/5 p-2 text-[10px] text-amber-300">{profileImageStatus}</p>}
                       </>
                     )}
                   </div>
@@ -1275,39 +1433,11 @@ function DashboardContent() {
                     <Tooltip content="Save your profile and appearance settings">
                     <button
                       type="button"
-                      onClick={() => {
-                        const preferences = {
-                          avatarPreset,
-                          customAvatarUrl,
-                          bannerPreset,
-                          customBannerUrl,
-                        };
-                        void saveStudentProfile(token, {
-                          ...activeStudent.profile,
-                          fullName: displayName,
-                          avatarUrl: customAvatarUrl,
-                          bannerUrl: customBannerUrl,
-                        }).catch((error) =>
-                          logDashboardError(
-                            "Failed to save student profile:",
-                            error,
-                          ),
-                        );
-                        window.localStorage.setItem(
-                          `fluentia:profile:${token}`,
-                          JSON.stringify(preferences),
-                        );
-                        window.dispatchEvent(
-                          new CustomEvent("fluentia:student-profile-updated", {
-                            detail: preferences,
-                          }),
-                        );
-                        setBannerLoadFailed(false);
-                        setProfileOpen(false);
-                      }}
-                      className="w-full rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-amber-400"
+                      onClick={() => void saveProfileCustomization()}
+                      disabled={isSavingProfileCustomization || isUploadingAvatar || isUploadingBanner}
+                      className="w-full rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60"
                     >
-                      Save settings
+                      {isSavingProfileCustomization ? "Saving..." : "Save settings"}
                     </button>
                     </Tooltip>
                   </div>

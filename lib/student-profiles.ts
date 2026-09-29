@@ -67,7 +67,14 @@ function normalizeStudentProfile(profile: Record<string, unknown> | null, studen
       "instructor_name",
     ]) || undefined,
     teacherNotes: getStudentProfileNote(profile) || undefined,
+    avatarUrl: getProfileValue(profile, ["avatar_url", "avatarUrl"]) || undefined,
+    bannerUrl: getProfileValue(profile, ["banner_url", "bannerUrl"]) || undefined,
   };
+}
+
+function isMissingCustomizationColumn(error: { code?: string; message?: string }) {
+  return (error.code === "42703" || error.code === "PGRST204")
+    && /(avatar_url|banner_url)/i.test(error.message || "");
 }
 
 function saveStudentProfileLocally(studentToken: string, profile: StudentProfile) {
@@ -120,15 +127,26 @@ export async function saveStudentProfile(studentToken: string, profile: StudentP
     if (error) throw error;
 
     if (profile.id && uuidPattern.test(profile.id)) {
-      const { error: canonicalProfileError } = await supabase
+      const canonicalProfileUpdate = {
+        level: profile.level || null,
+        learning_goal: profile.targetGoal || null,
+        instructor_note: instructorNotes || null,
+        avatar_url: profile.avatarUrl || null,
+        banner_url: profile.bannerUrl || null,
+        updated_at: new Date().toISOString(),
+      };
+      let { error: canonicalProfileError } = await supabase
         .from("profiles")
-        .update({
-          level: profile.level || null,
-          learning_goal: profile.targetGoal || null,
-          instructor_note: instructorNotes || null,
-          updated_at: new Date().toISOString(),
-        })
+        .update(canonicalProfileUpdate)
         .eq("id", profile.id);
+      if (canonicalProfileError && isMissingCustomizationColumn(canonicalProfileError)) {
+        const { avatar_url: _avatarUrl, banner_url: _bannerUrl, ...fallbackUpdate } = canonicalProfileUpdate;
+        const fallback = await supabase
+          .from("profiles")
+          .update(fallbackUpdate)
+          .eq("id", profile.id);
+        canonicalProfileError = fallback.error;
+      }
       if (canonicalProfileError) throw canonicalProfileError;
     }
 
@@ -169,21 +187,21 @@ export async function getStudentProfile(studentToken: string): Promise<Partial<S
     ...(uuidPattern.test(studentToken)
       ? [supabase
           .from("profiles")
-          .select("id, full_name, level, learning_goal, instructor_note")
+          .select("*")
           .eq("id", studentToken)
           .maybeSingle()]
       : []),
     ...(student?.id
       ? [supabase
           .from("profiles")
-          .select("id, full_name, level, learning_goal, instructor_note")
+          .select("*")
           .eq("id", student.id)
           .maybeSingle()]
       : []),
     ...(student?.token
       ? [supabase
           .from("profiles")
-          .select("id, full_name, level, learning_goal, instructor_note")
+          .select("*")
           .eq("token", student.token)
           .maybeSingle()]
       : []),
