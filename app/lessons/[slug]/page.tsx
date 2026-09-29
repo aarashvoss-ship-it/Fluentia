@@ -828,6 +828,11 @@ export default function LessonPage() {
   return (
     <div className="fluentia-study-room min-h-screen bg-[#0c1017] text-[#e8e7e4]">
       <div className="mx-auto max-w-7xl px-4 pt-6 md:px-6">
+      {submissionSaveError && (
+        <p role="alert" className="mb-4 rounded-md border border-red-500/30 bg-red-950/30 px-4 py-3 text-sm text-red-200">
+          Your submission could not be saved: {submissionSaveError}
+        </p>
+      )}
       {!isResultsStep && (
         <section className="relative flex min-h-[320px] w-full items-start overflow-hidden rounded-xl bg-slate-950 bg-cover bg-center md:min-h-[320px]">
           {heroBanner ? (
