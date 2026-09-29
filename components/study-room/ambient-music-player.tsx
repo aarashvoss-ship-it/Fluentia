@@ -508,9 +508,6 @@ export function AmbientMusicPlayer({ src, studentScope = "student" }: AmbientMus
       <Tooltip content={isPlaying ? "Pause ambient focus music" : "Play ambient focus music"}><button type="button" onClick={togglePlayback} aria-label={isPlaying ? "Pause ambient focus music" : "Play ambient focus music"} aria-pressed={isPlaying} className={`${AUDIO_CONTROL_CLASS} ${isPlaying ? AUDIO_CONTROL_ACTIVE_CLASS : AUDIO_CONTROL_IDLE_CLASS}`}>
         {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
       </button></Tooltip>
-      <Tooltip content={isPlaying ? "Pause ambient focus music" : "Play ambient focus music"}><button type="button" onClick={togglePlayback} aria-label={isPlaying ? "Pause ambient focus music" : "Play ambient focus music"} aria-pressed={isPlaying} className={`${AUDIO_CONTROL_CLASS} ${isPlaying ? AUDIO_CONTROL_ACTIVE_CLASS : AUDIO_CONTROL_IDLE_CLASS}`}>
-        {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-      </button></Tooltip>
     </div>
   );
 }
