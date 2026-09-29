@@ -59,9 +59,18 @@ export function InteractiveVideoBlock({
   const directVideoUrl = !embedUrl && /^https?:\/\//i.test(videoUrl.trim()) ? videoUrl.trim() : "";
 
   const seekToTimestamp = (seconds: number) => {
-    iframeRef.current?.contentWindow?.postMessage(
+    const iframe = iframeRef.current;
+    if (!iframe?.contentWindow) return;
+    let targetOrigin: string;
+    try {
+      targetOrigin = new URL(iframe.src).origin;
+    } catch {
+      return;
+    }
+    if (targetOrigin !== "https://www.youtube.com") return;
+    iframe.contentWindow.postMessage(
       JSON.stringify({ event: "command", func: "seekTo", args: [seconds, true] }),
-      "*",
+      targetOrigin,
     );
   };
 

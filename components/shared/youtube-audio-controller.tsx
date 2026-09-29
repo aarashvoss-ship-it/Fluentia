@@ -7,6 +7,7 @@ interface YoutubePlayer {
   getIframe(): HTMLIFrameElement;
   pauseVideo(): void;
   playVideo(): void;
+  seekTo(seconds: number, allowSeekAhead: boolean): void;
   setVolume(volume: number): void;
 }
 
@@ -17,7 +18,8 @@ interface YoutubeApi {
     videoId: string;
     playerVars: Record<string, number | string>;
     events: {
-      onReady: (event: { target: YoutubePlayer }) => void;
+      onReady: (event: { target?: YoutubePlayer } | null) => void;
+      onStateChange: (event: { target?: YoutubePlayer; data?: number } | null) => void;
       onError: () => void;
     };
   }) => YoutubePlayer;
@@ -40,7 +42,11 @@ function loadYoutubeApi(): Promise<YoutubeApi> {
     const previousReady = window.onYouTubeIframeAPIReady;
     const timeout = window.setTimeout(() => reject(new Error("YouTube player API timed out.")), 15000);
     window.onYouTubeIframeAPIReady = () => {
-      previousReady?.();
+      try {
+        previousReady?.();
+      } catch {
+        // A third-party callback should not prevent this API from resolving.
+      }
       window.clearTimeout(timeout);
       if (window.YT?.Player) resolve(window.YT);
       else reject(new Error("YouTube player API failed to initialize."));
@@ -64,6 +70,18 @@ function loadYoutubeApi(): Promise<YoutubeApi> {
   });
 
   return youtubeApiPromise;
+}
+
+function hasMatchingPlayerOrigin(player: YoutubePlayer): boolean {
+  try {
+    const iframe = player.getIframe();
+    const iframeUrl = new URL(iframe.src);
+    return Boolean(iframe.contentWindow)
+      && iframeUrl.searchParams.get("enablejsapi") === "1"
+      && iframeUrl.searchParams.get("origin") === window.location.origin;
+  } catch {
+    return false;
+  }
 }
 
 interface YoutubeAudioControllerProps {
@@ -111,9 +129,20 @@ export function YoutubeAudioController({ videoId, isPlaying, volume, onError }: 
           rel: 0,
         },
         events: {
-          onReady: ({ target }) => {
+          onReady: (event) => {
+            const target = event?.target;
+            if (!target) {
+              if (!cancelled) onErrorRef.current?.();
+              return;
+            }
             if (cancelled) {
               target.destroy();
+              return;
+            }
+            if (!hasMatchingPlayerOrigin(target)) {
+              target.destroy();
+              playerRef.current = null;
+              onErrorRef.current?.();
               return;
             }
             target.getIframe().tabIndex = -1;
@@ -123,6 +152,14 @@ export function YoutubeAudioController({ videoId, isPlaying, volume, onError }: 
             if (isPlayingRef.current) target.playVideo();
             else target.pauseVideo();
             setIsReady(true);
+          },
+          onStateChange: (event) => {
+            const target = event?.target;
+            if (cancelled || !target || target !== playerRef.current || !hasMatchingPlayerOrigin(target)) return;
+            if (event?.data === 0 && isPlayingRef.current) {
+              target.seekTo(0, true);
+              target.playVideo();
+            }
           },
           onError: () => onErrorRef.current?.(),
         },

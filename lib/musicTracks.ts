@@ -30,11 +30,20 @@ export function getYoutubeVideoId(value: string): string | null {
   return videoId && /^[A-Za-z0-9_-]{11}$/.test(videoId) ? videoId : null;
 }
 
-export function getYoutubeEmbedUrl(value: string, autoplay = false): string | null {
+export function getYoutubeEmbedUrl(
+  value: string,
+  autoplay = false,
+  origin = typeof window === "undefined" ? "" : window.location.origin,
+): string | null {
   const videoId = getYoutubeVideoId(value);
-  return videoId
-    ? `https://www.youtube.com/embed/${videoId}?autoplay=${autoplay ? "1" : "0"}&controls=1&playsinline=1`
-    : null;
+  if (!videoId) return null;
+  const embedUrl = new URL(`https://www.youtube.com/embed/${videoId}`);
+  embedUrl.searchParams.set("autoplay", autoplay ? "1" : "0");
+  embedUrl.searchParams.set("controls", "1");
+  embedUrl.searchParams.set("enablejsapi", "1");
+  embedUrl.searchParams.set("playsinline", "1");
+  if (origin) embedUrl.searchParams.set("origin", origin);
+  return embedUrl.toString();
 }
 
 export function isYoutubeUrl(value: string): boolean {
