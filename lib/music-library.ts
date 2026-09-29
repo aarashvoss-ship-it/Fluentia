@@ -1,6 +1,16 @@
 import { isSupabaseConfigured, supabase, type AmbientTrackRow } from "@/lib/supabase";
 import { DEFAULT_LESSON_AUDIO_TRACKS, type LessonAudioTrack } from "@/lib/musicTracks";
 
+function canRetryWithoutSourceType(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const databaseError = error as { code?: string; message?: string; details?: string };
+  const description = `${databaseError.message || ""} ${databaseError.details || ""}`.toLowerCase();
+  return description.includes("source_type") && (
+    databaseError.code === "PGRST204"
+    || (databaseError.code === "23514" && description.includes("check"))
+  );
+}
+
 export async function getAmbientTracks(): Promise<LessonAudioTrack[]> {
   if (!isSupabaseConfigured()) return DEFAULT_LESSON_AUDIO_TRACKS;
   try {
@@ -26,13 +36,22 @@ export async function getAmbientTracks(): Promise<LessonAudioTrack[]> {
 }
 
 export async function createAmbientTrack(title: string, url: string, sourceType: "upload" | "url" | "youtube" = "url"): Promise<AmbientTrackRow> {
-  const { data, error } = await supabase
+  const track = { title: title.trim(), url: url.trim(), source_type: sourceType, is_active: true };
+  let result = await supabase
     .from("ambient_tracks")
-    .upsert({ title: title.trim(), url: url.trim(), source_type: sourceType, is_active: true }, { onConflict: "url" })
+    .upsert(track, { onConflict: "url" })
     .select("*")
     .single();
-  if (error || !data) throw error || new Error("Unable to create ambient track");
-  return data as AmbientTrackRow;
+  if (result.error && canRetryWithoutSourceType(result.error)) {
+    const { source_type: _sourceType, ...legacyTrack } = track;
+    result = await supabase
+      .from("ambient_tracks")
+      .upsert(legacyTrack, { onConflict: "url" })
+      .select("*")
+      .single();
+  }
+  if (result.error || !result.data) throw result.error || new Error("Unable to create ambient track");
+  return result.data as AmbientTrackRow;
 }
 
 export async function deleteAmbientTrack(id: string, url: string): Promise<boolean> {
