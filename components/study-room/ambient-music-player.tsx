@@ -357,7 +357,7 @@ export function AmbientMusicPlayer({ src, studentScope = "student" }: AmbientMus
 
   return (
     <div className="relative flex items-center gap-1">
-      {!isYoutubeTrack && <audio ref={audioRef} src={currentTrack} loop preload="none" onError={() => failOverToGlobalTrack(currentTrack)} onEnded={() => setIsPlaying(false)} />}
+      {Boolean(currentTrack) && !isYoutubeTrack && <audio ref={audioRef} src={currentTrack} loop preload="none" onError={() => failOverToGlobalTrack(currentTrack)} onEnded={() => setIsPlaying(false)} />}
       {youtubeVideoId && <YoutubeAudioController videoId={youtubeVideoId} isPlaying={isEnabled && isPlaying} volume={volume} onError={() => setTrackError("YouTube audio could not be started. Check that the video allows embedding.")} />}
       <Tooltip content="Open the music library"><button type="button" onClick={() => setShowTracks((open) => !open)} aria-label="Choose ambient music track" aria-expanded={showTracks} className={`flex h-8 w-8 items-center justify-center rounded-lg border p-2 transition-all ${isEnabled ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-slate-700 bg-slate-800/80 text-stone-400 hover:text-amber-300"}`}>
         <Music className="h-3.5 w-3.5" aria-hidden="true" />

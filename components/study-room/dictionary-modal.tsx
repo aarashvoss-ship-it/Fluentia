@@ -71,7 +71,6 @@ export function DictionaryModal({ initialWord = "", onClose, savedWords, onSave 
           {entry.example && <p className="border-l-2 border-amber-500/50 pl-3 text-sm italic leading-relaxed text-stone-400">“{entry.example}”</p>}
           <div className="flex flex-col gap-3 border-t border-[#29303c] pt-4 sm:flex-row sm:items-center">
             {entry.pronunciationUrl && <button type="button" onClick={() => { const a = new Audio(entry.pronunciationUrl!); void a.play(); }} aria-label="Play pronunciation" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-amber-500/40 bg-[#0c1017] text-amber-400 hover:bg-amber-500/10"><Volume2 className="h-4 w-4" /></button>}
-            <audio src={entry.pronunciationUrl} className="hidden" aria-hidden />
             <button type="button" disabled={isSaved} onClick={() => onSave({ ...entry, savedAt: new Date().toISOString() })} className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2.5 text-sm font-bold text-[#0c1017] shadow-md transition hover:bg-amber-400 disabled:bg-emerald-500/20 disabled:text-emerald-300">{isSaved ? <Check className="h-4 w-4" /> : "+"}{isSaved ? "Saved" : "Save to Vocab"}</button>
           </div>
           <a href={`https://www.merriam-webster.com/dictionary/${entry.word}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-stone-500 hover:text-amber-300">Open full dictionary entry <ExternalLink className="h-3 w-3" /></a>

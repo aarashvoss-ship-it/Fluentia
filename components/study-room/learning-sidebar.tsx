@@ -590,7 +590,7 @@ export function LearningSidebar({
       {open && lightboxImage && getSafeResourceHref(lightboxImage.link_url) && (
         <div role="dialog" aria-modal="true" aria-label={`Image preview: ${lightboxImage.title}`} onClick={(event) => { if (event.target === event.currentTarget) setLightboxImage(null); }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 sm:p-8">
           <button type="button" onClick={() => setLightboxImage(null)} aria-label="Close image preview" className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-md border border-white/20 bg-black/50 text-white hover:bg-black/80"><X className="h-5 w-5" /></button>
-          <img src={getSafeResourceHref(lightboxImage.link_url) || ""} alt={lightboxImage.title} className="max-h-full max-w-full object-contain" />
+          <img src={getSafeResourceHref(lightboxImage.link_url) ?? undefined} alt={lightboxImage.title} className="max-h-full max-w-full object-contain" />
         </div>
       )}
     </>
