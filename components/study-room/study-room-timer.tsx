@@ -260,7 +260,7 @@ export function StudyRoomTimer() {
         onClick={() => setIsOpen((open) => !open)}
         aria-label={`Open study timer, ${formatTime(displayedSeconds, timer.mode === "stopwatch")}`}
         aria-expanded={isOpen}
-        className={`flex h-8 items-center gap-1.5 rounded-md border bg-slate-900/50 px-2 text-xs transition-colors ${timer.running ? "border-amber-500/50 text-amber-300" : "border-slate-800 text-slate-400 hover:border-slate-700 hover:text-stone-200"}`}
+        className={`flex h-8 items-center gap-1.5 rounded-md border bg-transparent px-2 text-xs transition-colors ${timer.running ? "border-amber-500 text-amber-400" : "border-slate-700/50 text-slate-400 hover:border-slate-600 hover:text-slate-200"}`}
       >
         <Timer className="h-3.5 w-3.5" />
         <span className="font-mono tabular-nums">{formatTime(displayedSeconds, timer.mode === "stopwatch")}</span>
@@ -276,16 +276,16 @@ export function StudyRoomTimer() {
             <button type="button" aria-label="Close study timer" onClick={() => setIsOpen(false)} className="rounded p-1 text-stone-500 hover:bg-white/5 hover:text-stone-200"><X className="h-4 w-4" /></button>
           </div>
 
-          <div className="mt-4 grid grid-cols-3 gap-1 rounded-md border border-[#29303c] bg-[#0c1017] p-1" role="group" aria-label="Timer mode">
+          <div className="mt-4 grid grid-cols-3 gap-1" role="group" aria-label="Timer mode">
             {(["pomodoro", "countdown", "stopwatch"] as const).map((mode) => (
-              <button key={mode} type="button" aria-pressed={timer.mode === mode} onClick={() => changeMode(mode)} className={`rounded px-2 py-1.5 text-[10px] font-semibold capitalize ${timer.mode === mode ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-200"}`}>{mode}</button>
+              <button key={mode} type="button" aria-pressed={timer.mode === mode} onClick={() => changeMode(mode)} className={`rounded-md border bg-transparent px-2 py-1.5 text-[10px] font-semibold capitalize transition-colors ${timer.mode === mode ? "border-amber-500 text-amber-400" : "border-slate-700/50 text-slate-400 hover:border-slate-600 hover:text-slate-200"}`}>{mode}</button>
             ))}
           </div>
 
           {timer.mode === "pomodoro" && <div className="mt-4 space-y-3">
             <div className="grid grid-cols-3 gap-2">
               {(["classic", "extended", "custom"] as const).map((preset) => (
-                <button key={preset} type="button" aria-pressed={timer.pomodoroPreset === preset} onClick={() => setPomodoroPreset(preset)} className={`rounded-md border px-2 py-2 text-[10px] font-medium capitalize ${timer.pomodoroPreset === preset ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-[#394252] text-stone-400 hover:text-stone-200"}`}>
+                <button key={preset} type="button" aria-pressed={timer.pomodoroPreset === preset} onClick={() => setPomodoroPreset(preset)} className={`rounded-md border bg-transparent px-2 py-2 text-[10px] font-medium capitalize transition-colors ${timer.pomodoroPreset === preset ? "border-amber-500 text-amber-400" : "border-slate-700/50 text-slate-400 hover:border-slate-600 hover:text-slate-200"}`}>
                   {preset}{preset === "classic" ? " · 25/5" : preset === "extended" ? " · 50/10" : ""}
                 </button>
               ))}
@@ -301,7 +301,7 @@ export function StudyRoomTimer() {
 
           {timer.mode === "countdown" && <div className="mt-4 space-y-3">
             <div className="grid grid-cols-4 gap-2">
-              {[15, 30, 45, 60].map((minutes) => <button key={minutes} type="button" aria-pressed={timer.countdownMinutes === minutes && timer.countdownSeconds === 0} onClick={() => setCountdownPreset(minutes)} className={`rounded-md border px-2 py-2 text-[10px] font-medium ${timer.countdownMinutes === minutes && timer.countdownSeconds === 0 ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-[#394252] text-stone-400 hover:text-stone-200"}`}>{minutes}m</button>)}
+              {[15, 30, 45, 60].map((minutes) => <button key={minutes} type="button" aria-pressed={timer.countdownMinutes === minutes && timer.countdownSeconds === 0} onClick={() => setCountdownPreset(minutes)} className={`rounded-md border bg-transparent px-2 py-2 text-[10px] font-medium transition-colors ${timer.countdownMinutes === minutes && timer.countdownSeconds === 0 ? "border-amber-500 text-amber-400" : "border-slate-700/50 text-slate-400 hover:border-slate-600 hover:text-slate-200"}`}>{minutes}m</button>)}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <label className="text-[10px] text-stone-400">Minutes<input type="number" min={0} max={999} value={timer.countdownMinutes} onChange={(event) => {
@@ -318,7 +318,7 @@ export function StudyRoomTimer() {
           {notice && <p role="status" className="mt-3 rounded border border-amber-500/20 bg-amber-500/5 px-2.5 py-2 text-[10px] text-amber-200">{notice}</p>}
           <div className="mt-4 flex gap-2">
             <button type="button" onClick={startPauseTimer} className="flex flex-1 items-center justify-center gap-2 rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-amber-400">{timer.running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}{timer.running ? "Pause" : "Start"}</button>
-            <button type="button" onClick={resetTimer} aria-label="Reset timer" className="flex h-9 w-10 items-center justify-center rounded-md border border-[#394252] text-stone-300 hover:border-amber-500/50 hover:text-amber-300"><RotateCcw className="h-4 w-4" /></button>
+            <button type="button" onClick={resetTimer} aria-label="Reset timer" className="flex h-9 w-10 items-center justify-center rounded-md border border-slate-700/50 bg-transparent text-slate-400 transition-colors hover:border-slate-600 hover:text-slate-200"><RotateCcw className="h-4 w-4" /></button>
           </div>
         </section>
       )}
