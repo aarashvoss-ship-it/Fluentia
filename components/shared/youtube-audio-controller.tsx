@@ -20,7 +20,7 @@ interface YoutubeApi {
     events: {
       onReady: (event: { target?: YoutubePlayer } | null) => void;
       onStateChange: (event: { target?: YoutubePlayer; data?: number } | null) => void;
-        onError: (event: { data?: number } | null) => void;
+        onError: (event: { target?: YoutubePlayer; data?: number } | null) => void;
     };
   }) => YoutubePlayer;
 }
@@ -104,6 +104,15 @@ export function YoutubeAudioController({ videoId, isPlaying, volume, onError }: 
 
   useEffect(() => {
     let cancelled = false;
+    let playerReady = false;
+    let timedOut = false;
+    let errorReported = false;
+    let readyTimer = 0;
+    const reportError = (errorCode?: number) => {
+      if (cancelled || errorReported) return;
+      errorReported = true;
+      onErrorRef.current?.(errorCode);
+    };
     setIsReady(false);
     const host = hostRef.current;
     if (!host) return;
@@ -112,7 +121,15 @@ export function YoutubeAudioController({ videoId, isPlaying, volume, onError }: 
 
     void loadYoutubeApi().then((api) => {
       if (cancelled) return;
-      playerRef.current = new api.Player(mount, {
+      readyTimer = window.setTimeout(() => {
+        if (cancelled || playerReady) return;
+        timedOut = true;
+        const player = playerRef.current;
+        playerRef.current = null;
+        player?.destroy();
+        reportError();
+      }, 3000);
+      const player = new api.Player(mount, {
         height: "200",
         width: "200",
         videoId,
@@ -131,23 +148,29 @@ export function YoutubeAudioController({ videoId, isPlaying, volume, onError }: 
         },
         events: {
           onReady: (event) => {
+            window.clearTimeout(readyTimer);
+            playerReady = true;
             const target = event?.target;
             if (!target) {
-              if (!cancelled) onErrorRef.current?.();
+              reportError();
               return;
             }
-            if (cancelled) {
+            if (cancelled || timedOut) {
               target.destroy();
               return;
             }
             if (!hasMatchingPlayerOrigin(target)) {
               target.destroy();
               playerRef.current = null;
-              onErrorRef.current?.();
+              reportError();
               return;
             }
-            target.getIframe().tabIndex = -1;
-            target.getIframe().setAttribute("aria-hidden", "true");
+            const iframe = target.getIframe();
+            iframe.width = "200";
+            iframe.height = "200";
+            iframe.allow = "autoplay; encrypted-media; picture-in-picture";
+            iframe.tabIndex = -1;
+            iframe.setAttribute("aria-hidden", "true");
             playerRef.current = target;
             target.setVolume(Math.round(volumeRef.current * 100));
             if (isPlayingRef.current) target.playVideo();
@@ -162,15 +185,28 @@ export function YoutubeAudioController({ videoId, isPlaying, volume, onError }: 
               target.playVideo();
             }
           },
-          onError: (event) => onErrorRef.current?.(event?.data),
+          onError: (event) => {
+            window.clearTimeout(readyTimer);
+            if (event?.target && playerRef.current === event.target) {
+              playerRef.current = null;
+              event.target.destroy();
+            }
+            reportError(event?.data);
+          },
         },
       });
+      playerRef.current = player;
+      const iframe = player.getIframe();
+      iframe.width = "200";
+      iframe.height = "200";
+      iframe.allow = "autoplay; encrypted-media; picture-in-picture";
     }).catch(() => {
-      if (!cancelled) onErrorRef.current?.();
+      reportError();
     });
 
     return () => {
       cancelled = true;
+      window.clearTimeout(readyTimer);
       playerRef.current?.destroy();
       playerRef.current = null;
       host.replaceChildren();

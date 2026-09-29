@@ -38,6 +38,9 @@ function getVideoEmbedUrl(url: string) {
     const embed = new URL(embedUrl);
     embed.searchParams.set("enablejsapi", "1");
     embed.searchParams.set("origin", window.location.origin);
+    embed.searchParams.set("widget_referrer", window.location.origin);
+    embed.searchParams.set("playsinline", "1");
+    embed.searchParams.set("rel", "0");
     return embed.toString();
   } catch {
     return "";
@@ -53,6 +56,7 @@ export function InteractiveVideoBlock({
   onTranscriptChange,
 }: InteractiveVideoBlockProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const loadedIframeSrcRef = useRef("");
   const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(false);
   const transcriptLines = parseInteractiveTranscript(transcript || "");
   const embedUrl = getVideoEmbedUrl(videoUrl);
@@ -60,7 +64,7 @@ export function InteractiveVideoBlock({
 
   const seekToTimestamp = (seconds: number) => {
     const iframe = iframeRef.current;
-    if (!iframe?.contentWindow) return;
+    if (!iframe?.contentWindow || loadedIframeSrcRef.current !== iframe.src) return;
     let targetOrigin: string;
     try {
       targetOrigin = new URL(iframe.src).origin;
@@ -83,7 +87,10 @@ export function InteractiveVideoBlock({
             src={embedUrl}
             title={title || "Lesson video"}
             className="h-full w-full"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allow="autoplay; accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            onLoad={(event) => {
+              loadedIframeSrcRef.current = event.currentTarget.src;
+            }}
             allowFullScreen
           />
         </div>
