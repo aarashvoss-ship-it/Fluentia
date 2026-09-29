@@ -39,14 +39,14 @@ export async function createAmbientTrack(title: string, url: string, sourceType:
   const track = { title: title.trim(), url: url.trim(), source_type: sourceType, is_active: true };
   let result = await supabase
     .from("ambient_tracks")
-    .upsert(track, { onConflict: "url" })
+    .insert(track)
     .select("*")
     .single();
   if (result.error && canRetryWithoutSourceType(result.error)) {
     const { source_type: _sourceType, ...legacyTrack } = track;
     result = await supabase
       .from("ambient_tracks")
-      .upsert(legacyTrack, { onConflict: "url" })
+      .insert(legacyTrack)
       .select("*")
       .single();
   }

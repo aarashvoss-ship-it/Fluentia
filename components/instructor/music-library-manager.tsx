@@ -195,7 +195,10 @@ export function MusicLibraryManager() {
       await loadTracks();
       setStatus(videoId ? "YouTube track added. Playback uses the embedded YouTube player." : "Track added to the shared library.");
     } catch (error) {
-      const detail = error instanceof Error ? error.message : error && typeof error === "object" && "message" in error ? String(error.message) : "Check database permissions and apply the latest music library migration.";
+      const errorDetails = error && typeof error === "object" ? error as { code?: string; message?: string } : null;
+      const detail = errorDetails?.code === "23505"
+        ? "A track with this URL is already in the shared library."
+        : errorDetails?.message || "Check database permissions and apply the latest music library migration.";
       setStatus(`Unable to add track: ${detail}`);
     } finally {
       setIsSaving(false);
