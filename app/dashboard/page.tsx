@@ -187,6 +187,7 @@ function DashboardContent() {
   );
   const [avatarPreset, setAvatarPreset] =
     useState<ProfilePreferences["avatarPreset"]>("amber");
+  const [avatarColor, setAvatarColor] = useState<string>(AVATAR_PRESETS[0].backgroundColor);
   const [avatarInitials, setAvatarInitials] = useState("");
   const [customAvatarUrl, setCustomAvatarUrl] = useState("");
   const [bannerPreset, setBannerPreset] =
@@ -226,6 +227,7 @@ function DashboardContent() {
         const color = customization.avatar_bg_color;
         const preset = AVATAR_PRESETS.find((option) => option.backgroundColor === color);
         if (preset) setAvatarPreset(preset.id);
+        if (color) setAvatarColor(color);
         setAvatarInitials((customization.avatar_initials || "").replace(/[^a-z0-9]/gi, "").slice(0, 3).toUpperCase());
         setCustomAvatarUrl(customization.avatar_url || "");
         setCustomBannerUrl(customization.banner_url || "");
@@ -643,6 +645,7 @@ function DashboardContent() {
         const savedAvatarColor = localCustomization.avatar_bg_color || profileAvatarColor || preferences.avatar_bg_color || metadataAvatarColor;
         const colorPreset = AVATAR_PRESETS.find((preset) => preset.backgroundColor === savedAvatarColor)?.id;
         setAvatarPreset(colorPreset || preferences.avatarPreset || "amber");
+        setAvatarColor(savedAvatarColor || AVATAR_PRESETS[0].backgroundColor);
         const profileAvatarInitials = typeof roleProfile?.avatar_initials === "string"
           ? roleProfile.avatar_initials
           : "";
@@ -778,7 +781,7 @@ function DashboardContent() {
   const selectedAvatar =
     AVATAR_PRESETS.find((preset) => preset.id === avatarPreset) ||
     AVATAR_PRESETS[0];
-  const badgeColor = selectedAvatar.backgroundColor || activeStudent.profile?.avatarBgColor || "#f59e0b";
+  const badgeColor = avatarColor || activeStudent.profile?.avatarBgColor || "#f59e0b";
   const selectedBanner =
     BANNER_PRESETS.find((preset) => preset.id === bannerPreset) ||
     BANNER_PRESETS[0];
@@ -877,16 +880,20 @@ function DashboardContent() {
   };
 
   const saveProfileCustomization = async () => {
+    const nextAvatarColor = avatarColor;
+    const avatarUrl = customAvatarUrl.trim();
+    const initials = customizedInitials;
+    setAvatarColor(nextAvatarColor);
+    setAvatarInitials(initials);
+    setCustomAvatarUrl(avatarUrl);
     setIsSavingProfileCustomization(true);
     setProfileImageStatus(null);
     setProfileSaveNotice(null);
     setProfileSaveError(null);
-    const avatarUrl = customAvatarUrl.trim();
     const bannerUrl = customBannerUrl.trim();
-    const initials = customizedInitials;
     const preferences: ProfilePreferences = {
       avatarPreset,
-      avatar_bg_color: selectedAvatar.backgroundColor,
+      avatar_bg_color: nextAvatarColor,
       avatar_initials: initials,
       avatar_url: avatarUrl,
       customAvatarUrl: avatarUrl,
@@ -895,7 +902,7 @@ function DashboardContent() {
       customBannerUrl: bannerUrl,
     };
     const customization = {
-      avatar_bg_color: selectedAvatar.backgroundColor,
+      avatar_bg_color: nextAvatarColor,
       avatar_initials: initials,
       avatar_url: avatarUrl,
       banner_url: bannerUrl,
@@ -912,13 +919,10 @@ function DashboardContent() {
         ...current.profile,
         avatarUrl,
         bannerUrl,
-        avatarBgColor: selectedAvatar.backgroundColor,
+        avatarBgColor: nextAvatarColor,
         avatarInitials: initials,
       },
     } : current);
-    setAvatarPreset(avatarPreset);
-    setAvatarInitials(initials);
-    setCustomAvatarUrl(avatarUrl);
     setCustomBannerUrl(bannerUrl);
     window.dispatchEvent(new Event("profile-updated"));
     window.dispatchEvent(new CustomEvent("fluentia:student-profile-updated", { detail: customization }));
@@ -929,7 +933,7 @@ function DashboardContent() {
 
       const metadata = {
         ...(userData.user.user_metadata || {}),
-        avatar_bg_color: selectedAvatar.backgroundColor,
+        avatar_bg_color: nextAvatarColor,
         avatar_initials: initials,
         avatar_url: avatarUrl,
         banner_url: bannerUrl,
@@ -942,7 +946,7 @@ function DashboardContent() {
         token,
         full_name: displayName,
         role: "student",
-        avatar_bg_color: selectedAvatar.backgroundColor,
+        avatar_bg_color: nextAvatarColor,
         avatar_initials: initials,
         avatar_url: avatarUrl || null,
         banner_url: bannerUrl || null,
@@ -981,9 +985,9 @@ function DashboardContent() {
           throw refreshedProfileError;
         }
         const refreshedMetadata = refreshedUser.user.user_metadata as Record<string, unknown>;
-        const nextAvatarColor = typeof refreshedProfile?.avatar_bg_color === "string"
+        const refreshedAvatarColor = typeof refreshedProfile?.avatar_bg_color === "string"
           ? refreshedProfile.avatar_bg_color
-          : typeof refreshedMetadata.avatar_bg_color === "string" ? refreshedMetadata.avatar_bg_color : selectedAvatar.backgroundColor;
+          : typeof refreshedMetadata.avatar_bg_color === "string" ? refreshedMetadata.avatar_bg_color : nextAvatarColor;
         const nextInitials = typeof refreshedProfile?.avatar_initials === "string"
           ? refreshedProfile.avatar_initials
           : typeof refreshedMetadata.avatar_initials === "string" ? refreshedMetadata.avatar_initials : initials;
@@ -991,7 +995,7 @@ function DashboardContent() {
           ...current,
           profile: {
             ...current.profile,
-            avatarBgColor: nextAvatarColor,
+            avatarBgColor: refreshedAvatarColor,
             avatarInitials: nextInitials,
             avatarUrl: typeof refreshedProfile?.avatar_url === "string" ? refreshedProfile.avatar_url : avatarUrl,
             bannerUrl: typeof refreshedProfile?.banner_url === "string" ? refreshedProfile.banner_url : bannerUrl,
@@ -1200,6 +1204,7 @@ function DashboardContent() {
                                 type="button"
                                 onClick={() => {
                                   setAvatarPreset(preset.id);
+                                  setAvatarColor(preset.backgroundColor);
                                   setCustomAvatarUrl("");
                                 }}
                                 aria-label={`Use ${preset.label} avatar`}
@@ -1222,8 +1227,7 @@ function DashboardContent() {
                               style={
                                 !avatarImage
                                   ? {
-                                      backgroundColor:
-                                        selectedAvatar.backgroundColor,
+                                      backgroundColor: avatarColor,
                                     }
                                   : undefined
                               }
@@ -1494,7 +1498,10 @@ function DashboardContent() {
                               <button
                                 key={preset.id}
                                 type="button"
-                                onClick={() => setAvatarPreset(preset.id)}
+                                onClick={() => {
+                                  setAvatarPreset(preset.id);
+                                  setAvatarColor(preset.backgroundColor);
+                                }}
                                 aria-label={`Use ${preset.label} badge color`}
                                 aria-pressed={avatarPreset === preset.id}
                                 className={`flex items-center gap-2 rounded-md border px-2 py-2 text-left text-[10px] text-stone-300 ${avatarPreset === preset.id ? "border-amber-500" : "border-[#394252] hover:border-amber-500/50"}`}
@@ -1516,7 +1523,7 @@ function DashboardContent() {
                             <span className="mt-1 block text-[10px] text-stone-500">Leave blank to use your name initials.</span>
                           </label>
                           <div className="mt-3 flex items-center gap-3 rounded-md border border-[#29303c] bg-[#0c1017] p-2">
-                            <span style={{ backgroundColor: selectedAvatar.backgroundColor }} className={`flex h-10 w-10 items-center justify-center overflow-hidden rounded-full text-xs font-bold ${selectedAvatar.className}`}>
+                            <span style={{ backgroundColor: avatarColor }} className={`flex h-10 w-10 items-center justify-center overflow-hidden rounded-full text-xs font-bold ${selectedAvatar.className}`}>
                               {visibleAvatarInitials}
                             </span>
                             <span className="text-xs text-stone-400">Live badge preview</span>
