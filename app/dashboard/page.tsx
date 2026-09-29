@@ -218,6 +218,48 @@ function DashboardContent() {
   }, []);
 
   useEffect(() => {
+    const readCustomization = () => {
+      try {
+        const stored = window.localStorage.getItem("student_customization");
+        if (!stored) return;
+        const customization = JSON.parse(stored) as Partial<ProfilePreferences>;
+        const color = customization.avatar_bg_color;
+        const preset = AVATAR_PRESETS.find((option) => option.backgroundColor === color);
+        if (preset) setAvatarPreset(preset.id);
+        setAvatarInitials((customization.avatar_initials || "").replace(/[^a-z0-9]/gi, "").slice(0, 3).toUpperCase());
+        setCustomAvatarUrl(customization.avatar_url || "");
+        setCustomBannerUrl(customization.banner_url || "");
+        setActiveStudent((current) => current ? {
+          ...current,
+          profile: {
+            ...current.profile,
+            avatarBgColor: color || current.profile.avatarBgColor,
+            avatarInitials: customization.avatar_initials || current.profile.avatarInitials,
+            avatarUrl: customization.avatar_url || current.profile.avatarUrl,
+            bannerUrl: customization.banner_url || current.profile.bannerUrl,
+          },
+        } : current);
+      } catch (error) {
+        logDashboardError("Dashboard customization fallback could not be read:", error);
+      }
+    };
+    const handleProfileUpdated = () => readCustomization();
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === "student_customization") readCustomization();
+    };
+
+    readCustomization();
+    window.addEventListener("profile-updated", handleProfileUpdated);
+    window.addEventListener("fluentia:student-profile-updated", handleProfileUpdated);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("profile-updated", handleProfileUpdated);
+      window.removeEventListener("fluentia:student-profile-updated", handleProfileUpdated);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, []);
+
+  useEffect(() => {
     const studentToken = activeStudent?.token;
     if (!studentToken) return;
     console.log("[Student Dashboard] profile load identifier:", {
@@ -571,6 +613,15 @@ function DashboardContent() {
         const storedProfile = window.localStorage.getItem(
           `fluentia:profile:${studentToken}`,
         );
+        let localCustomization: Partial<ProfilePreferences> = {};
+        try {
+          const storedCustomization = window.localStorage.getItem("student_customization");
+          localCustomization = storedCustomization
+            ? JSON.parse(storedCustomization) as Partial<ProfilePreferences>
+            : {};
+        } catch (error) {
+          logDashboardError("Dashboard shared customization could not be parsed:", error);
+        }
         let preferences: ProfilePreferences = {};
         try {
           preferences = storedProfile
@@ -589,13 +640,13 @@ function DashboardContent() {
         const profileAvatarColor = typeof roleProfile?.avatar_bg_color === "string"
           ? roleProfile.avatar_bg_color
           : "";
-        const savedAvatarColor = profileAvatarColor || preferences.avatar_bg_color || metadataAvatarColor;
+        const savedAvatarColor = localCustomization.avatar_bg_color || profileAvatarColor || preferences.avatar_bg_color || metadataAvatarColor;
         const colorPreset = AVATAR_PRESETS.find((preset) => preset.backgroundColor === savedAvatarColor)?.id;
         setAvatarPreset(colorPreset || preferences.avatarPreset || "amber");
         const profileAvatarInitials = typeof roleProfile?.avatar_initials === "string"
           ? roleProfile.avatar_initials
           : "";
-        const savedAvatarInitials = (profileAvatarInitials || preferences.avatar_initials
+        const savedAvatarInitials = (localCustomization.avatar_initials || profileAvatarInitials || preferences.avatar_initials
           || (typeof userMetadata.avatar_initials === "string" ? userMetadata.avatar_initials : ""))
           .replace(/[^a-z]/gi, "")
           .slice(0, 3)
@@ -610,11 +661,11 @@ function DashboardContent() {
           },
         } : current);
         setCustomAvatarUrl(
-          preferences.customAvatarUrl || preferences.avatar_url || active.profile.avatarUrl || "",
+          localCustomization.avatar_url || preferences.customAvatarUrl || preferences.avatar_url || active.profile.avatarUrl || "",
         );
         setBannerPreset(preferences.bannerPreset || "default-dark");
         setCustomBannerUrl(
-          preferences.customBannerUrl || preferences.banner_url || active.profile.bannerUrl || "",
+          localCustomization.banner_url || preferences.customBannerUrl || preferences.banner_url || active.profile.bannerUrl || "",
         );
         setIsMounted(true);
         const refreshLessons = () =>
@@ -843,6 +894,34 @@ function DashboardContent() {
       banner_url: bannerUrl,
       customBannerUrl: bannerUrl,
     };
+    const customization = {
+      avatar_bg_color: selectedAvatar.backgroundColor,
+      avatar_initials: initials,
+      avatar_url: avatarUrl,
+      banner_url: bannerUrl,
+    };
+    try {
+      window.localStorage.setItem("student_customization", JSON.stringify(customization));
+      window.localStorage.setItem(`fluentia:profile:${token}`, JSON.stringify(preferences));
+    } catch (error) {
+      logDashboardError("Profile customization could not be cached locally:", error);
+    }
+    setActiveStudent((current) => current ? {
+      ...current,
+      profile: {
+        ...current.profile,
+        avatarUrl,
+        bannerUrl,
+        avatarBgColor: selectedAvatar.backgroundColor,
+        avatarInitials: initials,
+      },
+    } : current);
+    setAvatarPreset(avatarPreset);
+    setAvatarInitials(initials);
+    setCustomAvatarUrl(avatarUrl);
+    setCustomBannerUrl(bannerUrl);
+    window.dispatchEvent(new Event("profile-updated"));
+    window.dispatchEvent(new CustomEvent("fluentia:student-profile-updated", { detail: customization }));
     try {
       const { data: userData, error: userError } = await supabase.auth.getUser();
       if (userError) throw userError;
@@ -890,26 +969,6 @@ function DashboardContent() {
         bannerUrl,
       }, { strict: true });
       if (saveMode !== "database") throw new Error("Supabase did not confirm that the student profile was saved.");
-      try {
-        window.localStorage.setItem(`fluentia:profile:${token}`, JSON.stringify(preferences));
-      } catch (error) {
-        logDashboardError("Profile preferences could not be cached locally:", error);
-      }
-      window.dispatchEvent(new CustomEvent("fluentia:student-profile-updated", { detail: preferences }));
-      setActiveStudent((current) => current ? {
-        ...current,
-        profile: {
-          ...current.profile,
-          avatarUrl,
-          bannerUrl,
-          avatarBgColor: selectedAvatar.backgroundColor,
-          avatarInitials: initials,
-        },
-      } : current);
-      setAvatarPreset(AVATAR_PRESETS.find((preset) => preset.backgroundColor === selectedAvatar.backgroundColor)?.id || "amber");
-      setAvatarInitials(initials);
-      setCustomAvatarUrl(avatarUrl);
-      setCustomBannerUrl(bannerUrl);
       const { data: refreshedUser, error: refreshError } = await supabase.auth.getUser();
       if (refreshError) throw refreshError;
       if (refreshedUser.user) {
