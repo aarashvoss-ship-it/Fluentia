@@ -802,7 +802,8 @@ function DashboardContent() {
   const selectedBanner =
     BANNER_PRESETS.find((preset) => preset.id === bannerPreset) ||
     BANNER_PRESETS[0];
-  const activeBannerUrl = isValidImageUrl(customBannerUrl.trim())
+  const hasCustomBanner = isValidImageUrl(customBannerUrl.trim());
+  const activeBannerUrl = hasCustomBanner
     ? customBannerUrl.trim()
     : selectedBanner.image;
   const dashboardHeaderBanner = bannerLoadFailed
@@ -834,6 +835,7 @@ function DashboardContent() {
   const avatarImage = isValidImageUrl(customAvatarUrl.trim())
     ? customAvatarUrl.trim()
     : "";
+  const avatarRenderKey = `${avatarImage}:${badgeColor}:${profileInitials}`;
   const availableLessons = displayLessons.filter(
     (lesson) => lesson.id !== nextLesson?.id,
   );
@@ -1062,7 +1064,11 @@ function DashboardContent() {
       <div className="mx-auto max-w-7xl px-4 pt-6 md:px-6">
         <header
           style={{
-            backgroundImage: `linear-gradient(90deg, rgba(12,16,23,.96), rgba(12,16,23,.62)), url(${dashboardHeaderBanner})`,
+            backgroundImage: hasCustomBanner
+              ? `url("${dashboardHeaderBanner}")`
+              : `linear-gradient(90deg, rgba(12,16,23,.96), rgba(12,16,23,.62)), url("${dashboardHeaderBanner}")`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
           }}
           className="relative flex min-h-[280px] w-full items-start overflow-hidden rounded-xl bg-slate-950 bg-cover bg-center md:min-h-[300px]"
         >
@@ -1073,14 +1079,18 @@ function DashboardContent() {
             className="absolute inset-0 h-full w-full object-cover opacity-0"
             aria-hidden="true"
           />
-          <div
-            className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=1800&q=80')] bg-cover bg-center opacity-40"
-            aria-hidden="true"
-          />
-          <div
-            className="absolute inset-0 bg-[linear-gradient(0deg,rgba(12,16,23,.98),transparent_65%)]"
-            aria-hidden="true"
-          />
+          {!hasCustomBanner && (
+            <>
+              <div
+                className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=1800&q=80')] bg-cover bg-center opacity-40"
+                aria-hidden="true"
+              />
+              <div
+                className="absolute inset-0 bg-[linear-gradient(0deg,rgba(12,16,23,.98),transparent_65%)]"
+                aria-hidden="true"
+              />
+            </>
+          )}
           <div className="relative z-10 flex w-full flex-col items-start px-4 pt-6 pb-8 md:px-6 text-left">
             {profileOpen && (
               <button
@@ -1402,6 +1412,7 @@ function DashboardContent() {
                 <Tooltip content="Open your student profile">
                 <button
                   type="button"
+                  key={avatarRenderKey}
                   onClick={() => setProfileOpen((open) => !open)}
                   aria-expanded={profileOpen}
                   aria-controls="student-profile-flyout"
