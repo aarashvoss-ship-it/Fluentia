@@ -46,7 +46,7 @@ export interface AmbientTrackRow {
 	id: string;
 	title: string;
 	url: string;
-	source_type: "upload" | "url";
+	source_type: "upload" | "url" | "youtube";
 	sort_order: number;
 	is_active: boolean;
 	created_at: string;
