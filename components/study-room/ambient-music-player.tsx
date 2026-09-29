@@ -14,6 +14,10 @@ const VOLUME_KEY = "fluentia:ambient-music:volume";
 const STUDENT_TRACKS_KEY = "fluentia:ambient-music:student-tracks";
 const POMODORO_BREAK_EVENT = "fluentia:study-room-timer-break-start";
 const POMODORO_FOCUS_EVENT = "fluentia:study-room-timer-focus-start";
+const TIMER_CHIME_EVENT = "fluentia:study-room-timer-chime";
+const AUDIO_CONTROL_CLASS = "flex h-8 w-8 items-center justify-center rounded-md border p-2 transition-colors";
+const AUDIO_CONTROL_IDLE_CLASS = "border-slate-800 bg-slate-900/50 text-slate-400 hover:border-slate-700 hover:text-stone-200";
+const AUDIO_CONTROL_ACTIVE_CLASS = "border-amber-500/50 bg-amber-500/5 text-amber-300";
 
 type StudentTrack = LessonAudioTrack & { id: string; storedFile?: boolean };
 type StoredStudentTrack = { id: string; title: string; url?: string; storedFile?: boolean };
@@ -103,7 +107,6 @@ export function AmbientMusicPlayer({ src, studentScope = "student" }: AmbientMus
   const [isEnabled, setIsEnabled] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.35);
-  const [showVolume, setShowVolume] = useState(false);
   const [showTracks, setShowTracks] = useState(false);
   const [showAddTrack, setShowAddTrack] = useState(false);
   const [customTitle, setCustomTitle] = useState("");
@@ -113,8 +116,6 @@ export function AmbientMusicPlayer({ src, studentScope = "student" }: AmbientMus
   const audioRef = useRef<HTMLAudioElement>(null);
   const tracksButtonRef = useRef<HTMLButtonElement>(null);
   const tracksPanelRef = useRef<HTMLDivElement>(null);
-  const volumeButtonRef = useRef<HTMLButtonElement>(null);
-  const volumePanelRef = useRef<HTMLDivElement>(null);
   const objectUrlsRef = useRef(new Set<string>());
   const failedTrackUrlsRef = useRef(new Set<string>());
   const timerPausedMusicRef = useRef(false);
@@ -131,19 +132,16 @@ export function AmbientMusicPlayer({ src, studentScope = "student" }: AmbientMus
   const isYoutubeTrack = isYoutubeUrl(currentTrack);
 
   useEffect(() => {
-    if (!showTracks && !showVolume) return;
+    if (!showTracks) return;
     const closeOnOutsidePointer = (event: PointerEvent) => {
       if (!(event.target instanceof Node)) return;
       if (showTracks && !tracksPanelRef.current?.contains(event.target) && !tracksButtonRef.current?.contains(event.target)) {
         setShowTracks(false);
       }
-      if (showVolume && !volumePanelRef.current?.contains(event.target) && !volumeButtonRef.current?.contains(event.target)) {
-        setShowVolume(false);
-      }
     };
     document.addEventListener("pointerdown", closeOnOutsidePointer);
     return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
-  }, [showTracks, showVolume]);
+  }, [showTracks]);
 
   useEffect(() => {
     let mounted = true;
@@ -251,6 +249,35 @@ export function AmbientMusicPlayer({ src, studentScope = "student" }: AmbientMus
       window.removeEventListener(POMODORO_FOCUS_EVENT, resumeAfterBreak);
     };
   }, [isEnabled, isPlaying]);
+
+  useEffect(() => {
+    const playTimerChime = () => {
+      if (!isEnabled || volume <= 0) return;
+      try {
+        const context = new window.AudioContext();
+        const startAt = context.currentTime;
+        [659.25, 880].forEach((frequency, index) => {
+          const oscillator = context.createOscillator();
+          const gain = context.createGain();
+          const noteStart = startAt + index * 0.18;
+          oscillator.type = "sine";
+          oscillator.frequency.value = frequency;
+          gain.gain.setValueAtTime(0.0001, noteStart);
+          gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, volume * 0.12), noteStart + 0.025);
+          gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + 0.48);
+          oscillator.connect(gain);
+          gain.connect(context.destination);
+          oscillator.start(noteStart);
+          oscillator.stop(noteStart + 0.5);
+        });
+        window.setTimeout(() => void context.close(), 1200);
+      } catch {
+        setTrackNotice("Timer finished, but this browser could not play the chime.");
+      }
+    };
+    window.addEventListener(TIMER_CHIME_EVENT, playTimerChime);
+    return () => window.removeEventListener(TIMER_CHIME_EVENT, playTimerChime);
+  }, [isEnabled, volume]);
 
   useEffect(() => () => {
     objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
@@ -429,7 +456,7 @@ export function AmbientMusicPlayer({ src, studentScope = "student" }: AmbientMus
         <span>{trackError || trackNotice}</span>
         <button type="button" onClick={() => { setTrackError(null); setTrackNotice(null); }} aria-label="Dismiss music notification" className="shrink-0 text-current/70 hover:text-current"><X className="h-4 w-4" /></button>
       </div>}
-      <Tooltip content="Open the music library"><button ref={tracksButtonRef} type="button" onClick={() => setShowTracks((open) => !open)} aria-label="Choose ambient music track" aria-expanded={showTracks} className={`flex h-8 w-8 items-center justify-center rounded-lg border p-2 transition-all ${isEnabled ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-slate-700 bg-slate-800/80 text-stone-400 hover:text-amber-300"}`}>
+      <Tooltip content="Open the music library"><button ref={tracksButtonRef} type="button" onClick={() => setShowTracks((open) => !open)} aria-label="Choose ambient music track" aria-expanded={showTracks} className={`${AUDIO_CONTROL_CLASS} ${showTracks ? AUDIO_CONTROL_ACTIVE_CLASS : AUDIO_CONTROL_IDLE_CLASS}`}>
         <Music className="h-3.5 w-3.5" aria-hidden="true" />
       </button></Tooltip>
       {showTracks && <div ref={tracksPanelRef} className="absolute right-0 top-10 z-40 max-h-[min(80vh,34rem)] w-72 max-w-[calc(100vw-2rem)] overflow-x-hidden overflow-y-auto rounded-md border border-[#394252] bg-[#171d28] p-2 shadow-xl">
@@ -444,14 +471,10 @@ export function AmbientMusicPlayer({ src, studentScope = "student" }: AmbientMus
         {trackNotice && <p role="status" className="px-2 py-1 text-[10px] text-amber-300">{trackNotice}</p>}
         <div className="mt-1 space-y-0.5">{availableTracks.map((item) => <div key={item.id} className="flex items-center gap-1"><Tooltip content={`Play ${item.title}${item.source === "student" ? " (your track)" : ""}`}><button type="button" onClick={() => selectTrack(item)} className={`min-w-0 flex-1 truncate rounded px-2 py-2 text-left text-xs transition hover:bg-amber-500/10 hover:text-amber-300 ${currentTrack === item.url ? "text-amber-300" : "text-stone-400"}`} title={item.title}>{item.title}{item.source === "student" && <span className="ml-1 text-[9px] text-stone-600">Yours</span>}</button></Tooltip>{item.source === "student" && <Tooltip content={`Remove ${item.title} from your local music list`}><button type="button" onClick={() => removeStudentTrack(item as StudentTrack)} aria-label={`Remove ${item.title}`} className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-stone-500 hover:bg-red-500/10 hover:text-red-300"><Trash2 className="h-3.5 w-3.5" /></button></Tooltip>}</div>)}</div>
       </div>}
-      <Tooltip content="Adjust music volume"><button ref={volumeButtonRef} type="button" onClick={() => setShowVolume((open) => !open)} aria-label="Adjust ambient music volume" aria-expanded={showVolume} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-800/80 p-2 text-stone-400 transition-all hover:border-amber-500/50 hover:text-amber-300">
-        {volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-      </button></Tooltip>
-      {showVolume && <div ref={volumePanelRef} className="absolute right-0 top-10 z-40 flex w-36 items-center gap-2 rounded-md border border-[#394252] bg-[#171d28] p-3 shadow-xl"><VolumeX className="h-3.5 w-3.5 text-stone-500" /><input type="range" min="0" max="1" step="0.01" value={volume} onChange={(event) => setVolume(Number(event.target.value))} aria-label="Ambient music volume" className="h-1 w-full accent-amber-500" /><Volume2 className="h-3.5 w-3.5 text-amber-400" /></div>}
-      <Tooltip content={isEnabled ? "Mute ambient music" : "Unmute ambient music"}><button type="button" onClick={toggleEnabled} aria-label={isEnabled ? "Disable ambient music" : "Enable ambient music"} aria-pressed={isEnabled} className={`flex h-8 w-8 items-center justify-center rounded-lg border p-2 transition-all ${isEnabled ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-slate-700 bg-slate-800/80 text-stone-400 hover:text-amber-300"}`}>
+      <Tooltip content={isEnabled ? "Mute ambient music" : "Unmute ambient music"}><button type="button" onClick={toggleEnabled} aria-label={isEnabled ? "Mute ambient music" : "Unmute ambient music"} aria-pressed={isEnabled} className={`${AUDIO_CONTROL_CLASS} ${isEnabled ? AUDIO_CONTROL_ACTIVE_CLASS : AUDIO_CONTROL_IDLE_CLASS}`}>
         {isEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
       </button></Tooltip>
-      <Tooltip content={isPlaying ? "Pause ambient focus music" : "Play ambient focus music"}><button type="button" onClick={togglePlayback} aria-label={isPlaying ? "Pause ambient focus music" : "Play ambient focus music"} aria-pressed={isPlaying} className={`flex h-8 w-8 items-center justify-center rounded-lg border p-2 transition-all ${isPlaying ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-slate-700 bg-slate-800/80 text-stone-400 hover:text-amber-300"}`}>
+      <Tooltip content={isPlaying ? "Pause ambient focus music" : "Play ambient focus music"}><button type="button" onClick={togglePlayback} aria-label={isPlaying ? "Pause ambient focus music" : "Play ambient focus music"} aria-pressed={isPlaying} className={`${AUDIO_CONTROL_CLASS} ${isPlaying ? AUDIO_CONTROL_ACTIVE_CLASS : AUDIO_CONTROL_IDLE_CLASS}`}>
         {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
       </button></Tooltip>
     </div>

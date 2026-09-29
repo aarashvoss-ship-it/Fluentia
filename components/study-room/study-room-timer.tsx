@@ -6,6 +6,7 @@ import { Pause, Play, RotateCcw, Timer, X } from "lucide-react";
 const TIMER_STORAGE_KEY = "fluentia:study-room-timer";
 const POMODORO_BREAK_EVENT = "fluentia:study-room-timer-break-start";
 const POMODORO_FOCUS_EVENT = "fluentia:study-room-timer-focus-start";
+const TIMER_CHIME_EVENT = "fluentia:study-room-timer-chime";
 
 type TimerMode = "pomodoro" | "countdown" | "stopwatch";
 type TimerPhase = "focus" | "break";
@@ -50,32 +51,6 @@ function formatTime(totalSeconds: number, showHours = false) {
     return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   }
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-}
-
-function playCompletionChime() {
-  try {
-    const AudioContextConstructor = window.AudioContext;
-    if (!AudioContextConstructor) return;
-    const context = new AudioContextConstructor();
-    const startAt = context.currentTime;
-    [659.25, 880].forEach((frequency, index) => {
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
-      const noteStart = startAt + index * 0.18;
-      oscillator.type = "sine";
-      oscillator.frequency.value = frequency;
-      gain.gain.setValueAtTime(0.0001, noteStart);
-      gain.gain.exponentialRampToValueAtTime(0.12, noteStart + 0.025);
-      gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + 0.48);
-      oscillator.connect(gain);
-      gain.connect(context.destination);
-      oscillator.start(noteStart);
-      oscillator.stop(noteStart + 0.5);
-    });
-    window.setTimeout(() => void context.close(), 1200);
-  } catch {
-    // Timer state remains usable when Web Audio is unavailable.
-  }
 }
 
 function isTimerState(value: unknown): value is TimerState {
@@ -145,7 +120,7 @@ export function StudyRoomTimer() {
       if (timer.mode === "stopwatch" || !timer.endsAt || timestamp < timer.endsAt) return;
       if (handledEndAtRef.current === timer.endsAt) return;
       handledEndAtRef.current = timer.endsAt;
-      playCompletionChime();
+      window.dispatchEvent(new Event(TIMER_CHIME_EVENT));
       if (timer.mode === "pomodoro") {
         const nextPhase = timer.phase === "focus" ? "break" : "focus";
         const nextDuration = (nextPhase === "focus" ? timer.focusMinutes : timer.breakMinutes) * 60;
@@ -285,7 +260,7 @@ export function StudyRoomTimer() {
         onClick={() => setIsOpen((open) => !open)}
         aria-label={`Open study timer, ${formatTime(displayedSeconds, timer.mode === "stopwatch")}`}
         aria-expanded={isOpen}
-        className="flex h-8 items-center gap-1.5 rounded-md border border-[#394252] bg-[#171d28]/90 px-2 text-xs text-amber-300 transition hover:border-amber-500/60"
+        className={`flex h-8 items-center gap-1.5 rounded-md border bg-slate-900/50 px-2 text-xs transition-colors ${timer.running ? "border-amber-500/50 text-amber-300" : "border-slate-800 text-slate-400 hover:border-slate-700 hover:text-stone-200"}`}
       >
         <Timer className="h-3.5 w-3.5" />
         <span className="font-mono tabular-nums">{formatTime(displayedSeconds, timer.mode === "stopwatch")}</span>
