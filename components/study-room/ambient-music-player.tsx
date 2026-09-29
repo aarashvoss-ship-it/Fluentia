@@ -2,8 +2,9 @@
 
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Music, Pause, Play, Plus, Trash2, Volume2, VolumeX, X } from "lucide-react";
-import { AMBIENT_TRACKS, getYoutubeVideoId, isYoutubeUrl, type LessonAudioTrack } from "@/lib/musicTracks";
+import { getYoutubeVideoId, isYoutubeUrl, type LessonAudioTrack } from "@/lib/musicTracks";
 import { getAmbientTracks } from "@/lib/music-library";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { Tooltip } from "@/components/shared/tooltip";
 import { YoutubeAudioController } from "@/components/shared/youtube-audio-controller";
 
@@ -14,7 +15,7 @@ const STUDENT_TRACKS_KEY = "fluentia:ambient-music:student-tracks";
 
 type StudentTrack = LessonAudioTrack & { id: string; storedFile?: boolean };
 type StoredStudentTrack = { id: string; title: string; url?: string; storedFile?: boolean };
-type AvailableTrack = LessonAudioTrack & { id: string; source: "global" | "lesson" | "student"; temporaryFile?: boolean };
+type AvailableTrack = LessonAudioTrack & { id: string; source: "global" | "student"; temporaryFile?: boolean };
 type StoredAudioFile = { key: string; scope: string; id: string; title: string; blob: Blob };
 
 const STUDENT_AUDIO_DB = "fluentia-student-audio";
@@ -22,7 +23,6 @@ const STUDENT_AUDIO_STORE = "tracks";
 
 interface AmbientMusicPlayerProps {
   src?: string;
-  tracks?: LessonAudioTrack[];
   studentScope?: string;
 }
 
@@ -93,11 +93,11 @@ async function deleteStudentAudio(scope: string, id: string): Promise<void> {
   }).finally(() => database.close());
 }
 
-export function AmbientMusicPlayer({ src, tracks, studentScope = "student" }: AmbientMusicPlayerProps) {
-  const [libraryTracks, setLibraryTracks] = useState<LessonAudioTrack[]>(tracks || []);
+export function AmbientMusicPlayer({ src, studentScope = "student" }: AmbientMusicPlayerProps) {
+  const [libraryTracks, setLibraryTracks] = useState<LessonAudioTrack[]>([]);
   const [studentTracks, setStudentTracks] = useState<StudentTrack[]>([]);
   const [loadedStorageKey, setLoadedStorageKey] = useState("");
-  const [selectedTrack, setSelectedTrack] = useState(src || tracks?.[0]?.url || AMBIENT_TRACKS[0]?.url || "");
+  const [selectedTrack, setSelectedTrack] = useState(src || "");
   const [isEnabled, setIsEnabled] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.35);
@@ -113,19 +113,8 @@ export function AmbientMusicPlayer({ src, tracks, studentScope = "student" }: Am
   const failedTrackUrlsRef = useRef(new Set<string>());
   const storageKey = `${STUDENT_TRACKS_KEY}:${encodeURIComponent(studentScope || "student")}`;
 
-  const globalTracks = (() => {
-    const source = libraryTracks.length > 0
-      ? libraryTracks
-      : AMBIENT_TRACKS.map(({ label, url }) => ({ title: label, url }));
-    const urls = new Set(source.map((track) => track.url));
-    return [
-      ...source,
-      ...AMBIENT_TRACKS.filter((track) => !urls.has(track.url)).map(({ label, url }) => ({ title: label, url })),
-    ];
-  })();
-  const hasLessonTrack = Boolean(src && !globalTracks.some((track) => track.url === src));
+  const globalTracks = libraryTracks;
   const availableTracks: AvailableTrack[] = [
-    ...(hasLessonTrack ? [{ id: `lesson-${src}`, title: "Lesson track", url: src!, source: "lesson" as const }] : []),
     ...globalTracks.map((track, index) => ({ ...track, id: `global-${index}-${track.url}`, source: "global" as const })),
     ...studentTracks.map((track) => ({ ...track, source: "student" as const })),
   ];
@@ -135,16 +124,26 @@ export function AmbientMusicPlayer({ src, tracks, studentScope = "student" }: Am
 
   useEffect(() => {
     let mounted = true;
-    if (tracks?.length) setLibraryTracks(tracks);
-    void getAmbientTracks().then((nextTracks) => {
+    const refreshTracks = async () => {
+      const nextTracks = await getAmbientTracks();
       if (mounted) setLibraryTracks(nextTracks);
-    }).catch(() => {
-      if (mounted && tracks?.length) setLibraryTracks(tracks);
-    });
+    };
+    void refreshTracks();
+
+    const channel = isSupabaseConfigured()
+      ? supabase
+        .channel(`ambient-tracks-${crypto.randomUUID()}`)
+        .on("postgres_changes", { event: "*", schema: "public", table: "ambient_tracks" }, () => {
+          void refreshTracks();
+        })
+        .subscribe()
+      : null;
+
     return () => {
       mounted = false;
+      if (channel) void supabase.removeChannel(channel);
     };
-  }, [tracks]);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -171,13 +170,13 @@ export function AmbientMusicPlayer({ src, tracks, studentScope = "student" }: Am
       setLoadedStorageKey(storageKey);
       setTrackNotice("Some locally stored audio could not be loaded in this browser.");
     });
-    setSelectedTrack(AMBIENT_TRACKS[0]?.url || "");
+    setSelectedTrack(src || "");
     setIsPlaying(false);
     persistPlayback(PLAYBACK_KEY, "false");
     return () => {
       mounted = false;
     };
-  }, [storageKey]);
+  }, [storageKey, src]);
 
   useEffect(() => {
     if (loadedStorageKey !== storageKey) return;

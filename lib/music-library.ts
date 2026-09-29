@@ -1,5 +1,5 @@
 import { isSupabaseConfigured, supabase, type AmbientTrackRow } from "@/lib/supabase";
-import { DEFAULT_LESSON_AUDIO_TRACKS, type LessonAudioTrack } from "@/lib/musicTracks";
+import type { LessonAudioTrack } from "@/lib/musicTracks";
 
 function canRetryWithoutSourceType(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
@@ -12,26 +12,22 @@ function canRetryWithoutSourceType(error: unknown): boolean {
 }
 
 export async function getAmbientTracks(): Promise<LessonAudioTrack[]> {
-  if (!isSupabaseConfigured()) return DEFAULT_LESSON_AUDIO_TRACKS;
+  if (!isSupabaseConfigured()) return [];
   try {
     const { data, error } = await supabase
       .from("ambient_tracks")
       .select("*")
       .eq("is_active", true)
+      .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true });
     if (error) {
       console.error('Supabase Error Details:', error);
-      return DEFAULT_LESSON_AUDIO_TRACKS;
+      return [];
     }
-    const persistedTracks = (data as AmbientTrackRow[] | null) || [];
-    const persistedUrls = new Set(persistedTracks.map((track) => track.url));
-    return [
-      ...persistedTracks.map(({ title, url }) => ({ title, url })),
-      ...DEFAULT_LESSON_AUDIO_TRACKS.filter((track) => !persistedUrls.has(track.url)),
-    ];
+    return ((data as AmbientTrackRow[] | null) || []).map(({ title, url }) => ({ title, url }));
   } catch (error) {
     console.error('Supabase Error Details:', error);
-    return DEFAULT_LESSON_AUDIO_TRACKS;
+    return [];
   }
 }
 
