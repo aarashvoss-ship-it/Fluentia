@@ -192,7 +192,10 @@ function sanitizeLessonUpdatePayload(payload: Record<string, unknown>): Record<s
 function describeSupabaseError(error: unknown) {
   if (error instanceof Error) {
     const value = error as Error & { code?: string; details?: string; hint?: string; status?: number };
-    return { code: value.code, message: value.message, details: value.details, hint: value.hint, status: value.status, stack: value.stack };
+    const message = value.message.trim()
+      || JSON.stringify(error, Object.getOwnPropertyNames(error))
+      || String(error);
+    return { code: value.code, message, details: value.details, hint: value.hint, status: value.status, stack: value.stack };
   }
   if (error && typeof error === "object") {
     const value = error as { code?: string; message?: string; details?: string; hint?: string; status?: number };
@@ -830,17 +833,32 @@ export async function updateLesson(
         .select("id")
         .abortSignal(AbortSignal.timeout(8000));
       if (updateError) {
-        console.error("Supabase lessons PATCH error response:", updateError);
+        console.error("Supabase lessons PATCH error response:", {
+          code: updateError.code,
+          message: updateError.message,
+          details: updateError.details,
+          hint: updateError.hint,
+          raw: JSON.stringify(updateError, Object.getOwnPropertyNames(updateError)),
+        });
       }
-      while (updateError) {
+      const triedMissingColumns = new Set<string>();
+      let retryCount = 0;
+      while (updateError && retryCount < 5) {
         const missingColumn = getMissingColumnName(updateError);
-        if (!missingColumn || !Object.prototype.hasOwnProperty.call(updatePayload, missingColumn)) break;
+        if (
+          !missingColumn
+          || triedMissingColumns.has(missingColumn)
+          || !Object.prototype.hasOwnProperty.call(updatePayload, missingColumn)
+        ) break;
+        triedMissingColumns.add(missingColumn);
         const retryPayload = Object.fromEntries(
           Object.entries(updatePayload).filter(([column]) => column !== missingColumn),
         );
         if (Object.keys(retryPayload).length === 0) break;
+        retryCount += 1;
         console.warn(`Retrying lesson update without unavailable '${missingColumn}' column.`, {
           lessonId: id,
+          retry: retryCount,
           code: updateError.code,
           message: updateError.message,
         });
@@ -851,6 +869,15 @@ export async function updateLesson(
           .eq("id", id)
           .select("id")
           .abortSignal(AbortSignal.timeout(8000)));
+        if (updateError) {
+          console.error("Supabase lessons PATCH retry error response:", {
+            code: updateError.code,
+            message: updateError.message,
+            details: updateError.details,
+            hint: updateError.hint,
+            raw: JSON.stringify(updateError, Object.getOwnPropertyNames(updateError)),
+          });
+        }
       }
 
       if (updateError) {

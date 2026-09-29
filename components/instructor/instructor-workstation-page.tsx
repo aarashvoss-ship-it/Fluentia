@@ -1754,7 +1754,19 @@ export default function InstructorWorkstationPage({
       window.dispatchEvent(new Event("fluentia:lesson-updated"));
       setQuickTagEditor(null);
     } catch (error) {
-      setQuickTagError(error instanceof Error ? error.message : "Unable to save lesson tags.");
+      const details = error && typeof error === "object"
+        ? error as { code?: string; message?: string; details?: string; hint?: string }
+        : undefined;
+      console.error("Quick tag update failed:", {
+        code: details?.code,
+        message: error instanceof Error ? error.message : details?.message || String(error),
+        details: details?.details,
+        hint: details?.hint,
+        raw: error && typeof error === "object"
+          ? JSON.stringify(error, Object.getOwnPropertyNames(error))
+          : String(error),
+      });
+      setQuickTagError(error instanceof Error ? error.message : details?.message || "Unable to save lesson tags.");
     } finally {
       setQuickTagSaving(false);
     }
