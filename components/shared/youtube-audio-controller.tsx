@@ -20,7 +20,7 @@ interface YoutubeApi {
     events: {
       onReady: (event: { target?: YoutubePlayer } | null) => void;
       onStateChange: (event: { target?: YoutubePlayer; data?: number } | null) => void;
-      onError: () => void;
+        onError: (event: { data?: number } | null) => void;
     };
   }) => YoutubePlayer;
 }
@@ -88,7 +88,7 @@ interface YoutubeAudioControllerProps {
   videoId: string;
   isPlaying: boolean;
   volume: number;
-  onError?: () => void;
+  onError?: (errorCode?: number) => void;
 }
 
 export function YoutubeAudioController({ videoId, isPlaying, volume, onError }: YoutubeAudioControllerProps) {
@@ -127,6 +127,7 @@ export function YoutubeAudioController({ videoId, isPlaying, volume, onError }: 
           playlist: videoId,
           playsinline: 1,
           rel: 0,
+          widget_referrer: window.location.origin,
         },
         events: {
           onReady: (event) => {
@@ -161,7 +162,7 @@ export function YoutubeAudioController({ videoId, isPlaying, volume, onError }: 
               target.playVideo();
             }
           },
-          onError: () => onErrorRef.current?.(),
+          onError: (event) => onErrorRef.current?.(event?.data),
         },
       });
     }).catch(() => {

@@ -2,7 +2,7 @@
 
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Music, Pause, Play, Plus, Trash2, Volume2, VolumeX, X } from "lucide-react";
-import { getYoutubeVideoId, isYoutubeUrl, type LessonAudioTrack } from "@/lib/musicTracks";
+import { DEFAULT_LESSON_AUDIO_TRACKS, getYoutubeVideoId, isYoutubeUrl, type LessonAudioTrack } from "@/lib/musicTracks";
 import { getAmbientTracks } from "@/lib/music-library";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { Tooltip } from "@/components/shared/tooltip";
@@ -117,7 +117,7 @@ export function AmbientMusicPlayer({ src, studentScope = "student" }: AmbientMus
   const failedTrackUrlsRef = useRef(new Set<string>());
   const storageKey = `${STUDENT_TRACKS_KEY}:${encodeURIComponent(studentScope || "student")}`;
 
-  const globalTracks = libraryTracks;
+  const globalTracks = libraryTracks.length > 0 ? libraryTracks : DEFAULT_LESSON_AUDIO_TRACKS;
   const availableTracks: AvailableTrack[] = [
     ...globalTracks.map((track, index) => ({ ...track, id: `global-${index}-${track.url}`, source: "global" as const })),
     ...studentTracks.map((track) => ({ ...track, source: "student" as const })),
@@ -236,19 +236,34 @@ export function AmbientMusicPlayer({ src, studentScope = "student" }: AmbientMus
     }
   }
 
-  function failOverToGlobalTrack(failedUrl: string) {
+  function failOverToGlobalTrack(failedUrl: string, errorMessage = "That audio could not be played.") {
     failedTrackUrlsRef.current.add(failedUrl);
-    const fallback = availableTracks.find((item) => item.source === "global" && !failedTrackUrlsRef.current.has(item.url));
+    const fallback = availableTracks.find((item) =>
+      item.source === "global"
+      && !isYoutubeUrl(item.url)
+      && !failedTrackUrlsRef.current.has(item.url),
+    ) || DEFAULT_LESSON_AUDIO_TRACKS
+      .filter((track) => !isYoutubeUrl(track.url))
+      .find((track) => !failedTrackUrlsRef.current.has(track.url));
     if (fallback) {
       setSelectedTrack(fallback.url);
-      setTrackNotice("That audio could not be played. Switched to another ambient track.");
+      setTrackError(null);
+      setTrackNotice(`${errorMessage} Switched to another ambient track.`);
       setIsPlaying(true);
       persistPlayback(PLAYBACK_KEY, "true");
       return;
     }
     setIsPlaying(false);
-    setTrackError("Audio playback failed. Choose another track to continue.");
+    setTrackNotice(null);
+    setTrackError(`${errorMessage} Choose another track to continue.`);
     persistPlayback(PLAYBACK_KEY, "false");
+  }
+
+  function handleYoutubeError(failedUrl: string, errorCode?: number) {
+    const errorMessage = errorCode === 101 || errorCode === 150
+      ? "This YouTube video does not allow embedded playback."
+      : "YouTube audio could not be started.";
+    failOverToGlobalTrack(failedUrl, errorMessage);
   }
 
   useEffect(() => {
@@ -377,7 +392,11 @@ export function AmbientMusicPlayer({ src, studentScope = "student" }: AmbientMus
   return (
     <div className="relative flex items-center gap-1">
       {Boolean(currentTrack) && !isYoutubeTrack && <audio ref={audioRef} src={currentTrack} loop preload="none" onError={() => failOverToGlobalTrack(currentTrack)} onEnded={() => setIsPlaying(false)} />}
-      {youtubeVideoId && <YoutubeAudioController videoId={youtubeVideoId} isPlaying={isEnabled && isPlaying} volume={volume} onError={() => setTrackError("YouTube audio could not be started. Check that the video allows embedding.")} />}
+      {youtubeVideoId && <YoutubeAudioController videoId={youtubeVideoId} isPlaying={isEnabled && isPlaying} volume={volume} onError={(errorCode) => handleYoutubeError(currentTrack, errorCode)} />}
+      {(trackNotice || trackError) && <div role={trackError ? "alert" : "status"} className={`fixed bottom-4 right-4 z-[100] flex max-w-sm items-center gap-3 rounded-md border px-4 py-3 text-xs shadow-xl ${trackError ? "border-red-500/40 bg-[#241719] text-red-200" : "border-amber-500/30 bg-[#171d28] text-amber-200"}`}>
+        <span>{trackError || trackNotice}</span>
+        <button type="button" onClick={() => { setTrackError(null); setTrackNotice(null); }} aria-label="Dismiss music notification" className="shrink-0 text-current/70 hover:text-current"><X className="h-4 w-4" /></button>
+      </div>}
       <Tooltip content="Open the music library"><button ref={tracksButtonRef} type="button" onClick={() => setShowTracks((open) => !open)} aria-label="Choose ambient music track" aria-expanded={showTracks} className={`flex h-8 w-8 items-center justify-center rounded-lg border p-2 transition-all ${isEnabled ? "border-amber-500/70 bg-amber-500/10 text-amber-300" : "border-slate-700 bg-slate-800/80 text-stone-400 hover:text-amber-300"}`}>
         <Music className="h-3.5 w-3.5" aria-hidden="true" />
       </button></Tooltip>

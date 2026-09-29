@@ -42,7 +42,11 @@ export function getYoutubeEmbedUrl(
   embedUrl.searchParams.set("controls", "1");
   embedUrl.searchParams.set("enablejsapi", "1");
   embedUrl.searchParams.set("playsinline", "1");
-  if (origin) embedUrl.searchParams.set("origin", origin);
+  embedUrl.searchParams.set("rel", "0");
+  if (origin) {
+    embedUrl.searchParams.set("origin", origin);
+    embedUrl.searchParams.set("widget_referrer", origin);
+  }
   return embedUrl.toString();
 }
 
