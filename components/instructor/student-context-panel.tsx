@@ -128,11 +128,12 @@ export function StudentContextPanel({
               aria-label="Student name"
             />
             <select
-              value={displayProfile.level.match(/^(A1|A2|B1|B2|C1|C2)/)?.[1] || "B1"}
-              onChange={(e) => updateProfile("level", e.target.value)}
+              value={(displayProfile.targetLevel || displayProfile.level).match(/^(A1|A2|B1|B2|C1|C2)/)?.[1] || ""}
+              onChange={(event) => onUpdateProfile?.({ ...displayProfile, level: event.target.value, targetLevel: event.target.value })}
               className="mt-1 w-full max-w-[220px] rounded-md border border-[#394252] bg-[#111827] px-2 py-1 text-xs text-white outline-none focus:border-amber-500 [color-scheme:dark]"
               aria-label="Student level"
             >
+              <option value="">Not set</option>
               {([
                 ["A1", "Beginner"],
                 ["A2", "Elementary"],

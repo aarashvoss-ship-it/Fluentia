@@ -1,6 +1,7 @@
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import type { StudentId } from "@/types/database";
 import type { StudentProfile } from "@/types/lesson";
+import { STUDENT_USERS } from "@/lib/users";
 
 export interface StudentProfileRecord {
   student_id?: StudentId;
@@ -14,6 +15,18 @@ export interface StudentProfileRecord {
   avatar_url?: string;
   banner_url?: string;
   updated_at?: string;
+}
+
+export const STUDENT_CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
+export type StudentCefrLevel = (typeof STUDENT_CEFR_LEVELS)[number];
+
+export interface StudentDirectoryEntry {
+  id: string;
+  token: string;
+  name: string;
+  email: string;
+  enrolledDate: string;
+  profile: StudentProfile;
 }
 
 export type StudentProfileSaveMode = "database" | "local";
@@ -48,12 +61,22 @@ function getProfileValue(profile: Record<string, unknown> | null | undefined, ke
   return "";
 }
 
+export function normalizeStudentLevel(value: unknown): StudentCefrLevel | "" {
+  if (typeof value !== "string") return "";
+  const match = value.trim().toUpperCase().match(/\b(A1|A2|B1|B2|C1|C2)\b/);
+  return match ? match[1] as StudentCefrLevel : "";
+}
+
 function normalizeStudentProfile(profile: Record<string, unknown> | null, studentToken: string): Partial<StudentProfile> | null {
   if (!profile) return null;
+  const targetLevel = normalizeStudentLevel(getProfileValue(profile, ["target_level", "targetLevel", "level"]));
   return {
     id: studentToken,
-    fullName: getProfileValue(profile, ["fullName", "name"]) || undefined,
-    level: getProfileValue(profile, ["level"]) || undefined,
+    fullName: getProfileValue(profile, ["full_name", "fullName", "name"]) || undefined,
+    email: getProfileValue(profile, ["email"]) || undefined,
+    enrolledDate: getProfileValue(profile, ["enrolled_date", "enrolledDate", "created_at"]) || undefined,
+    targetLevel: targetLevel || undefined,
+    level: targetLevel || undefined,
     targetGoal: getProfileValue(profile, [
       "targetGoal",
       "learningGoal",
@@ -108,61 +131,44 @@ export async function saveStudentProfile(
 
   try {
     const instructorNotes = getStudentProfileNote(profile as unknown as Record<string, unknown>);
-    let { error } = await supabase.from("student_profiles").upsert({
-      student_token: studentToken,
-      level: profile.level,
-      learning_goal: profile.targetGoal,
-      instructor_notes: instructorNotes,
-      assigned_instructor: profile.assignedInstructor || "",
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "student_token" });
+    const profileId = profile.id && uuidPattern.test(profile.id) ? profile.id : "";
+    const studentQuery = profileId
+      ? supabase.from("students").select("id,token").eq("id", profileId).maybeSingle()
+      : supabase.from("students").select("id,token").eq("token", studentToken).maybeSingle();
+    const { data: student, error: studentLookupError } = await studentQuery;
+    if (studentLookupError) throw studentLookupError;
+    const canonicalId = profileId || student?.id || "";
+    if (!canonicalId) throw new Error("Unable to resolve the canonical student profile.");
 
-    if (error && /column|schema cache/i.test(error.message || "")) {
-      const fallback = await supabase.from("student_profiles").upsert({
-        student_token: studentToken,
-        level: profile.level,
-        core_goal: profile.targetGoal,
-        dashboard_note: instructorNotes,
-        assigned_instructor: profile.assignedInstructor || "",
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "student_token" });
+    const targetLevel = normalizeStudentLevel(profile.targetLevel || profile.level);
+    const canonicalProfileUpdate = {
+      full_name: profile.fullName,
+      email: profile.email || null,
+      target_level: targetLevel || null,
+      level: targetLevel || null,
+      enrolled_date: profile.enrolledDate || null,
+      target_goal: profile.targetGoal || null,
+      instructor_note: instructorNotes || null,
+      avatar_url: profile.avatarUrl || null,
+      banner_url: profile.bannerUrl || null,
+      updated_at: new Date().toISOString(),
+    };
+    let { error } = await supabase.from("profiles").update(canonicalProfileUpdate).eq("id", canonicalId);
+    if (error && isMissingCustomizationColumn(error)) {
+      const { avatar_url: _avatarUrl, banner_url: _bannerUrl, ...fallbackUpdate } = canonicalProfileUpdate;
+      const fallback = await supabase.from("profiles").update(fallbackUpdate).eq("id", canonicalId);
       error = fallback.error;
     }
     if (error) throw error;
 
-    if (profile.id && uuidPattern.test(profile.id)) {
-      const canonicalProfileUpdate = {
-        level: profile.level || null,
-        learning_goal: profile.targetGoal || null,
-        instructor_note: instructorNotes || null,
-        avatar_url: profile.avatarUrl || null,
-        banner_url: profile.bannerUrl || null,
-        updated_at: new Date().toISOString(),
-      };
-      let { error: canonicalProfileError } = await supabase
-        .from("profiles")
-        .update(canonicalProfileUpdate)
-        .eq("id", profile.id);
-      if (canonicalProfileError && isMissingCustomizationColumn(canonicalProfileError)) {
-        const { avatar_url: _avatarUrl, banner_url: _bannerUrl, ...fallbackUpdate } = canonicalProfileUpdate;
-        const fallback = await supabase
-          .from("profiles")
-          .update(fallbackUpdate)
-          .eq("id", profile.id);
-        canonicalProfileError = fallback.error;
-      }
-      if (canonicalProfileError) throw canonicalProfileError;
-    }
+    const { error: studentError } = await supabase.from("students").update({
+      name: profile.fullName,
+      email: profile.email,
+      updated_at: new Date().toISOString(),
+    }).eq("id", canonicalId);
+    if (studentError) throw studentError;
 
-    saveStudentProfileLocally(studentToken, profile);
-
-    const { error: studentError } = await supabase
-      .from("students")
-      .update({ name: profile.fullName, updated_at: new Date().toISOString() })
-      .eq("token", studentToken);
-    if (studentError) {
-      console.warn("Student name sync skipped:", studentError.message || studentError);
-    }
+    saveStudentProfileLocally(studentToken, { ...profile, id: canonicalId, level: targetLevel, targetLevel });
     return "database";
   } catch (error) {
     if (options.strict) throw error;
@@ -180,84 +186,103 @@ export async function saveStudentProfile(
 export async function getStudentProfile(studentToken: string): Promise<Partial<StudentProfile> | null> {
   if (!isSupabaseConfigured()) return getStudentProfileLocally(studentToken);
 
-  const identityCandidates = [
-    ...(uuidPattern.test(studentToken) ? [supabase.from("students").select("id, name, email, token").eq("id", studentToken).maybeSingle()] : []),
-    supabase.from("students").select("id, name, email, token").eq("token", studentToken).maybeSingle(),
-    supabase.from("students").select("id, name, email, token").eq("email", studentToken).maybeSingle(),
-  ];
-  const identityResults = await Promise.all(identityCandidates);
-  const student = identityResults.find((result) => result.data)?.data || null;
-  const profileTokens = [...new Set([student?.token, studentToken].filter((value): value is string => Boolean(value)))];
-  const canonicalProfileCandidates = [
-    ...(uuidPattern.test(studentToken)
-      ? [supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", studentToken)
-          .maybeSingle()]
-      : []),
-    ...(student?.id
-      ? [supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", student.id)
-          .maybeSingle()]
-      : []),
-    ...(student?.token
-      ? [supabase
-          .from("profiles")
-          .select("*")
-          .eq("token", student.token)
-          .maybeSingle()]
-      : []),
-  ];
-  const canonicalProfileResults = await Promise.all(canonicalProfileCandidates);
-  const canonicalProfile =
-    canonicalProfileResults.find((result) => result.data)?.data as Record<string, unknown> | null || null;
-  let profileData: Record<string, unknown> | null = null;
-  let profileError: { code?: string; message?: string; details?: string } | null = null;
-  for (const profileToken of profileTokens) {
-    const profileResult = await supabase
-      .from("student_profiles")
-      .select("*")
-      .eq("student_token", profileToken)
-      .maybeSingle();
-    if (profileResult.data) {
-      profileData = profileResult.data as Record<string, unknown>;
-      break;
-    }
-    if (profileResult.error) profileError = profileResult.error;
-  }
-  if (!profileData && profileError && !canonicalProfile) {
-    if (profileError.code !== "42P01" && !/student_profiles/i.test(profileError.message || "")) {
-      console.warn("Student profile read unavailable; using local storage:", profileError.message || profileError.details);
-    }
-    return profileTokens.map(getStudentProfileLocally).find(Boolean) || null;
-  }
-  if (!profileData && !canonicalProfile) {
-    return profileTokens.map(getStudentProfileLocally).find(Boolean) || null;
-  }
-
-  const legacyProfile = normalizeStudentProfile(
-    profileData,
-    student?.token || studentToken,
-  );
-  const canonicalProfileValues = normalizeStudentProfile(
-    canonicalProfile,
-    student?.token || studentToken,
-  );
-
+  const studentQuery = uuidPattern.test(studentToken)
+    ? supabase.from("students").select("id,name,email,token,created_at").eq("id", studentToken).maybeSingle()
+    : supabase.from("students").select("id,name,email,token,created_at").eq("token", studentToken).maybeSingle();
+  const { data: student } = await studentQuery;
+  const profileId = student?.id || (uuidPattern.test(studentToken) ? studentToken : "");
+  if (!profileId) return getStudentProfileLocally(studentToken);
+  const { data: profile, error } = await supabase.from("profiles").select("*").eq("id", profileId).maybeSingle();
+  if (error || !profile) return getStudentProfileLocally(student?.token || studentToken);
+  const normalized = normalizeStudentProfile(profile as Record<string, unknown>, student?.token || studentToken) || {};
   return {
-    ...legacyProfile,
-    ...(canonicalProfileValues?.level
-      ? { level: canonicalProfileValues.level }
-      : {}),
-    ...(canonicalProfileValues?.targetGoal
-      ? { targetGoal: canonicalProfileValues.targetGoal }
-      : {}),
-    ...(canonicalProfileValues?.teacherNotes
-      ? { teacherNotes: canonicalProfileValues.teacherNotes }
-      : {}),
-    fullName: student?.name || undefined,
+    ...normalized,
+    id: profileId,
+    fullName: typeof profile.full_name === "string" && profile.full_name.trim() ? profile.full_name : student?.name || undefined,
+    email: typeof profile.email === "string" && profile.email.trim() ? profile.email : student?.email || undefined,
+    enrolledDate: typeof profile.enrolled_date === "string" ? profile.enrolled_date : student?.created_at || undefined,
+    targetLevel: normalizeStudentLevel(profile.target_level || profile.level) || undefined,
+    level: normalizeStudentLevel(profile.target_level || profile.level) || undefined,
   };
+}
+
+export async function getStudentDirectory(): Promise<StudentDirectoryEntry[]> {
+  if (!isSupabaseConfigured()) {
+    return Promise.all(STUDENT_USERS.map(async (student) => {
+      const savedProfile = await getStudentProfileLocally(student.token);
+      const targetLevel = normalizeStudentLevel(savedProfile?.targetLevel || savedProfile?.level || student.profile.level);
+      return {
+        id: student.id,
+        token: student.token,
+        name: savedProfile?.fullName || student.name,
+        email: savedProfile?.email || student.email || "",
+        enrolledDate: savedProfile?.enrolledDate || "",
+        profile: { ...student.profile, ...savedProfile, id: student.id, fullName: savedProfile?.fullName || student.name, email: savedProfile?.email || student.email, targetLevel, level: targetLevel },
+      };
+    }));
+  }
+
+  const [{ data: students, error: studentsError }, { data: profiles, error: profilesError }] = await Promise.all([
+    supabase.from("students").select("id,name,email,token,created_at").order("name", { ascending: true }),
+    supabase.from("profiles").select("*").eq("role", "student"),
+  ]);
+  if (studentsError) throw studentsError;
+  if (profilesError) console.warn("Student profile directory fallback used:", profilesError.message);
+  const profilesById = new Map((profiles || []).map((profile) => [profile.id, profile as Record<string, unknown>]));
+
+  return (students || []).map((student) => {
+    const profile = profilesById.get(student.id);
+    const saved = profile ? normalizeStudentProfile(profile, student.token) : null;
+    const targetLevel = normalizeStudentLevel(profile?.target_level || profile?.level || saved?.level);
+    const name = typeof profile?.full_name === "string" && profile.full_name.trim() ? profile.full_name : student.name;
+    const email = typeof profile?.email === "string" && profile.email.trim() ? profile.email : student.email;
+    const enrolledDate = typeof profile?.enrolled_date === "string" ? profile.enrolled_date : student.created_at || "";
+    return {
+      id: student.id,
+      token: student.token,
+      name,
+      email,
+      enrolledDate,
+      profile: {
+        id: student.id,
+        fullName: name,
+        email,
+        enrolledDate,
+        targetLevel,
+        level: targetLevel,
+        targetGoal: saved?.targetGoal || (typeof profile?.target_goal === "string" ? profile.target_goal : ""),
+        weaknesses: [],
+        teacherNotes: saved?.teacherNotes || "",
+        attendanceRate: 0,
+        completedModulesCount: 0,
+      },
+    };
+  });
+}
+
+export async function updateStudentTargetLevel(studentId: string, targetLevel: StudentCefrLevel, studentToken = studentId) {
+  if (isSupabaseConfigured() && !uuidPattern.test(studentId)) throw new Error("A valid student profile ID is required.");
+  const existing = await getStudentProfile(studentToken) || {};
+  const localProfile: StudentProfile = {
+    id: studentId,
+    fullName: existing.fullName || STUDENT_USERS.find((student) => student.id === studentId || student.token === studentToken)?.name || "",
+    email: existing.email || "",
+    enrolledDate: existing.enrolledDate || "",
+    level: targetLevel,
+    targetLevel,
+    targetGoal: existing.targetGoal || "",
+    weaknesses: [],
+    teacherNotes: existing.teacherNotes || "",
+    attendanceRate: 0,
+    completedModulesCount: 0,
+    avatarUrl: existing.avatarUrl,
+    bannerUrl: existing.bannerUrl,
+    assignedInstructor: existing.assignedInstructor,
+  };
+  if (isSupabaseConfigured()) {
+    const { error } = await supabase.from("profiles").update({ target_level: targetLevel, level: targetLevel, updated_at: new Date().toISOString() }).eq("id", studentId);
+    if (error) throw error;
+  }
+  saveStudentProfileLocally(studentToken, localProfile);
+  saveStudentProfileLocally(studentId, localProfile);
 }

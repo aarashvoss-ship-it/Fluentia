@@ -1134,7 +1134,7 @@ function DashboardContent() {
             <div className="mt-3 flex items-center gap-2 text-xs text-[#667084]">
               <UserRound className="h-3.5 w-3.5" />
               {displayLessons.length} lessons available{" "}
-              <span className="text-[#394252]">|</span> B2 Upper Intermediate
+              <span className="text-[#394252]">|</span> {studentLevel}
             </div>
             <div className="mt-4 w-12 h-12 rounded-full border-2 border-[#F59E0B] bg-transparent flex items-center justify-center p-1.5">
               <img
@@ -1171,7 +1171,7 @@ function DashboardContent() {
                   {displayName}
                 </p>
                 <p className="text-[10px] text-stone-500">
-                  {activeStudent.profile?.level || "B2 Upper Intermediate"}
+                  {studentLevel}
                 </p>
               </div>
               <button
@@ -1459,7 +1459,7 @@ function DashboardContent() {
                     {displayName}
                   </p>
                   <p className="mt-1 truncate text-[10px] text-stone-500">
-                    {activeStudent.profile?.level || "B2 Upper Intermediate"}
+                    {studentLevel}
                   </p>
                 </div>
                 <Tooltip content="Edit profile and dashboard appearance">

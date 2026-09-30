@@ -54,6 +54,7 @@ export const FLUENTIA_USERS: FluentiaUser[] = [
 export interface StudentUser extends FluentiaUser {
   role: "student";
   token: string;
+  enrolledDate?: string;
   profile: StudentProfile;
 }
 

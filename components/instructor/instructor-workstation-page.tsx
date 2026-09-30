@@ -23,7 +23,7 @@ import { Stepper } from "@/components/study-room/stepper";
 import { StudyRoomBlockRow } from "@/components/study-room/study-room-block-row";
 import { parseInteractiveTranscript } from "@/lib/transcripts";
 import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player";
-import { getStudentProfile, saveStudentProfile } from "@/lib/student-profiles";
+import { getStudentDirectory, getStudentProfile, normalizeStudentLevel, saveStudentProfile, STUDENT_CEFR_LEVELS, updateStudentTargetLevel, type StudentCefrLevel } from "@/lib/student-profiles";
 import { MusicLibraryManager } from "@/components/instructor/music-library-manager";
 import { InstructorChatWidget } from "@/components/instructor/instructor-chat-widget";
 import { useLessonEditorStore } from "@/lib/lesson-editor-store";
@@ -252,7 +252,8 @@ export default function InstructorWorkstationPage({
   const [publishedLessonCount, setPublishedLessonCount] = useState(0);
   const [draftLessonCount, setDraftLessonCount] = useState(0);
   const [lessonStatus, setLessonStatus] = useState<"draft" | "published">("published");
-  const [activeTab, setActiveTab] = useState<"dashboard" | "library" | "resources" | "builder" | "evaluation" | "music">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "library" | "resources" | "builder" | "evaluation" | "students" | "music">("dashboard");
+  const [studentLevelFilter, setStudentLevelFilter] = useState<"All" | StudentCefrLevel>("All");
   const [librarySearch, setLibrarySearch] = useState("");
   const [libraryLevel, setLibraryLevel] = useState("all");
   const [libraryDomain, setLibraryDomain] = useState("all");
@@ -483,6 +484,11 @@ export default function InstructorWorkstationPage({
     writeEditLessonQuery(null);
     resetBuilderState(id);
     setSelectedStudentId(id);
+    setNewLesson((previous) => ({
+      ...previous,
+      studentId: id,
+      level: normalizeStudentLevel(student.profile.targetLevel || student.profile.level) || previous.level,
+    }));
     setWorkstationState((previous) => ({ ...previous, studentProfile: student.profile }));
     const studentToken = student.token || student.id;
     const savedProfile = await getStudentProfile(studentToken).catch(() => null);
@@ -494,12 +500,55 @@ export default function InstructorWorkstationPage({
           ...savedProfile,
           id: student.id,
           fullName: savedProfile.fullName || previous.studentProfile.fullName || student.name,
-          level: savedProfile.level || previous.studentProfile.level,
+          targetLevel: normalizeStudentLevel(savedProfile.targetLevel || savedProfile.level) || undefined,
+          level: normalizeStudentLevel(savedProfile.targetLevel || savedProfile.level) || previous.studentProfile.level,
           targetGoal: savedProfile.targetGoal || previous.studentProfile.targetGoal,
           teacherNotes: savedProfile.teacherNotes || previous.studentProfile.teacherNotes,
         },
       }));
+      const profileLevel = normalizeStudentLevel(savedProfile.targetLevel || savedProfile.level);
+      if (profileLevel) setNewLesson((previous) => ({ ...previous, level: profileLevel }));
     }
+  }
+
+  async function handleStudentLevelChange(student: StudentUser, targetLevel: StudentCefrLevel) {
+    const previousStudent = student;
+    setStudents((current) => current.map((item) => item.id === student.id
+      ? { ...item, profile: { ...item.profile, level: targetLevel, targetLevel } }
+      : item));
+    if (selectedStudentId === student.id) {
+      setWorkstationState((current) => ({
+        ...current,
+        studentProfile: { ...current.studentProfile, level: targetLevel, targetLevel },
+      }));
+    }
+    try {
+      await updateStudentTargetLevel(student.id, targetLevel, student.token);
+      setPublishStatus(`${student.name}'s level updated to ${targetLevel}.`);
+      window.dispatchEvent(new CustomEvent(FLUENTIA_DATA_UPDATED_EVENT, { detail: { type: "student-profile", studentToken: student.token } }));
+    } catch (error) {
+      setStudents((current) => current.map((item) => item.id === previousStudent.id ? previousStudent : item));
+      if (selectedStudentId === student.id) {
+        setWorkstationState((current) => ({ ...current, studentProfile: previousStudent.profile }));
+      }
+      setPublishStatus(error instanceof Error ? `Unable to update ${student.name}'s level: ${error.message}` : "Unable to update student level.");
+    }
+  }
+
+  async function handleSaveSelectedStudentProfile(profile: StudentProfile) {
+    if (!selectedStudent) throw new Error("Select a student before saving profile changes.");
+    const studentToken = selectedStudent.token || selectedStudent.id;
+    const targetLevel = normalizeStudentLevel(profile.targetLevel || profile.level);
+    const nextProfile = { ...profile, targetLevel: targetLevel || undefined, level: targetLevel || profile.level };
+    await saveStudentProfile(studentToken, nextProfile, { strict: true });
+    setStudents((current) => current.map((student) => student.id === selectedStudent.id ? {
+      ...student,
+      name: nextProfile.fullName,
+      email: nextProfile.email || student.email,
+      profile: nextProfile,
+    } : student));
+    setWorkstationState((current) => ({ ...current, studentProfile: nextProfile }));
+    window.dispatchEvent(new CustomEvent(FLUENTIA_DATA_UPDATED_EVENT, { detail: { type: "student-profile", studentToken } }));
   }
 
   const handleWorkspaceTabChange = (tab: typeof activeTab) => {
@@ -1430,14 +1479,7 @@ export default function InstructorWorkstationPage({
           setPendingSubmissionCount(nextPendingSubmissions.length);
           setPendingSubmissionError(null);
         }
-        const { data: studentRows, error: studentError } = await supabase
-          .from("students")
-          .select("id, name, email, token")
-          .order("name", { ascending: true });
-        if (studentError) {
-          console.error("Failed to load students:", { code: studentError.code, message: studentError.message, details: studentError.details, hint: studentError.hint });
-          throw new Error(studentError.message || "Unable to load students");
-        }
+        const studentDirectory = await getStudentDirectory();
         if (cancelled) return;
         if (pendingResult.status === "fulfilled" && !pendingResult.value.error && pendingResult.value.count !== null) {
           setPendingSubmissionCount(pendingResult.value.count);
@@ -1448,24 +1490,16 @@ export default function InstructorWorkstationPage({
         if (draftsResult.status === "fulfilled" && !draftsResult.value.error && draftsResult.value.count !== null) {
           setDraftLessonCount(draftsResult.value.count);
         }
-        const nextStudents: StudentUser[] = deduplicateStudents(studentRows || [])
+        const nextStudents: StudentUser[] = deduplicateStudents(studentDirectory)
           .filter((student) => student.name.trim() !== "Navid Kabazi")
           .map((student) => ({
             id: student.id,
             token: student.token,
             name: student.name,
             email: student.email,
+            enrolledDate: student.enrolledDate,
             role: "student",
-            profile: {
-              id: student.id,
-              fullName: student.name,
-              level: "",
-              targetGoal: "",
-              weaknesses: [],
-              teacherNotes: "",
-              attendanceRate: 0,
-              completedModulesCount: 0,
-            },
+            profile: student.profile,
           }));
         setStudents(nextStudents);
         if (nextStudents.length > 0 && (!selectedStudentId || !nextStudents.some((student) => student.id === selectedStudentId))) {
@@ -2033,6 +2067,8 @@ export default function InstructorWorkstationPage({
     return firstValue.localeCompare(secondValue, undefined, { sensitivity: "base" }) || first.title.localeCompare(second.title);
   });
   const libraryDomains = [...new Set(createdLessons.map((lesson) => getLessonMetadata(lesson).domain))].sort();
+  const filteredStudentDirectory = students.filter((student) => studentLevelFilter === "All"
+    || normalizeStudentLevel(student.profile.targetLevel || student.profile.level) === studentLevelFilter);
   const activeResourceType = resourceDraft.type;
   const resourceAccept = activeResourceType === "image"
     ? "image/*"
@@ -2078,7 +2114,7 @@ export default function InstructorWorkstationPage({
         <nav className="sticky top-0 z-20 mb-8 border-b border-[#202631] bg-[#0c1017]/95 backdrop-blur" aria-label="Instructor workstation views">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-0 flex-wrap gap-x-1">
-              {([["dashboard", "Dashboard"], ["library", "Lesson Library"], ["builder", "Lesson Builder"], ["evaluation", "Student Evaluation"], ["music", "Music Library"]] as const).map(([tab, label]) => <Tooltip key={tab} content={`Open ${label}`}><button type="button" onClick={() => handleWorkspaceTabChange(tab)} className={`whitespace-nowrap border-b-2 px-3 py-3 text-xs font-semibold transition sm:px-4 ${activeTab === tab ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}>{label}</button></Tooltip>)}
+              {([["dashboard", "Dashboard"], ["library", "Lesson Library"], ["builder", "Lesson Builder"], ["evaluation", "Student Evaluation"], ["students", "Students Profile"], ["music", "Music Library"]] as const).map(([tab, label]) => <Tooltip key={tab} content={`Open ${label}`}><button type="button" onClick={() => handleWorkspaceTabChange(tab)} className={`whitespace-nowrap border-b-2 px-3 py-3 text-xs font-semibold transition sm:px-4 ${activeTab === tab ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}>{label}</button></Tooltip>)}
             </div>
             <label className="flex w-full max-w-[240px] items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400 sm:ml-auto sm:w-64">
               <span className="sr-only">Active student</span>
@@ -2215,6 +2251,41 @@ export default function InstructorWorkstationPage({
           {libraryView === "grid" ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{filteredLibraryLessons.map((lesson) => { const metadata = getLessonMetadata(lesson); const assignedIds = getAssignedStudentIds(lesson); return <article key={lesson.id} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 transition hover:border-amber-500/50"><div className="flex items-start justify-between gap-3"><button type="button" onClick={() => handleEditLesson(lesson)} className="min-w-0 text-left"><h3 className="truncate font-semibold text-stone-100">{lesson.title}</h3><p className="mt-1 line-clamp-2 text-xs leading-relaxed text-stone-500">{metadata.subtitle}</p></button><span className={`shrink-0 rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase ${lesson.status === "published" ? "border-emerald-500/30 text-emerald-300" : "border-amber-500/30 text-amber-300"}`}>{lesson.status}</span></div><div className="mt-4 flex flex-wrap gap-1.5"><span className="rounded-full bg-amber-500/15 px-2 py-1 text-[10px] text-amber-300">{metadata.level}</span><span className="rounded-full bg-sky-500/15 px-2 py-1 text-[10px] text-sky-300">{metadata.domain}</span><span className="rounded-full bg-stone-500/15 px-2 py-1 text-[10px] text-stone-300">{metadata.theme}</span><span className="rounded-full bg-emerald-500/15 px-2 py-1 text-[10px] text-emerald-300">{metadata.skillFocus}</span>{metadata.practiceType && <span className="rounded-full bg-rose-500/15 px-2 py-1 text-[10px] text-rose-300">{metadata.practiceType}</span>}{metadata.customTags.map((tag) => <span key={tag} className="rounded-full bg-stone-500/15 px-2 py-1 text-[10px] text-stone-300">{tag}</span>)}</div><div className="mt-2"><button type="button" onClick={() => openQuickTagEditor(lesson)} aria-label={`Edit tags for ${lesson.title}`} className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-300 hover:text-amber-200"><Pencil className="h-3 w-3" />Edit level & tags</button></div><div className="relative mt-5 border-t border-[#202631] pt-4" onClick={(event) => event.stopPropagation()}><div className="flex items-center justify-between gap-2"><div className="flex min-w-0 flex-wrap gap-1">{assignedIds.length === 0 ? <span className="text-xs text-stone-500">No students assigned</span> : assignedIds.map((id) => { const student = students.find((item) => item.id === id); return <span key={id} title={student?.name || id} className="flex h-7 w-7 items-center justify-center rounded-full border border-amber-500/40 bg-amber-500/10 text-[10px] font-semibold text-amber-200">{(student?.name || id).slice(0, 2).toUpperCase()}</span>; })}</div><button type="button" onClick={() => setAssignmentEditorLessonId((current) => current === lesson.id ? null : lesson.id)} className="rounded-md border border-amber-500/40 px-2.5 py-1.5 text-[11px] font-semibold text-amber-300">Assign</button></div>{assignmentEditorLessonId === lesson.id && <div className="absolute left-0 right-0 top-full z-30 mt-2 rounded-lg border border-[#394252] bg-[#171d28] p-3 shadow-xl"><p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Assign students</p>{students.map((student) => <label key={student.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs text-stone-300 hover:bg-[#202631]"><input type="checkbox" checked={assignedIds.includes(student.id)} onChange={() => void handleAssignmentToggle(lesson, student.id)} className="accent-amber-500" /><span className="min-w-0 flex-1 truncate">{student.name}</span>{assignedIds.includes(student.id) && <Check className="h-3.5 w-3.5 text-amber-400" />}</label>)}<button type="button" onClick={() => setAssignmentEditorLessonId(null)} className="mt-2 w-full rounded border border-[#394252] px-2 py-1.5 text-[11px] text-stone-400">Done</button></div>}</div><div className="mt-4 flex items-center justify-between"><span className="text-[11px] text-stone-500">Module {lesson.content?.moduleNumber || lesson.module_number || 1}</span><div className="flex items-center gap-2"><button type="button" onClick={() => handleEditLesson(lesson)} className="text-xs font-semibold text-amber-300 hover:text-amber-200">Edit / Continue</button><button type="button" onClick={() => setLessonPendingDelete(lesson)} aria-label={`Delete ${lesson.title}`} title="Delete lesson" className="flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 transition hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button></div></div></article>; })}</div> : <div className="overflow-x-auto rounded-xl border border-[#202631] bg-[#171d28]/60"><table className="min-w-[900px] w-full text-left text-xs"><thead className="border-b border-[#202631] bg-[#0c1017] text-[10px] uppercase tracking-[0.12em] text-stone-500"><tr><th className="px-5 py-3">Lesson</th><th className="px-4 py-3">Metadata</th><th className="px-4 py-3">Assigned students</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Action</th></tr></thead><tbody className="divide-y divide-[#202631]">{filteredLibraryLessons.map((lesson) => { const metadata = getLessonMetadata(lesson); return <tr key={lesson.id} className="text-stone-300 hover:bg-[#202631]/30"><td className="px-5 py-4"><button type="button" onClick={() => handleEditLesson(lesson)} className="text-left"><p className="font-semibold text-stone-100">{lesson.title}</p><p className="mt-1 text-[11px] text-stone-500">{metadata.subtitle}</p></button></td><td className="px-4 py-4"><div className="flex max-w-xs flex-wrap gap-1"><span className="rounded bg-amber-500/15 px-1.5 py-1 text-[10px] text-amber-300">{metadata.level}</span><span className="rounded bg-sky-500/15 px-1.5 py-1 text-[10px] text-sky-300">{metadata.domain}</span><span className="rounded bg-stone-500/15 px-1.5 py-1 text-[10px] text-stone-300">{metadata.theme}</span><span className="rounded bg-emerald-500/15 px-1.5 py-1 text-[10px] text-emerald-300">{metadata.skillFocus}</span>{metadata.practiceType && <span className="rounded bg-rose-500/15 px-1.5 py-1 text-[10px] text-rose-300">{metadata.practiceType}</span>}{metadata.customTags.map((tag) => <span key={tag} className="rounded bg-stone-500/15 px-1.5 py-1 text-[10px] text-stone-300">{tag}</span>)}</div></td><td className="px-4 py-4">{renderAssignedStudents(lesson)}</td><td className="px-4 py-4 capitalize">{lesson.status}</td><td className="px-4 py-4 text-right"><button type="button" onClick={() => openQuickTagEditor(lesson)} className="text-xs font-semibold text-amber-300">Edit tags</button><button type="button" onClick={() => handleEditLesson(lesson)} className="ml-3 text-xs font-semibold text-amber-300">Edit</button><button type="button" onClick={() => setLessonPendingDelete(lesson)} aria-label={`Delete ${lesson.title}`} title="Delete lesson" className="ml-3 inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button></td></tr>; })}</tbody></table></div>}
           {filteredLibraryLessons.length === 0 && <div className="rounded-xl border border-dashed border-[#394252] p-10 text-center text-sm text-stone-500">No lessons match these filters.</div>}
           {quickTagEditor && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !quickTagSaving) setQuickTagEditor(null); }}><section role="dialog" aria-modal="true" aria-labelledby="quick-tag-editor-title" className="w-full max-w-lg rounded-lg border border-[#394252] bg-[#171d28] p-5 shadow-2xl"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Lesson metadata</p><h3 id="quick-tag-editor-title" className="mt-1 text-lg font-semibold text-stone-100">Edit level & tags</h3></div><button type="button" aria-label="Close tag editor" disabled={quickTagSaving} onClick={() => setQuickTagEditor(null)} className="rounded border border-[#394252] p-1.5 text-stone-400 hover:text-stone-100 disabled:opacity-50"><X className="h-4 w-4" /></button></div><div className="mt-5 grid gap-3 sm:grid-cols-2"><label className="text-xs text-stone-400">CEFR Level<select value={quickTagEditor.level} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, level: event.target.value } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-white [color-scheme:dark]">{CEFR_LEVELS.map((level) => <option key={level}>{level}</option>)}</select></label><label className="text-xs text-stone-400">Domain<input value={quickTagEditor.tags.domain} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, domain: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Skill Focus<input value={quickTagEditor.tags.skill_focus} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, skill_focus: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Practice Type<input value={quickTagEditor.tags.practice_type} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, practice_type: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400 sm:col-span-2">Custom Tags<input value={quickTagEditor.customTagsText} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, customTagsText: event.target.value } : current)} placeholder="Comma-separated custom tags" className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label></div>{quickTagError && <p role="alert" className="mt-3 text-xs text-red-300">{quickTagError}</p>}<div className="mt-5 flex justify-end gap-2"><button type="button" disabled={quickTagSaving} onClick={() => setQuickTagEditor(null)} className="rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 disabled:opacity-50">Cancel</button><button type="button" disabled={quickTagSaving} onClick={() => void saveQuickTagEditor()} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 disabled:opacity-50">{quickTagSaving ? "Saving..." : <><Check className="h-3.5 w-3.5" />Save tags</>}</button></div></section></div>}
+        </section>}
+
+        {activeTab === "students" && <section className="space-y-5" aria-labelledby="students-profile-title">
+          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-[#202631] pb-4">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Student Directory</p>
+              <h2 id="students-profile-title" className="mt-1 font-sans text-2xl font-semibold text-stone-100">Students Profile</h2>
+              <p className="mt-1 text-sm text-stone-500">{filteredStudentDirectory.length} of {students.length} students</p>
+            </div>
+            <label className="flex items-center gap-3 text-xs font-medium text-stone-400">
+              <span>Level</span>
+              <select value={studentLevelFilter} onChange={(event) => setStudentLevelFilter(event.target.value as typeof studentLevelFilter)} className="rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs text-white [color-scheme:dark]" aria-label="Filter students by level">
+                <option value="All">All levels</option>
+                {STUDENT_CEFR_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}
+              </select>
+            </label>
+          </div>
+          {studentsError && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{studentsError}</p>}
+          {studentsLoading ? <p className="py-10 text-center text-sm text-stone-500">Loading student profiles...</p> : filteredStudentDirectory.length > 0 ? <div className="overflow-hidden rounded-xl border border-[#202631] bg-[#171d28]/60">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[680px] border-collapse text-left">
+                <thead className="border-b border-[#293343] bg-[#0c1017]/70 text-[10px] uppercase tracking-[0.12em] text-stone-500">
+                  <tr><th className="px-4 py-3 font-semibold">Student</th><th className="px-4 py-3 font-semibold">Current Level</th><th className="px-4 py-3 font-semibold">Email</th><th className="px-4 py-3 font-semibold">Enrolled</th></tr>
+                </thead>
+                <tbody className="divide-y divide-[#202631]">
+                  {filteredStudentDirectory.map((student) => <tr key={student.id} className="hover:bg-white/[0.02]">
+                    <td className="px-4 py-3 text-sm font-medium text-stone-200">{student.name}</td>
+                    <td className="px-4 py-3"><select value={normalizeStudentLevel(student.profile.targetLevel || student.profile.level)} onChange={(event) => void handleStudentLevelChange(student, event.target.value as StudentCefrLevel)} className="rounded-md border border-[#394252] bg-[#0c1017] px-2.5 py-1.5 text-xs text-amber-300 [color-scheme:dark]" aria-label={`Set ${student.name}'s level`}>{!normalizeStudentLevel(student.profile.targetLevel || student.profile.level) && <option value="" disabled>Not set</option>}{STUDENT_CEFR_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select></td>
+                    <td className="px-4 py-3 text-sm text-stone-400">{student.email || "Not provided"}</td>
+                    <td className="px-4 py-3 text-sm text-stone-400">{student.enrolledDate ? new Date(student.enrolledDate).toLocaleDateString() : "Not available"}</td>
+                  </tr>)}
+                </tbody>
+              </table>
+            </div>
+          </div> : <div className="rounded-xl border border-dashed border-[#394252] px-6 py-12 text-center text-sm text-stone-500">No student profiles match this level.</div>}
         </section>}
 
         {activeTab === "resources" && (() => {
@@ -3115,14 +3186,21 @@ export default function InstructorWorkstationPage({
 
         {activeTab === "evaluation" && <>
 <div className="mb-6">
-<StudentContextPanel studentName={selectedStudent?.name || "Selected Student"} studentId={selectedStudent?.id} studentToken={selectedStudent?.token} profile={workstationState.studentProfile} onUpdateProfile={(studentProfile: StudentProfile) => setWorkstationState((previous) => ({ ...previous, studentProfile }))} onSaveProfile={async (studentProfile: StudentProfile) => { if (!selectedStudent) return; const studentToken = selectedStudent.token || selectedStudent.id; console.log("[Instructor Workstation] profile save identifier:", { studentToken, studentId: selectedStudent.id }); await saveStudentProfile(studentToken, studentProfile); window.localStorage.setItem(`fluentia:student-profile-sync:${studentToken}`, new Date().toISOString()); window.dispatchEvent(new CustomEvent(FLUENTIA_DATA_UPDATED_EVENT, { detail: { type: "student-profile", studentToken } })); }} />
+<StudentContextPanel
+  studentName={selectedStudent?.name || "Selected Student"}
+  studentId={selectedStudent?.id}
+  studentToken={selectedStudent?.token}
+  profile={workstationState.studentProfile}
+  onUpdateProfile={(studentProfile: StudentProfile) => setWorkstationState((previous) => ({ ...previous, studentProfile }))}
+  onSaveProfile={handleSaveSelectedStudentProfile}
+/>
 </div>
 <section className="mt-8 space-y-8" aria-label="Student submission review workspace">
 <div className="flex flex-wrap items-end justify-between gap-4 border-b border-[#202631] pb-4">
 <div>
 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Submission Review Workspace</p>
 <h2 className="mt-1 font-sans text-xl font-semibold text-stone-100">{selectedStudent?.name || "Selected Student"}&apos;s answers</h2>
-<p className="mt-1 text-xs text-amber-300">{workstationState.studentProfile.level}</p>
+<p className="mt-1 text-xs text-amber-300">{selectedStudent?.profile.targetLevel || selectedStudent?.profile.level || "Level not set"}</p>
 </div>
 <span className={`w-fit rounded-sm border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${submissionStateClass}`}>{submissionState}</span>
 </div>
