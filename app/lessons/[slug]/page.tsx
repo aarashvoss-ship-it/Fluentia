@@ -832,16 +832,22 @@ export default function LessonPage() {
     setIsSubmitting(true);
     try {
       const submittedAt = new Date().toISOString();
-      const saved = await persistSubmission(
-        { ...submission, status: "pending_evaluation", submittedAt },
+      const finalSubmission = { ...submission, status: "pending_evaluation" as const, submittedAt };
+      const completed = STUDY_STEPS.map((step) => step.id);
+      const save = persistSubmission(
+        finalSubmission,
         { currentStep: "results", completedSteps: [...STUDY_STEPS.map((step) => step.id)], status: "pending_evaluation" },
-        false,
+        true,
         true,
       );
-      if (!saved) return;
       setIsModalOpen(false);
-      setCompletedSteps([...STUDY_STEPS.map((step) => step.id)]);
+      setCompletedSteps(completed);
       setCurrentStep("results");
+      void save.then((saved) => {
+        if (!saved) console.warn("[Lesson Submission] Results are available locally; remote save did not complete.");
+      }).catch((error) => {
+        console.warn("[Lesson Submission] Results are available locally; remote save failed.", error);
+      });
     } catch (error) {
       setSubmissionSaveError(error instanceof Error ? error.message : String(error));
     } finally {

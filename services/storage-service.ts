@@ -521,6 +521,7 @@ async function persistStudentSubmission(
     status: current?.status || "published",
     submission,
   };
+  await saveLessonState(slug, nextState, studentToken);
   if (isSupabaseConfigured()) {
     try {
       const lesson = await fetchStudentLesson(slug, studentToken);
@@ -693,7 +694,7 @@ export async function uploadStudentAudio(input: string | Blob, studentId: string
   if (typeof input === "string") return fallbackAsset();
   if (!isSupabaseConfigured()) return fallbackAsset();
 
-  const deadline = Date.now() + 5000;
+  const deadline = Date.now() + 2000;
   const withTimeout = <T,>(request: PromiseLike<T>, timeoutMs: number, operation: string): Promise<T> => new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`${operation} timed out`)), timeoutMs);
     Promise.resolve(request).then(resolve, reject).finally(() => clearTimeout(timer));
