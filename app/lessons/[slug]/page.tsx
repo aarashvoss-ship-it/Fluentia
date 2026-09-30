@@ -19,6 +19,7 @@ import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player
 import { StudyRoomTimer } from "@/components/study-room/study-room-timer";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
+import { UnifiedReportCard, type UnifiedReportStage } from "@/components/shared/unified-report-card";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { FillInBlanksMarkdown } from "@/components/study-room/fill-in-blanks-markdown";
 import { WritingBlockRenderer } from "@/components/shared/writing-block";
@@ -720,7 +721,7 @@ export default function LessonPage() {
 
   const getStepResponses = (step: Exclude<StudyStepId, "results">) => {
     const responses: StepResult["responses"] = [];
-    const addResponse = (question: string, value?: string, correctAnswer?: string, explanation?: string, mediaUrls?: string[]) => {
+    const addResponse = (question: string, value?: string, correctAnswer?: string, explanation?: string, mediaUrls?: string[], responseId?: string) => {
       const cleanedQuestion = stripMarkdown(question);
       const cleanedMediaUrls = (mediaUrls || []).filter(Boolean);
       const cleanedAnswer = value && /^(https?:|blob:)/i.test(value.trim())
@@ -733,6 +734,7 @@ export default function LessonPage() {
         ? cleanedAnswer.localeCompare(cleanedCorrectAnswer, undefined, { sensitivity: "accent" }) === 0
         : undefined;
       responses.push({
+        id: responseId || question,
         question: cleanedQuestion,
         answer: cleanedAnswer,
         correctAnswer: cleanedCorrectAnswer || undefined,
@@ -745,13 +747,15 @@ export default function LessonPage() {
       .filter((block) => block.is_active !== false && block.enabled !== false);
     if (blocks.length === 0) {
       if (step === "warm_up") {
-        addResponse(lessonContent.warm_up?.prompt?.text || "Warm-up reflection", submission.blockResponses?.warm_up);
+        addResponse(lessonContent.warm_up?.prompt?.text || "Warm-up reflection", submission.blockResponses?.warm_up, undefined, undefined, undefined, "warm_up");
       } else if (step === "listening") {
         (lessonContent.listening?.questions || []).filter((question: { options?: string[] }) => question.options?.some(Boolean)).forEach((question: { id: string; question: string; options?: string[]; correct_answer?: string; explanation?: string }) => addResponse(
           question.question,
           submission.listeningAnswers?.[question.id],
           question.correct_answer || lessonContent.results?.answer_keys?.listening?.[question.id],
           question.explanation,
+          undefined,
+          question.id,
         ));
       } else if (step === "reading") {
         (lessonContent.reading?.analytical_questions || []).forEach((question: { id: string; question: string; explanation?: string }) => addResponse(
@@ -759,12 +763,14 @@ export default function LessonPage() {
           submission.readingAnswers?.[question.id],
           undefined,
           question.explanation,
+          undefined,
+          question.id,
         ));
       } else if (step === "writing") {
-        addResponse(lessonContent.writing?.prompt?.text || "Writing response", submission.writingText);
+        addResponse(lessonContent.writing?.prompt?.text || "Writing response", submission.writingText, undefined, undefined, undefined, "writingText");
       } else if (step === "speaking") {
         const recording = submission.speakingAudioUrl || submission.audioUploads?.speaking;
-        addResponse(lessonContent.speaking?.scenario?.text || "Speaking recording", recording ? "Audio response submitted" : "", undefined, undefined, recording ? [recording] : undefined);
+        addResponse(lessonContent.speaking?.scenario?.text || "Speaking recording", recording ? "Audio response submitted" : "", undefined, undefined, recording ? [recording] : undefined, "speaking");
       }
       return responses;
     }
@@ -781,15 +787,15 @@ export default function LessonPage() {
         addResponse(block.title || "Text response", responseType === "audio" || responseType === "voice"
           ? value ? "Audio response submitted" : ""
           : responseType === "file" && value ? "File response submitted" : value,
-        undefined, undefined, responseType === "audio" || responseType === "voice" ? value ? [value] : undefined : undefined);
+          undefined, undefined, responseType === "audio" || responseType === "voice" ? value ? [value] : undefined : undefined, block.id);
       } else if (block.type === "audio") {
         if (block.allowStudentVoiceResponse) {
           const recording = submission.audioUploads?.[block.id];
-          addResponse(block.title || "Audio response", recording ? "Audio response submitted" : "", undefined, undefined, recording ? [recording] : undefined);
+          addResponse(block.title || "Audio response", recording ? "Audio response submitted" : "", undefined, undefined, recording ? [recording] : undefined, block.id);
         }
       } else if (block.type === "video") {
         if (block.show_reflection_prompt !== false && block.reflection_prompt_text?.trim()) {
-          addResponse(block.reflection_prompt_text, submission.blockResponses?.[`${block.id}-reflection`]);
+          addResponse(block.reflection_prompt_text, submission.blockResponses?.[`${block.id}-reflection`], undefined, undefined, undefined, `${block.id}-reflection`);
         }
       } else if (block.type === "question") {
         if (block.question_type !== "open_ended" && !block.options.some(Boolean)) return;
@@ -798,6 +804,8 @@ export default function LessonPage() {
           block.question_type === "open_ended" ? submission.blockResponses?.[block.id] : submission.quizSelections?.[block.id],
           block.question_type === "open_ended" ? undefined : block.correct_answer || lessonContent.results?.answer_keys?.[step]?.[block.id],
           block.explanation,
+          undefined,
+          block.id,
         );
       } else if (block.type === "quiz") {
         block.questions.filter((question) => question.options.some(Boolean)).forEach((question) => addResponse(
@@ -805,6 +813,8 @@ export default function LessonPage() {
           submission.quizSelections?.[question.id],
           question.correct_answer || question.correctAnswer || lessonContent.results?.answer_keys?.[step]?.[question.id] || lessonContent.results?.quiz_breakdown?.find((item: { questionId: string; correctResponse: string }) => item.questionId === question.id)?.correctResponse,
           question.explanation || lessonContent.results?.quiz_breakdown?.find((item: { questionId: string; explanation?: string }) => item.questionId === question.id)?.explanation,
+          undefined,
+          question.id,
         ));
       } else if (block.type === "fill-in-the-blanks") {
         const blankQuestion = block.textWithBlanks.replace(/\[[^\]]+\]/g, "_____");
@@ -813,9 +823,11 @@ export default function LessonPage() {
           submission.blockResponses?.[`${block.id}-blank-${index}`],
           block.acceptableAnswers[index]?.join(" / ") || blank.answer,
           block.explanation,
+          undefined,
+          `${block.id}-blank-${index}`,
         ));
       } else if (block.type === "writing") {
-        addResponse(block.prompt || block.title || "Writing response", submission.writing_responses?.[block.id] || submission.blockResponses?.[block.id], undefined, block.explanation);
+        addResponse(block.prompt || block.title || "Writing response", submission.writing_responses?.[block.id] || submission.blockResponses?.[block.id], undefined, block.explanation, undefined, block.id);
       }
     });
     return responses;
@@ -840,6 +852,19 @@ export default function LessonPage() {
     { id: "writing", step: "Writing", prompt: lessonContent.writing?.prompt?.text, responses: getStepResponses("writing") },
     { id: "speaking", step: "Speaking", prompt: lessonContent.speaking?.scenario?.text, responses: getStepResponses("speaking") },
   ];
+  const reportCardStages: UnifiedReportStage[] = stepResults.map((result) => ({
+    id: result.id,
+    title: result.step,
+    prompt: result.prompt,
+    tasks: result.responses.map((response, index) => ({
+      id: response.id || `${result.id}-${index}`,
+      title: response.question,
+      studentAnswer: response.answer,
+      modelAnswer: response.correctAnswer,
+      audioUrls: response.mediaUrls,
+      explanation: response.explanation,
+    })),
+  }));
 
   const currentIndex = STUDY_STEPS.findIndex((s) => s.id === currentStep);
   const lockedSteps = getLockedSteps(completedSteps);
@@ -1284,101 +1309,26 @@ export default function LessonPage() {
                   {Object.entries(benchmarkResults.feedback_notes).map(([section, note]) => <p key={section}><span className="block text-xs font-semibold capitalize text-stone-300">{section.replaceAll("_", " ")}</span>{note}</p>)}
                 </div>
               </div>}
-              {benchmarkResults.instructor_feedback && <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5 text-left">
-                <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Instructor Feedback</p><span className="rounded border border-amber-500/30 px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-amber-300">{benchmarkResults.instructor_feedback.status || "pending"}</span></div>
-                <p className="mt-3 text-sm text-stone-400">Your instructor feedback will appear here after your writing and speaking responses are reviewed.</p>
-              </div>}
-              <div className="space-y-5 text-left">
-                {stepResults.map((result) => (
-                  <section key={result.id} className="rounded-xl border border-[#202631] bg-[#121721] p-5">
-                    <div className="mb-4 border-b border-[#202631] pb-3">
-                      <h4 className="text-sm font-semibold uppercase tracking-[0.12em] text-amber-400">{result.step}</h4>
-                      {result.prompt && <p className="mt-2 whitespace-pre-wrap text-sm text-stone-400">{stripMarkdown(result.prompt)}</p>}
-                    </div>
-                    <div className="space-y-3">
-                      {result.responses.length === 0 && <div className="rounded-lg border border-dashed border-[#394252] bg-[#0c1017]/60 px-4 py-5 text-center">
-                        <p className="text-sm font-medium text-stone-300">Instructional Step Completed</p>
-                        <p className="mt-1 text-xs leading-relaxed text-stone-500">This stage focused on learning content and required no interactive response.</p>
-                      </div>}
-                      {result.responses.map((response, index) => (
-                        <article key={`${response.question}-${index}`} className="rounded-lg border border-[#293343] bg-[#0c1017] p-4">
-                          <h5 className="text-sm font-medium leading-relaxed text-stone-100">Question {index + 1}: {response.question}</h5>
-                          <div className="mt-3">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Your Response</p>
-                            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-stone-300">{response.answer || <span className="italic text-stone-500">No response submitted</span>}</p>
-                            {response.mediaUrls?.map((url, mediaIndex) => <div key={`${url}-${mediaIndex}`} className="mt-2"><CustomAudioPlayer src={url} label={`${result.step} recording`} /></div>)}
-                          </div>
-                          {response.correctAnswer && <div className="mt-3">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-500/80">Correct Answer</p>
-                            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-amber-200">{response.correctAnswer}</p>
-                          </div>}
-                          {(response.explanation || response.isCorrect === false) && <div className="mt-3 border-t border-[#293343] pt-3">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Explanation</p>
-                            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-stone-400">{response.explanation || "Compare your response with the correct answer."}</p>
-                          </div>}
-                        </article>
-                      ))}
-                    </div>
-                  </section>
-                ))}
-              </div>
+              <UnifiedReportCard
+                stages={reportCardStages}
+                isInstructorView={false}
+                isEvaluated={isEvaluationPublished || submission.status === "reviewed" || submission.status === "evaluated"}
+                scores={evaluation?.scores || {}}
+                criterionFeedback={evaluation?.criterionFeedback || {}}
+                taskFeedback={evaluation?.taskFeedback || {}}
+                comments={evaluation?.comments || ""}
+                strengths={evaluation?.strengths}
+                areasToImprove={evaluation?.areasToImprove}
+                studyHubPrescription={evaluation?.studyHubPrescription}
+              />
 
-              <div className="rounded-xl border border-[#202631] bg-[#121721] p-5 text-left">
-                <div className="flex flex-col gap-3 border-b border-[#202631] pb-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Instructor Summary &amp; Recommendations</p>
-                    <h4 className="mt-1 text-lg font-semibold text-stone-100">Your performance review</h4>
-                  </div>
-                  <span className={`w-fit rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${
-                    isEvaluationPublished
-                      ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-                      : "border-[#394252] bg-[#171d28] text-stone-400"
-                  }`}>
-                    {submission.status === "reviewed" || submission.status === "evaluated" || isEvaluationPublished ? "Evaluated" : "Pending Evaluation"}
-                  </span>
+              {(lessonContent.warm_up?.lexicon_notes?.text || lessonContent.lesson || lessonContent.reading || lessonContent.writing || lessonContent.speaking) && <div className="rounded-xl border border-[#202631] bg-[#121721] p-5 text-left">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">Recommended review</p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => setSidebarOpen(true)} className="rounded-md border border-amber-500/20 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-300 hover:bg-amber-500/20">Review lexicon notes</button>
+                  <button type="button" onClick={() => setCurrentStep("warm_up")} className="rounded-md border border-[#394252] bg-[#171d28] px-2.5 py-1.5 text-xs text-stone-300 hover:border-amber-500/40">Revisit lesson content</button>
                 </div>
-                <div className="grid gap-5 pt-4 md:grid-cols-[180px_1fr]">
-                  <div>
-                    <p className="text-xs text-stone-500">Overall assessment</p>
-                    <p className="mt-1 text-3xl font-semibold text-amber-400">{isEvaluationPublished ? `${totalScore}/20` : "--"}</p>
-                    <p className="mt-1 text-xs text-stone-500">Rubric score</p>
-                  </div>
-                  <div className="space-y-4 text-sm text-stone-400">
-                    {isEvaluationPublished && evaluation?.comments && <p>{evaluation.comments}</p>}
-                    {isEvaluationPublished && (
-                      <div className="space-y-3 border-t border-[#202631] pt-4">
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          {[
-                            ["task", "Task Achievement & Depth"],
-                            ["coherence", "Coherence & Flow"],
-                            ["lexical", "Lexical Precision & Range"],
-                            ["grammar", "Grammatical Accuracy"],
-                          ].map(([criterion, label]) => <div key={criterion} className="rounded-lg border border-[#293343] bg-[#0c1017] p-3">
-                            <div className="flex items-center justify-between gap-3">
-                              <p className="text-xs font-semibold text-stone-300">{label}</p>
-                              <span className="text-sm font-semibold text-amber-300">{evaluation?.scores[criterion] ?? 0}/5</span>
-                            </div>
-                            {evaluation?.criterionFeedback?.[criterion] && <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-stone-400">{evaluation.criterionFeedback[criterion]}</p>}
-                          </div>)}
-                        </div>
-                        <div className="grid gap-4 sm:grid-cols-2">
-                        {evaluation?.strengths && <div><p className="text-xs font-semibold text-stone-300">Strengths</p><p className="mt-1 whitespace-pre-wrap">{evaluation.strengths}</p></div>}
-                        {evaluation?.areasToImprove && <div><p className="text-xs font-semibold text-stone-300">Areas to Improve</p><p className="mt-1 whitespace-pre-wrap">{evaluation.areasToImprove}</p></div>}
-                        {evaluation?.studyHubPrescription && <div><p className="text-xs font-semibold text-stone-300">Study Hub Prescription</p><p className="mt-1 whitespace-pre-wrap text-amber-300">{evaluation.studyHubPrescription}</p></div>}
-                        {evaluation?.voiceFeedbackUrl && <div><p className="text-xs font-semibold text-stone-300">Voice Feedback</p><a href={evaluation.voiceFeedbackUrl} className="mt-1 block truncate text-amber-300">{evaluation.voiceFeedbackUrl}</a></div>}
-                        </div>
-                      </div>
-                    )}
-                    {(lessonContent.warm_up?.lexicon_notes?.text || lessonContent.lesson || lessonContent.reading || lessonContent.writing || lessonContent.speaking) && <div>
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">Recommended review</p>
-                      <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => { setSidebarOpen(true); }} className="rounded-md border border-amber-500/20 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-300 hover:bg-amber-500/20">Review lexicon notes</button>
-                        <button type="button" onClick={() => setCurrentStep("warm_up")} className="rounded-md border border-[#394252] bg-[#171d28] px-2.5 py-1.5 text-xs text-stone-300 hover:border-amber-500/40">Revisit lesson content</button>
-                      </div>
-                    </div>}
-                  </div>
-                </div>
-              </div>
+              </div>}
 
               <div className="text-center">
                 <Link href="/dashboard" className="inline-flex items-center gap-2 rounded-full border border-stone-700 bg-stone-800 px-5 py-2.5 text-sm text-stone-200 transition-colors hover:bg-stone-700">

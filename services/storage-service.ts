@@ -222,6 +222,7 @@ function mapFeedbackRow(feedback: SupabaseRow | null): LessonEvaluation {
     totalScore: Number(feedback?.total_score ?? Object.values(scores).reduce<number>((total, score) => total + Number(score), 0)),
     comments: feedback?.comments || "",
     criterionFeedback: feedback?.criterion_feedback?.comments || feedback?.criterion_feedback || {},
+    taskFeedback: feedback?.criterion_feedback?.tasks || {},
     strengths: feedback?.strengths || undefined,
     areasToImprove: feedback?.areas_to_improve || undefined,
     studyHubPrescription: feedback?.study_hub_prescription || undefined,
@@ -708,6 +709,7 @@ export async function saveInstructorFeedback(
     const rubricFeedback = {
       comments: publishedEvaluation.criterionFeedback || {},
       scores: publishedEvaluation.scores,
+      tasks: publishedEvaluation.taskFeedback || {},
     };
     const { error: feedbackError } = await supabase.from("instructor_feedback").upsert({
       lesson_id: lesson.id,

@@ -10,6 +10,7 @@ export interface StepResult {
   step: string;
   prompt?: string;
   responses: {
+    id?: string;
     question: string;
     answer: string;
     correctAnswer?: string;

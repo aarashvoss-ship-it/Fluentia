@@ -324,6 +324,7 @@ export interface LessonEvaluation {
   totalScore?: number;
   comments: string;
   criterionFeedback?: Record<string, string>;
+  taskFeedback?: Record<string, string>;
   strengths?: string;
   areasToImprove?: string;
   studyHubPrescription?: string;

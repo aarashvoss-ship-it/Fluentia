@@ -7,6 +7,7 @@ import { StudentContextPanel } from "@/components/instructor/student-context-pan
 import { LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
 import { InstructorBannerManager } from "@/components/instructor/banner-manager";
 import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/submission-evaluator";
+import type { UnifiedReportStage } from "@/components/shared/unified-report-card";
 import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
 import { assignLessonToAllActiveStudents, assignLessonToStudent, createLesson, deleteLesson, getLessons, publishLessonAndAssign, setLessonAssignments, unassignLesson, updateLesson, type LessonTags, type LessonWithVersion } from "@/lib/lessons";
 import { PublishedLessonState } from "@/lib/lesson-store";
@@ -124,19 +125,7 @@ type PendingReviewSubmission = {
 
 type InstructorReviewStageId = "warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking";
 
-type InstructorReviewAnswer = {
-  question: string;
-  answer: string;
-  modelAnswer?: string;
-  audioUrl?: string;
-};
-
-type InstructorReviewStage = {
-  id: InstructorReviewStageId;
-  title: string;
-  prompt?: string;
-  answers: InstructorReviewAnswer[];
-};
+type InstructorReviewStage = UnifiedReportStage & { id: InstructorReviewStageId };
 
 function stripReviewMarkdown(value: string) {
   return value
@@ -1869,12 +1858,12 @@ export default function InstructorWorkstationPage({
   const submittedAnswers = workstationState.submission;
   const reviewContent = workstationState.content as Record<string, any>;
   const reviewStages: InstructorReviewStage[] = [
-    { id: "warm_up", title: "Warm-up", prompt: reviewContent.warm_up?.intro_narrative?.text || reviewContent.warm_up?.quote?.text, answers: [] },
-    { id: "lesson", title: "Lesson", prompt: reviewContent.lesson?.core_concept?.text, answers: [] },
-    { id: "listening", title: "Listening", prompt: reviewContent.listening?.transcript?.text, answers: [] },
-    { id: "reading", title: "Reading", prompt: reviewContent.reading?.article_markdown?.text, answers: [] },
-    { id: "writing", title: "Writing", prompt: reviewContent.writing?.prompt?.text, answers: [] },
-    { id: "speaking", title: "Speaking", prompt: reviewContent.speaking?.scenario?.text, answers: [] },
+    { id: "warm_up", title: "Warm-up", prompt: reviewContent.warm_up?.intro_narrative?.text || reviewContent.warm_up?.quote?.text, tasks: [] },
+    { id: "lesson", title: "Lesson", prompt: reviewContent.lesson?.core_concept?.text, tasks: [] },
+    { id: "listening", title: "Listening", prompt: reviewContent.listening?.transcript?.text, tasks: [] },
+    { id: "reading", title: "Reading", prompt: reviewContent.reading?.article_markdown?.text, tasks: [] },
+    { id: "writing", title: "Writing", prompt: reviewContent.writing?.prompt?.text, tasks: [] },
+    { id: "speaking", title: "Speaking", prompt: reviewContent.speaking?.scenario?.text, tasks: [] },
   ];
   const reviewQuestionText: Record<string, string> = { warm_up: "Reflection Question", writingText: "Writing response", speaking: "Speaking recording" };
   const reviewModelAnswers: Record<string, string> = {};
@@ -1919,11 +1908,12 @@ export default function InstructorWorkstationPage({
     const stage = reviewStages.find((item) => item.id === stageId);
     if (!stage) return;
     const isUrl = /^(?:https?:|blob:|data:audio\/)/i.test(answer.trim());
-    stage.answers.push({
-      question: getDisplayQuestion(key, stageId),
-      answer: audioUrl || isUrl ? "Audio response submitted" : answer,
+    stage.tasks.push({
+      id: key,
+      title: getDisplayQuestion(key, stageId),
+      studentAnswer: audioUrl || isUrl ? "Audio response submitted" : answer,
       modelAnswer: reviewModelAnswers[key],
-      audioUrl: audioUrl || (isUrl ? answer : undefined),
+      audioUrls: audioUrl || isUrl ? [audioUrl || answer] : undefined,
     });
   };
   if (submittedAnswers?.writingText?.trim()) addReviewAnswer("writing", "writingText", submittedAnswers.writingText);
@@ -1944,7 +1934,7 @@ export default function InstructorWorkstationPage({
     const stage = reviewStageForKey[key] || (key === "speaking" ? "speaking" : "warm_up");
     addReviewAnswer(stage, key, "Audio response submitted", url);
   });
-  if (submittedAnswers?.speakingAudioUrl?.trim() && !reviewStages.some((stage) => stage.answers.some((answer) => answer.audioUrl === submittedAnswers.speakingAudioUrl))) {
+  if (submittedAnswers?.speakingAudioUrl?.trim() && !reviewStages.some((stage) => stage.tasks.some((task) => task.audioUrls?.includes(submittedAnswers.speakingAudioUrl!)))) {
     addReviewAnswer("speaking", "speaking", "Audio response submitted", submittedAnswers.speakingAudioUrl);
   }
 
@@ -3150,7 +3140,7 @@ export default function InstructorWorkstationPage({
   onUpdateEvaluation={(evaluation: LessonEvaluation) => setWorkstationState((previous) => ({ ...previous, evaluation }))}
   onSubmitFeedback={async (feedback: FeedbackPayload) => {
     if (!selectedStudentId) throw new Error("Select a student before publishing an evaluation.");
-    const evaluation = { ...workstationState.evaluation, scores: feedback.scores, comments: feedback.comments, criterionFeedback: feedback.criterionFeedback, published: true };
+    const evaluation = { ...workstationState.evaluation, scores: feedback.scores, comments: feedback.comments, criterionFeedback: feedback.criterionFeedback, taskFeedback: feedback.taskFeedback, published: true };
     const saved = await saveInstructorFeedback(reviewSubmissionLessonId || databaseLessonId || newLesson.slug || lessonId, selectedStudentId, evaluation);
     setWorkstationState((previous) => ({ ...previous, submission: saved.submission || previous.submission, evaluation: saved.evaluation }));
     setPublishStatus("Strengths, study plan, and evaluation synced with student view!");
