@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { CheckCircle, Award, AlertCircle } from "lucide-react";
 import { LessonEvaluation } from "@/types/lesson";
+import { supabase } from "@/lib/supabase";
 import {
   getSubmissionByLessonAndStudent,
   createEvaluation,
@@ -18,6 +19,7 @@ export interface FeedbackPayload {
 
 interface SubmissionEvaluatorProps {
   lessonId?: string;
+  pendingSubmissionId?: string;
   studentName?: string;
   studentId?: string;
   instructorId?: string;
@@ -36,6 +38,7 @@ const RUBRIC_CRITERIA = [
 
 export function SubmissionEvaluator({
   lessonId,
+  pendingSubmissionId,
   studentName = "Student",
   studentId,
   instructorId,
@@ -69,24 +72,55 @@ export function SubmissionEvaluator({
     if (useSupabase && lessonId && studentId) {
       loadSubmissionData();
     }
-  }, [lessonId, studentId, useSupabase]);
+  }, [lessonId, studentId, pendingSubmissionId, useSupabase]);
 
   const loadSubmissionData = async () => {
     if (!lessonId || !studentId) return;
     setSubmissionLoadState("loading");
     try {
-      const submission = await getSubmissionByLessonAndStudent(lessonId, studentId);
+      const [submission, feedbackResult] = await Promise.all([
+        getSubmissionByLessonAndStudent(lessonId, studentId),
+        supabase
+          .from("instructor_feedback")
+          .select("scores,comments,strengths,areas_to_improve,study_hub_prescription,voice_feedback_url,is_published")
+          .eq("lesson_id", lessonId)
+          .eq("student_id", studentId)
+          .maybeSingle(),
+      ]);
       if (submission) {
         setSubmissionId(submission.id);
         setSubmissionLoadState("loaded");
         if (submission.evaluation) {
           setEvaluationId(submission.evaluation.id);
         }
+      } else if (pendingSubmissionId) {
+        setSubmissionId(pendingSubmissionId);
+        setSubmissionLoadState("loaded");
       } else {
         setSubmissionLoadState("missing");
       }
+      if (feedbackResult.error) {
+        console.error("Error loading student lesson rubric:", feedbackResult.error);
+      } else if (feedbackResult.data) {
+        const feedback = feedbackResult.data;
+        onUpdateEvaluation?.({
+          scores: feedback.scores || defaultScores,
+          comments: feedback.comments || "",
+          criterionFeedback: evaluation?.criterionFeedback || {},
+          strengths: feedback.strengths || undefined,
+          areasToImprove: feedback.areas_to_improve || undefined,
+          studyHubPrescription: feedback.study_hub_prescription || undefined,
+          voiceFeedbackUrl: feedback.voice_feedback_url || undefined,
+          published: Boolean(feedback.is_published),
+        });
+      }
     } catch (error) {
-      setSubmissionLoadState("missing");
+      if (pendingSubmissionId) {
+        setSubmissionId(pendingSubmissionId);
+        setSubmissionLoadState("loaded");
+      } else {
+        setSubmissionLoadState("missing");
+      }
       console.error("Error loading submission:", error);
     }
   };

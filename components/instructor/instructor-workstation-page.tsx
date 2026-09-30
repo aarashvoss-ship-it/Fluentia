@@ -218,16 +218,18 @@ export default function InstructorWorkstationPage({
 
   const [isMounted, setIsMounted] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState<StudentUser | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [resourceLessonId, setResourceLessonId] = useState<string | null>(null);
 
   const [students, setStudents] = useState<StudentUser[]>([]);
+  const selectedStudent = students.find((student) => student.id === selectedStudentId) || null;
   const [studentsLoading, setStudentsLoading] = useState(true);
   const [studentsError, setStudentsError] = useState<string | null>(null);
   const [publishStatus, setPublishStatus] = useState<string | null>(null);
 
   const [databaseLessonId, setDatabaseLessonId] = useState<string | null>(null);
+  const [reviewSubmissionId, setReviewSubmissionId] = useState<string | null>(null);
+  const [reviewSubmissionLessonId, setReviewSubmissionLessonId] = useState<string | null>(null);
   const [pendingSubmissionCount, setPendingSubmissionCount] = useState(0);
   const [pendingSubmissions, setPendingSubmissions] = useState<PendingReviewSubmission[]>([]);
   const [pendingSubmissionError, setPendingSubmissionError] = useState<string | null>(null);
@@ -333,7 +335,7 @@ export default function InstructorWorkstationPage({
   const [createdLessons, setCreatedLessons] = useState<LessonWithVersion[]>([]);
   const [lessonPendingDelete, setLessonPendingDelete] = useState<LessonWithVersion | null>(null);
   const [isDeletingLesson, setIsDeletingLesson] = useState(false);
-  const activeBuilderStudent = selectedStudent ?? (selectedStudentId ? students.find((student) => student.id === selectedStudentId) ?? null : null);
+  const activeBuilderStudent = selectedStudent;
   const activeBuilderLessonId = resourceLessonId || databaseLessonId || null;
   const [openLessonMenuId, setOpenLessonMenuId] = useState<string | null>(null);
   const [newLesson, setNewLesson] = useState({
@@ -393,11 +395,12 @@ export default function InstructorWorkstationPage({
     resetStore();
     setDatabaseLessonId(null);
     setResourceLessonId(null);
+    setReviewSubmissionId(null);
+    setReviewSubmissionLessonId(null);
     setSidebarBlocksByStep({});
     setSidebarStep("warm_up");
     setLessonResources([]);
     setSelectedStudentId(studentId || null);
-    setSelectedStudent(studentId ? students.find((student) => student.id === studentId) || null : null);
     setNewLesson({ studentId, title: "", slug: "", subtitle: "", instructorGuidance: "", moduleNumber: "", level: "B1", tags: { ...EMPTY_LESSON_TAGS }, customTagsText: "", status: "draft" });
     setWorkstationState((previous) => ({
       ...previous,
@@ -464,7 +467,6 @@ export default function InstructorWorkstationPage({
     writeEditLessonQuery(null);
     resetBuilderState(id);
     setSelectedStudentId(id);
-    setSelectedStudent(student);
     setWorkstationState((previous) => ({ ...previous, studentProfile: student.profile }));
     const studentToken = student.token || student.id;
     const savedProfile = await getStudentProfile(studentToken).catch(() => null);
@@ -550,8 +552,9 @@ export default function InstructorWorkstationPage({
       ? students.find((student) => student.id === savedStudentId || student.token === savedStudentId)
       : undefined;
     hasLoadedLesson.current = false;
-    setSelectedStudentId(savedStudentId);
-    if (savedStudent) setSelectedStudent(savedStudent);
+    setSelectedStudentId(savedStudent?.id || null);
+    setReviewSubmissionId(null);
+    setReviewSubmissionLessonId(null);
     setNewLesson((previous) => ({
       ...previous,
       studentId: savedStudentId || previous.studentId,
@@ -622,7 +625,8 @@ export default function InstructorWorkstationPage({
     setResourceLessonId(null);
     setResourceFile(null);
     setSelectedStudentId(null);
-    setSelectedStudent(null);
+    setReviewSubmissionId(null);
+    setReviewSubmissionLessonId(null);
     setNewLesson((previous) => ({
       ...previous,
       studentId: "",
@@ -764,10 +768,16 @@ export default function InstructorWorkstationPage({
       setDatabaseLessonId(pendingSubmission.lessonId);
       setNewLesson((previous) => ({ ...previous, slug: pendingSubmission.lessonId }));
     }
-    setSelectedStudent(student);
     setSelectedStudentId(student.id);
+    setReviewSubmissionId(pendingSubmission.id);
+    setReviewSubmissionLessonId(pendingSubmission.lessonId);
     setNewLesson((previous) => ({ ...previous, studentId: student.id }));
-    setWorkstationState((previous) => ({ ...previous, submission: pendingSubmission.submission }));
+    setWorkstationState((previous) => ({
+      ...previous,
+      submission: pendingSubmission.submission,
+      studentProfile: student.profile,
+      evaluation: { scores: { task: 4, coherence: 4, lexical: 3, grammar: 4 }, comments: "", criterionFeedback: {}, published: false },
+    }));
     setActiveTab("evaluation");
   };
 
@@ -1161,7 +1171,7 @@ export default function InstructorWorkstationPage({
   };
 
   useEffect(() => {
-    if (!databaseLessonId || students.length === 0) return;
+    if (reviewSubmissionId || !databaseLessonId || students.length === 0) return;
     const currentLesson = createdLessons.find((lesson) => lesson.id === databaseLessonId);
     if (!currentLesson) return;
     const savedStudentId = getSavedStudentId(currentLesson);
@@ -1171,9 +1181,8 @@ export default function InstructorWorkstationPage({
     );
     if (!matchingStudent) return;
     setSelectedStudentId(matchingStudent.id);
-    setSelectedStudent(matchingStudent);
     setNewLesson((previous) => ({ ...previous, studentId: matchingStudent.id }));
-  }, [databaseLessonId, createdLessons, students]);
+  }, [databaseLessonId, createdLessons, students, reviewSubmissionId]);
 
   async function handleCreateLesson() {
     const draftStudentId = selectedStudentId || newLesson.studentId || selectedStudent?.id || "";
@@ -1443,8 +1452,7 @@ export default function InstructorWorkstationPage({
             },
           }));
         setStudents(nextStudents);
-        if (nextStudents.length > 0 && (!selectedStudent || !nextStudents.some((student) => student.id === selectedStudent.id))) {
-          setSelectedStudent(nextStudents[0]);
+        if (nextStudents.length > 0 && (!selectedStudentId || !nextStudents.some((student) => student.id === selectedStudentId))) {
           setSelectedStudentId(nextStudents[0].id);
         }
       } catch (error) {
@@ -1831,6 +1839,28 @@ export default function InstructorWorkstationPage({
     : submissionState === "Pending Evaluation"
       ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
       : "border-[#394252] bg-[#171d28] text-stone-400";
+  const submittedAnswers = workstationState.submission;
+  const getTextAnswerRows = (answers?: Record<string, string>) => Object.entries(answers || {})
+    .filter(([, answer]) => Boolean(answer?.trim()) && !/^(?:https?:|blob:|data:audio\/)/i.test(answer.trim()))
+    .map(([question, answer]) => ({ question, answer }));
+  const submissionAnswerGroups = [
+    { title: "Writing", answers: [
+      ...(submittedAnswers?.writingText?.trim() ? [{ question: "Writing response", answer: submittedAnswers.writingText }] : []),
+      ...getTextAnswerRows(submittedAnswers?.writing_responses),
+    ] },
+    { title: "Listening", answers: getTextAnswerRows(submittedAnswers?.listeningAnswers) },
+    { title: "Reading", answers: getTextAnswerRows(submittedAnswers?.readingAnswers) },
+    { title: "Other responses", answers: [
+      ...getTextAnswerRows(submittedAnswers?.blockResponses),
+      ...getTextAnswerRows(submittedAnswers?.quizSelections),
+    ] },
+  ].filter((group) => group.answers.length > 0);
+  const submissionAudioRows = Object.entries(submittedAnswers?.audioUploads || {})
+    .filter(([, url]) => Boolean(url?.trim()))
+    .map(([question, url]) => ({ question, url }));
+  if (submittedAnswers?.speakingAudioUrl?.trim() && !submissionAudioRows.some((row) => row.url === submittedAnswers.speakingAudioUrl)) {
+    submissionAudioRows.push({ question: "Speaking recording", url: submittedAnswers.speakingAudioUrl });
+  }
 
   const previewSteps = [
     ["warm_up", "Warm-up"],
@@ -2130,7 +2160,6 @@ export default function InstructorWorkstationPage({
                         const student = students.find((item) => item.id === event.target.value);
                         if (student) {
                           setResourceLessonId(null);
-                          setSelectedStudent(student);
                           setSelectedStudentId(student.id);
                         }
                       }}
@@ -3022,13 +3051,23 @@ export default function InstructorWorkstationPage({
 </div>
 <span className={`w-fit rounded-sm border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${submissionStateClass}`}>{submissionState}</span>
 </div>
-<div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
-<p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Written response</p>
-<p className="rounded-lg border border-[#202631] bg-[#0c1017] p-4 text-sm leading-relaxed text-stone-300">{workstationState.submission?.writingText || "No written response submitted."}</p>
+<div className="space-y-4">
+{submissionAnswerGroups.map((group) => <section key={group.title} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
+<h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">{group.title}</h3>
+<div className="space-y-3">{group.answers.map((answer, index) => <div key={`${answer.question}-${index}`} className="rounded-lg border border-[#202631] bg-[#0c1017] p-4">
+<p className="text-xs font-medium text-stone-500">{answer.question}</p>
+<p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-300">{answer.answer}</p>
+</div>)}</div>
+</section>)}
+{submissionAudioRows.map((audio) => <section key={`${audio.question}-${audio.url}`} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
+<h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Audio response: {audio.question}</h3>
+<CustomAudioPlayer src={audio.url} label={`${audio.question} recording`} />
+</section>)}
+{submissionAnswerGroups.length === 0 && submissionAudioRows.length === 0 && <p className="rounded-lg border border-[#202631] bg-[#0c1017] p-4 text-sm text-stone-500">No written or audio responses were included in this submission.</p>}
 </div>
 </div>
 <div className="lg:col-span-5 lg:sticky lg:top-6">
-<SubmissionEvaluator key={`${databaseLessonId || newLesson.slug || lessonId}:${selectedStudent?.id || "no-student"}`} lessonId={databaseLessonId || newLesson.slug || lessonId} studentId={selectedStudent?.id} instructorId={instructorId} studentName={selectedStudent?.name || "Selected Student"} useSupabase evaluation={workstationState.evaluation} onUpdateEvaluation={(evaluation: LessonEvaluation) => setWorkstationState((previous) => ({ ...previous, evaluation }))} onSubmitFeedback={async (feedback: FeedbackPayload) => { if (!selectedStudent) return; const evaluation = { ...workstationState.evaluation, scores: feedback.scores, comments: feedback.comments, criterionFeedback: feedback.criterionFeedback, published: true }; setWorkstationState((previous) => ({ ...previous, evaluation })); await saveInstructorFeedback(newLesson.slug || lessonId, selectedStudent.id, evaluation); setPublishStatus("Strengths, study plan, and evaluation synced with student view!"); }} />
+<SubmissionEvaluator key={`${reviewSubmissionLessonId || databaseLessonId || newLesson.slug || lessonId}:${selectedStudentId || "no-student"}`} lessonId={reviewSubmissionLessonId || databaseLessonId || newLesson.slug || lessonId} studentId={selectedStudentId || undefined} pendingSubmissionId={reviewSubmissionId || undefined} instructorId={instructorId} studentName={selectedStudent?.name || "Selected Student"} useSupabase evaluation={workstationState.evaluation} onUpdateEvaluation={(evaluation: LessonEvaluation) => setWorkstationState((previous) => ({ ...previous, evaluation }))} onSubmitFeedback={async (feedback: FeedbackPayload) => { if (!selectedStudentId) return; const evaluation = { ...workstationState.evaluation, scores: feedback.scores, comments: feedback.comments, criterionFeedback: feedback.criterionFeedback, published: true }; setWorkstationState((previous) => ({ ...previous, evaluation })); await saveInstructorFeedback(reviewSubmissionLessonId || databaseLessonId || newLesson.slug || lessonId, selectedStudentId, evaluation); setPublishStatus("Strengths, study plan, and evaluation synced with student view!"); }} />
 </div>
 </section>
 </>}
