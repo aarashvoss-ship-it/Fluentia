@@ -24,14 +24,14 @@ interface UnifiedReportCardProps {
   isEvaluated: boolean;
   scores: Record<string, number>;
   criterionFeedback: Record<string, string>;
-  taskFeedback: Record<string, string>;
+  stageFeedback: Record<string, string>;
   comments: string;
   strengths?: string;
   areasToImprove?: string;
   studyHubPrescription?: string;
   onScoreChange?: (criterion: string, score: number) => void;
   onCriterionFeedbackChange?: (criterion: string, value: string) => void;
-  onTaskFeedbackChange?: (taskId: string, value: string) => void;
+  onStageFeedbackChange?: (stageId: string, value: string) => void;
   onGeneralFeedbackChange?: (field: "comments" | "strengths" | "areasToImprove" | "studyHubPrescription", value: string) => void;
   onPublish?: () => void;
   isSubmitting?: boolean;
@@ -67,14 +67,14 @@ export function UnifiedReportCard({
   isEvaluated,
   scores,
   criterionFeedback,
-  taskFeedback,
+  stageFeedback,
   comments,
   strengths,
   areasToImprove,
   studyHubPrescription,
   onScoreChange,
   onCriterionFeedbackChange,
-  onTaskFeedbackChange,
+  onStageFeedbackChange,
   onGeneralFeedbackChange,
   onPublish,
   isSubmitting = false,
@@ -114,29 +114,17 @@ export function UnifiedReportCard({
             {stage.prompt && <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-stone-400">{stripMarkdown(stage.prompt)}</p>}
           </div>
           {stage.tasks.length > 0 ? <div className="space-y-3">
-            {stage.tasks.map((task, index) => <article key={task.id} className="min-w-0 rounded-lg border border-[#293343] bg-[#0c1017] p-4">
-              <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
-                <div className="min-w-0">
-                  <h4 className="text-sm font-medium leading-relaxed text-stone-100">{index + 1}. {stripMarkdown(task.title)}</h4>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Your Response</p>
-                  <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-300">{stripMarkdown(task.studentAnswer) || <span className="italic text-stone-500">No response submitted.</span>}</p>
-                  {task.audioUrls?.map((url, mediaIndex) => <div key={`${url}-${mediaIndex}`} className="mt-2 min-w-0 max-w-full overflow-hidden"><CustomAudioPlayer src={url} label={`${stripMarkdown(task.title)} recording`} /></div>)}
-                  {task.modelAnswer && <div className="mt-3 border-t border-[#293343] pt-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-500/80">Correct / Model Answer</p>
-                    <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-amber-200">{stripMarkdown(task.modelAnswer)}</p>
-                  </div>}
-                </div>
-                <div className={`min-w-0 rounded-md border p-3 ${isInstructorView ? "border-[#394252] bg-[#171d28]" : "border-[#293343] bg-[#121721]"}`}>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Instructor Note</p>
-                {isInstructorView ? <textarea
-                  value={taskFeedback[task.id] || ""}
-                  onChange={(event) => onTaskFeedbackChange?.(task.id, event.target.value)}
-                  placeholder="Add specific feedback for this answer..."
-                  rows={2}
-                  className="mt-2 w-full resize-y rounded-md border border-[#394252] bg-[#171d28] p-2.5 text-sm text-stone-200 outline-none focus:border-amber-500"
-                  /> : taskFeedback[task.id]?.trim() ? <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-300">{taskFeedback[task.id]}</p> : <p className="mt-1 text-sm text-stone-500">{isEvaluated ? "No comment provided." : "Pending Instructor Review"}</p>}
+            {stage.tasks.map((task, index) => <article key={task.id} className="w-full min-w-0 rounded-lg border border-[#293343] bg-[#0c1017] p-4">
+              <h4 className="text-sm font-medium leading-relaxed text-stone-100">{index + 1}. {stripMarkdown(task.title)}</h4>
+              <div className="mt-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Your Response</p>
+                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-300">{stripMarkdown(task.studentAnswer) || <span className="italic text-stone-500">No response submitted.</span>}</p>
+                {task.audioUrls?.map((url, mediaIndex) => <div key={`${url}-${mediaIndex}`} className="mt-2 min-w-0 max-w-full overflow-hidden"><CustomAudioPlayer src={url} label={`${stripMarkdown(task.title)} recording`} /></div>)}
               </div>
-              </div>
+              {task.modelAnswer && <div className="mt-3 border-t border-[#293343] pt-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-500/80">Correct / Model Answer</p>
+                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-amber-200">{stripMarkdown(task.modelAnswer)}</p>
+              </div>}
               {task.explanation && <div className="mt-3 border-t border-[#293343] pt-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Explanation</p>
                 <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-stone-400">{stripMarkdown(task.explanation)}</p>
@@ -146,6 +134,16 @@ export function UnifiedReportCard({
             <p className="text-sm font-medium text-stone-300">Instructional Step Completed</p>
             <p className="mt-1 text-xs leading-relaxed text-stone-500">This stage focused on learning content and required no interactive response.</p>
           </div>}
+          <div className={`rounded-lg border p-4 ${isInstructorView ? "border-[#394252] bg-[#0c1017]" : "border-[#293343] bg-[#121721]"}`}>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Instructor Task Feedback</p>
+            {isInstructorView ? <textarea
+              value={stageFeedback[stage.id] || ""}
+              onChange={(event) => onStageFeedbackChange?.(stage.id, event.target.value)}
+              placeholder="Add feedback for this section (optional)..."
+              rows={3}
+              className="mt-2 w-full resize-y rounded-md border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-200 outline-none focus:border-amber-500"
+            /> : stageFeedback[stage.id]?.trim() ? <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-300">{stageFeedback[stage.id]}</p> : <p className="mt-1 text-sm text-stone-500">{isEvaluated ? "No comment provided." : "Pending Instructor Review"}</p>}
+          </div>
         </section>)}
       </div>
     </section>

@@ -3140,7 +3140,7 @@ export default function InstructorWorkstationPage({
   onUpdateEvaluation={(evaluation: LessonEvaluation) => setWorkstationState((previous) => ({ ...previous, evaluation }))}
   onSubmitFeedback={async (feedback: FeedbackPayload) => {
     if (!selectedStudentId) throw new Error("Select a student before publishing an evaluation.");
-    const evaluation = { ...workstationState.evaluation, scores: feedback.scores, comments: feedback.comments, criterionFeedback: feedback.criterionFeedback, taskFeedback: feedback.taskFeedback, published: true };
+    const evaluation = { ...workstationState.evaluation, scores: feedback.scores, comments: feedback.comments, criterionFeedback: feedback.criterionFeedback, stageFeedback: feedback.stageFeedback, published: true };
     const saved = await saveInstructorFeedback(reviewSubmissionLessonId || databaseLessonId || newLesson.slug || lessonId, selectedStudentId, evaluation);
     setWorkstationState((previous) => ({ ...previous, submission: saved.submission || previous.submission, evaluation: saved.evaluation }));
     setPublishStatus("Strengths, study plan, and evaluation synced with student view!");

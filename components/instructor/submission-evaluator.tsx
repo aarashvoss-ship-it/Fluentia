@@ -13,7 +13,7 @@ export interface FeedbackPayload {
   totalScore: number;
   comments: string;
   criterionFeedback: Record<string, string>;
-  taskFeedback: Record<string, string>;
+  stageFeedback: Record<string, string>;
 }
 
 interface SubmissionEvaluatorProps {
@@ -80,7 +80,7 @@ export function SubmissionEvaluator({
   const scores = evaluation?.scores || defaultScores;
   const comments = evaluation?.comments || "";
   const criterionFeedback = evaluation?.criterionFeedback || {};
-  const taskFeedback = evaluation?.taskFeedback || {};
+  const stageFeedback = evaluation?.stageFeedback || {};
   
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -139,7 +139,7 @@ export function SubmissionEvaluator({
           totalScore: Number(feedback.total_score ?? feedback.score ?? Object.values(rubricScores).reduce<number>((total, score) => total + Number(score), 0)),
           comments: feedback.comments || "",
           criterionFeedback: feedback.criterion_feedback?.comments || feedback.criterion_feedback || evaluation?.criterionFeedback || {},
-          taskFeedback: feedback.criterion_feedback?.tasks || evaluation?.taskFeedback || {},
+          stageFeedback: feedback.criterion_feedback?.stages || evaluation?.stageFeedback || {},
           strengths: feedback.strengths || undefined,
           areasToImprove: feedback.areas_to_improve || undefined,
           studyHubPrescription: feedback.study_hub_prescription || undefined,
@@ -168,7 +168,7 @@ export function SubmissionEvaluator({
     // Legacy callback-based submission
     if (!useSupabase) {
       if (onSubmitFeedback) {
-        onSubmitFeedback({ scores, totalScore, comments, criterionFeedback, taskFeedback });
+        onSubmitFeedback({ scores, totalScore, comments, criterionFeedback, stageFeedback });
       }
       setIsSubmitted(true);
       setTimeout(() => setIsSubmitted(false), 3000);
@@ -187,7 +187,7 @@ export function SubmissionEvaluator({
     try {
       const totalScoreNumeric = Object.values(scores).reduce((a, b) => a + b, 0);
       if (onSubmitFeedback) {
-        await onSubmitFeedback({ scores, totalScore: totalScoreNumeric, comments, criterionFeedback, taskFeedback });
+        await onSubmitFeedback({ scores, totalScore: totalScoreNumeric, comments, criterionFeedback, stageFeedback });
         setIsSubmitted(true);
         window.setTimeout(() => setIsSubmitted(false), 3000);
         return;
@@ -199,7 +199,7 @@ export function SubmissionEvaluator({
         totalScore: totalScoreNumeric,
         comments,
         criterionFeedback,
-        taskFeedback,
+        stageFeedback,
         published: true,
       });
 
@@ -223,7 +223,7 @@ export function SubmissionEvaluator({
   };
 
   const updateEvaluation = (changes: Partial<LessonEvaluation>) => {
-    onUpdateEvaluation?.({ ...evaluation, scores, comments, criterionFeedback, taskFeedback, ...changes });
+    onUpdateEvaluation?.({ ...evaluation, scores, comments, criterionFeedback, stageFeedback, ...changes });
   };
 
   return <UnifiedReportCard
@@ -232,14 +232,14 @@ export function SubmissionEvaluator({
     isEvaluated={evaluation?.published === true}
     scores={scores}
     criterionFeedback={criterionFeedback}
-    taskFeedback={taskFeedback}
+    stageFeedback={stageFeedback}
     comments={comments}
     strengths={evaluation?.strengths}
     areasToImprove={evaluation?.areasToImprove}
     studyHubPrescription={evaluation?.studyHubPrescription}
     onScoreChange={handleScoreChange}
     onCriterionFeedbackChange={(criterion, value) => updateEvaluation({ criterionFeedback: { ...criterionFeedback, [criterion]: value } })}
-    onTaskFeedbackChange={(taskId, value) => updateEvaluation({ taskFeedback: { ...taskFeedback, [taskId]: value } })}
+    onStageFeedbackChange={(stageId, value) => updateEvaluation({ stageFeedback: { ...stageFeedback, [stageId]: value } })}
     onGeneralFeedbackChange={(field, value) => updateEvaluation({ [field]: value })}
     onPublish={handleSubmit}
     isSubmitting={isSubmitting}

@@ -1315,7 +1315,7 @@ export default function LessonPage() {
                 isEvaluated={isEvaluationPublished || submission.status === "reviewed" || submission.status === "evaluated"}
                 scores={evaluation?.scores || {}}
                 criterionFeedback={evaluation?.criterionFeedback || {}}
-                taskFeedback={evaluation?.taskFeedback || {}}
+                stageFeedback={evaluation?.stageFeedback || {}}
                 comments={evaluation?.comments || ""}
                 strengths={evaluation?.strengths}
                 areasToImprove={evaluation?.areasToImprove}
