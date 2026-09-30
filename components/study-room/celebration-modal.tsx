@@ -15,8 +15,8 @@ export interface StepResult {
     correctAnswer?: string;
     explanation?: string;
     isCorrect?: boolean;
+    mediaUrls?: string[];
   }[];
-  mediaUrls?: string[];
 }
 
 interface CelebrationModalProps {
@@ -98,8 +98,7 @@ export function CelebrationModal({
                         <p className="mt-1 whitespace-pre-wrap text-stone-300">{response.explanation || "Compare your response with the correct answer."}</p>
                       </div>}
                     </article>)}
-                    {!result.responses.length && !result.mediaUrls?.length && <p className="text-stone-500">No response submitted</p>}
-                    {result.mediaUrls?.map((url, index) => <div key={`${url}-${index}`}><CustomAudioPlayer src={url} label={`${result.step} recording`} /></div>)}
+                    {!result.responses.length && <p className="text-stone-500">No response submitted</p>}
                   </div>
                 </section>
               ))}

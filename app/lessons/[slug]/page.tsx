@@ -720,14 +720,15 @@ export default function LessonPage() {
 
   const getStepResponses = (step: Exclude<StudyStepId, "results">) => {
     const responses: StepResult["responses"] = [];
-    const addResponse = (question: string | undefined, value?: string, correctAnswer?: string, explanation?: string) => {
-      if (!question && !value) return;
-      if (value && /^(https?:|blob:)/i.test(value.trim())) return;
-      const cleanedQuestion = stripMarkdown(question || "Response");
-      const cleanedAnswer = stripMarkdown(value || "");
+    const addResponse = (question: string, value?: string, correctAnswer?: string, explanation?: string, mediaUrls?: string[]) => {
+      const cleanedQuestion = stripMarkdown(question);
+      const cleanedMediaUrls = (mediaUrls || []).filter(Boolean);
+      const cleanedAnswer = value && /^(https?:|blob:)/i.test(value.trim())
+        ? "Response submitted"
+        : stripMarkdown(value || "");
       const cleanedCorrectAnswer = correctAnswer ? stripMarkdown(correctAnswer) : undefined;
       const cleanedExplanation = explanation ? stripMarkdown(explanation) : undefined;
-      if (responses.some((response) => response.question === cleanedQuestion && response.answer === cleanedAnswer)) return;
+      if (responses.some((response) => response.question === cleanedQuestion && response.answer === cleanedAnswer && response.mediaUrls?.join() === cleanedMediaUrls.join())) return;
       const isCorrect = cleanedAnswer && cleanedCorrectAnswer
         ? cleanedAnswer.localeCompare(cleanedCorrectAnswer, undefined, { sensitivity: "accent" }) === 0
         : undefined;
@@ -737,34 +738,61 @@ export default function LessonPage() {
         correctAnswer: cleanedCorrectAnswer || undefined,
         explanation: cleanedExplanation || undefined,
         isCorrect,
+        mediaUrls: cleanedMediaUrls.length ? cleanedMediaUrls : undefined,
       });
     };
-    if (step === "warm_up" || step === "lesson") addResponse(undefined, submission.blockResponses?.[step]);
-    if (step === "listening") {
-      (lessonContent.listening?.questions || []).forEach((question: { id: string; question: string; options?: string[]; correct_answer?: string; explanation?: string }) => addResponse(
-        question.question,
-        submission.listeningAnswers?.[question.id],
-        question.options?.length ? question.correct_answer || lessonContent.results?.answer_keys?.listening?.[question.id] : undefined,
-        question.explanation,
-      ));
+    const blocks = ((lessonContent[step] as { blocks?: ContentBlock[] } | undefined)?.blocks || [])
+      .filter((block) => block.is_active !== false && block.enabled !== false);
+    if (blocks.length === 0) {
+      if (step === "warm_up") {
+        addResponse(lessonContent.warm_up?.prompt?.text || "Warm-up reflection", submission.blockResponses?.warm_up);
+      } else if (step === "listening") {
+        (lessonContent.listening?.questions || []).filter((question: { options?: string[] }) => question.options?.some(Boolean)).forEach((question: { id: string; question: string; options?: string[]; correct_answer?: string; explanation?: string }) => addResponse(
+          question.question,
+          submission.listeningAnswers?.[question.id],
+          question.correct_answer || lessonContent.results?.answer_keys?.listening?.[question.id],
+          question.explanation,
+        ));
+      } else if (step === "reading") {
+        (lessonContent.reading?.analytical_questions || []).forEach((question: { id: string; question: string; explanation?: string }) => addResponse(
+          question.question,
+          submission.readingAnswers?.[question.id],
+          undefined,
+          question.explanation,
+        ));
+      } else if (step === "writing") {
+        addResponse(lessonContent.writing?.prompt?.text || "Writing response", submission.writingText);
+      } else if (step === "speaking") {
+        const recording = submission.speakingAudioUrl || submission.audioUploads?.speaking;
+        addResponse(lessonContent.speaking?.scenario?.text || "Speaking recording", recording ? "Audio response submitted" : "", undefined, undefined, recording ? [recording] : undefined);
+      }
+      return responses;
     }
-    if (step === "reading") {
-      (lessonContent.reading?.analytical_questions || []).forEach((question: { id: string; question: string; correct_answer?: string; explanation?: string }) => addResponse(
-        question.question,
-        submission.readingAnswers?.[question.id],
-        undefined,
-        question.explanation,
-      ));
-    }
-    if (step === "writing") {
-      addResponse(lessonContent.writing?.prompt?.text || "Writing response", submission.writingText);
-      Object.entries(submission.writing_responses || {}).forEach(([id, value]) => addResponse(id, value));
-    }
-    const blocks = ((lessonContent[step] as { blocks?: ContentBlock[] } | undefined)?.blocks || []);
+
     blocks.forEach((block) => {
       if (block.type === "text") {
-        addResponse(block.title || "Response", submission.blockResponses?.[block.id]);
+        if (!hasStudentResponse(block)) return;
+        const responseType = getStudentResponseType(block);
+        const value = responseType === "audio" || responseType === "voice"
+          ? submission.audioUploads?.[block.id]
+          : responseType === "file"
+            ? submission.audioUploads?.[block.id]
+            : submission.blockResponses?.[block.id];
+        addResponse(block.title || "Text response", responseType === "audio" || responseType === "voice"
+          ? value ? "Audio response submitted" : ""
+          : responseType === "file" && value ? "File response submitted" : value,
+        undefined, undefined, responseType === "audio" || responseType === "voice" ? value ? [value] : undefined : undefined);
+      } else if (block.type === "audio") {
+        if (block.allowStudentVoiceResponse) {
+          const recording = submission.audioUploads?.[block.id];
+          addResponse(block.title || "Audio response", recording ? "Audio response submitted" : "", undefined, undefined, recording ? [recording] : undefined);
+        }
+      } else if (block.type === "video") {
+        if (block.show_reflection_prompt !== false && block.reflection_prompt_text?.trim()) {
+          addResponse(block.reflection_prompt_text, submission.blockResponses?.[`${block.id}-reflection`]);
+        }
       } else if (block.type === "question") {
+        if (block.question_type !== "open_ended" && !block.options.some(Boolean)) return;
         addResponse(
           block.prompt || block.title,
           block.question_type === "open_ended" ? submission.blockResponses?.[block.id] : submission.quizSelections?.[block.id],
@@ -772,7 +800,7 @@ export default function LessonPage() {
           block.explanation,
         );
       } else if (block.type === "quiz") {
-        block.questions.forEach((question) => addResponse(
+        block.questions.filter((question) => question.options.some(Boolean)).forEach((question) => addResponse(
           question.prompt,
           submission.quizSelections?.[question.id],
           question.correct_answer || question.correctAnswer || lessonContent.results?.answer_keys?.[step]?.[question.id] || lessonContent.results?.quiz_breakdown?.find((item: { questionId: string; correctResponse: string }) => item.questionId === question.id)?.correctResponse,
@@ -793,18 +821,6 @@ export default function LessonPage() {
     return responses;
   };
 
-  const getStepMediaUrls = (step: Exclude<StudyStepId, "results">) => {
-    const blocks = ((lessonContent[step] as { blocks?: ContentBlock[] } | undefined)?.blocks || []);
-    const urls = blocks.map((block) => submission.audioUploads?.[block.id]).filter((url): url is string => Boolean(url));
-    if (step === "speaking") {
-      if (submission.speakingAudioUrl) urls.push(submission.speakingAudioUrl);
-      Object.values(submission.blockResponses || {}).forEach((value) => {
-        if (/^(https?:|blob:)/i.test(value) || /\.(webm|mp3|wav|m4a|mp4)(\?|$)/i.test(value)) urls.push(value);
-      });
-    }
-    return [...new Set(urls)];
-  };
-
   const benchmarkResults = (lessonContent.results || {}) as {
     answer_keys?: Record<string, Record<string, string>>;
     quiz_breakdown?: Array<{ questionId: string; correctResponse: string; skill: string; explanation?: string }>;
@@ -817,13 +833,14 @@ export default function LessonPage() {
   );
 
   const stepResults: StepResult[] = [
-    { id: "warm-up", step: "Warm-up", prompt: lessonContent.warm_up?.quote?.text || lessonContent.warm_up?.intro_narrative?.text, responses: getStepResponses("warm_up"), mediaUrls: getStepMediaUrls("warm_up") },
-    { id: "lesson", step: "Lesson", prompt: lessonContent.lesson?.core_concept?.text, responses: getStepResponses("lesson"), mediaUrls: getStepMediaUrls("lesson") },
-    { id: "listening", step: "Listening", responses: getStepResponses("listening"), mediaUrls: getStepMediaUrls("listening") },
-    { id: "reading", step: "Reading", responses: getStepResponses("reading"), mediaUrls: getStepMediaUrls("reading") },
-    { id: "writing", step: "Writing", prompt: lessonContent.writing?.prompt?.text, responses: getStepResponses("writing"), mediaUrls: getStepMediaUrls("writing") },
-    { id: "speaking", step: "Speaking", prompt: lessonContent.speaking?.scenario?.text, responses: getStepResponses("speaking"), mediaUrls: getStepMediaUrls("speaking") },
+    { id: "warm-up", step: "Warm-up", prompt: lessonContent.warm_up?.quote?.text || lessonContent.warm_up?.intro_narrative?.text, responses: getStepResponses("warm_up") },
+    { id: "lesson", step: "Lesson", prompt: lessonContent.lesson?.core_concept?.text, responses: getStepResponses("lesson") },
+    { id: "listening", step: "Listening", responses: getStepResponses("listening") },
+    { id: "reading", step: "Reading", responses: getStepResponses("reading") },
+    { id: "writing", step: "Writing", prompt: lessonContent.writing?.prompt?.text, responses: getStepResponses("writing") },
+    { id: "speaking", step: "Speaking", prompt: lessonContent.speaking?.scenario?.text, responses: getStepResponses("speaking") },
   ];
+  const interactiveStepResults = stepResults.filter((result) => result.responses.length > 0);
 
   const currentIndex = STUDY_STEPS.findIndex((s) => s.id === currentStep);
   const lockedSteps = getLockedSteps(completedSteps);
@@ -1272,7 +1289,7 @@ export default function LessonPage() {
                 <p className="mt-3 text-sm text-stone-400">Your instructor feedback will appear here after your writing and speaking responses are reviewed.</p>
               </div>}
               <div className="space-y-5 text-left">
-                {stepResults.map((result) => (
+                {interactiveStepResults.map((result) => (
                   <section key={result.id} className="rounded-xl border border-[#202631] bg-[#121721] p-5">
                     <div className="mb-4 border-b border-[#202631] pb-3">
                       <h4 className="text-sm font-semibold uppercase tracking-[0.12em] text-amber-400">{result.step}</h4>
@@ -1285,6 +1302,7 @@ export default function LessonPage() {
                           <div className="mt-3">
                             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Your Response</p>
                             <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-stone-300">{response.answer || <span className="italic text-stone-500">No response submitted</span>}</p>
+                            {response.mediaUrls?.map((url, mediaIndex) => <div key={`${url}-${mediaIndex}`} className="mt-2"><CustomAudioPlayer src={url} label={`${result.step} recording`} /></div>)}
                           </div>
                           {response.correctAnswer && <div className="mt-3">
                             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-500/80">Correct Answer</p>
@@ -1296,8 +1314,6 @@ export default function LessonPage() {
                           </div>}
                         </article>
                       ))}
-                      {!result.responses.length && !result.mediaUrls?.length && <p className="text-sm text-stone-500">No response submitted</p>}
-                      {result.mediaUrls?.map((url, index) => <div key={`${url}-${index}`}><CustomAudioPlayer src={url} label={`${result.step} recording`} /></div>)}
                     </div>
                   </section>
                 ))}
@@ -1398,7 +1414,7 @@ export default function LessonPage() {
         onReview={handleReviewAnswers}
         studentName={studentDisplayName}
         dashboardHref="/dashboard"
-        stepResults={stepResults}
+        stepResults={interactiveStepResults}
         isSubmitting={isSubmitting}
         submitError={submissionSaveError}
       />
