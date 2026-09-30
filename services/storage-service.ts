@@ -205,6 +205,41 @@ function defaultContent(): StrictStepContent {
 }
 
 type SupabaseRow = Record<string, any>;
+const REPORT_CARD_EVALUATION_PREFIX = "FLUENTIA_REPORT_CARD:";
+
+function isMissingSchemaObject(error: { code?: string; message?: string; status?: number } | null) {
+  if (!error) return false;
+  return error.status === 404
+    || error.code === "42P01"
+    || error.code === "42703"
+    || error.code === "PGRST204"
+    || error.code === "PGRST205"
+    || /does not exist|could not find the table|schema cache/i.test(error.message || "");
+}
+
+function mapFeedbackRow(feedback: SupabaseRow | null, fallbackEvaluation?: SupabaseRow | null): LessonEvaluation {
+  let fallbackPayload: Partial<LessonEvaluation> | null = null;
+  const fallbackText = typeof fallbackEvaluation?.feedback === "string" ? fallbackEvaluation.feedback : "";
+  if (fallbackText.startsWith(REPORT_CARD_EVALUATION_PREFIX)) {
+    try {
+      fallbackPayload = JSON.parse(fallbackText.slice(REPORT_CARD_EVALUATION_PREFIX.length)) as Partial<LessonEvaluation>;
+    } catch {
+      fallbackPayload = null;
+    }
+  }
+  const scores = feedback?.rubric_scores || feedback?.scores || fallbackPayload?.scores || {};
+  return {
+    scores,
+    totalScore: Number(feedback?.total_score ?? fallbackEvaluation?.score ?? fallbackPayload?.totalScore ?? Object.values(scores).reduce<number>((total, score) => total + Number(score), 0)),
+    comments: feedback?.comments || fallbackPayload?.comments || fallbackText,
+    criterionFeedback: feedback?.criterion_feedback?.comments || feedback?.criterion_feedback || fallbackPayload?.criterionFeedback || {},
+    strengths: feedback?.strengths || fallbackPayload?.strengths || undefined,
+    areasToImprove: feedback?.areas_to_improve || fallbackPayload?.areasToImprove || undefined,
+    studyHubPrescription: feedback?.study_hub_prescription || fallbackPayload?.studyHubPrescription || undefined,
+    voiceFeedbackUrl: feedback?.voice_feedback_url || fallbackPayload?.voiceFeedbackUrl || undefined,
+    published: Boolean(feedback?.is_published ?? Boolean(fallbackEvaluation || fallbackPayload?.published)),
+  };
+}
 
 function toStorageError(error: unknown, fallback: string) {
   if (error && typeof error === "object") {
@@ -413,7 +448,7 @@ export async function fetchLessonState(slug: string, studentToken?: string): Pro
           let submission = null;
           let feedback = null;
           try {
-            const result = await supabase.from("submissions").select("answers,status,submitted_at").eq("lesson_id", lessonId).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
+            const result = await supabase.from("submissions").select("id,answers,status,submitted_at").eq("lesson_id", lessonId).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
             if (result.error) {
               console.error("[Dashboard Progress] Failed to fetch lesson submission:", {
                 lessonId,
@@ -433,14 +468,29 @@ export async function fetchLessonState(slug: string, studentToken?: string): Pro
           try {
             const result = await supabase.from("instructor_feedback").select("*").eq("lesson_id", lessonId).eq("student_id", studentId).limit(1).maybeSingle();
             if (!result.error) feedback = result.data;
+            else if (!isMissingSchemaObject(result.error) && result.error.code !== "PGRST116") {
+              console.warn("[Dashboard Progress] Instructor feedback is unavailable:", result.error.message);
+            }
           } catch {
             feedback = null;
+          }
+          let fallbackEvaluation = null;
+          if (!feedback && submission?.id) {
+            try {
+              const result = await supabase.from("evaluations").select("score,feedback,evaluated_at").eq("submission_id", submission.id).order("evaluated_at", { ascending: false }).limit(1).maybeSingle();
+              if (!result.error) fallbackEvaluation = result.data;
+              else if (!isMissingSchemaObject(result.error) && result.error.code !== "PGRST116") {
+                console.warn("[Dashboard Progress] Legacy evaluation is unavailable:", result.error.message);
+              }
+            } catch {
+              fallbackEvaluation = null;
+            }
           }
           return {
             content: lesson.content || defaultContent(),
             bannerUrl: lesson.coverImage || "",
             studentProfile: defaultProfile(),
-            evaluation: feedback ? { scores: feedback?.scores || {}, totalScore: Number(feedback?.total_score ?? Object.values(feedback?.scores || {}).reduce<number>((total, score) => total + Number(score), 0)), comments: feedback?.comments || "", criterionFeedback: feedback?.criterion_feedback || {}, strengths: feedback?.strengths, areasToImprove: feedback?.areas_to_improve, studyHubPrescription: feedback?.study_hub_prescription, voiceFeedbackUrl: feedback?.voice_feedback_url, published: Boolean(feedback?.is_published) } : emptyEvaluation(),
+            evaluation: feedback || fallbackEvaluation ? mapFeedbackRow(feedback, fallbackEvaluation) : emptyEvaluation(),
             status: lesson.status === "draft" ? "draft" : "published",
             submission: submission ? mapSubmission(submission) : undefined,
           };
@@ -648,12 +698,13 @@ export async function saveInstructorFeedback(
 ): Promise<PublishedLessonState> {
   const completedSteps: StudyStepId[] = ["warm_up", "lesson", "listening", "reading", "writing", "speaking", "results"];
   const evaluatedAt = new Date().toISOString();
-  const publishedEvaluation = { ...evaluation, published: true };
+  const totalScore = Object.values(evaluation.scores).reduce<number>((total, score) => total + Number(score), 0);
+  const publishedEvaluation = { ...evaluation, totalScore, published: true };
   if (isSupabaseConfigured()) {
     const studentId = studentToken?.trim() || "";
     if (!UUID_PATTERN.test(studentId)) throw new Error("A valid selected student ID is required to publish this evaluation.");
 
-    let lessonQuery = supabase.from("lessons").select("id,content,banner_url,status");
+    let lessonQuery = supabase.from("lessons").select("id,content,banner_url,status,instructor_id");
     lessonQuery = UUID_PATTERN.test(slug)
       ? lessonQuery.eq("id", slug)
       : lessonQuery.eq("slug", slug);
@@ -677,13 +728,17 @@ export async function saveInstructorFeedback(
       status: "evaluated",
       progress: { currentStep: "results", completedSteps, completed: true, status: "evaluated" },
     }) as Record<string, unknown>;
+    const rubricFeedback = {
+      comments: publishedEvaluation.criterionFeedback || {},
+      scores: publishedEvaluation.scores,
+    };
     const { error: feedbackError } = await supabase.from("instructor_feedback").upsert({
       lesson_id: lesson.id,
       student_id: studentId,
-      scores: publishedEvaluation.scores,
-      total_score: Object.values(publishedEvaluation.scores).reduce<number>((total, score) => total + Number(score), 0),
+      rubric_scores: publishedEvaluation.scores,
+      total_score: publishedEvaluation.totalScore,
       comments: publishedEvaluation.comments,
-      criterion_feedback: publishedEvaluation.criterionFeedback || {},
+      criterion_feedback: rubricFeedback,
       strengths: publishedEvaluation.strengths,
       areas_to_improve: publishedEvaluation.areasToImprove,
       study_hub_prescription: publishedEvaluation.studyHubPrescription,
@@ -691,7 +746,27 @@ export async function saveInstructorFeedback(
       is_published: true,
       updated_at: evaluatedAt,
     }, { onConflict: "lesson_id,student_id" });
-    if (feedbackError) throw feedbackError;
+    if (feedbackError) {
+      if (!isMissingSchemaObject(feedbackError)) throw feedbackError;
+      const fallbackText = `${REPORT_CARD_EVALUATION_PREFIX}${JSON.stringify(publishedEvaluation)}`;
+      const { data: existingEvaluation, error: evaluationLookupError } = await supabase
+        .from("evaluations")
+        .select("id")
+        .eq("submission_id", existingSubmission.id)
+        .order("evaluated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (evaluationLookupError && !isMissingSchemaObject(evaluationLookupError)) throw evaluationLookupError;
+      if (existingEvaluation) {
+        const { error } = await supabase.from("evaluations").update({ score: publishedEvaluation.totalScore, feedback: fallbackText, evaluated_at: evaluatedAt }).eq("id", existingEvaluation.id);
+        if (error) throw error;
+      } else {
+        const instructorId = lesson.instructor_id || await getStudentId();
+        if (!instructorId) throw new Error("Unable to resolve an instructor ID for the evaluation fallback.");
+        const { error } = await supabase.from("evaluations").insert({ submission_id: existingSubmission.id, instructor_id: instructorId, score: publishedEvaluation.totalScore, feedback: fallbackText, evaluated_at: evaluatedAt });
+        if (error) throw error;
+      }
+    }
 
     const { error: statusError } = await supabase
       .from("submissions")

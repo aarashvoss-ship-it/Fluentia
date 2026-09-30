@@ -37,6 +37,16 @@ const RUBRIC_CRITERIA = [
 ];
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+function isMissingDatabaseObject(error: { code?: string; message?: string; status?: number } | null) {
+  if (!error) return false;
+  return error.status === 404
+    || error.code === "42P01"
+    || error.code === "42703"
+    || error.code === "PGRST204"
+    || error.code === "PGRST205"
+    || /does not exist|could not find the table|schema cache/i.test(error.message || "");
+}
+
 export function SubmissionEvaluator({
   lessonId,
   pendingSubmissionId,
@@ -89,7 +99,7 @@ export function SubmissionEvaluator({
         getSubmissionByLessonAndStudent(normalizedLessonId, normalizedStudentId),
         supabase
           .from("instructor_feedback")
-          .select("scores,comments,criterion_feedback,strengths,areas_to_improve,study_hub_prescription,voice_feedback_url,is_published")
+          .select("*")
           .eq("lesson_id", normalizedLessonId)
           .eq("student_id", normalizedStudentId)
           .maybeSingle(),
@@ -108,20 +118,45 @@ export function SubmissionEvaluator({
       }
       if (feedbackResult.error) {
         const message = feedbackResult.error.message || "Rubric is not available yet.";
-        if (!/no rows|not found|does not exist/i.test(message) && feedbackResult.error.code !== "PGRST116") {
+        if (!isMissingDatabaseObject(feedbackResult.error) && feedbackResult.error.code !== "PGRST116") {
           console.warn("Student lesson rubric could not be loaded:", message);
         }
-      } else if (feedbackResult.data) {
-        const feedback = feedbackResult.data;
+      }
+      const feedback = feedbackResult.data;
+      if (feedback) {
+        const rubricScores = feedback.rubric_scores || feedback.scores || feedback.criterion_feedback?.scores || defaultScores;
         onUpdateEvaluation?.({
-          scores: feedback.scores || defaultScores,
+          scores: rubricScores,
+          totalScore: Number(feedback.total_score ?? feedback.score ?? Object.values(rubricScores).reduce<number>((total, score) => total + Number(score), 0)),
           comments: feedback.comments || "",
-          criterionFeedback: feedback.criterion_feedback || evaluation?.criterionFeedback || {},
+          criterionFeedback: feedback.criterion_feedback?.comments || feedback.criterion_feedback || evaluation?.criterionFeedback || {},
           strengths: feedback.strengths || undefined,
           areasToImprove: feedback.areas_to_improve || undefined,
           studyHubPrescription: feedback.study_hub_prescription || undefined,
           voiceFeedbackUrl: feedback.voice_feedback_url || undefined,
           published: Boolean(feedback.is_published),
+        });
+      } else if (submission?.evaluation) {
+        const evaluationFeedback = submission.evaluation.feedback || "";
+        let legacyRubric: Partial<LessonEvaluation> | null = null;
+        if (evaluationFeedback.startsWith("FLUENTIA_REPORT_CARD:")) {
+          try {
+            legacyRubric = JSON.parse(evaluationFeedback.slice("FLUENTIA_REPORT_CARD:".length)) as Partial<LessonEvaluation>;
+          } catch {
+            legacyRubric = null;
+          }
+        }
+        const rubricScores = legacyRubric?.scores || defaultScores;
+        onUpdateEvaluation?.({
+          scores: rubricScores,
+          totalScore: Number(submission.evaluation.score ?? legacyRubric?.totalScore ?? Object.values(rubricScores).reduce<number>((total, score) => total + Number(score), 0)),
+          comments: legacyRubric?.comments || evaluationFeedback,
+          criterionFeedback: legacyRubric?.criterionFeedback || {},
+          strengths: legacyRubric?.strengths,
+          areasToImprove: legacyRubric?.areasToImprove,
+          studyHubPrescription: legacyRubric?.studyHubPrescription,
+          voiceFeedbackUrl: legacyRubric?.voiceFeedbackUrl,
+          published: true,
         });
       }
     } catch (error) {
@@ -208,8 +243,15 @@ ${comments}
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Failed to submit evaluation";
-      setSubmitError(errorMessage);
-      console.error("Error submitting evaluation:", error);
+      const databaseError = error && typeof error === "object"
+        ? error as { code?: string; message?: string; status?: number }
+        : null;
+      if (isMissingDatabaseObject(databaseError)) {
+        setSubmitError("Evaluation storage is unavailable. Apply the latest Supabase migrations and try again.");
+      } else {
+        setSubmitError(errorMessage);
+        console.error("Error submitting evaluation:", error);
+      }
     } finally {
       setIsSubmitting(false);
     }

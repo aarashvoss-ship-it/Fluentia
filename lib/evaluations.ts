@@ -5,6 +5,16 @@
 
 import { supabase, type SubmissionRow, type EvaluationRow, isSupabaseConfigured } from "@/lib/supabase";
 
+function isMissingEvaluationTable(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const details = error as { code?: string; message?: string; status?: number };
+  return details.status === 404
+    || details.code === "42P01"
+    || details.code === "PGRST204"
+    || details.code === "PGRST205"
+    || /relation .*evaluations.* does not exist|could not find the table .*evaluations|schema cache/i.test(details.message || "");
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -345,7 +355,7 @@ export async function createEvaluation(
 
     return evaluation;
   } catch (error) {
-    console.error("Error creating evaluation:", error);
+    if (!isMissingEvaluationTable(error)) console.error("Error creating evaluation:", error);
     throw error;
   }
 }
@@ -371,6 +381,7 @@ export async function getEvaluationById(id: string): Promise<EvaluationRow | nul
 
     return data || null;
   } catch (error) {
+    if (isMissingEvaluationTable(error)) return null;
     console.error(`Error fetching evaluation ${id}:`, error);
     throw error;
   }
@@ -401,6 +412,7 @@ export async function getEvaluationBySubmissionId(
 
     return data || null;
   } catch (error) {
+    if (isMissingEvaluationTable(error)) return null;
     console.error(`Error fetching evaluation for submission ${submissionId}:`, error);
     throw error;
   }
@@ -437,6 +449,7 @@ export async function getEvaluationsByLessonId(lessonId: string): Promise<Evalua
 
     return evaluations || [];
   } catch (error) {
+    if (isMissingEvaluationTable(error)) return [];
     console.error(`Error fetching evaluations for lesson ${lessonId}:`, error);
     throw error;
   }
@@ -463,6 +476,7 @@ export async function getEvaluationsByInstructorId(
 
     return data || [];
   } catch (error) {
+    if (isMissingEvaluationTable(error)) return [];
     console.error(`Error fetching evaluations for instructor ${instructorId}:`, error);
     throw error;
   }
@@ -490,7 +504,7 @@ export async function updateEvaluation(
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error(`Error updating evaluation ${id}:`, error);
+    if (!isMissingEvaluationTable(error)) console.error(`Error updating evaluation ${id}:`, error);
     throw error;
   }
 }
@@ -519,7 +533,7 @@ export async function deleteEvaluation(id: string): Promise<void> {
     // Reset submission status back to 'submitted'
     await updateSubmission(evaluation.submission_id, { status: "pending_evaluation" });
   } catch (error) {
-    console.error(`Error deleting evaluation ${id}:`, error);
+    if (!isMissingEvaluationTable(error)) console.error(`Error deleting evaluation ${id}:`, error);
     throw error;
   }
 }

@@ -122,6 +122,22 @@ type PendingReviewSubmission = {
   submission: StudentSubmission;
 };
 
+type InstructorReviewStageId = "warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking";
+
+type InstructorReviewAnswer = {
+  question: string;
+  answer: string;
+  modelAnswer?: string;
+  audioUrl?: string;
+};
+
+type InstructorReviewStage = {
+  id: InstructorReviewStageId;
+  title: string;
+  prompt?: string;
+  answers: InstructorReviewAnswer[];
+};
+
 const EMPTY_RESOURCE_DRAFT = {
   type: "note" as StudentResourceType,
   title: "",
@@ -1841,55 +1857,84 @@ export default function InstructorWorkstationPage({
       : "border-[#394252] bg-[#171d28] text-stone-400";
   const submittedAnswers = workstationState.submission;
   const reviewContent = workstationState.content as Record<string, any>;
-  const reviewQuestionText: Record<string, string> = {};
+  const reviewStages: InstructorReviewStage[] = [
+    { id: "warm_up", title: "Warm-up", prompt: reviewContent.warm_up?.intro_narrative?.text || reviewContent.warm_up?.quote?.text, answers: [] },
+    { id: "lesson", title: "Lesson", prompt: reviewContent.lesson?.core_concept?.text, answers: [] },
+    { id: "listening", title: "Listening", prompt: reviewContent.listening?.transcript?.text, answers: [] },
+    { id: "reading", title: "Reading", prompt: reviewContent.reading?.article_markdown?.text, answers: [] },
+    { id: "writing", title: "Writing", prompt: reviewContent.writing?.prompt?.text, answers: [] },
+    { id: "speaking", title: "Speaking", prompt: reviewContent.speaking?.scenario?.text, answers: [] },
+  ];
+  const reviewQuestionText: Record<string, string> = { warm_up: "Reflection Question", writingText: "Writing response", speaking: "Speaking recording" };
   const reviewModelAnswers: Record<string, string> = {};
-  const addReviewReference = (key: string, question: string | undefined, answer?: string) => {
-    if (question) reviewQuestionText[key] = question;
-    if (answer) reviewModelAnswers[key] = answer;
+  const reviewStageForKey: Record<string, InstructorReviewStageId> = { warm_up: "warm_up", writingText: "writing", speaking: "speaking" };
+  const addReviewReference = (stage: InstructorReviewStageId, key: string, question: string | undefined, answer?: string) => {
+    reviewQuestionText[key] = question?.trim() || "Student response";
+    reviewStageForKey[key] = stage;
+    if (answer?.trim()) reviewModelAnswers[key] = answer;
   };
   (reviewContent.listening?.questions || []).forEach((question: { id: string; question: string; correct_answer?: string }) => {
-    addReviewReference(question.id, question.question, question.correct_answer || reviewContent.results?.answer_keys?.listening?.[question.id]);
+    addReviewReference("listening", question.id, question.question, question.correct_answer || reviewContent.results?.answer_keys?.listening?.[question.id]);
   });
   (reviewContent.reading?.analytical_questions || []).forEach((question: { id: string; question: string; correct_answer?: string }) => {
-    addReviewReference(question.id, question.question, question.correct_answer || reviewContent.results?.answer_keys?.reading?.[question.id]);
+    addReviewReference("reading", question.id, question.question, question.correct_answer || reviewContent.results?.answer_keys?.reading?.[question.id]);
   });
-  (["warm_up", "lesson", "listening", "reading", "writing", "speaking"] as const).forEach((step) => {
+  (reviewStages.map((stage) => stage.id)).forEach((step) => {
     (reviewContent[step]?.blocks || []).forEach((block: ContentBlock) => {
       if (block.type === "question") {
-        addReviewReference(block.id, block.prompt, block.question_type === "open_ended" ? block.sample_answer : block.correct_answer);
+        addReviewReference(step, block.id, block.prompt, block.question_type === "open_ended" ? block.sample_answer : block.correct_answer);
       } else if (block.type === "quiz") {
-        block.questions.forEach((question) => addReviewReference(question.id, question.prompt, question.correct_answer || question.correctAnswer || reviewContent.results?.answer_keys?.[step]?.[question.id]));
+        block.questions.forEach((question) => addReviewReference(step, question.id, question.prompt, question.correct_answer || question.correctAnswer || reviewContent.results?.answer_keys?.[step]?.[question.id]));
       } else if (block.type === "fill-in-the-blanks") {
-        block.acceptableAnswers.forEach((answers, index) => addReviewReference(`${block.id}-blank-${index}`, `${block.textWithBlanks.replace(/\[[^\]]+\]/g, "_____ ")} (Blank ${index + 1})`, answers.join(" / ")));
+        block.acceptableAnswers.forEach((answers, index) => addReviewReference(step, `${block.id}-blank-${index}`, `${block.textWithBlanks.replace(/\[[^\]]+\]/g, "_____ ")} (Blank ${index + 1})`, answers.join(" / ")));
       } else if (block.type === "video" && block.reflection_prompt_text) {
-        addReviewReference(`${block.id}-reflection`, block.reflection_prompt_text);
+        addReviewReference(step, `${block.id}-reflection`, "Reflection Question", undefined);
       } else if (block.type === "writing") {
-        addReviewReference(block.id, block.prompt);
+        addReviewReference(step, block.id, block.prompt);
       } else if (block.type === "text" && (block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true)) {
-        addReviewReference(block.id, block.title || "Text response");
+        addReviewReference(step, block.id, block.title || "Text response");
+      } else if (block.type === "audio" && block.allowStudentVoiceResponse) {
+        addReviewReference(step, block.id, block.title || "Audio response");
       }
     });
   });
-  const getTextAnswerRows = (answers?: Record<string, string>) => Object.entries(answers || {})
-    .filter(([, answer]) => Boolean(answer?.trim()) && !/^(?:https?:|blob:|data:audio\/)/i.test(answer.trim()))
-    .map(([key, answer]) => ({ question: reviewQuestionText[key] || key, answer, modelAnswer: reviewModelAnswers[key] }));
-  const submissionAnswerGroups = [
-    { title: "Writing", answers: [
-      ...(submittedAnswers?.writingText?.trim() ? [{ question: reviewContent.writing?.prompt?.text || "Writing response", answer: submittedAnswers.writingText, modelAnswer: undefined }] : []),
-      ...getTextAnswerRows(submittedAnswers?.writing_responses),
-    ] },
-    { title: "Listening", answers: getTextAnswerRows(submittedAnswers?.listeningAnswers) },
-    { title: "Reading", answers: getTextAnswerRows(submittedAnswers?.readingAnswers) },
-    { title: "Other responses", answers: [
-      ...getTextAnswerRows(submittedAnswers?.blockResponses),
-      ...getTextAnswerRows(submittedAnswers?.quizSelections),
-    ] },
-  ].filter((group) => group.answers.length > 0);
-  const submissionAudioRows = Object.entries(submittedAnswers?.audioUploads || {})
-    .filter(([, url]) => Boolean(url?.trim()))
-    .map(([key, url]) => ({ question: reviewQuestionText[key] || key, url, modelAnswer: reviewModelAnswers[key] }));
-  if (submittedAnswers?.speakingAudioUrl?.trim() && !submissionAudioRows.some((row) => row.url === submittedAnswers.speakingAudioUrl)) {
-    submissionAudioRows.push({ question: reviewQuestionText.speaking || "Speaking recording", url: submittedAnswers.speakingAudioUrl, modelAnswer: reviewModelAnswers.speaking });
+  const getDisplayQuestion = (key: string, fallbackStage: InstructorReviewStageId) => {
+    if (reviewQuestionText[key]) return reviewQuestionText[key];
+    const blankMatch = key.match(/-blank-(\d+)$/i);
+    if (blankMatch) return `Fill in the blank #${Number(blankMatch[1]) + 1}`;
+    return /^[0-9a-f-]{32,}$/i.test(key) ? `${reviewStages.find((stage) => stage.id === fallbackStage)?.title || "Lesson"} response` : key.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  };
+  const addReviewAnswer = (stageId: InstructorReviewStageId, key: string, answer: string, audioUrl?: string) => {
+    const stage = reviewStages.find((item) => item.id === stageId);
+    if (!stage) return;
+    const isUrl = /^(?:https?:|blob:|data:audio\/)/i.test(answer.trim());
+    stage.answers.push({
+      question: getDisplayQuestion(key, stageId),
+      answer: audioUrl || isUrl ? "Audio response submitted" : answer,
+      modelAnswer: reviewModelAnswers[key],
+      audioUrl: audioUrl || (isUrl ? answer : undefined),
+    });
+  };
+  if (submittedAnswers?.writingText?.trim()) addReviewAnswer("writing", "writingText", submittedAnswers.writingText);
+  const appendAnswers = (answers: Record<string, string> | undefined, fallbackStage: InstructorReviewStageId) => {
+    Object.entries(answers || {}).forEach(([key, answer]) => {
+      if (!answer?.trim()) return;
+      const stage = reviewStageForKey[key] || fallbackStage;
+      addReviewAnswer(stage, key, answer);
+    });
+  };
+  appendAnswers(submittedAnswers?.listeningAnswers, "listening");
+  appendAnswers(submittedAnswers?.readingAnswers, "reading");
+  appendAnswers(submittedAnswers?.writing_responses, "writing");
+  appendAnswers(submittedAnswers?.blockResponses, "warm_up");
+  appendAnswers(submittedAnswers?.quizSelections, "warm_up");
+  Object.entries(submittedAnswers?.audioUploads || {}).forEach(([key, url]) => {
+    if (!url?.trim()) return;
+    const stage = reviewStageForKey[key] || (key === "speaking" ? "speaking" : "warm_up");
+    addReviewAnswer(stage, key, "Audio response submitted", url);
+  });
+  if (submittedAnswers?.speakingAudioUrl?.trim() && !reviewStages.some((stage) => stage.answers.some((answer) => answer.audioUrl === submittedAnswers.speakingAudioUrl))) {
+    addReviewAnswer("speaking", "speaking", "Audio response submitted", submittedAnswers.speakingAudioUrl);
   }
 
   const previewSteps = [
@@ -3071,9 +3116,8 @@ export default function InstructorWorkstationPage({
 <div className="mb-6">
 <StudentContextPanel studentName={selectedStudent?.name || "Selected Student"} studentId={selectedStudent?.id} studentToken={selectedStudent?.token} profile={workstationState.studentProfile} onUpdateProfile={(studentProfile: StudentProfile) => setWorkstationState((previous) => ({ ...previous, studentProfile }))} onSaveProfile={async (studentProfile: StudentProfile) => { if (!selectedStudent) return; const studentToken = selectedStudent.token || selectedStudent.id; console.log("[Instructor Workstation] profile save identifier:", { studentToken, studentId: selectedStudent.id }); await saveStudentProfile(studentToken, studentProfile); window.localStorage.setItem(`fluentia:student-profile-sync:${studentToken}`, new Date().toISOString()); window.dispatchEvent(new CustomEvent(FLUENTIA_DATA_UPDATED_EVENT, { detail: { type: "student-profile", studentToken } })); }} />
 </div>
-<section className="mt-8 grid grid-cols-1 items-start gap-6 lg:grid-cols-12" aria-label="Student submission review workspace">
-<div className="space-y-5 lg:col-span-7">
-<div className="flex justify-between border-b border-[#202631] pb-4">
+<section className="mt-8 space-y-8" aria-label="Student submission review workspace">
+<div className="flex flex-wrap items-end justify-between gap-4 border-b border-[#202631] pb-4">
 <div>
 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Submission Review Workspace</p>
 <h2 className="mt-1 font-sans text-xl font-semibold text-stone-100">{selectedStudent?.name || "Selected Student"}&apos;s answers</h2>
@@ -3081,30 +3125,29 @@ export default function InstructorWorkstationPage({
 </div>
 <span className={`w-fit rounded-sm border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${submissionStateClass}`}>{submissionState}</span>
 </div>
-<div className="space-y-4">
-{submissionAnswerGroups.map((group) => <section key={group.title} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
-<h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">{group.title}</h3>
-<div className="space-y-3">{group.answers.map((answer, index) => <div key={`${answer.question}-${index}`} className="rounded-lg border border-[#202631] bg-[#0c1017] p-4">
-<p className="text-xs font-medium text-stone-500">{answer.question}</p>
+<div className="grid gap-4 xl:grid-cols-2">
+{reviewStages.map((stage) => <section key={stage.id} className="space-y-3 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
+<div className="border-b border-[#293343] pb-3">
+<h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-amber-400">{stage.title}</h3>
+{stage.prompt && <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-stone-400">{stage.prompt}</p>}
+</div>
+{stage.answers.length > 0 ? <div className="space-y-3">{stage.answers.map((answer, index) => <article key={`${answer.question}-${index}`} className="rounded-lg border border-[#293343] bg-[#0c1017] p-4">
+<p className="text-sm font-medium leading-relaxed text-stone-200">{answer.question}</p>
+<div className="mt-3 grid gap-3 sm:grid-cols-2">
+<div>
+<p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Student&apos;s Answer</p>
 <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-300">{answer.answer}</p>
-{answer.modelAnswer && <div className="mt-3 border-t border-[#293343] pt-3">
+{answer.audioUrl && <div className="mt-2"><CustomAudioPlayer src={answer.audioUrl} label={`${answer.question} recording`} /></div>}
+</div>
+{answer.modelAnswer && <div>
 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-500/80">Model / Correct Answer</p>
 <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-amber-200">{answer.modelAnswer}</p>
 </div>}
-</div>)}</div>
-</section>)}
-{submissionAudioRows.map((audio) => <section key={`${audio.question}-${audio.url}`} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
-<h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Audio response: {audio.question}</h3>
-<CustomAudioPlayer src={audio.url} label={`${audio.question} recording`} />
-{audio.modelAnswer && <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
-<p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-500/80">Model / Correct Answer</p>
-<p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-amber-200">{audio.modelAnswer}</p>
-</div>}
-</section>)}
-{submissionAnswerGroups.length === 0 && submissionAudioRows.length === 0 && <p className="rounded-lg border border-[#202631] bg-[#0c1017] p-4 text-sm text-stone-500">No written or audio responses were included in this submission.</p>}
 </div>
+</article>)}</div> : <p className="rounded-lg border border-dashed border-[#394252] px-4 py-5 text-center text-xs text-stone-500">No interactive response submitted for this stage.</p>}
+</section>)}
 </div>
-<div className="lg:col-span-5 lg:sticky lg:top-6">
+<div className="border-t border-[#202631] pt-6">
 <SubmissionEvaluator
   key={`${reviewSubmissionLessonId || databaseLessonId || newLesson.slug || lessonId}:${selectedStudentId || "no-student"}`}
   lessonId={reviewSubmissionLessonId || databaseLessonId || newLesson.slug || lessonId}
