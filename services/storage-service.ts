@@ -16,17 +16,17 @@ import { resolveUserUuid } from "@/lib/identity";
 export type LessonStatus = "draft" | "published";
 export type SubmissionStatus = "not_started" | "in_progress" | "submitted" | "pending_evaluation" | "reviewed";
 
-const SUBMISSION_STATUS_FALLBACKS: Record<SubmissionStatus, Array<string | null>> = {
-  not_started: ["not_started", "draft", "in_progress", null],
-  in_progress: ["in_progress", "draft", "not_started", null],
+const SUBMISSION_STATUS_FALLBACKS: Record<SubmissionStatus, string[]> = {
+  not_started: ["draft", "not_started", "in_progress", "submitted", "pending_evaluation", "completed"],
+  in_progress: ["draft", "in_progress", "not_started", "submitted", "pending_evaluation", "completed"],
   submitted: ["submitted", "pending_evaluation", "completed"],
-  pending_evaluation: ["pending_evaluation", "submitted", "completed"],
+  pending_evaluation: ["submitted", "pending_evaluation", "completed"],
   reviewed: ["reviewed", "completed"],
 };
 
 async function writeSubmissionWithStatusFallback(
   status: SubmissionStatus,
-  write: (status: string | null) => PromiseLike<{ error: { code?: string } | null }>,
+  write: (status: string) => PromiseLike<{ error: { code?: string } | null }>,
 ) {
   let constraintError: { code?: string } | null = null;
   for (const candidate of SUBMISSION_STATUS_FALLBACKS[status]) {
@@ -44,6 +44,20 @@ function normalizeSubmissionStatus(value: unknown, fallback: SubmissionStatus = 
   return value === "not_started" || value === "in_progress" || value === "submitted" || value === "pending_evaluation" || value === "reviewed"
     ? value
     : fallback;
+}
+
+function removeUndefinedValues(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(removeUndefinedValues);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entry]) => entry !== undefined).map(([key, entry]) => [key, removeUndefinedValues(entry)]),
+  );
+}
+
+function logSubmissionPayload(kind: string, payload: Record<string, unknown>) {
+  if (process.env.NODE_ENV === "development") {
+    console.debug(`[Submission ${kind}] payload`, JSON.stringify(payload));
+  }
 }
 
 export interface StudentProgressRecord {
@@ -459,10 +473,14 @@ export async function saveStudentProgress(
       if (lesson && studentId) {
         const { data: existingSubmission, error: lookupError } = await supabase.from("submissions").select("id,answers").eq("lesson_id", lesson.id).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
         if (lookupError) throw lookupError;
-        const answers = { ...(existingSubmission?.answers || {}), progress: { currentStep: updated.currentStep, completedSteps: updated.completedSteps, completed: updated.completed, status: updated.status } };
-        await writeSubmissionWithStatusFallback(updated.status, (databaseStatus) => existingSubmission
-          ? supabase.from("submissions").update({ answers, ...(databaseStatus ? { status: databaseStatus } : {}), submitted_at: updated.updatedAt }).eq("id", existingSubmission.id)
-          : supabase.from("submissions").insert({ lesson_id: lesson.id, student_id: studentId, answers, ...(databaseStatus ? { status: databaseStatus } : {}), submitted_at: updated.updatedAt }));
+        const answers = removeUndefinedValues({ ...(existingSubmission?.answers || {}), progress: { currentStep: updated.currentStep, completedSteps: updated.completedSteps, completed: updated.completed, status: updated.status } });
+        await writeSubmissionWithStatusFallback(updated.status, (databaseStatus) => {
+          const payload = removeUndefinedValues({ lesson_id: lesson.id, student_id: studentId, answers, status: databaseStatus, submitted_at: updated.updatedAt }) as Record<string, unknown>;
+          logSubmissionPayload("progress", payload);
+          return existingSubmission
+            ? supabase.from("submissions").update(payload).eq("id", existingSubmission.id)
+            : supabase.from("submissions").insert(payload);
+        });
         notifyDataUpdated({ type: "progress", slug, studentToken });
         return updated;
       }
@@ -488,7 +506,7 @@ export async function saveLessonState(
   return state;
 }
 
-export async function submitStudentLesson(
+async function persistStudentSubmission(
   slug: string,
   studentToken: string | undefined,
   submission: StudentSubmission,
@@ -511,7 +529,7 @@ export async function submitStudentLesson(
       if (lesson && studentId) {
         const { data: existingSubmission, error: lookupError } = await supabase.from("submissions").select("id").eq("lesson_id", lesson.id).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
         if (lookupError) throw lookupError;
-        const answers = progress
+        const answers = removeUndefinedValues(progress
           ? {
               ...submission,
               progress: {
@@ -521,13 +539,20 @@ export async function submitStudentLesson(
                 status: progress.status || normalizeSubmissionStatus(submission.status),
               },
             }
-          : submission;
+          : submission);
         const submittedAt = submission.submittedAt || new Date().toISOString();
         await writeSubmissionWithStatusFallback(normalizeSubmissionStatus(submission.status), (databaseStatus) => {
-          const submissionPayload = { answers, ...(databaseStatus ? { status: databaseStatus } : {}), submitted_at: submittedAt };
+          const submissionPayload = removeUndefinedValues({
+            lesson_id: lesson.id,
+            student_id: studentId,
+            answers,
+            status: databaseStatus,
+            submitted_at: submittedAt,
+          }) as Record<string, unknown>;
+          logSubmissionPayload(submission.status === "pending_evaluation" ? "final" : "autosave", submissionPayload);
           return existingSubmission
             ? supabase.from("submissions").update(submissionPayload).eq("id", existingSubmission.id)
-            : supabase.from("submissions").insert({ lesson_id: lesson.id, student_id: studentId, ...submissionPayload });
+            : supabase.from("submissions").insert(submissionPayload);
         });
         notifyDataUpdated({ type: "submission", slug, studentToken });
         return nextState;
@@ -553,6 +578,27 @@ export async function submitStudentLesson(
   }
   notifyDataUpdated({ type: "submission", slug, studentToken });
   return nextState;
+}
+
+export function saveStudentSubmissionDraft(
+  slug: string,
+  studentToken: string | undefined,
+  submission: StudentSubmission,
+  progress?: Partial<StudentProgressRecord>,
+): Promise<PublishedLessonState> {
+  return persistStudentSubmission(slug, studentToken, { ...submission, status: "in_progress" }, {
+    ...progress,
+    status: "in_progress",
+  });
+}
+
+export function submitStudentLesson(
+  slug: string,
+  studentToken: string | undefined,
+  submission: StudentSubmission,
+  progress?: Partial<StudentProgressRecord>,
+): Promise<PublishedLessonState> {
+  return persistStudentSubmission(slug, studentToken, submission, progress);
 }
 
 export async function saveInstructorFeedback(

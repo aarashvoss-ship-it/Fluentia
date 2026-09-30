@@ -1387,7 +1387,7 @@ export default function InstructorWorkstationPage({
               studentId: row.student_id,
               submittedAt: row.submitted_at,
               submission: {
-                status: row.status === "pending_evaluation" || row.status === "completed" ? "pending_evaluation" : "submitted",
+                status: answers.status === "pending_evaluation" || row.status === "pending_evaluation" || row.status === "completed" ? "pending_evaluation" : "submitted",
                 listeningAnswers: answers.listeningAnswers || {},
                 readingAnswers: answers.readingAnswers || {},
                 writingText: answers.writingText || "",

@@ -6,7 +6,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { ChatMessage, ContentBlock, SavedVocabularyWord, StudentNote, StudyStepId, STUDY_STEPS, LessonContent, StudentSubmission } from "@/types/lesson";
 import { getLessonById, type LessonWithVersion } from "@/lib/lessons";
 import { getLessonStateKey, PublishedLessonState, writeLastAccessedLesson } from "@/lib/lesson-store";
-import { fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, saveChatMessage, saveStudentNote, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
+import { fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, saveChatMessage, saveStudentNote, saveStudentSubmissionDraft, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
 import { FLUENTIA_USERS, INSTRUCTOR_USER, type StudentUser } from "@/lib/users";
 import { supabase } from "@/lib/supabase";
 import { Stepper } from "@/components/study-room/stepper";
@@ -274,6 +274,18 @@ function MediaTranscriptAccordion({ transcript, isUnlocked }: { transcript?: str
   );
 }
 
+type SubmissionProgressUpdate = {
+  currentStep?: StudyStepId;
+  completedSteps?: StudyStepId[];
+  status?: "not_started" | "in_progress" | "submitted" | "pending_evaluation" | "reviewed";
+};
+
+type QueuedSubmissionSave = {
+  submission: StudentSubmission;
+  progress: SubmissionProgressUpdate;
+  resolve: (saved: boolean) => void;
+};
+
 export default function LessonPage() {
   const rawSlug = useParams()?.slug;
   const searchParams = useSearchParams();
@@ -304,6 +316,8 @@ export default function LessonPage() {
     audioUploads: {},
   });
   const submissionSaveQueue = useRef<Promise<void>>(Promise.resolve());
+  const submissionSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSubmissionSave = useRef<QueuedSubmissionSave | null>(null);
   const [visibleSampleAnswers, setVisibleSampleAnswers] = useState<Record<string, boolean>>({});
   const [savedWords, setSavedWords] = useState<SavedVocabularyWord[]>([]);
   const [notes, setNotes] = useState<StudentNote[]>([]);
@@ -577,32 +591,88 @@ export default function LessonPage() {
     return () => document.removeEventListener("dblclick", handleDoubleClick);
   }, []);
 
-  async function persistSubmission(nextSubmission: StudentSubmission, nextProgress?: { currentStep?: StudyStepId; completedSteps?: StudyStepId[]; status?: "not_started" | "in_progress" | "submitted" | "pending_evaluation" | "reviewed" }, optimistic = true): Promise<boolean> {
+  async function persistSubmissionNow(nextSubmission: StudentSubmission, nextProgress: SubmissionProgressUpdate, optimistic: boolean): Promise<boolean> {
     if (!lesson) return false;
-    if (optimistic) setSubmission(nextSubmission);
-    setSubmissionSaveError(null);
+    const isFinalSubmission = nextSubmission.status === "submitted" || nextSubmission.status === "pending_evaluation" || nextSubmission.status === "reviewed";
     try {
       const tok = activeStudent?.token ?? lesson.student_token ?? undefined;
-      const save = submissionSaveQueue.current.then(() => submitStudentLesson(lesson.id, tok, nextSubmission, {
-          currentStep: nextProgress?.currentStep || currentStep,
-          completedSteps: nextProgress?.completedSteps || completedSteps,
-          status: nextProgress?.status || (nextSubmission.status === "submitted" || nextSubmission.status === "pending_evaluation" ? nextSubmission.status : "in_progress"),
-          updatedAt: new Date().toISOString(),
-        }));
+      const progress = {
+        currentStep: nextProgress.currentStep || currentStep,
+        completedSteps: nextProgress.completedSteps || completedSteps,
+        status: nextProgress.status || (isFinalSubmission ? nextSubmission.status : "in_progress"),
+        updatedAt: new Date().toISOString(),
+      };
+      const save = submissionSaveQueue.current.then(() => isFinalSubmission
+        ? submitStudentLesson(lesson.id, tok, nextSubmission, progress)
+        : saveStudentSubmissionDraft(lesson.id, tok, nextSubmission, progress));
       submissionSaveQueue.current = save.then(() => undefined, () => undefined);
       await save;
       if (!optimistic) setSubmission(nextSubmission);
       return true;
     } catch (error) {
-      console.error("[Lesson Submission] Failed to persist student submission:", {
-        lessonId: lesson.id,
-        studentId: activeStudent?.id || lesson.student_id,
-        error,
-      });
-      setSubmissionSaveError(error instanceof Error ? error.message : String(error));
+      if (isFinalSubmission) {
+        console.error("[Lesson Submission] Failed to persist final submission:", {
+          lessonId: lesson.id,
+          studentId: activeStudent?.id || lesson.student_id,
+          error,
+        });
+        setSubmissionSaveError(error instanceof Error ? error.message : String(error));
+      } else if (process.env.NODE_ENV === "development") {
+        console.warn("[Lesson Autosave] Draft save failed; the latest local answers are retained.", error);
+      }
       return false;
     }
   }
+
+  function flushPendingSubmissionSave(): Promise<boolean> {
+    if (submissionSaveTimer.current) clearTimeout(submissionSaveTimer.current);
+    submissionSaveTimer.current = null;
+    const queued = pendingSubmissionSave.current;
+    pendingSubmissionSave.current = null;
+    if (!queued) return Promise.resolve(false);
+    const save = persistSubmissionNow(queued.submission, queued.progress, true);
+    void save.then(queued.resolve);
+    return save;
+  }
+
+  function persistSubmission(
+    nextSubmission: StudentSubmission,
+    nextProgress?: SubmissionProgressUpdate,
+    optimistic = true,
+    immediate = false,
+  ): Promise<boolean> {
+    if (!lesson) return Promise.resolve(false);
+    if (optimistic) setSubmission(nextSubmission);
+    if (nextSubmission.status === "pending_evaluation" || nextSubmission.status === "submitted") setSubmissionSaveError(null);
+    const progress = {
+      currentStep: nextProgress?.currentStep || currentStep,
+      completedSteps: nextProgress?.completedSteps || completedSteps,
+      status: nextProgress?.status || (nextSubmission.status === "submitted" || nextSubmission.status === "pending_evaluation" ? nextSubmission.status : "in_progress"),
+    };
+    return new Promise((resolve) => {
+      if (submissionSaveTimer.current) clearTimeout(submissionSaveTimer.current);
+      pendingSubmissionSave.current?.resolve(false);
+      pendingSubmissionSave.current = { submission: nextSubmission, progress, resolve };
+      if (immediate) {
+        void flushPendingSubmissionSave();
+      } else {
+        submissionSaveTimer.current = setTimeout(() => {
+          submissionSaveTimer.current = null;
+          void flushPendingSubmissionSave();
+        }, 500);
+      }
+    });
+  }
+
+  useEffect(() => () => {
+    if (submissionSaveTimer.current) clearTimeout(submissionSaveTimer.current);
+    submissionSaveTimer.current = null;
+    const queued = pendingSubmissionSave.current;
+    pendingSubmissionSave.current = null;
+    if (queued) {
+      void persistSubmissionNow(queued.submission, queued.progress, true).then(queued.resolve);
+    }
+  }, [lesson?.id, activeStudent?.token]);
 
   const lessonContent = (lesson?.content || {}) as any;
   const rawLessonContent = lessonContent as Record<string, unknown>;
@@ -765,6 +835,7 @@ export default function LessonPage() {
       { ...submission, status: "pending_evaluation", submittedAt },
       { currentStep: "results", completedSteps: [...STUDY_STEPS.map((step) => step.id)], status: "pending_evaluation" },
       false,
+      true,
     );
     setIsSubmitting(false);
     if (!saved) return;
