@@ -23,10 +23,10 @@ function isAudioDataUrl(value: string) {
   return /^data:audio\/[\w.+-]+(?:;[^,]*)?,/i.test(value);
 }
 
-export function CustomAudioPlayer({ src, label = "Audio" }: { src: string; label?: string }) {
+export function CustomAudioPlayer({ src, label = "Audio", blob }: { src: string; label?: string; blob?: Blob }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playbackSrc, setPlaybackSrc] = useState("");
-  const [sourceStatus, setSourceStatus] = useState<"checking" | "ready" | "processed">("checking");
+  const [sourceStatus, setSourceStatus] = useState<"checking" | "ready" | "unavailable">("checking");
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -34,38 +34,40 @@ export function CustomAudioPlayer({ src, label = "Audio" }: { src: string; label
   const [playbackRate, setPlaybackRate] = useState(1);
 
   useEffect(() => {
-    let cancelled = false;
-    let validatedBlobUrl: string | null = null;
     setPlaybackSrc("");
     setSourceStatus("checking");
+
+    if (blob) {
+      let cancelled = false;
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (cancelled) return;
+        if (typeof reader.result !== "string" || !isAudioDataUrl(reader.result)) {
+          setSourceStatus("unavailable");
+          return;
+        }
+        setPlaybackSrc(reader.result);
+        setSourceStatus("ready");
+      };
+      reader.onerror = () => {
+        if (!cancelled) setSourceStatus("unavailable");
+      };
+      reader.readAsDataURL(blob);
+      return () => {
+        cancelled = true;
+        reader.abort();
+      };
+    }
 
     if (isRemoteAudioUrl(src) || isAudioDataUrl(src)) {
       setPlaybackSrc(src);
       setSourceStatus("ready");
     } else if (/^blob:/i.test(src)) {
-      void fetch(src)
-        .then((response) => {
-          if (!response.ok) throw new Error("Audio recording is unavailable.");
-          return response.blob();
-        })
-        .then((blob) => {
-          if (cancelled) return;
-          validatedBlobUrl = URL.createObjectURL(blob);
-          setPlaybackSrc(validatedBlobUrl);
-          setSourceStatus("ready");
-        })
-        .catch(() => {
-          if (!cancelled) setSourceStatus("processed");
-        });
+      setSourceStatus("unavailable");
     } else {
-      setSourceStatus("processed");
+      setSourceStatus("unavailable");
     }
-
-    return () => {
-      cancelled = true;
-      if (validatedBlobUrl) URL.revokeObjectURL(validatedBlobUrl);
-    };
-  }, [src]);
+  }, [blob, src]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -96,7 +98,7 @@ export function CustomAudioPlayer({ src, label = "Audio" }: { src: string; label
         setIsPlaying(true);
       } catch {
         setIsPlaying(false);
-        setSourceStatus("processed");
+        setSourceStatus("unavailable");
       }
     } else {
       audio.pause();
@@ -120,13 +122,13 @@ export function CustomAudioPlayer({ src, label = "Audio" }: { src: string; label
     if (audioRef.current) audioRef.current.playbackRate = value;
   };
 
-  if (sourceStatus === "processed") {
-    return <p className="rounded-lg border border-[#293343] bg-[#171d28] px-3 py-2 text-xs text-stone-400">Audio recording processed</p>;
+  if (sourceStatus === "unavailable") {
+    return <p className="rounded-lg border border-[#293343] bg-[#171d28] px-3 py-2 text-xs text-stone-400">Audio playback unavailable</p>;
   }
 
   return (
     <div className="w-full rounded-xl border border-[#293343] bg-[#171d28] p-3 text-stone-300 shadow-inner">
-      {sourceStatus === "ready" && <audio ref={audioRef} src={playbackSrc} preload="metadata" className="sr-only" aria-label={label} onError={() => setSourceStatus("processed")} />}
+      {sourceStatus === "ready" && <audio ref={audioRef} src={playbackSrc} preload="metadata" className="sr-only" aria-label={label} onError={() => setSourceStatus("unavailable")} />}
       <div className="flex items-center gap-3">
         <button type="button" onClick={() => void togglePlayback()} disabled={sourceStatus !== "ready"} aria-label={isPlaying ? `Pause ${label}` : `Play ${label}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500 text-[#0c1017] transition hover:bg-amber-400 disabled:cursor-wait disabled:opacity-50">
           {isPlaying ? <Pause className="h-4 w-4 fill-current" /> : <Play className="ml-0.5 h-4 w-4 fill-current" />}
