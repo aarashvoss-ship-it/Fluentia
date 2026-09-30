@@ -108,7 +108,7 @@ export function CelebrationModal({
             disabled={isSubmitting}
             className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-medium text-sm transition-all duration-150 shadow-lg shadow-amber-500/10 active:scale-[0.99] disabled:cursor-wait disabled:opacity-60"
           >
-            <span>{isSubmitting ? "Saving Submission..." : "Submit &amp; View Results"}</span>
+            <span>{isSubmitting ? "Saving Submission..." : "Submit & View Results"}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
 
