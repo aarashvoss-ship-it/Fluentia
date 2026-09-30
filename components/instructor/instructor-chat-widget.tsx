@@ -98,7 +98,7 @@ export function InstructorChatWidget({ activeStudent, students, instructorId, le
   }, [open]);
 
   useEffect(() => {
-    if (!isSupabaseConfigured()) return;
+    if (!isSupabaseConfigured() || !resolvedInstructorId) return;
     let cancelled = false;
     const loadMessages = async () => {
       const { data, error } = await supabase
@@ -118,32 +118,37 @@ export function InstructorChatWidget({ activeStudent, students, instructorId, le
       setUnreadByStudent({});
     };
     void loadMessages();
-    const channel = supabase
-      .channel("public:messages")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
-        const row = payload.new as MessageRow;
-        if (row.sender_id !== resolvedInstructorId && row.receiver_id !== resolvedInstructorId && row.tab_type !== "support") return;
-        const message = toChatMessage(row, resolvedInstructorId);
-        if (row.tab_type === "support") setSupportMessages((current) => appendUnique(current, message));
-        else {
-          const key = row.sender_id === resolvedInstructorId ? row.receiver_id : row.sender_id;
-          setThreadMessages((current) => ({ ...current, [key]: appendUnique(current[key] || [], message) }));
-        }
-        const isIncoming = row.sender_id !== resolvedInstructorId;
-        const shouldNotify = !openRef.current || row.tab_type !== tabRef.current;
-        if (isIncoming) {
-          triggerChime();
-        }
-        if (isIncoming && shouldNotify) {
-          setUnreadCount((count) => count + 1);
-          const studentKey = row.sender_id === resolvedInstructorId ? row.receiver_id : row.sender_id;
-          setUnreadByStudent((counts) => ({ ...counts, [studentKey]: (counts[studentKey] || 0) + 1 }));
-        }
-      })
-      .subscribe();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    const subscriptionTimer = window.setTimeout(() => {
+      if (cancelled) return;
+      channel = supabase
+        .channel("public:messages")
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
+          const row = payload.new as MessageRow;
+          if (row.sender_id !== resolvedInstructorId && row.receiver_id !== resolvedInstructorId && row.tab_type !== "support") return;
+          const message = toChatMessage(row, resolvedInstructorId);
+          if (row.tab_type === "support") setSupportMessages((current) => appendUnique(current, message));
+          else {
+            const key = row.sender_id === resolvedInstructorId ? row.receiver_id : row.sender_id;
+            setThreadMessages((current) => ({ ...current, [key]: appendUnique(current[key] || [], message) }));
+          }
+          const isIncoming = row.sender_id !== resolvedInstructorId;
+          const shouldNotify = !openRef.current || row.tab_type !== tabRef.current;
+          if (isIncoming) {
+            triggerChime();
+          }
+          if (isIncoming && shouldNotify) {
+            setUnreadCount((count) => count + 1);
+            const studentKey = row.sender_id === resolvedInstructorId ? row.receiver_id : row.sender_id;
+            setUnreadByStudent((counts) => ({ ...counts, [studentKey]: (counts[studentKey] || 0) + 1 }));
+          }
+        })
+        .subscribe();
+    }, 0);
     return () => {
       cancelled = true;
-      void supabase.removeChannel(channel);
+      window.clearTimeout(subscriptionTimer);
+      if (channel) void supabase.removeChannel(channel);
     };
   }, [resolvedInstructorId]);
 

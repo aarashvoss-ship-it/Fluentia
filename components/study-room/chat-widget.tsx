@@ -84,7 +84,7 @@ export function ChatWidget({ messages, onSend, instructorId }: ChatWidgetProps) 
   }, [instructorId]);
 
   useEffect(() => {
-    if (!isSupabaseConfigured()) return;
+    if (!isSupabaseConfigured() || !resolvedStudentId) return;
     let cancelled = false;
     const loadMessages = async () => {
       const { data, error } = await supabase.from("messages")
@@ -93,20 +93,25 @@ export function ChatWidget({ messages, onSend, instructorId }: ChatWidgetProps) 
       if (!cancelled && !error && data) setRemoteMessages((data as MessageRow[]).map((row) => toChatMessage(row, resolvedStudentId)));
     };
     void loadMessages();
-    const channel = supabase.channel("public:messages")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
-        const row = payload.new as MessageRow;
-        if (row.sender_id !== resolvedStudentId && row.receiver_id !== resolvedStudentId && row.tab_type !== "support") return;
-        const message = toChatMessage(row, resolvedStudentId);
-        setRemoteMessages((current) => appendUnique(current, message));
-        if (row.sender_id === resolvedStudentId) return;
-        triggerChime();
-        if (!openRef.current || row.tab_type !== tabRef.current) setUnreadCount((count) => count + 1);
-      })
-      .subscribe();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    const subscriptionTimer = window.setTimeout(() => {
+      if (cancelled) return;
+      channel = supabase.channel("public:messages")
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
+          const row = payload.new as MessageRow;
+          if (row.sender_id !== resolvedStudentId && row.receiver_id !== resolvedStudentId && row.tab_type !== "support") return;
+          const message = toChatMessage(row, resolvedStudentId);
+          setRemoteMessages((current) => appendUnique(current, message));
+          if (row.sender_id === resolvedStudentId) return;
+          triggerChime();
+          if (!openRef.current || row.tab_type !== tabRef.current) setUnreadCount((count) => count + 1);
+        })
+        .subscribe();
+    }, 0);
     return () => {
       cancelled = true;
-      void supabase.removeChannel(channel);
+      window.clearTimeout(subscriptionTimer);
+      if (channel) void supabase.removeChannel(channel);
     };
   }, [resolvedStudentId]);
 
