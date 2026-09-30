@@ -54,6 +54,37 @@ function removeUndefinedValues(value: unknown): unknown {
   );
 }
 
+function removeTemporaryBlobUrls(value: unknown): unknown {
+  if (typeof value === "string") return /^blob:/i.test(value.trim()) ? undefined : value;
+  if (Array.isArray(value)) return value.map(removeTemporaryBlobUrls);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .map(([key, entry]) => [key, removeTemporaryBlobUrls(entry)] as const)
+      .filter(([, entry]) => entry !== undefined),
+  );
+}
+
+function isPersistentMediaUrl(value: string) {
+  if (/^data:audio\/[\w.+-]+(?:;[^,]*)?,/i.test(value)) return true;
+  if (!/^https?:\/\//i.test(value)) return false;
+  try {
+    const protocol = new URL(value).protocol;
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Unable to encode audio fallback."));
+    reader.onerror = () => reject(reader.error || new Error("Unable to encode audio fallback."));
+    reader.readAsDataURL(blob);
+  });
+}
+
 function logSubmissionPayload(kind: string, payload: Record<string, unknown>) {
   if (process.env.NODE_ENV === "development") {
     console.debug(`[Submission ${kind}] payload`, JSON.stringify(payload));
@@ -512,6 +543,7 @@ async function persistStudentSubmission(
   submission: StudentSubmission,
   progress?: Partial<StudentProgressRecord>
 ): Promise<PublishedLessonState> {
+  const persistableSubmission = removeTemporaryBlobUrls(submission) as StudentSubmission;
   const current = await fetchLessonState(slug, studentToken);
   const nextState: PublishedLessonState = {
     content: current?.content || defaultContent(),
@@ -519,7 +551,7 @@ async function persistStudentSubmission(
     studentProfile: current?.studentProfile || defaultProfile(),
     evaluation: current?.evaluation || emptyEvaluation(),
     status: current?.status || "published",
-    submission,
+    submission: persistableSubmission,
   };
   await saveLessonState(slug, nextState, studentToken);
   if (isSupabaseConfigured()) {
@@ -531,18 +563,18 @@ async function persistStudentSubmission(
         const { data: existingSubmission, error: lookupError } = await supabase.from("submissions").select("id").eq("lesson_id", lesson.id).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
         if (lookupError) throw lookupError;
         const answers = removeUndefinedValues(progress
-          ? {
-              ...submission,
+            ? {
+              ...persistableSubmission,
               progress: {
                 currentStep: progress.currentStep || "warm_up",
                 completedSteps: progress.completedSteps || [],
-                completed: progress.completed ?? (submission.status === "submitted" || submission.status === "pending_evaluation" || submission.status === "reviewed"),
-                status: progress.status || normalizeSubmissionStatus(submission.status),
+                completed: progress.completed ?? (persistableSubmission.status === "submitted" || persistableSubmission.status === "pending_evaluation" || persistableSubmission.status === "reviewed"),
+                status: progress.status || normalizeSubmissionStatus(persistableSubmission.status),
               },
             }
-          : submission);
-        const submittedAt = submission.submittedAt || new Date().toISOString();
-        await writeSubmissionWithStatusFallback(normalizeSubmissionStatus(submission.status), (databaseStatus) => {
+          : persistableSubmission);
+        const submittedAt = persistableSubmission.submittedAt || new Date().toISOString();
+        await writeSubmissionWithStatusFallback(normalizeSubmissionStatus(persistableSubmission.status), (databaseStatus) => {
           const submissionPayload = removeUndefinedValues({
             lesson_id: lesson.id,
             student_id: studentId,
@@ -550,7 +582,7 @@ async function persistStudentSubmission(
             status: databaseStatus,
             submitted_at: submittedAt,
           }) as Record<string, unknown>;
-          logSubmissionPayload(submission.status === "pending_evaluation" ? "final" : "autosave", submissionPayload);
+          logSubmissionPayload(persistableSubmission.status === "pending_evaluation" ? "final" : "autosave", submissionPayload);
           return existingSubmission
             ? supabase.from("submissions").update(submissionPayload).eq("id", existingSubmission.id)
             : supabase.from("submissions").insert(submissionPayload);
@@ -685,12 +717,22 @@ export async function uploadAudioSubmission(input: string | Blob, name?: string)
 export async function uploadStudentAudio(input: string | Blob, studentId: string, name?: string) {
   const safeId = studentId?.trim() || "anonymous";
   const fileName = name ? `${safeId}/${Date.now()}-${name}` : `${safeId}/${Date.now()}-response.webm`;
-  const fallbackAsset = (): StorageMediaAsset => ({
-    bucket: "student-resources",
-    name: fileName,
-    url: typeof input === "string" ? input : URL.createObjectURL(input),
-    ...(typeof input !== "string" ? { size: input.size, type: input.type } : {}),
-  });
+  const fallbackAsset = async (): Promise<StorageMediaAsset> => {
+    let url = "";
+    try {
+      url = typeof input === "string"
+        ? isPersistentMediaUrl(input) ? input : ""
+        : await blobToDataUrl(input);
+    } catch (error) {
+      console.warn("[Student Audio] Unable to create durable audio fallback.", error);
+    }
+    return {
+      bucket: "student-resources",
+      name: fileName,
+      url,
+      ...(typeof input !== "string" ? { size: input.size, type: input.type } : {}),
+    };
+  };
   if (typeof input === "string") return fallbackAsset();
   if (!isSupabaseConfigured()) return fallbackAsset();
 
@@ -732,7 +774,7 @@ export async function uploadStudentAudio(input: string | Blob, studentId: string
     }
   }
 
-  if (candidates.length === 0) console.warn("[Student Audio] No configured student audio bucket is available; using a local recording URL.");
+  if (candidates.length === 0) console.warn("[Student Audio] No configured student audio bucket is available; using a durable audio data URL.");
   return fallbackAsset();
 }
 

@@ -10,8 +10,23 @@ function formatTime(value: number) {
   return `${minutes}:${seconds}`;
 }
 
+function isRemoteAudioUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return (url.protocol === "http:" || url.protocol === "https:") && Boolean(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function isAudioDataUrl(value: string) {
+  return /^data:audio\/[\w.+-]+(?:;[^,]*)?,/i.test(value);
+}
+
 export function CustomAudioPlayer({ src, label = "Audio" }: { src: string; label?: string }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playbackSrc, setPlaybackSrc] = useState("");
+  const [sourceStatus, setSourceStatus] = useState<"checking" | "ready" | "processed">("checking");
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -19,8 +34,42 @@ export function CustomAudioPlayer({ src, label = "Audio" }: { src: string; label
   const [playbackRate, setPlaybackRate] = useState(1);
 
   useEffect(() => {
+    let cancelled = false;
+    let validatedBlobUrl: string | null = null;
+    setPlaybackSrc("");
+    setSourceStatus("checking");
+
+    if (isRemoteAudioUrl(src) || isAudioDataUrl(src)) {
+      setPlaybackSrc(src);
+      setSourceStatus("ready");
+    } else if (/^blob:/i.test(src)) {
+      void fetch(src)
+        .then((response) => {
+          if (!response.ok) throw new Error("Audio recording is unavailable.");
+          return response.blob();
+        })
+        .then((blob) => {
+          if (cancelled) return;
+          validatedBlobUrl = URL.createObjectURL(blob);
+          setPlaybackSrc(validatedBlobUrl);
+          setSourceStatus("ready");
+        })
+        .catch(() => {
+          if (!cancelled) setSourceStatus("processed");
+        });
+    } else {
+      setSourceStatus("processed");
+    }
+
+    return () => {
+      cancelled = true;
+      if (validatedBlobUrl) URL.revokeObjectURL(validatedBlobUrl);
+    };
+  }, [src]);
+
+  useEffect(() => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || sourceStatus !== "ready") return;
     const handleLoadedMetadata = () => setDuration(audio.duration);
     const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
     const handleEnded = () => {
@@ -36,14 +85,19 @@ export function CustomAudioPlayer({ src, label = "Audio" }: { src: string; label
       audio.removeEventListener("timeupdate", handleTimeUpdate);
       audio.removeEventListener("ended", handleEnded);
     };
-  }, [src]);
+  }, [playbackSrc]);
 
   const togglePlayback = async () => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || sourceStatus !== "ready") return;
     if (audio.paused) {
-      await audio.play();
-      setIsPlaying(true);
+      try {
+        await audio.play();
+        setIsPlaying(true);
+      } catch {
+        setIsPlaying(false);
+        setSourceStatus("processed");
+      }
     } else {
       audio.pause();
       setIsPlaying(false);
@@ -66,11 +120,15 @@ export function CustomAudioPlayer({ src, label = "Audio" }: { src: string; label
     if (audioRef.current) audioRef.current.playbackRate = value;
   };
 
+  if (sourceStatus === "processed") {
+    return <p className="rounded-lg border border-[#293343] bg-[#171d28] px-3 py-2 text-xs text-stone-400">Audio recording processed</p>;
+  }
+
   return (
     <div className="w-full rounded-xl border border-[#293343] bg-[#171d28] p-3 text-stone-300 shadow-inner">
-      <audio ref={audioRef} src={src} preload="metadata" className="sr-only" aria-label={label} />
+      {sourceStatus === "ready" && <audio ref={audioRef} src={playbackSrc} preload="metadata" className="sr-only" aria-label={label} onError={() => setSourceStatus("processed")} />}
       <div className="flex items-center gap-3">
-        <button type="button" onClick={() => void togglePlayback()} aria-label={isPlaying ? `Pause ${label}` : `Play ${label}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500 text-[#0c1017] transition hover:bg-amber-400">
+        <button type="button" onClick={() => void togglePlayback()} disabled={sourceStatus !== "ready"} aria-label={isPlaying ? `Pause ${label}` : `Play ${label}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500 text-[#0c1017] transition hover:bg-amber-400 disabled:cursor-wait disabled:opacity-50">
           {isPlaying ? <Pause className="h-4 w-4 fill-current" /> : <Play className="ml-0.5 h-4 w-4 fill-current" />}
         </button>
         <div className="min-w-0 flex-1">
