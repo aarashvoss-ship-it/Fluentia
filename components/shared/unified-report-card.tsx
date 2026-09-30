@@ -107,35 +107,35 @@ export function UnifiedReportCard({
           <h2 className="mt-1 text-xl font-semibold text-stone-100">Lesson Tasks</h2>
         </div>
       </div>
-      <div className="grid gap-4 xl:grid-cols-2">
-        {stages.map((stage) => <section key={stage.id} className="space-y-3 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
+      <div className="flex w-full min-w-0 flex-col gap-4">
+        {stages.map((stage) => <section key={stage.id} className="w-full min-w-0 space-y-3 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
           <div className="border-b border-[#293343] pb-3">
             <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-amber-400">{stage.title}</h3>
             {stage.prompt && <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-stone-400">{stripMarkdown(stage.prompt)}</p>}
           </div>
           {stage.tasks.length > 0 ? <div className="space-y-3">
-            {stage.tasks.map((task, index) => <article key={task.id} className="rounded-lg border border-[#293343] bg-[#0c1017] p-4">
-              <h4 className="text-sm font-medium leading-relaxed text-stone-100">{index + 1}. {stripMarkdown(task.title)}</h4>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <div>
+            {stage.tasks.map((task, index) => <article key={task.id} className="min-w-0 rounded-lg border border-[#293343] bg-[#0c1017] p-4">
+              <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
+                <div className="min-w-0">
+                  <h4 className="text-sm font-medium leading-relaxed text-stone-100">{index + 1}. {stripMarkdown(task.title)}</h4>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Your Response</p>
                   <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-300">{stripMarkdown(task.studentAnswer) || <span className="italic text-stone-500">No response submitted.</span>}</p>
-                  {task.audioUrls?.map((url, mediaIndex) => <div key={`${url}-${mediaIndex}`} className="mt-2"><CustomAudioPlayer src={url} label={`${stripMarkdown(task.title)} recording`} /></div>)}
+                  {task.audioUrls?.map((url, mediaIndex) => <div key={`${url}-${mediaIndex}`} className="mt-2 min-w-0 max-w-full overflow-hidden"><CustomAudioPlayer src={url} label={`${stripMarkdown(task.title)} recording`} /></div>)}
+                  {task.modelAnswer && <div className="mt-3 border-t border-[#293343] pt-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-500/80">Correct / Model Answer</p>
+                    <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-amber-200">{stripMarkdown(task.modelAnswer)}</p>
+                  </div>}
                 </div>
-                {task.modelAnswer && <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-500/80">Correct Answer</p>
-                  <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-amber-200">{stripMarkdown(task.modelAnswer)}</p>
-                </div>}
-              </div>
-              <div className="mt-3 border-t border-[#293343] pt-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Instructor Note</p>
+                <div className={`min-w-0 rounded-md border p-3 ${isInstructorView ? "border-[#394252] bg-[#171d28]" : "border-[#293343] bg-[#121721]"}`}>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Instructor Note</p>
                 {isInstructorView ? <textarea
                   value={taskFeedback[task.id] || ""}
                   onChange={(event) => onTaskFeedbackChange?.(task.id, event.target.value)}
                   placeholder="Add specific feedback for this answer..."
                   rows={2}
                   className="mt-2 w-full resize-y rounded-md border border-[#394252] bg-[#171d28] p-2.5 text-sm text-stone-200 outline-none focus:border-amber-500"
-                /> : <FeedbackValue value={taskFeedback[task.id]} isEvaluated={isEvaluated} />}
+                  /> : taskFeedback[task.id]?.trim() ? <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-300">{taskFeedback[task.id]}</p> : <p className="mt-1 text-sm text-stone-500">{isEvaluated ? "No comment provided." : "Pending Instructor Review"}</p>}
+              </div>
               </div>
               {task.explanation && <div className="mt-3 border-t border-[#293343] pt-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Explanation</p>
@@ -155,7 +155,7 @@ export function UnifiedReportCard({
         <h3 className="text-lg font-semibold text-stone-100">Rubric Ratings</h3>
         <span className="text-xs text-amber-400">Total: {totalScore}/20</span>
       </div>
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="flex flex-col gap-3">
         {RUBRIC_CRITERIA.map((criterion) => <div key={criterion.id} className="space-y-3 rounded-lg border border-[#202631] bg-[#0c1017] p-4">
           <div className="flex items-center justify-between gap-3">
             <span className="text-sm font-medium text-stone-300">{criterion.label}</span>
@@ -172,7 +172,7 @@ export function UnifiedReportCard({
 
     <section aria-label="General feedback" className="space-y-3">
       <div className="border-b border-[#202631] pb-3"><h3 className="text-lg font-semibold text-stone-100">General Feedback</h3></div>
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="flex flex-col gap-3">
         {renderGeneralField("comments", "Personalized Feedback & Corrections", comments, "Provide detailed feedback for the student...")}
         {renderGeneralField("strengths", "Strengths", strengths, "Record specific strengths or successful choices...")}
         {renderGeneralField("areasToImprove", "Areas to Improve", areasToImprove, "List focused next steps or recurring issues...")}
