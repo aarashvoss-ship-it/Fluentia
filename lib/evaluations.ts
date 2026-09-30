@@ -232,7 +232,7 @@ export async function getSubmissionByLessonAndStudent(
       .eq("student_id", studentId)
       .order("submitted_at", { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (submissionError && submissionError.code !== "PGRST116") {
       throw submissionError;
@@ -247,7 +247,7 @@ export async function getSubmissionByLessonAndStudent(
       .eq("submission_id", submission.id)
       .order("evaluated_at", { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     return {
       ...submission,

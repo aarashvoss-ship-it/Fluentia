@@ -138,6 +138,17 @@ type InstructorReviewStage = {
   answers: InstructorReviewAnswer[];
 };
 
+function stripReviewMarkdown(value: string) {
+  return value
+    .replace(/^\s{0,3}#{1,6}\s*/gm, "")
+    .replace(/^\s*>\s?/gm, "")
+    .replace(/(\*\*|__)(.*?)\1/g, "$2")
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1$2")
+    .replace(/(^|[^_])_([^_\n]+)_(?!_)/g, "$1$2")
+    .replace(/[*_~`]/g, "")
+    .trim();
+}
+
 const EMPTY_RESOURCE_DRAFT = {
   type: "note" as StudentResourceType,
   title: "",
@@ -1869,7 +1880,7 @@ export default function InstructorWorkstationPage({
   const reviewModelAnswers: Record<string, string> = {};
   const reviewStageForKey: Record<string, InstructorReviewStageId> = { warm_up: "warm_up", writingText: "writing", speaking: "speaking" };
   const addReviewReference = (stage: InstructorReviewStageId, key: string, question: string | undefined, answer?: string) => {
-    reviewQuestionText[key] = question?.trim() || "Student response";
+    reviewQuestionText[key] = stripReviewMarkdown(question?.trim() || "Student response");
     reviewStageForKey[key] = stage;
     if (answer?.trim()) reviewModelAnswers[key] = answer;
   };
@@ -1899,10 +1910,10 @@ export default function InstructorWorkstationPage({
     });
   });
   const getDisplayQuestion = (key: string, fallbackStage: InstructorReviewStageId) => {
-    if (reviewQuestionText[key]) return reviewQuestionText[key];
+    if (reviewQuestionText[key]) return stripReviewMarkdown(reviewQuestionText[key]);
     const blankMatch = key.match(/-blank-(\d+)$/i);
     if (blankMatch) return `Fill in the blank #${Number(blankMatch[1]) + 1}`;
-    return /^[0-9a-f-]{32,}$/i.test(key) ? `${reviewStages.find((stage) => stage.id === fallbackStage)?.title || "Lesson"} response` : key.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+    return stripReviewMarkdown(/^[0-9a-f-]{32,}$/i.test(key) ? `${reviewStages.find((stage) => stage.id === fallbackStage)?.title || "Lesson"} response` : key.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()));
   };
   const addReviewAnswer = (stageId: InstructorReviewStageId, key: string, answer: string, audioUrl?: string) => {
     const stage = reviewStages.find((item) => item.id === stageId);
@@ -3129,7 +3140,7 @@ export default function InstructorWorkstationPage({
 {reviewStages.map((stage) => <section key={stage.id} className="space-y-3 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
 <div className="border-b border-[#293343] pb-3">
 <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-amber-400">{stage.title}</h3>
-{stage.prompt && <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-stone-400">{stage.prompt}</p>}
+{stage.prompt && <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-stone-400">{stripReviewMarkdown(stage.prompt)}</p>}
 </div>
 {stage.answers.length > 0 ? <div className="space-y-3">{stage.answers.map((answer, index) => <article key={`${answer.question}-${index}`} className="rounded-lg border border-[#293343] bg-[#0c1017] p-4">
 <p className="text-sm font-medium leading-relaxed text-stone-200">{answer.question}</p>
