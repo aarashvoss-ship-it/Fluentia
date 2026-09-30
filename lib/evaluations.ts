@@ -18,7 +18,7 @@ export interface CreateSubmissionInput {
 
 export interface UpdateSubmissionInput {
   answers?: Record<string, any>;
-  status?: "submitted" | "pending_evaluation" | "in_progress" | "reviewed";
+  status?: "submitted" | "pending_evaluation" | "in_progress" | "reviewed" | "evaluated";
 }
 
 export interface CreateEvaluationInput {
@@ -338,7 +338,7 @@ export async function createEvaluation(
     // Update submission status to 'reviewed'
     const { error: updateError } = await supabase
       .from("submissions")
-      .update({ status: "reviewed" })
+      .update({ status: "evaluated" })
       .eq("id", input.submission_id);
 
     if (updateError) throw updateError;

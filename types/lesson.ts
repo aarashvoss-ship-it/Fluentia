@@ -321,6 +321,7 @@ export type StrictStepContent = InstructorLessonMock["content"] & {
 
 export interface LessonEvaluation {
   scores: Record<string, number>;
+  totalScore?: number;
   comments: string;
   criterionFeedback?: Record<string, string>;
   strengths?: string;
@@ -330,7 +331,7 @@ export interface LessonEvaluation {
   published?: boolean;
 }
 
-export type StudentSubmissionStatus = "in_progress" | "submitted" | "pending_evaluation" | "reviewed";
+export type StudentSubmissionStatus = "in_progress" | "submitted" | "pending_evaluation" | "reviewed" | "evaluated";
 
 export interface StudentSubmission {
   status: StudentSubmissionStatus;

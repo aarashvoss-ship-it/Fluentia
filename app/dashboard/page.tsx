@@ -149,7 +149,7 @@ function logDashboardError(context: string, error: unknown) {
 
 function getLessonStatus(state?: PublishedLessonState | null): LessonStatus {
   if (!state || state.status === "draft") return "not-started";
-  if (state.submission?.status === "reviewed" || state.evaluation.published)
+  if (state.submission?.status === "reviewed" || state.submission?.status === "evaluated" || state.evaluation.published)
     return "completed";
   if (state.submission?.status === "submitted" || state.submission?.status === "pending_evaluation") return "pending-review";
   if (state.submission?.status === "in_progress") return "in-progress";

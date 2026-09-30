@@ -1827,25 +1827,55 @@ export default function InstructorWorkstationPage({
     void saveLessonChanges("draft");
   };
 
-  const submissionState = workstationState.submission?.status === "reviewed" || workstationState.evaluation.published
-    ? "Reviewed"
+  const submissionState = workstationState.submission?.status === "reviewed" || workstationState.submission?.status === "evaluated" || workstationState.evaluation.published
+    ? "Evaluated"
     : workstationState.submission?.status === "submitted" || workstationState.submission?.status === "pending_evaluation"
       ? "Pending Evaluation"
       : workstationState.submission?.status === "in_progress"
         ? "In Progress"
         : "Not Started";
-  const submissionStateClass = submissionState === "Reviewed"
+  const submissionStateClass = submissionState === "Evaluated"
     ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
     : submissionState === "Pending Evaluation"
       ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
       : "border-[#394252] bg-[#171d28] text-stone-400";
   const submittedAnswers = workstationState.submission;
+  const reviewContent = workstationState.content as Record<string, any>;
+  const reviewQuestionText: Record<string, string> = {};
+  const reviewModelAnswers: Record<string, string> = {};
+  const addReviewReference = (key: string, question: string | undefined, answer?: string) => {
+    if (question) reviewQuestionText[key] = question;
+    if (answer) reviewModelAnswers[key] = answer;
+  };
+  (reviewContent.listening?.questions || []).forEach((question: { id: string; question: string; correct_answer?: string }) => {
+    addReviewReference(question.id, question.question, question.correct_answer || reviewContent.results?.answer_keys?.listening?.[question.id]);
+  });
+  (reviewContent.reading?.analytical_questions || []).forEach((question: { id: string; question: string; correct_answer?: string }) => {
+    addReviewReference(question.id, question.question, question.correct_answer || reviewContent.results?.answer_keys?.reading?.[question.id]);
+  });
+  (["warm_up", "lesson", "listening", "reading", "writing", "speaking"] as const).forEach((step) => {
+    (reviewContent[step]?.blocks || []).forEach((block: ContentBlock) => {
+      if (block.type === "question") {
+        addReviewReference(block.id, block.prompt, block.question_type === "open_ended" ? block.sample_answer : block.correct_answer);
+      } else if (block.type === "quiz") {
+        block.questions.forEach((question) => addReviewReference(question.id, question.prompt, question.correct_answer || question.correctAnswer || reviewContent.results?.answer_keys?.[step]?.[question.id]));
+      } else if (block.type === "fill-in-the-blanks") {
+        block.acceptableAnswers.forEach((answers, index) => addReviewReference(`${block.id}-blank-${index}`, `${block.textWithBlanks.replace(/\[[^\]]+\]/g, "_____ ")} (Blank ${index + 1})`, answers.join(" / ")));
+      } else if (block.type === "video" && block.reflection_prompt_text) {
+        addReviewReference(`${block.id}-reflection`, block.reflection_prompt_text);
+      } else if (block.type === "writing") {
+        addReviewReference(block.id, block.prompt);
+      } else if (block.type === "text" && (block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true)) {
+        addReviewReference(block.id, block.title || "Text response");
+      }
+    });
+  });
   const getTextAnswerRows = (answers?: Record<string, string>) => Object.entries(answers || {})
     .filter(([, answer]) => Boolean(answer?.trim()) && !/^(?:https?:|blob:|data:audio\/)/i.test(answer.trim()))
-    .map(([question, answer]) => ({ question, answer }));
+    .map(([key, answer]) => ({ question: reviewQuestionText[key] || key, answer, modelAnswer: reviewModelAnswers[key] }));
   const submissionAnswerGroups = [
     { title: "Writing", answers: [
-      ...(submittedAnswers?.writingText?.trim() ? [{ question: "Writing response", answer: submittedAnswers.writingText }] : []),
+      ...(submittedAnswers?.writingText?.trim() ? [{ question: reviewContent.writing?.prompt?.text || "Writing response", answer: submittedAnswers.writingText, modelAnswer: undefined }] : []),
       ...getTextAnswerRows(submittedAnswers?.writing_responses),
     ] },
     { title: "Listening", answers: getTextAnswerRows(submittedAnswers?.listeningAnswers) },
@@ -1857,9 +1887,9 @@ export default function InstructorWorkstationPage({
   ].filter((group) => group.answers.length > 0);
   const submissionAudioRows = Object.entries(submittedAnswers?.audioUploads || {})
     .filter(([, url]) => Boolean(url?.trim()))
-    .map(([question, url]) => ({ question, url }));
+    .map(([key, url]) => ({ question: reviewQuestionText[key] || key, url, modelAnswer: reviewModelAnswers[key] }));
   if (submittedAnswers?.speakingAudioUrl?.trim() && !submissionAudioRows.some((row) => row.url === submittedAnswers.speakingAudioUrl)) {
-    submissionAudioRows.push({ question: "Speaking recording", url: submittedAnswers.speakingAudioUrl });
+    submissionAudioRows.push({ question: reviewQuestionText.speaking || "Speaking recording", url: submittedAnswers.speakingAudioUrl, modelAnswer: reviewModelAnswers.speaking });
   }
 
   const previewSteps = [
@@ -3057,17 +3087,42 @@ export default function InstructorWorkstationPage({
 <div className="space-y-3">{group.answers.map((answer, index) => <div key={`${answer.question}-${index}`} className="rounded-lg border border-[#202631] bg-[#0c1017] p-4">
 <p className="text-xs font-medium text-stone-500">{answer.question}</p>
 <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-300">{answer.answer}</p>
+{answer.modelAnswer && <div className="mt-3 border-t border-[#293343] pt-3">
+<p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-500/80">Model / Correct Answer</p>
+<p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-amber-200">{answer.modelAnswer}</p>
+</div>}
 </div>)}</div>
 </section>)}
 {submissionAudioRows.map((audio) => <section key={`${audio.question}-${audio.url}`} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
 <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Audio response: {audio.question}</h3>
 <CustomAudioPlayer src={audio.url} label={`${audio.question} recording`} />
+{audio.modelAnswer && <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+<p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-500/80">Model / Correct Answer</p>
+<p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-amber-200">{audio.modelAnswer}</p>
+</div>}
 </section>)}
 {submissionAnswerGroups.length === 0 && submissionAudioRows.length === 0 && <p className="rounded-lg border border-[#202631] bg-[#0c1017] p-4 text-sm text-stone-500">No written or audio responses were included in this submission.</p>}
 </div>
 </div>
 <div className="lg:col-span-5 lg:sticky lg:top-6">
-<SubmissionEvaluator key={`${reviewSubmissionLessonId || databaseLessonId || newLesson.slug || lessonId}:${selectedStudentId || "no-student"}`} lessonId={reviewSubmissionLessonId || databaseLessonId || newLesson.slug || lessonId} studentId={selectedStudentId || undefined} pendingSubmissionId={reviewSubmissionId || undefined} instructorId={instructorId} studentName={selectedStudent?.name || "Selected Student"} useSupabase evaluation={workstationState.evaluation} onUpdateEvaluation={(evaluation: LessonEvaluation) => setWorkstationState((previous) => ({ ...previous, evaluation }))} onSubmitFeedback={async (feedback: FeedbackPayload) => { if (!selectedStudentId) return; const evaluation = { ...workstationState.evaluation, scores: feedback.scores, comments: feedback.comments, criterionFeedback: feedback.criterionFeedback, published: true }; setWorkstationState((previous) => ({ ...previous, evaluation })); await saveInstructorFeedback(reviewSubmissionLessonId || databaseLessonId || newLesson.slug || lessonId, selectedStudentId, evaluation); setPublishStatus("Strengths, study plan, and evaluation synced with student view!"); }} />
+<SubmissionEvaluator
+  key={`${reviewSubmissionLessonId || databaseLessonId || newLesson.slug || lessonId}:${selectedStudentId || "no-student"}`}
+  lessonId={reviewSubmissionLessonId || databaseLessonId || newLesson.slug || lessonId}
+  studentId={selectedStudentId || undefined}
+  pendingSubmissionId={reviewSubmissionId || undefined}
+  instructorId={instructorId}
+  studentName={selectedStudent?.name || "Selected Student"}
+  useSupabase
+  evaluation={workstationState.evaluation}
+  onUpdateEvaluation={(evaluation: LessonEvaluation) => setWorkstationState((previous) => ({ ...previous, evaluation }))}
+  onSubmitFeedback={async (feedback: FeedbackPayload) => {
+    if (!selectedStudentId) throw new Error("Select a student before publishing an evaluation.");
+    const evaluation = { ...workstationState.evaluation, scores: feedback.scores, comments: feedback.comments, criterionFeedback: feedback.criterionFeedback, published: true };
+    const saved = await saveInstructorFeedback(reviewSubmissionLessonId || databaseLessonId || newLesson.slug || lessonId, selectedStudentId, evaluation);
+    setWorkstationState((previous) => ({ ...previous, submission: saved.submission || previous.submission, evaluation: saved.evaluation }));
+    setPublishStatus("Strengths, study plan, and evaluation synced with student view!");
+  }}
+/>
 </div>
 </section>
 </>}

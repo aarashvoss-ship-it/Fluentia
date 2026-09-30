@@ -14,7 +14,7 @@ import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { resolveUserUuid } from "@/lib/identity";
 
 export type LessonStatus = "draft" | "published";
-export type SubmissionStatus = "not_started" | "in_progress" | "submitted" | "pending_evaluation" | "reviewed";
+export type SubmissionStatus = "not_started" | "in_progress" | "submitted" | "pending_evaluation" | "reviewed" | "evaluated";
 
 const SUBMISSION_STATUS_FALLBACKS: Record<SubmissionStatus, string[]> = {
   not_started: ["draft", "not_started", "in_progress", "submitted", "pending_evaluation", "completed"],
@@ -22,6 +22,7 @@ const SUBMISSION_STATUS_FALLBACKS: Record<SubmissionStatus, string[]> = {
   submitted: ["submitted", "pending_evaluation", "completed"],
   pending_evaluation: ["submitted", "pending_evaluation", "completed"],
   reviewed: ["reviewed", "completed"],
+  evaluated: ["evaluated", "reviewed", "completed"],
 };
 
 async function writeSubmissionWithStatusFallback(
@@ -41,7 +42,7 @@ async function writeSubmissionWithStatusFallback(
 function normalizeSubmissionStatus(value: unknown, fallback: SubmissionStatus = "in_progress"): SubmissionStatus {
   if (value === "draft") return "in_progress";
   if (value === "completed") return "pending_evaluation";
-  return value === "not_started" || value === "in_progress" || value === "submitted" || value === "pending_evaluation" || value === "reviewed"
+  return value === "not_started" || value === "in_progress" || value === "submitted" || value === "pending_evaluation" || value === "reviewed" || value === "evaluated"
     ? value
     : fallback;
 }
@@ -439,7 +440,7 @@ export async function fetchLessonState(slug: string, studentToken?: string): Pro
             content: lesson.content || defaultContent(),
             bannerUrl: lesson.coverImage || "",
             studentProfile: defaultProfile(),
-            evaluation: feedback ? { scores: feedback?.scores || {}, comments: feedback?.comments || "", strengths: feedback?.strengths, areasToImprove: feedback?.areas_to_improve, studyHubPrescription: feedback?.study_hub_prescription, voiceFeedbackUrl: feedback?.voice_feedback_url, published: Boolean(feedback?.is_published) } : emptyEvaluation(),
+            evaluation: feedback ? { scores: feedback?.scores || {}, totalScore: Number(feedback?.total_score ?? Object.values(feedback?.scores || {}).reduce<number>((total, score) => total + Number(score), 0)), comments: feedback?.comments || "", criterionFeedback: feedback?.criterion_feedback || {}, strengths: feedback?.strengths, areasToImprove: feedback?.areas_to_improve, studyHubPrescription: feedback?.study_hub_prescription, voiceFeedbackUrl: feedback?.voice_feedback_url, published: Boolean(feedback?.is_published) } : emptyEvaluation(),
             status: lesson.status === "draft" ? "draft" : "published",
             submission: submission ? mapSubmission(submission) : undefined,
           };
@@ -494,7 +495,7 @@ export async function saveStudentProgress(
 ): Promise<StudentProgressRecord> {
   const updated = {
     ...progress,
-    completed: progress.completed ?? (progress.status === "submitted" || progress.status === "pending_evaluation" || progress.status === "reviewed"),
+    completed: progress.completed ?? (progress.status === "submitted" || progress.status === "pending_evaluation" || progress.status === "reviewed" || progress.status === "evaluated"),
     updatedAt: new Date().toISOString(),
   };
   if (isSupabaseConfigured()) {
@@ -568,7 +569,7 @@ async function persistStudentSubmission(
               progress: {
                 currentStep: progress.currentStep || "warm_up",
                 completedSteps: progress.completedSteps || [],
-                completed: progress.completed ?? (persistableSubmission.status === "submitted" || persistableSubmission.status === "pending_evaluation" || persistableSubmission.status === "reviewed"),
+                completed: progress.completed ?? (persistableSubmission.status === "submitted" || persistableSubmission.status === "pending_evaluation" || persistableSubmission.status === "reviewed" || persistableSubmission.status === "evaluated"),
                 status: progress.status || normalizeSubmissionStatus(persistableSubmission.status),
               },
             }
@@ -610,8 +611,8 @@ async function persistStudentSubmission(
     await saveStudentProgress(slug, {
       currentStep: progress.currentStep || "warm_up",
       completedSteps: progress.completedSteps || [],
-      completed: progress.completed ?? (submission.status === "submitted" || submission.status === "pending_evaluation" || submission.status === "reviewed"),
-      status: progress.status || (submission.status === "pending_evaluation" ? "pending_evaluation" : submission.status === "submitted" ? "submitted" : "in_progress"),
+      completed: progress.completed ?? (submission.status === "submitted" || submission.status === "pending_evaluation" || submission.status === "reviewed" || submission.status === "evaluated"),
+      status: progress.status || (submission.status === "evaluated" ? "evaluated" : submission.status === "reviewed" ? "reviewed" : submission.status === "pending_evaluation" ? "pending_evaluation" : submission.status === "submitted" ? "submitted" : "in_progress"),
       updatedAt: new Date().toISOString(),
     }, studentToken);
   }
@@ -645,39 +646,90 @@ export async function saveInstructorFeedback(
   studentToken: string | undefined,
   evaluation: LessonEvaluation
 ): Promise<PublishedLessonState> {
-  const current = await fetchLessonState(slug, studentToken);
-  const submission = current?.submission
-    ? { ...current.submission, status: "reviewed" as const }
-    : current?.submission;
+  const completedSteps: StudyStepId[] = ["warm_up", "lesson", "listening", "reading", "writing", "speaking", "results"];
+  const evaluatedAt = new Date().toISOString();
+  const publishedEvaluation = { ...evaluation, published: true };
+  if (isSupabaseConfigured()) {
+    const studentId = studentToken?.trim() || "";
+    if (!UUID_PATTERN.test(studentId)) throw new Error("A valid selected student ID is required to publish this evaluation.");
+
+    let lessonQuery = supabase.from("lessons").select("id,content,banner_url,status");
+    lessonQuery = UUID_PATTERN.test(slug)
+      ? lessonQuery.eq("id", slug)
+      : lessonQuery.eq("slug", slug);
+    const { data: lesson, error: lessonError } = await lessonQuery.maybeSingle();
+    if (lessonError) throw lessonError;
+    if (!lesson) throw new Error(`Lesson ${slug} could not be found for evaluation.`);
+
+    const { data: existingSubmission, error: submissionError } = await supabase
+      .from("submissions")
+      .select("id,answers,submitted_at")
+      .eq("lesson_id", lesson.id)
+      .eq("student_id", studentId)
+      .order("submitted_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (submissionError) throw submissionError;
+    if (!existingSubmission) throw new Error("No submission exists for this student and lesson.");
+
+    const answers = removeUndefinedValues({
+      ...(existingSubmission.answers || {}),
+      status: "evaluated",
+      progress: { currentStep: "results", completedSteps, completed: true, status: "evaluated" },
+    }) as Record<string, unknown>;
+    const { error: feedbackError } = await supabase.from("instructor_feedback").upsert({
+      lesson_id: lesson.id,
+      student_id: studentId,
+      scores: publishedEvaluation.scores,
+      total_score: Object.values(publishedEvaluation.scores).reduce<number>((total, score) => total + Number(score), 0),
+      comments: publishedEvaluation.comments,
+      criterion_feedback: publishedEvaluation.criterionFeedback || {},
+      strengths: publishedEvaluation.strengths,
+      areas_to_improve: publishedEvaluation.areasToImprove,
+      study_hub_prescription: publishedEvaluation.studyHubPrescription,
+      voice_feedback_url: publishedEvaluation.voiceFeedbackUrl,
+      is_published: true,
+      updated_at: evaluatedAt,
+    }, { onConflict: "lesson_id,student_id" });
+    if (feedbackError) throw feedbackError;
+
+    const { error: statusError } = await supabase
+      .from("submissions")
+      .update({ status: "evaluated", answers })
+      .eq("id", existingSubmission.id)
+      .eq("lesson_id", lesson.id)
+      .eq("student_id", studentId);
+    if (statusError) throw statusError;
+
+    const current = getState(slug, studentId);
+    const nextState: PublishedLessonState = {
+      content: current?.content || lesson.content || defaultContent(),
+      bannerUrl: current?.bannerUrl || lesson.banner_url || "",
+      studentProfile: current?.studentProfile || defaultProfile(),
+      evaluation: publishedEvaluation,
+      status: lesson.status === "draft" ? "draft" : "published",
+      submission: { ...mapSubmission({ answers, status: "evaluated", submitted_at: existingSubmission.submitted_at }), status: "evaluated" },
+    };
+    await saveLessonState(slug, nextState, studentId);
+    notifyDataUpdated({ type: "feedback", slug, studentToken: studentId });
+    return nextState;
+  }
+
+  const current = getState(slug, studentToken);
   const nextState: PublishedLessonState = {
     content: current?.content || defaultContent(),
     bannerUrl: current?.bannerUrl || "",
     studentProfile: current?.studentProfile || defaultProfile(),
-    evaluation: { ...evaluation, published: true },
+    evaluation: publishedEvaluation,
     status: current?.status || "published",
-    submission,
+    submission: current?.submission ? { ...current.submission, status: "evaluated" } : undefined,
   };
-  if (isSupabaseConfigured()) {
-    try {
-      const [lesson, studentId] = await Promise.all([fetchLesson(slug), getStudentId(studentToken)]);
-      if (lesson && studentId) {
-        const { error } = await supabase.from("instructor_feedback").upsert({ lesson_id: lesson.id, student_id: studentId, scores: evaluation.scores, comments: evaluation.comments, strengths: evaluation.strengths, areas_to_improve: evaluation.areasToImprove, study_hub_prescription: evaluation.studyHubPrescription, voice_feedback_url: evaluation.voiceFeedbackUrl, is_published: true, updated_at: new Date().toISOString() }, { onConflict: "lesson_id,student_id" });
-        if (!error) {
-          await saveStudentProgress(slug, { currentStep: "results", completedSteps: ["warm_up", "lesson", "listening", "reading", "writing", "speaking", "results"], status: "reviewed", updatedAt: new Date().toISOString() }, studentToken);
-          notifyDataUpdated({ type: "feedback", slug, studentToken });
-          return nextState;
-        }
-      }
-    } catch {
-      // Continue with the local state fallback below.
-    }
-  }
   await saveLessonState(slug, nextState, studentToken);
   await saveStudentProgress(slug, {
     currentStep: "results",
-    completedSteps: ["warm_up", "lesson", "listening", "reading", "writing", "speaking", "results"],
-    status: "reviewed",
-    updatedAt: new Date().toISOString(),
+    completedSteps,
+    status: "evaluated",
+    updatedAt: evaluatedAt,
   }, studentToken);
   notifyDataUpdated({ type: "feedback", slug, studentToken });
   return nextState;

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { CheckCircle, Award, AlertCircle } from "lucide-react";
 import { LessonEvaluation } from "@/types/lesson";
-import { supabase } from "@/lib/supabase";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import {
   getSubmissionByLessonAndStudent,
   createEvaluation,
@@ -23,7 +23,7 @@ interface SubmissionEvaluatorProps {
   studentName?: string;
   studentId?: string;
   instructorId?: string;
-  onSubmitFeedback?: (data: FeedbackPayload) => void;
+  onSubmitFeedback?: (data: FeedbackPayload) => void | Promise<void>;
   evaluation?: LessonEvaluation;
   onUpdateEvaluation?: (evaluation: LessonEvaluation) => void;
   useSupabase?: boolean; // When true, submits to Supabase instead of callback
@@ -35,6 +35,7 @@ const RUBRIC_CRITERIA = [
   { id: "lexical", label: "Lexical Precision & Range", max: 5 },
   { id: "grammar", label: "Grammatical Accuracy", max: 5 },
 ];
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function SubmissionEvaluator({
   lessonId,
@@ -69,22 +70,28 @@ export function SubmissionEvaluator({
 
   // Load existing submission and evaluation if useSupabase is enabled
   useEffect(() => {
-    if (useSupabase && lessonId && studentId) {
+    if (useSupabase && lessonId?.trim() && studentId?.trim()) {
       loadSubmissionData();
     }
   }, [lessonId, studentId, pendingSubmissionId, useSupabase]);
 
   const loadSubmissionData = async () => {
-    if (!lessonId || !studentId) return;
+    const normalizedLessonId = lessonId?.trim() || "";
+    const normalizedStudentId = studentId?.trim() || "";
+    if (!isSupabaseConfigured() || !UUID_PATTERN.test(normalizedLessonId) || !UUID_PATTERN.test(normalizedStudentId)) {
+      setSubmissionId(pendingSubmissionId || null);
+      setSubmissionLoadState(pendingSubmissionId ? "loaded" : "missing");
+      return;
+    }
     setSubmissionLoadState("loading");
     try {
       const [submission, feedbackResult] = await Promise.all([
-        getSubmissionByLessonAndStudent(lessonId, studentId),
+        getSubmissionByLessonAndStudent(normalizedLessonId, normalizedStudentId),
         supabase
           .from("instructor_feedback")
-          .select("scores,comments,strengths,areas_to_improve,study_hub_prescription,voice_feedback_url,is_published")
-          .eq("lesson_id", lessonId)
-          .eq("student_id", studentId)
+          .select("scores,comments,criterion_feedback,strengths,areas_to_improve,study_hub_prescription,voice_feedback_url,is_published")
+          .eq("lesson_id", normalizedLessonId)
+          .eq("student_id", normalizedStudentId)
           .maybeSingle(),
       ]);
       if (submission) {
@@ -100,13 +107,16 @@ export function SubmissionEvaluator({
         setSubmissionLoadState("missing");
       }
       if (feedbackResult.error) {
-        console.error("Error loading student lesson rubric:", feedbackResult.error);
+        const message = feedbackResult.error.message || "Rubric is not available yet.";
+        if (!/no rows|not found|does not exist/i.test(message) && feedbackResult.error.code !== "PGRST116") {
+          console.warn("Student lesson rubric could not be loaded:", message);
+        }
       } else if (feedbackResult.data) {
         const feedback = feedbackResult.data;
         onUpdateEvaluation?.({
           scores: feedback.scores || defaultScores,
           comments: feedback.comments || "",
-          criterionFeedback: evaluation?.criterionFeedback || {},
+          criterionFeedback: feedback.criterion_feedback || evaluation?.criterionFeedback || {},
           strengths: feedback.strengths || undefined,
           areasToImprove: feedback.areas_to_improve || undefined,
           studyHubPrescription: feedback.study_hub_prescription || undefined,
@@ -121,7 +131,7 @@ export function SubmissionEvaluator({
       } else {
         setSubmissionLoadState("missing");
       }
-      console.error("Error loading submission:", error);
+      if (error instanceof Error) console.warn("Student submission could not be refreshed:", error.message);
     }
   };
 
@@ -152,6 +162,14 @@ export function SubmissionEvaluator({
     setSubmitError(null);
 
     try {
+      const totalScoreNumeric = Object.values(scores).reduce((a, b) => a + b, 0);
+      if (onSubmitFeedback) {
+        await onSubmitFeedback({ scores, totalScore: totalScoreNumeric, comments, criterionFeedback });
+        setIsSubmitted(true);
+        window.setTimeout(() => setIsSubmitted(false), 3000);
+        return;
+      }
+
       const feedbackText = `
 Scores:
 - Task Achievement & Depth: ${scores.task}/5
@@ -167,8 +185,6 @@ ${Object.entries(criterionFeedback)
 General Feedback:
 ${comments}
       `.trim();
-
-      const totalScoreNumeric = Object.values(scores).reduce((a, b) => a + b, 0);
 
       if (evaluationId) {
         // Update existing evaluation
@@ -315,7 +331,7 @@ ${comments}
             <CheckCircle className="w-4 h-4 text-[#0c1017]" /> Evaluation Saved & Sent
           </>
         ) : (
-          "Publish Evaluation to Student"
+          "Publish & Send Evaluation to Student"
         )}
       </button>
     </div>

@@ -41,7 +41,7 @@ export interface Submission {
   step_key: string;
   content: Record<string, any>;
   audio_url?: string | null;
-  status: "in_progress" | "submitted" | "reviewed";
+  status: "in_progress" | "submitted" | "reviewed" | "evaluated";
   submitted_at: string;
   updated_at: string;
 }

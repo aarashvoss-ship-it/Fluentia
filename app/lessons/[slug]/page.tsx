@@ -277,7 +277,7 @@ function MediaTranscriptAccordion({ transcript, isUnlocked }: { transcript?: str
 type SubmissionProgressUpdate = {
   currentStep?: StudyStepId;
   completedSteps?: StudyStepId[];
-  status?: "not_started" | "in_progress" | "submitted" | "pending_evaluation" | "reviewed";
+  status?: "not_started" | "in_progress" | "submitted" | "pending_evaluation" | "reviewed" | "evaluated";
 };
 
 type QueuedSubmissionSave = {
@@ -534,7 +534,7 @@ export default function LessonPage() {
       fetchStudentProgress(lesson.id, activeToken),
     ]).then(([state, progress]) => {
       const hydratedSubmission = state?.submission;
-      const canShowResults = hydratedSubmission?.status === "submitted" || hydratedSubmission?.status === "pending_evaluation" || hydratedSubmission?.status === "reviewed";
+      const canShowResults = hydratedSubmission?.status === "submitted" || hydratedSubmission?.status === "pending_evaluation" || hydratedSubmission?.status === "reviewed" || hydratedSubmission?.status === "evaluated";
       const requestedNonResultsStep = requestedStep && requestedStep !== "results" ? requestedStep : null;
       const persistedStep = progress.currentStep !== "results" || canShowResults ? progress.currentStep : "warm_up";
       setPublishedLesson(state?.status !== "draft" ? state : null);
@@ -593,7 +593,7 @@ export default function LessonPage() {
 
   async function persistSubmissionNow(nextSubmission: StudentSubmission, nextProgress: SubmissionProgressUpdate, optimistic: boolean): Promise<boolean> {
     if (!lesson) return false;
-    const isFinalSubmission = nextSubmission.status === "submitted" || nextSubmission.status === "pending_evaluation" || nextSubmission.status === "reviewed";
+    const isFinalSubmission = nextSubmission.status === "submitted" || nextSubmission.status === "pending_evaluation" || nextSubmission.status === "reviewed" || nextSubmission.status === "evaluated";
     try {
       const tok = activeStudent?.token ?? lesson.student_token ?? undefined;
       const progress = {
@@ -647,7 +647,7 @@ export default function LessonPage() {
     const progress = {
       currentStep: nextProgress?.currentStep || currentStep,
       completedSteps: nextProgress?.completedSteps || completedSteps,
-      status: nextProgress?.status || (nextSubmission.status === "submitted" || nextSubmission.status === "pending_evaluation" ? nextSubmission.status : "in_progress"),
+      status: nextProgress?.status || (nextSubmission.status === "submitted" || nextSubmission.status === "pending_evaluation" || nextSubmission.status === "evaluated" ? nextSubmission.status : "in_progress"),
     };
     return new Promise((resolve) => {
       if (submissionSaveTimer.current) clearTimeout(submissionSaveTimer.current);
@@ -699,9 +699,9 @@ export default function LessonPage() {
   const heroBanner = bannerLoadFailed ? "https://images.unsplash.com/photo-1519608487953-e999c86e7455?w=1600&q=85" : studentBannerUrl || lessonBanner;
   const evaluation = publishedLesson?.evaluation;
   const isEvaluationPublished = evaluation?.published === true;
-  const totalScore = evaluation
+  const totalScore = evaluation?.totalScore ?? (evaluation
     ? Object.values(evaluation.scores).reduce<number>((total, score) => total + Number(score), 0)
-    : 0;
+    : 0);
   const stripMarkdown = (value: string) => value
     .replace(/^\s{0,3}#{1,6}\s*/gm, "")
     .replace(/^\s*>\s?/gm, "")
@@ -914,6 +914,7 @@ export default function LessonPage() {
   const areTranscriptsUnlocked = submission.status === "submitted"
     || submission.status === "pending_evaluation"
     || submission.status === "reviewed"
+    || submission.status === "evaluated"
     || completedSteps.includes("results")
     || isResultsStep;
   const lessonStudentToken = activeStudent?.token ?? lesson?.student_token ?? lesson?.student_id ?? "student";
@@ -963,7 +964,7 @@ export default function LessonPage() {
     );
     const renderFillInTheBlanks = (block: Extract<ContentBlock, { type: "fill-in-the-blanks" }>) => {
       const values = submission.blockResponses || {};
-      return <FillInBlanksMarkdown blockId={block.id} text={block.textWithBlanks} acceptableAnswers={block.acceptableAnswers} wordBank={block.wordBank} caseSensitive={block.caseSensitive} values={values} showFeedback showResults={submission.status === "submitted" || submission.status === "reviewed"} onChange={(blankIndex, value) => void persistSubmission({ ...submission, blockResponses: { ...values, [`${block.id}-blank-${blankIndex}`]: value } })} className="text-sm leading-relaxed text-stone-300" />;
+      return <FillInBlanksMarkdown blockId={block.id} text={block.textWithBlanks} acceptableAnswers={block.acceptableAnswers} wordBank={block.wordBank} caseSensitive={block.caseSensitive} values={values} showFeedback showResults={submission.status === "submitted" || submission.status === "reviewed" || submission.status === "evaluated"} onChange={(blankIndex, value) => void persistSubmission({ ...submission, blockResponses: { ...values, [`${block.id}-blank-${blankIndex}`]: value } })} className="text-sm leading-relaxed text-stone-300" />;
     };
     const visibleBlocks = blocks.filter((block) => block.is_active !== false && block.enabled !== false);
     const questionBlocks = visibleBlocks.filter((block) => block.type === "question");
@@ -1333,7 +1334,7 @@ export default function LessonPage() {
                       ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
                       : "border-[#394252] bg-[#171d28] text-stone-400"
                   }`}>
-                    {submission.status === "reviewed" || isEvaluationPublished ? "Reviewed" : "Pending Evaluation"}
+                    {submission.status === "reviewed" || submission.status === "evaluated" || isEvaluationPublished ? "Evaluated" : "Pending Evaluation"}
                   </span>
                 </div>
                 <div className="grid gap-5 pt-4 md:grid-cols-[180px_1fr]">
@@ -1345,11 +1346,27 @@ export default function LessonPage() {
                   <div className="space-y-4 text-sm text-stone-400">
                     {isEvaluationPublished && evaluation?.comments && <p>{evaluation.comments}</p>}
                     {isEvaluationPublished && (
-                      <div className="grid gap-4 border-t border-[#202631] pt-4 sm:grid-cols-2">
+                      <div className="space-y-3 border-t border-[#202631] pt-4">
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {[
+                            ["task", "Task Achievement & Depth"],
+                            ["coherence", "Coherence & Flow"],
+                            ["lexical", "Lexical Precision & Range"],
+                            ["grammar", "Grammatical Accuracy"],
+                          ].map(([criterion, label]) => <div key={criterion} className="rounded-lg border border-[#293343] bg-[#0c1017] p-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-xs font-semibold text-stone-300">{label}</p>
+                              <span className="text-sm font-semibold text-amber-300">{evaluation?.scores[criterion] ?? 0}/5</span>
+                            </div>
+                            {evaluation?.criterionFeedback?.[criterion] && <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-stone-400">{evaluation.criterionFeedback[criterion]}</p>}
+                          </div>)}
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2">
                         {evaluation?.strengths && <div><p className="text-xs font-semibold text-stone-300">Strengths</p><p className="mt-1 whitespace-pre-wrap">{evaluation.strengths}</p></div>}
                         {evaluation?.areasToImprove && <div><p className="text-xs font-semibold text-stone-300">Areas to Improve</p><p className="mt-1 whitespace-pre-wrap">{evaluation.areasToImprove}</p></div>}
                         {evaluation?.studyHubPrescription && <div><p className="text-xs font-semibold text-stone-300">Study Hub Prescription</p><p className="mt-1 whitespace-pre-wrap text-amber-300">{evaluation.studyHubPrescription}</p></div>}
                         {evaluation?.voiceFeedbackUrl && <div><p className="text-xs font-semibold text-stone-300">Voice Feedback</p><a href={evaluation.voiceFeedbackUrl} className="mt-1 block truncate text-amber-300">{evaluation.voiceFeedbackUrl}</a></div>}
+                        </div>
                       </div>
                     )}
                     {(lessonContent.warm_up?.lexicon_notes?.text || lessonContent.lesson || lessonContent.reading || lessonContent.writing || lessonContent.speaking) && <div>
