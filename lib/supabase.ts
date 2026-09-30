@@ -57,7 +57,7 @@ export interface SubmissionRow {
 	lesson_id: LessonId;
 	student_id: StudentId;
 	answers: Record<string, any>;
-	status: "submitted" | "in_progress" | "pending_evaluation" | "reviewed";
+	status: "draft" | "not_started" | "submitted" | "in_progress" | "pending_evaluation" | "completed" | "reviewed";
 	submitted_at: string;
 }
 

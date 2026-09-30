@@ -1343,7 +1343,7 @@ export default function InstructorWorkstationPage({
       setStudentsError(null);
       try {
         const [pendingResult, publishedResult, draftsResult] = await Promise.allSettled([
-          supabase.from("submissions").select("id, lesson_id, student_id, status, submitted_at, answers").in("status", ["submitted", "pending_evaluation"]).order("submitted_at", { ascending: false }),
+          supabase.from("submissions").select("id, lesson_id, student_id, status, submitted_at, answers").in("status", ["submitted", "pending_evaluation", "completed"]).order("submitted_at", { ascending: false }),
           supabase.from("lessons").select("id", { count: "exact", head: true }).eq("status", "published"),
           supabase.from("lessons").select("id", { count: "exact", head: true }).eq("status", "draft"),
         ]);
@@ -1380,13 +1380,14 @@ export default function InstructorWorkstationPage({
             const answers = row.answers && typeof row.answers === "object"
               ? row.answers as Partial<StudentSubmission>
               : {};
+            if (answers.status === "in_progress") continue;
             latestByStudentLesson.set(key, {
               id: row.id,
               lessonId: row.lesson_id,
               studentId: row.student_id,
               submittedAt: row.submitted_at,
               submission: {
-                status: row.status === "pending_evaluation" ? "pending_evaluation" : "submitted",
+                status: row.status === "pending_evaluation" || row.status === "completed" ? "pending_evaluation" : "submitted",
                 listeningAnswers: answers.listeningAnswers || {},
                 readingAnswers: answers.readingAnswers || {},
                 writingText: answers.writingText || "",

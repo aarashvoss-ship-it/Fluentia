@@ -16,6 +16,36 @@ import { resolveUserUuid } from "@/lib/identity";
 export type LessonStatus = "draft" | "published";
 export type SubmissionStatus = "not_started" | "in_progress" | "submitted" | "pending_evaluation" | "reviewed";
 
+const SUBMISSION_STATUS_FALLBACKS: Record<SubmissionStatus, Array<string | null>> = {
+  not_started: ["not_started", "draft", "in_progress", null],
+  in_progress: ["in_progress", "draft", "not_started", null],
+  submitted: ["submitted", "pending_evaluation", "completed"],
+  pending_evaluation: ["pending_evaluation", "submitted", "completed"],
+  reviewed: ["reviewed", "completed"],
+};
+
+async function writeSubmissionWithStatusFallback(
+  status: SubmissionStatus,
+  write: (status: string | null) => PromiseLike<{ error: { code?: string } | null }>,
+) {
+  let constraintError: { code?: string } | null = null;
+  for (const candidate of SUBMISSION_STATUS_FALLBACKS[status]) {
+    const { error } = await write(candidate);
+    if (!error) return candidate;
+    if (error.code !== "23514") throw error;
+    constraintError = error;
+  }
+  throw constraintError || new Error(`No database-compatible status found for ${status}.`);
+}
+
+function normalizeSubmissionStatus(value: unknown, fallback: SubmissionStatus = "in_progress"): SubmissionStatus {
+  if (value === "draft") return "in_progress";
+  if (value === "completed") return "pending_evaluation";
+  return value === "not_started" || value === "in_progress" || value === "submitted" || value === "pending_evaluation" || value === "reviewed"
+    ? value
+    : fallback;
+}
+
 export interface StudentProgressRecord {
   currentStep: StudyStepId;
   completedSteps: StudyStepId[];
@@ -242,7 +272,7 @@ function mapSubmission(row: SupabaseRow): StudentSubmission {
   const content = row.answers || row.content || {};
   return {
     ...content,
-    status: row.status || content.status || "in_progress",
+    status: normalizeSubmissionStatus(content.status || row.status),
     listeningAnswers: content.listeningAnswers || {},
     readingAnswers: content.readingAnswers || {},
     writingText: content.writingText || "",
@@ -389,7 +419,7 @@ export async function fetchStudentProgress(slug: string, studentToken?: string):
         const { data, error } = await supabase.from("submissions").select("answers,status,submitted_at").eq("lesson_id", lesson.id).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
         if (error) throw error;
         const progress = data?.answers?.progress;
-        if (progress) return { currentStep: progress.currentStep || "warm_up", completedSteps: progress.completedSteps || [], completed: Boolean(progress.completed), status: data?.status || progress.status || "not_started", updatedAt: data?.submitted_at || new Date(0).toISOString() };
+        if (progress) return { currentStep: progress.currentStep || "warm_up", completedSteps: progress.completedSteps || [], completed: Boolean(progress.completed), status: normalizeSubmissionStatus(progress.status || data?.status, "not_started"), updatedAt: data?.submitted_at || new Date(0).toISOString() };
       }
     } catch (error) {
       console.error("[Dashboard Progress] Failed to fetch student progress:", { slug, studentToken, error });
@@ -430,14 +460,11 @@ export async function saveStudentProgress(
         const { data: existingSubmission, error: lookupError } = await supabase.from("submissions").select("id,answers").eq("lesson_id", lesson.id).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
         if (lookupError) throw lookupError;
         const answers = { ...(existingSubmission?.answers || {}), progress: { currentStep: updated.currentStep, completedSteps: updated.completedSteps, completed: updated.completed, status: updated.status } };
-        const { error } = existingSubmission
-          ? await supabase.from("submissions").update({ answers, status: updated.status, submitted_at: updated.updatedAt }).eq("id", existingSubmission.id)
-          : await supabase.from("submissions").insert({ lesson_id: lesson.id, student_id: studentId, answers, status: updated.status, submitted_at: updated.updatedAt });
-        if (!error) {
-          notifyDataUpdated({ type: "progress", slug, studentToken });
-          return updated;
-        }
-        throw error;
+        await writeSubmissionWithStatusFallback(updated.status, (databaseStatus) => existingSubmission
+          ? supabase.from("submissions").update({ answers, ...(databaseStatus ? { status: databaseStatus } : {}), submitted_at: updated.updatedAt }).eq("id", existingSubmission.id)
+          : supabase.from("submissions").insert({ lesson_id: lesson.id, student_id: studentId, answers, ...(databaseStatus ? { status: databaseStatus } : {}), submitted_at: updated.updatedAt }));
+        notifyDataUpdated({ type: "progress", slug, studentToken });
+        return updated;
       }
       console.error("[Dashboard Progress] Could not resolve a Supabase lesson/student for progress save:", { slug, studentToken });
     } catch (error) {
@@ -484,20 +511,24 @@ export async function submitStudentLesson(
       if (lesson && studentId) {
         const { data: existingSubmission, error: lookupError } = await supabase.from("submissions").select("id").eq("lesson_id", lesson.id).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
         if (lookupError) throw lookupError;
-        const submissionPayload = { answers: submission, status: submission.status, submitted_at: submission.submittedAt || new Date().toISOString() };
-        const { error } = existingSubmission
-          ? await supabase.from("submissions").update(submissionPayload).eq("id", existingSubmission.id)
-          : await supabase.from("submissions").insert({ lesson_id: lesson.id, student_id: studentId, ...submissionPayload });
-        if (error) throw error;
-        if (progress) {
-          await saveStudentProgress(slug, {
-            currentStep: progress.currentStep || "warm_up",
-            completedSteps: progress.completedSteps || [],
-            completed: progress.completed ?? (submission.status === "submitted" || submission.status === "pending_evaluation" || submission.status === "reviewed"),
-            status: progress.status || (submission.status === "pending_evaluation" ? "pending_evaluation" : submission.status === "submitted" ? "submitted" : "in_progress"),
-            updatedAt: new Date().toISOString(),
-          }, studentToken);
-        }
+        const answers = progress
+          ? {
+              ...submission,
+              progress: {
+                currentStep: progress.currentStep || "warm_up",
+                completedSteps: progress.completedSteps || [],
+                completed: progress.completed ?? (submission.status === "submitted" || submission.status === "pending_evaluation" || submission.status === "reviewed"),
+                status: progress.status || normalizeSubmissionStatus(submission.status),
+              },
+            }
+          : submission;
+        const submittedAt = submission.submittedAt || new Date().toISOString();
+        await writeSubmissionWithStatusFallback(normalizeSubmissionStatus(submission.status), (databaseStatus) => {
+          const submissionPayload = { answers, ...(databaseStatus ? { status: databaseStatus } : {}), submitted_at: submittedAt };
+          return existingSubmission
+            ? supabase.from("submissions").update(submissionPayload).eq("id", existingSubmission.id)
+            : supabase.from("submissions").insert({ lesson_id: lesson.id, student_id: studentId, ...submissionPayload });
+        });
         notifyDataUpdated({ type: "submission", slug, studentToken });
         return nextState;
       }
