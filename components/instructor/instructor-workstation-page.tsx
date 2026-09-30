@@ -3136,29 +3136,7 @@ export default function InstructorWorkstationPage({
 </div>
 <span className={`w-fit rounded-sm border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${submissionStateClass}`}>{submissionState}</span>
 </div>
-<div className="grid gap-4 xl:grid-cols-2">
-{reviewStages.map((stage) => <section key={stage.id} className="space-y-3 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
-<div className="border-b border-[#293343] pb-3">
-<h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-amber-400">{stage.title}</h3>
-{stage.prompt && <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-stone-400">{stripReviewMarkdown(stage.prompt)}</p>}
-</div>
-{stage.answers.length > 0 ? <div className="space-y-3">{stage.answers.map((answer, index) => <article key={`${answer.question}-${index}`} className="rounded-lg border border-[#293343] bg-[#0c1017] p-4">
-<p className="text-sm font-medium leading-relaxed text-stone-200">{answer.question}</p>
-<div className="mt-3 grid gap-3 sm:grid-cols-2">
 <div>
-<p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Student&apos;s Answer</p>
-<p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-300">{answer.answer}</p>
-{answer.audioUrl && <div className="mt-2"><CustomAudioPlayer src={answer.audioUrl} label={`${answer.question} recording`} /></div>}
-</div>
-{answer.modelAnswer && <div>
-<p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-500/80">Model / Correct Answer</p>
-<p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-amber-200">{answer.modelAnswer}</p>
-</div>}
-</div>
-</article>)}</div> : <p className="rounded-lg border border-dashed border-[#394252] px-4 py-5 text-center text-xs text-stone-500">No interactive response submitted for this stage.</p>}
-</section>)}
-</div>
-<div className="border-t border-[#202631] pt-6">
 <SubmissionEvaluator
   key={`${reviewSubmissionLessonId || databaseLessonId || newLesson.slug || lessonId}:${selectedStudentId || "no-student"}`}
   lessonId={reviewSubmissionLessonId || databaseLessonId || newLesson.slug || lessonId}
@@ -3166,6 +3144,7 @@ export default function InstructorWorkstationPage({
   pendingSubmissionId={reviewSubmissionId || undefined}
   instructorId={instructorId}
   studentName={selectedStudent?.name || "Selected Student"}
+  reportCardStages={reviewStages}
   useSupabase
   evaluation={workstationState.evaluation}
   onUpdateEvaluation={(evaluation: LessonEvaluation) => setWorkstationState((previous) => ({ ...previous, evaluation }))}

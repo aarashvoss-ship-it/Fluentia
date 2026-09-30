@@ -6,12 +6,27 @@ import { LessonEvaluation } from "@/types/lesson";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { getSubmissionByLessonAndStudent } from "@/lib/evaluations";
 import { saveInstructorFeedback } from "@/services/storage-service";
+import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 
 export interface FeedbackPayload {
   scores: Record<string, number>;
   totalScore: number;
   comments: string;
   criterionFeedback: Record<string, string>;
+}
+
+export interface EvaluationReportAnswer {
+  question: string;
+  answer: string;
+  modelAnswer?: string;
+  audioUrl?: string;
+}
+
+export interface EvaluationReportStage {
+  id: string;
+  title: string;
+  prompt?: string;
+  answers: EvaluationReportAnswer[];
 }
 
 interface SubmissionEvaluatorProps {
@@ -22,6 +37,7 @@ interface SubmissionEvaluatorProps {
   instructorId?: string;
   onSubmitFeedback?: (data: FeedbackPayload) => void | Promise<void>;
   evaluation?: LessonEvaluation;
+  reportCardStages?: EvaluationReportStage[];
   onUpdateEvaluation?: (evaluation: LessonEvaluation) => void;
   useSupabase?: boolean; // When true, submits to Supabase instead of callback
 }
@@ -33,6 +49,17 @@ const RUBRIC_CRITERIA = [
   { id: "grammar", label: "Grammatical Accuracy", max: 5 },
 ];
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function stripMarkdown(value: string) {
+  return value
+    .replace(/^\s{0,3}#{1,6}\s*/gm, "")
+    .replace(/^\s*>\s?/gm, "")
+    .replace(/(\*\*|__)(.*?)\1/g, "$2")
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1$2")
+    .replace(/(^|[^_])_([^_\n]+)_(?!_)/g, "$1$2")
+    .replace(/[*_~`]/g, "")
+    .trim();
+}
 
 function isMissingDatabaseObject(error: { code?: string; message?: string; status?: number } | null) {
   if (!error) return false;
@@ -52,6 +79,7 @@ export function SubmissionEvaluator({
   instructorId,
   onSubmitFeedback,
   evaluation,
+  reportCardStages = [],
   onUpdateEvaluation,
   useSupabase = true,
 }: SubmissionEvaluatorProps) {
@@ -142,7 +170,7 @@ export function SubmissionEvaluator({
   };
 
   const handleScoreChange = (id: string, val: number) => {
-    onUpdateEvaluation?.({ scores: { ...scores, [id]: val }, comments, criterionFeedback });
+    onUpdateEvaluation?.({ ...evaluation, scores: { ...scores, [id]: val }, comments, criterionFeedback });
   };
 
   const totalScore = Object.values(scores).reduce((acc, curr) => acc + curr, 0);
@@ -204,17 +232,46 @@ export function SubmissionEvaluator({
     }
   };
 
+  const updateEvaluation = (changes: Partial<LessonEvaluation>) => {
+    onUpdateEvaluation?.({ ...evaluation, scores, comments, criterionFeedback, ...changes });
+  };
+
   return (
-    <div className="bg-[#171d28]/60 border border-[#202631] rounded-xl p-5 text-[#d9dce0] space-y-4">
-      <div className="flex items-center justify-between border-b border-[#202631] pb-3">
-        <h3 className="font-sans text-xl font-semibold flex items-center gap-2">
-          <Award className="w-5 h-5 text-amber-400" />
-          Submission Evaluation & Rubric
-        </h3>
-        <span className="text-xs bg-[#0c1017] text-amber-400 px-2.5 py-1 rounded-full border border-[#202631]">
-          Total: {totalScore}/20
-        </span>
-      </div>
+    <div className="w-full rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-[#d9dce0] space-y-8">
+      {reportCardStages.length > 0 && <section aria-label="Student report card" className="space-y-4">
+        <div className="flex items-center justify-between border-b border-[#202631] pb-3">
+          <h3 className="font-sans text-xl font-semibold flex items-center gap-2">
+            <Award className="w-5 h-5 text-amber-400" /> Student Report Card
+          </h3>
+          <span className="text-xs bg-[#0c1017] text-amber-400 px-2.5 py-1 rounded-full border border-[#202631]">
+            Total: {totalScore}/20
+          </span>
+        </div>
+        <div className="grid gap-4 xl:grid-cols-2">
+          {reportCardStages.map((stage) => <section key={stage.id} className="space-y-3 rounded-lg border border-[#293343] bg-[#121721] p-4">
+            <div className="border-b border-[#293343] pb-3">
+              <h4 className="text-sm font-semibold uppercase tracking-[0.12em] text-amber-400">{stage.title}</h4>
+              {stage.prompt && <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-stone-400">{stripMarkdown(stage.prompt)}</p>}
+            </div>
+            {stage.answers.length > 0 ? <div className="space-y-3">
+              {stage.answers.map((answer, index) => <article key={`${answer.question}-${index}`} className="rounded-lg border border-[#293343] bg-[#0c1017] p-4">
+                <h5 className="text-sm font-medium leading-relaxed text-stone-200">{stripMarkdown(answer.question)}</h5>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Student&apos;s Submitted Answer</p>
+                    <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-300">{stripMarkdown(answer.answer)}</p>
+                    {answer.audioUrl && <div className="mt-2"><CustomAudioPlayer src={answer.audioUrl} label={`${stripMarkdown(answer.question)} recording`} /></div>}
+                  </div>
+                  {answer.modelAnswer && <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-500/80">Model / Correct Answer</p>
+                    <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-amber-200">{stripMarkdown(answer.modelAnswer)}</p>
+                  </div>}
+                </div>
+              </article>)}
+            </div> : <p className="rounded-lg border border-dashed border-[#394252] px-4 py-5 text-center text-xs text-stone-500">No interactive response submitted for this stage.</p>}
+          </section>)}
+        </div>
+      </section>}
 
       {submitError && (
         <div className="p-3 bg-red-900/30 border border-red-700 rounded-lg text-red-200 text-xs flex items-start gap-2">
@@ -229,7 +286,60 @@ export function SubmissionEvaluator({
         </div>
       )}
 
-      <div className={`space-y-3 ${useSupabase && submissionLoadState === "missing" ? "opacity-60" : ""}`}>
+      <section aria-label="Feedback and corrections" className="space-y-3">
+        <div className="border-b border-[#202631] pb-3">
+          <h3 className="font-sans text-lg font-semibold text-stone-100">Feedback & Corrections</h3>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="text-xs font-medium text-slate-400">
+            Personalized Feedback & Corrections
+            <textarea
+              value={comments}
+              onChange={(event) => updateEvaluation({ comments: event.target.value })}
+              placeholder="Provide detailed feedback for the student..."
+              rows={4}
+              className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-3 text-sm leading-relaxed text-[#d9dce0] focus:outline-none focus:border-amber-500"
+            />
+          </label>
+          <label className="text-xs font-medium text-slate-400">
+            Strengths
+            <textarea
+              value={evaluation?.strengths || ""}
+              onChange={(event) => updateEvaluation({ strengths: event.target.value })}
+              placeholder="Record specific strengths or successful choices..."
+              rows={4}
+              className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-3 text-sm leading-relaxed text-[#d9dce0] focus:outline-none focus:border-amber-500"
+            />
+          </label>
+          <label className="text-xs font-medium text-slate-400">
+            Areas to Improve
+            <textarea
+              value={evaluation?.areasToImprove || ""}
+              onChange={(event) => updateEvaluation({ areasToImprove: event.target.value })}
+              placeholder="List focused next steps or recurring issues..."
+              rows={4}
+              className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-3 text-sm leading-relaxed text-[#d9dce0] focus:outline-none focus:border-amber-500"
+            />
+          </label>
+          <label className="text-xs font-medium text-slate-400">
+            Study Hub Prescription
+            <textarea
+              value={evaluation?.studyHubPrescription || ""}
+              onChange={(event) => updateEvaluation({ studyHubPrescription: event.target.value })}
+              placeholder="Add a resource link or recommended topic..."
+              rows={4}
+              className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-3 text-sm leading-relaxed text-[#d9dce0] focus:outline-none focus:border-amber-500"
+            />
+          </label>
+        </div>
+      </section>
+
+      <section aria-label="Rubric scores" className={`space-y-3 ${useSupabase && submissionLoadState === "missing" ? "opacity-60" : ""}`}>
+        <div className="flex items-center justify-between border-b border-[#202631] pb-3">
+          <h3 className="font-sans text-lg font-semibold text-stone-100">Submission Evaluation & Rubric</h3>
+          <span className="text-xs text-amber-400">Total: {totalScore}/20</span>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
         {RUBRIC_CRITERIA.map((criterion) => {
           const currentScore = scores[criterion.id] || 0;
           return (
@@ -260,7 +370,7 @@ export function SubmissionEvaluator({
               </div>
               <textarea
                 value={criterionFeedback[criterion.id] || ""}
-                onChange={(event) => onUpdateEvaluation?.({ scores, comments, criterionFeedback: { ...criterionFeedback, [criterion.id]: event.target.value } })}
+                onChange={(event) => updateEvaluation({ criterionFeedback: { ...criterionFeedback, [criterion.id]: event.target.value } })}
                 placeholder={`Written feedback for ${criterion.label.toLowerCase()}...`}
                 rows={2}
                 className="w-full resize-none rounded-md border border-[#202631] bg-[#171d28] p-2.5 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500"
@@ -269,41 +379,8 @@ export function SubmissionEvaluator({
             </div>
           );
         })}
-      </div>
-
-      <div className="space-y-1.5">
-        <label className="text-xs text-slate-400 font-medium block">
-          Personalized Feedback & Corrections
-        </label>
-        <textarea
-          value={comments}
-          onChange={(e) =>
-            onUpdateEvaluation?.({ scores, comments: e.target.value, criterionFeedback })
-          }
-          placeholder="Provide detailed feedback for the student..."
-          className="w-full bg-[#0c1017] border border-[#202631] rounded-lg p-3 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500 h-24 leading-relaxed"
-        />
-      </div>
-
-      <div className="grid gap-3 border-t border-[#202631] pt-4">
-        {[
-          ["strengths", "Strengths", evaluation?.strengths || "", "Record specific strengths or successful choices..."],
-          ["areasToImprove", "Areas to Improve", evaluation?.areasToImprove || "", "List focused next steps or recurring issues..."],
-          ["studyHubPrescription", "Study Hub Prescription", evaluation?.studyHubPrescription || "", "Add a resource link or recommended topic..."],
-          ["voiceFeedbackUrl", "Voice Feedback URL / Recorder Placeholder", evaluation?.voiceFeedbackUrl || "", "Paste an audio URL or note where a recording will be added..."],
-        ].map(([field, label, value, placeholder]) => (
-          <label key={field} className="text-xs text-slate-400">
-            {label}
-            <textarea
-              value={value}
-              onChange={(event) => onUpdateEvaluation?.({ ...evaluation, scores, comments, criterionFeedback, [field]: event.target.value })}
-              placeholder={placeholder}
-              rows={field === "voiceFeedbackUrl" ? 2 : 3}
-              className="mt-1 w-full resize-none rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500"
-            />
-          </label>
-        ))}
-      </div>
+        </div>
+      </section>
 
       <button
         onClick={handleSubmit}
@@ -320,7 +397,7 @@ export function SubmissionEvaluator({
             <CheckCircle className="w-4 h-4 text-[#0c1017]" /> Evaluation Saved & Sent
           </>
         ) : (
-          "Publish & Send Evaluation to Student"
+          "Publish & Send Evaluation"
         )}
       </button>
     </div>
