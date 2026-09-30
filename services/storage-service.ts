@@ -561,7 +561,13 @@ async function persistStudentSubmission(
         throw new Error(`Unable to resolve the Supabase lesson or student for submission ${slug}.`);
       }
     } catch (error) {
-      console.error("[Lesson Submission] Supabase submission/progress save failed:", { slug, studentToken, error });
+      if (submission.status === "in_progress") {
+        if (process.env.NODE_ENV === "development") {
+          console.warn("[Lesson Autosave] Supabase draft save failed:", { slug, error });
+        }
+      } else {
+        console.error("[Lesson Submission] Supabase final save failed:", { slug, studentToken, error });
+      }
       if (!demoDataEnabled()) throw toStorageError(error, `Unable to save submission for ${slug}`);
     }
   }
