@@ -702,14 +702,30 @@ export default function LessonPage() {
   const totalScore = evaluation
     ? Object.values(evaluation.scores).reduce<number>((total, score) => total + Number(score), 0)
     : 0;
-  const getStepResponse = (step: Exclude<StudyStepId, "results">) => {
-    const responses: string[] = [];
-    const addResponse = (label: string, value?: string) => {
-      if (!value?.trim() || /^(https?:|blob:)/i.test(value.trim())) return;
-      const response = label ? `${label}: ${value.trim()}` : value.trim();
-      if (!responses.includes(response)) responses.push(response);
+  const stripMarkdown = (value: string) => value
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/^\s*>\s?/gm, "")
+    .replace(/(\*\*|__)(.*?)\1/g, "$2")
+    .replace(/(`{1,3})(.*?)\1/g, "$2")
+    .replace(/~~(.*?)~~/g, "$1")
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1$2")
+    .replace(/(^|[^_])_([^_\n]+)_(?!_)/g, "$1$2")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+[.)]\s+/gm, "")
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .trim();
+
+  const getStepResponses = (step: Exclude<StudyStepId, "results">) => {
+    const responses: { question?: string; answer: string }[] = [];
+    const addResponse = (question: string | undefined, value?: string) => {
+      const answer = value?.trim();
+      if (!answer || /^(https?:|blob:)/i.test(answer)) return;
+      const cleanedAnswer = stripMarkdown(answer);
+      if (!cleanedAnswer || responses.some((response) => response.question === question && response.answer === cleanedAnswer)) return;
+      responses.push({ question, answer: cleanedAnswer });
     };
-    if (step === "warm_up" || step === "lesson") addResponse("Response", submission.blockResponses?.[step]);
+    if (step === "warm_up" || step === "lesson") addResponse(undefined, submission.blockResponses?.[step]);
     if (step === "listening") {
       (lessonContent.listening?.questions || []).forEach((question: { id: string; question: string }) => addResponse(question.question, submission.listeningAnswers?.[question.id]));
     }
@@ -717,7 +733,7 @@ export default function LessonPage() {
       (lessonContent.reading?.analytical_questions || []).forEach((question: { id: string; question: string }) => addResponse(question.question, submission.readingAnswers?.[question.id]));
     }
     if (step === "writing") {
-      addResponse("Response", submission.writingText);
+      addResponse("Writing response", submission.writingText);
       Object.entries(submission.writing_responses || {}).forEach(([id, value]) => addResponse(id, value));
     }
     const blocks = ((lessonContent[step] as { blocks?: ContentBlock[] } | undefined)?.blocks || []);
@@ -725,16 +741,17 @@ export default function LessonPage() {
       if (block.type === "text") {
         addResponse(block.title || "Response", submission.blockResponses?.[block.id]);
       } else if (block.type === "question") {
-        addResponse(block.title || block.prompt, block.question_type === "open_ended" ? submission.blockResponses?.[block.id] : submission.quizSelections?.[block.id]);
+        addResponse(block.prompt || block.title, block.question_type === "open_ended" ? submission.blockResponses?.[block.id] : submission.quizSelections?.[block.id]);
       } else if (block.type === "quiz") {
         block.questions.forEach((question) => addResponse(question.prompt, submission.quizSelections?.[question.id]));
       } else if (block.type === "fill-in-the-blanks") {
-        parseFillInBlanks(block.textWithBlanks).forEach((blank, index) => addResponse(blank.answer, submission.blockResponses?.[`${block.id}-blank-${index}`]));
+        const blankQuestion = block.textWithBlanks.replace(/\[[^\]]+\]/g, "_____");
+        parseFillInBlanks(block.textWithBlanks).forEach((_, index) => addResponse(`${blankQuestion} (Blank ${index + 1})`, submission.blockResponses?.[`${block.id}-blank-${index}`]));
       } else if (block.type === "writing") {
         addResponse(block.title || "Writing response", submission.writing_responses?.[block.id] || submission.blockResponses?.[block.id]);
       }
     });
-    return responses.join("\n");
+    return responses;
   };
 
   const getStepMediaUrls = (step: Exclude<StudyStepId, "results">) => {
@@ -778,12 +795,12 @@ export default function LessonPage() {
   );
 
   const stepResults: StepResult[] = [
-    { id: "warm-up", step: "Warm-up", prompt: lessonContent.warm_up?.quote?.text || lessonContent.warm_up?.intro_narrative?.text, answer: getStepResponse("warm_up"), mediaUrls: getStepMediaUrls("warm_up"), referenceAnswer: getBlockAnswerKeys("warm_up") || undefined },
-    { id: "lesson", step: "Lesson", prompt: lessonContent.lesson?.core_concept?.text, answer: getStepResponse("lesson"), mediaUrls: getStepMediaUrls("lesson"), referenceAnswer: getBlockAnswerKeys("lesson") || undefined },
-    { id: "listening", step: "Listening", prompt: (lessonContent.listening?.questions || []).map((question: { question: string }) => question.question).join("\n"), answer: getStepResponse("listening"), mediaUrls: getStepMediaUrls("listening"), referenceAnswer: getAnswerKeys("listening") || undefined },
-    { id: "reading", step: "Reading", prompt: (lessonContent.reading?.analytical_questions || []).map((question: { question: string }) => question.question).join("\n"), answer: getStepResponse("reading"), mediaUrls: getStepMediaUrls("reading"), referenceAnswer: getAnswerKeys("reading") || undefined },
-    { id: "writing", step: "Writing", prompt: lessonContent.writing?.prompt?.text, answer: getStepResponse("writing"), mediaUrls: getStepMediaUrls("writing") },
-    { id: "speaking", step: "Speaking", prompt: lessonContent.speaking?.scenario?.text, answer: getStepResponse("speaking"), mediaUrls: getStepMediaUrls("speaking") },
+    { id: "warm-up", step: "Warm-up", prompt: lessonContent.warm_up?.quote?.text || lessonContent.warm_up?.intro_narrative?.text, responses: getStepResponses("warm_up"), mediaUrls: getStepMediaUrls("warm_up"), referenceAnswer: getBlockAnswerKeys("warm_up") || undefined },
+    { id: "lesson", step: "Lesson", prompt: lessonContent.lesson?.core_concept?.text, responses: getStepResponses("lesson"), mediaUrls: getStepMediaUrls("lesson"), referenceAnswer: getBlockAnswerKeys("lesson") || undefined },
+    { id: "listening", step: "Listening", responses: getStepResponses("listening"), mediaUrls: getStepMediaUrls("listening"), referenceAnswer: getAnswerKeys("listening") || undefined },
+    { id: "reading", step: "Reading", responses: getStepResponses("reading"), mediaUrls: getStepMediaUrls("reading"), referenceAnswer: getAnswerKeys("reading") || undefined },
+    { id: "writing", step: "Writing", prompt: lessonContent.writing?.prompt?.text, responses: getStepResponses("writing"), mediaUrls: getStepMediaUrls("writing") },
+    { id: "speaking", step: "Speaking", prompt: lessonContent.speaking?.scenario?.text, responses: getStepResponses("speaking"), mediaUrls: getStepMediaUrls("speaking") },
   ];
 
   const currentIndex = STUDY_STEPS.findIndex((s) => s.id === currentStep);
@@ -1254,14 +1271,19 @@ export default function LessonPage() {
                   <div key={result.id} className="grid gap-3 rounded-xl border border-[#202631] bg-[#121721] p-4 md:grid-cols-[150px_1fr]">
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">{result.step}</p>
-                      {result.prompt && <p className="mt-2 whitespace-pre-wrap text-xs text-stone-500">{result.prompt}</p>}
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">Your response</p>
-                        {result.answer ? <p className="mt-1 whitespace-pre-wrap text-sm text-stone-300">{result.answer}</p> : !result.mediaUrls?.length && <p className="mt-1 text-sm text-stone-500">No response submitted</p>}
-                        {result.mediaUrls?.map((url, index) => <div key={`${url}-${index}`} className="mt-2"><CustomAudioPlayer src={url} label={`${result.step} recording`} /></div>)}
-                      </div>
+                      {result.responses.length > 0 ? result.responses.map((response, index) => <div key={`${response.question || "response"}-${index}`} className="contents">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">Question</p>
+                          <p className="mt-1 whitespace-pre-wrap text-sm text-stone-400">{response.question || result.prompt || "Response"}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">Student&apos;s response</p>
+                          <p className="mt-1 whitespace-pre-wrap text-sm text-stone-300">{response.answer}</p>
+                        </div>
+                      </div>) : !result.mediaUrls?.length && <p className="text-sm text-stone-500">No response submitted</p>}
+                      {result.mediaUrls?.map((url, index) => <div key={`${url}-${index}`} className="sm:col-span-2"><CustomAudioPlayer src={url} label={`${result.step} recording`} /></div>)}
                       {result.referenceAnswer && <div>
                         <p className="text-[10px] uppercase tracking-[0.1em] text-amber-500/80">Reference / Correct Answer</p>
                         <p className="mt-1 whitespace-pre-wrap text-sm text-amber-200">{result.referenceAnswer}</p>

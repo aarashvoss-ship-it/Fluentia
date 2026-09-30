@@ -9,7 +9,7 @@ export interface StepResult {
   id: string;
   step: string;
   prompt?: string;
-  answer: string;
+  responses: { question?: string; answer: string }[];
   mediaUrls?: string[];
   referenceAnswer?: string;
 }
@@ -81,13 +81,18 @@ export function CelebrationModal({
                     <p className="font-semibold uppercase tracking-[0.12em] text-amber-400">{result.step}</p>
                     <span className="text-[10px] uppercase tracking-[0.1em] text-stone-600">Submitted</span>
                   </div>
-                  {result.prompt && <p className="mt-2 text-stone-400">{result.prompt}</p>}
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">Your response</p>
-                      {result.answer ? <p className="mt-1 whitespace-pre-wrap text-stone-200">{result.answer}</p> : !result.mediaUrls?.length && <p className="mt-1 whitespace-pre-wrap text-stone-500">No response submitted</p>}
-                      {result.mediaUrls?.map((url, index) => <div key={`${url}-${index}`} className="mt-2"><CustomAudioPlayer src={url} label={`${result.step} recording`} /></div>)}
-                    </div>
+                    {result.responses.length > 0 ? result.responses.map((response, index) => <div key={`${response.question || "response"}-${index}`} className="contents">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">Question</p>
+                        <p className="mt-1 whitespace-pre-wrap text-stone-400">{response.question || result.prompt || "Response"}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">Student&apos;s response</p>
+                        <p className="mt-1 whitespace-pre-wrap text-stone-200">{response.answer}</p>
+                      </div>
+                    </div>) : !result.mediaUrls?.length && <p className="text-stone-500">No response submitted</p>}
+                    {result.mediaUrls?.map((url, index) => <div key={`${url}-${index}`} className="sm:col-span-2"><CustomAudioPlayer src={url} label={`${result.step} recording`} /></div>)}
                     {result.referenceAnswer && <div>
                       <p className="text-[10px] uppercase tracking-[0.1em] text-amber-500/80">Reference / Correct Answer</p>
                       <p className="mt-1 whitespace-pre-wrap text-amber-200">{result.referenceAnswer}</p>
