@@ -830,18 +830,23 @@ export default function LessonPage() {
   async function handleSubmitFinal() {
     if (isSubmitting) return;
     setIsSubmitting(true);
-    const submittedAt = new Date().toISOString();
-    const saved = await persistSubmission(
-      { ...submission, status: "pending_evaluation", submittedAt },
-      { currentStep: "results", completedSteps: [...STUDY_STEPS.map((step) => step.id)], status: "pending_evaluation" },
-      false,
-      true,
-    );
-    setIsSubmitting(false);
-    if (!saved) return;
-    setIsModalOpen(false);
-    setCompletedSteps([...STUDY_STEPS.map((step) => step.id)]);
-    setCurrentStep("results");
+    try {
+      const submittedAt = new Date().toISOString();
+      const saved = await persistSubmission(
+        { ...submission, status: "pending_evaluation", submittedAt },
+        { currentStep: "results", completedSteps: [...STUDY_STEPS.map((step) => step.id)], status: "pending_evaluation" },
+        false,
+        true,
+      );
+      if (!saved) return;
+      setIsModalOpen(false);
+      setCompletedSteps([...STUDY_STEPS.map((step) => step.id)]);
+      setCurrentStep("results");
+    } catch (error) {
+      setSubmissionSaveError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   const isResultsStep = currentStep === "results";

@@ -69,7 +69,7 @@ export interface StudentProgressRecord {
 }
 
 export interface StorageMediaAsset {
-  bucket: "audio-submissions" | "lesson-audio" | "lesson-media" | "lesson-assets" | "student-audio" | "voice-feedback";
+  bucket: "audio-submissions" | "student-resources" | "lesson-audio" | "lesson-media" | "lesson-assets" | "voice-feedback";
   name: string;
   url: string;
   size?: number;
@@ -684,27 +684,55 @@ export async function uploadAudioSubmission(input: string | Blob, name?: string)
 export async function uploadStudentAudio(input: string | Blob, studentId: string, name?: string) {
   const safeId = studentId?.trim() || "anonymous";
   const fileName = name ? `${safeId}/${Date.now()}-${name}` : `${safeId}/${Date.now()}-response.webm`;
-  if (typeof input === "string") return { bucket: "student-audio" as const, name: fileName, url: input };
-  // Try student-audio bucket, fallback to lesson-media, then Blob URL — never throw UI toast
-  const tryUpload = async (bucket: StorageMediaAsset["bucket"]): Promise<StorageMediaAsset | null> => {
-    if (!isSupabaseConfigured()) return null;
+  const fallbackAsset = (): StorageMediaAsset => ({
+    bucket: "student-resources",
+    name: fileName,
+    url: typeof input === "string" ? input : URL.createObjectURL(input),
+    ...(typeof input !== "string" ? { size: input.size, type: input.type } : {}),
+  });
+  if (typeof input === "string") return fallbackAsset();
+  if (!isSupabaseConfigured()) return fallbackAsset();
+
+  const deadline = Date.now() + 5000;
+  const withTimeout = <T,>(request: PromiseLike<T>, timeoutMs: number, operation: string): Promise<T> => new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${operation} timed out`)), timeoutMs);
+    Promise.resolve(request).then(resolve, reject).finally(() => clearTimeout(timer));
+  });
+
+  let candidates: Array<"student-resources" | "audio-submissions"> = ["student-resources", "audio-submissions"];
+  try {
+    const bucketList = await withTimeout(supabase.storage.listBuckets(), Math.min(1500, deadline - Date.now()), "Storage bucket lookup");
+    if (!bucketList.error) {
+      const available = new Set(bucketList.data.map((bucket) => bucket.name));
+      candidates = candidates.filter((bucket) => available.has(bucket));
+    }
+  } catch (error) {
+    console.warn("[Student Audio] Bucket lookup failed; trying configured audio buckets.", error);
+  }
+
+  for (const bucket of candidates) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
     try {
       const path = `${Date.now()}-${fileName}`;
-      const { error } = await supabase.storage.from(bucket).upload(path, input, { upsert: true, contentType: input.type || undefined });
-      if (!error) {
-        const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-        return { bucket, name: path, url: data.publicUrl, size: input.size, type: input.type };
+      const { error } = await withTimeout(
+        supabase.storage.from(bucket).upload(path, input, { upsert: true, contentType: input.type || undefined }),
+        remaining,
+        `Audio upload to ${bucket}`,
+      );
+      if (error) {
+        console.warn(`[Student Audio] Upload to ${bucket} failed; trying fallback.`, error.message);
+        continue;
       }
-    } catch { /* fallback */ }
-    return null;
-  };
-  return (await tryUpload("student-audio")) || (await tryUpload("lesson-media")) || {
-    bucket: "student-audio" as const,
-    name: fileName,
-    url: URL.createObjectURL(input),
-    size: input.size,
-    type: input.type,
-  };
+      const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+      return { bucket, name: path, url: data.publicUrl, size: input.size, type: input.type };
+    } catch (error) {
+      console.warn(`[Student Audio] Upload to ${bucket} failed; trying fallback.`, error);
+    }
+  }
+
+  if (candidates.length === 0) console.warn("[Student Audio] No configured student audio bucket is available; using a local recording URL.");
+  return fallbackAsset();
 }
 
 export async function uploadLessonMedia(input: string | Blob, name?: string) {
