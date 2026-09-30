@@ -35,12 +35,25 @@ const localProfileKey = (studentToken: string) => `fluentia:student-profile:${st
 const requestedLocalProfileKey = (studentToken: string) => `student_profile_${studentToken}`;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+function broadcastStudentProfileUpdate(studentToken: string) {
+  if (typeof window === "undefined") return;
+  const detail = { type: "student-profile", studentToken, updatedAt: new Date().toISOString() };
+  window.dispatchEvent(new CustomEvent("fluentia:student-profile-updated", { detail }));
+  window.dispatchEvent(new CustomEvent("fluentia:data-updated", { detail }));
+  try {
+    window.localStorage.setItem("fluentia:profile-updated", JSON.stringify(detail));
+  } catch {
+    // The in-tab events still refresh the active view when storage is unavailable.
+  }
+}
+
 export function getStudentProfileNote(profile?: Record<string, unknown> | null) {
   if (!profile) return "";
   for (const key of [
     "teacherNotes",
     "instructorNotes",
     "instructorNote",
+    "instructor_note",
     "instructor_notes",
     "dashboard_note",
     "student_dashboard_note",
@@ -89,6 +102,11 @@ function normalizeStudentProfile(profile: Record<string, unknown> | null, studen
       "assigned_instructor",
       "instructor_name",
     ]) || undefined,
+    weaknesses: Array.isArray(profile.focus_weaknesses)
+      ? profile.focus_weaknesses.filter((value): value is string => typeof value === "string")
+      : Array.isArray(profile.weaknesses)
+        ? profile.weaknesses.filter((value): value is string => typeof value === "string")
+        : undefined,
     teacherNotes: getStudentProfileNote(profile) || undefined,
     avatarUrl: getProfileValue(profile, ["avatar_url", "avatarUrl"]) || undefined,
     bannerUrl: getProfileValue(profile, ["banner_url", "bannerUrl"]) || undefined,
@@ -126,6 +144,7 @@ export async function saveStudentProfile(
 ): Promise<StudentProfileSaveMode> {
   if (!isSupabaseConfigured()) {
     saveStudentProfileLocally(studentToken, profile);
+    broadcastStudentProfileUpdate(studentToken);
     return "local";
   }
 
@@ -148,7 +167,10 @@ export async function saveStudentProfile(
       level: targetLevel || null,
       enrolled_date: profile.enrolledDate || null,
       target_goal: profile.targetGoal || null,
+      focus_weaknesses: profile.weaknesses || [],
+      assigned_instructor: profile.assignedInstructor || null,
       instructor_note: instructorNotes || null,
+      dashboard_note: instructorNotes || null,
       avatar_url: profile.avatarUrl || null,
       banner_url: profile.bannerUrl || null,
       updated_at: new Date().toISOString(),
@@ -169,6 +191,7 @@ export async function saveStudentProfile(
     if (studentError) throw studentError;
 
     saveStudentProfileLocally(studentToken, { ...profile, id: canonicalId, level: targetLevel, targetLevel });
+    broadcastStudentProfileUpdate(studentToken);
     return "database";
   } catch (error) {
     if (options.strict) throw error;
@@ -178,7 +201,10 @@ export async function saveStudentProfile(
     if (details.message || details.details) {
       console.warn("Student profile database sync unavailable; using local storage:", details.message || details.details);
     }
-    if (saveStudentProfileLocally(studentToken, profile)) return "local";
+    if (saveStudentProfileLocally(studentToken, profile)) {
+      broadcastStudentProfileUpdate(studentToken);
+      return "local";
+    }
     throw error;
   }
 }
@@ -251,8 +277,9 @@ export async function getStudentDirectory(): Promise<StudentDirectoryEntry[]> {
         targetLevel,
         level: targetLevel,
         targetGoal: saved?.targetGoal || (typeof profile?.target_goal === "string" ? profile.target_goal : ""),
-        weaknesses: [],
+        weaknesses: saved?.weaknesses || [],
         teacherNotes: saved?.teacherNotes || "",
+        assignedInstructor: saved?.assignedInstructor || "",
         attendanceRate: 0,
         completedModulesCount: 0,
       },
@@ -271,7 +298,7 @@ export async function updateStudentTargetLevel(studentId: string, targetLevel: S
     level: targetLevel,
     targetLevel,
     targetGoal: existing.targetGoal || "",
-    weaknesses: [],
+    weaknesses: existing.weaknesses || [],
     teacherNotes: existing.teacherNotes || "",
     attendanceRate: 0,
     completedModulesCount: 0,
@@ -285,4 +312,5 @@ export async function updateStudentTargetLevel(studentId: string, targetLevel: S
   }
   saveStudentProfileLocally(studentToken, localProfile);
   saveStudentProfileLocally(studentId, localProfile);
+  broadcastStudentProfileUpdate(studentToken);
 }

@@ -254,6 +254,8 @@ export default function InstructorWorkstationPage({
   const [lessonStatus, setLessonStatus] = useState<"draft" | "published">("published");
   const [activeTab, setActiveTab] = useState<"dashboard" | "library" | "resources" | "builder" | "evaluation" | "students" | "music">("dashboard");
   const [studentLevelFilter, setStudentLevelFilter] = useState<"All" | StudentCefrLevel>("All");
+  const [savingProfileStudentId, setSavingProfileStudentId] = useState<string | null>(null);
+  const [profileSaveMessages, setProfileSaveMessages] = useState<Record<string, string>>({});
   const [librarySearch, setLibrarySearch] = useState("");
   const [libraryLevel, setLibraryLevel] = useState("all");
   const [libraryDomain, setLibraryDomain] = useState("all");
@@ -535,20 +537,55 @@ export default function InstructorWorkstationPage({
     }
   }
 
+  async function saveStudentProfileEntry(student: StudentUser, profile: StudentProfile) {
+    const studentToken = student.token || student.id;
+    const targetLevel = normalizeStudentLevel(profile.targetLevel || profile.level);
+    const nextProfile = {
+      ...profile,
+      id: student.id,
+      fullName: profile.fullName.trim() || student.name,
+      email: profile.email?.trim() || student.email || "",
+      targetLevel: targetLevel || undefined,
+      level: targetLevel || "",
+      weaknesses: profile.weaknesses || [],
+    };
+    await saveStudentProfile(studentToken, nextProfile, { strict: true });
+    setStudents((current) => current.map((currentStudent) => currentStudent.id === student.id ? {
+      ...currentStudent,
+      name: nextProfile.fullName,
+      email: nextProfile.email || currentStudent.email,
+      profile: nextProfile,
+    } : currentStudent));
+    if (selectedStudentId === student.id) setWorkstationState((current) => ({ ...current, studentProfile: nextProfile }));
+    window.dispatchEvent(new CustomEvent(FLUENTIA_DATA_UPDATED_EVENT, { detail: { type: "student-profile", studentToken } }));
+  }
+
   async function handleSaveSelectedStudentProfile(profile: StudentProfile) {
     if (!selectedStudent) throw new Error("Select a student before saving profile changes.");
-    const studentToken = selectedStudent.token || selectedStudent.id;
-    const targetLevel = normalizeStudentLevel(profile.targetLevel || profile.level);
-    const nextProfile = { ...profile, targetLevel: targetLevel || undefined, level: targetLevel || profile.level };
-    await saveStudentProfile(studentToken, nextProfile, { strict: true });
-    setStudents((current) => current.map((student) => student.id === selectedStudent.id ? {
+    await saveStudentProfileEntry(selectedStudent, profile);
+  }
+
+  function updateDirectoryStudentProfile(studentId: string, changes: Partial<StudentProfile>) {
+    setStudents((current) => current.map((student) => student.id === studentId ? {
       ...student,
-      name: nextProfile.fullName,
-      email: nextProfile.email || student.email,
-      profile: nextProfile,
+      profile: { ...student.profile, ...changes },
     } : student));
-    setWorkstationState((current) => ({ ...current, studentProfile: nextProfile }));
-    window.dispatchEvent(new CustomEvent(FLUENTIA_DATA_UPDATED_EVENT, { detail: { type: "student-profile", studentToken } }));
+    if (selectedStudentId === studentId) {
+      setWorkstationState((current) => ({ ...current, studentProfile: { ...current.studentProfile, ...changes } }));
+    }
+  }
+
+  async function handleSaveDirectoryStudent(student: StudentUser) {
+    setSavingProfileStudentId(student.id);
+    setProfileSaveMessages((current) => ({ ...current, [student.id]: "" }));
+    try {
+      await saveStudentProfileEntry(student, student.profile);
+      setProfileSaveMessages((current) => ({ ...current, [student.id]: "Profile saved." }));
+    } catch (error) {
+      setProfileSaveMessages((current) => ({ ...current, [student.id]: error instanceof Error ? error.message : "Unable to save student profile." }));
+    } finally {
+      setSavingProfileStudentId(null);
+    }
   }
 
   const handleWorkspaceTabChange = (tab: typeof activeTab) => {
@@ -2271,16 +2308,21 @@ export default function InstructorWorkstationPage({
           {studentsError && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{studentsError}</p>}
           {studentsLoading ? <p className="py-10 text-center text-sm text-stone-500">Loading student profiles...</p> : filteredStudentDirectory.length > 0 ? <div className="overflow-hidden rounded-xl border border-[#202631] bg-[#171d28]/60">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[680px] border-collapse text-left">
+              <table className="w-full min-w-[1380px] border-collapse text-left">
                 <thead className="border-b border-[#293343] bg-[#0c1017]/70 text-[10px] uppercase tracking-[0.12em] text-stone-500">
-                  <tr><th className="px-4 py-3 font-semibold">Student</th><th className="px-4 py-3 font-semibold">Current Level</th><th className="px-4 py-3 font-semibold">Email</th><th className="px-4 py-3 font-semibold">Enrolled</th></tr>
+                  <tr><th className="px-4 py-3 font-semibold">Student</th><th className="px-4 py-3 font-semibold">Current Level</th><th className="px-4 py-3 font-semibold">Core Goal</th><th className="px-4 py-3 font-semibold">Focus Weaknesses</th><th className="px-4 py-3 font-semibold">Assigned Instructor</th><th className="px-4 py-3 font-semibold">Dashboard Note</th><th className="px-4 py-3 font-semibold">Email</th><th className="px-4 py-3 font-semibold">Enrolled</th><th className="px-4 py-3 font-semibold">Save</th></tr>
                 </thead>
                 <tbody className="divide-y divide-[#202631]">
                   {filteredStudentDirectory.map((student) => <tr key={student.id} className="hover:bg-white/[0.02]">
                     <td className="px-4 py-3 text-sm font-medium text-stone-200">{student.name}</td>
                     <td className="px-4 py-3"><select value={normalizeStudentLevel(student.profile.targetLevel || student.profile.level)} onChange={(event) => void handleStudentLevelChange(student, event.target.value as StudentCefrLevel)} className="rounded-md border border-[#394252] bg-[#0c1017] px-2.5 py-1.5 text-xs text-amber-300 [color-scheme:dark]" aria-label={`Set ${student.name}'s level`}>{!normalizeStudentLevel(student.profile.targetLevel || student.profile.level) && <option value="" disabled>Not set</option>}{STUDENT_CEFR_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select></td>
+                    <td className="px-4 py-3"><input value={student.profile.targetGoal || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { targetGoal: event.target.value })} aria-label={`${student.name} core goal`} className="w-44 rounded-md border border-[#394252] bg-[#0c1017] px-2.5 py-2 text-xs text-stone-200 outline-none focus:border-amber-500" /></td>
+                    <td className="px-4 py-3"><input value={(student.profile.weaknesses || []).join(", ")} onChange={(event) => updateDirectoryStudentProfile(student.id, { weaknesses: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} aria-label={`${student.name} focus weaknesses`} placeholder="Separate with commas" className="w-52 rounded-md border border-[#394252] bg-[#0c1017] px-2.5 py-2 text-xs text-stone-200 outline-none focus:border-amber-500" /></td>
+                    <td className="px-4 py-3"><input value={student.profile.assignedInstructor || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { assignedInstructor: event.target.value })} aria-label={`${student.name} assigned instructor`} className="w-40 rounded-md border border-[#394252] bg-[#0c1017] px-2.5 py-2 text-xs text-stone-200 outline-none focus:border-amber-500" /></td>
+                    <td className="px-4 py-3"><textarea value={student.profile.teacherNotes || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { teacherNotes: event.target.value })} aria-label={`${student.name} dashboard note`} rows={2} className="w-56 resize-y rounded-md border border-[#394252] bg-[#0c1017] px-2.5 py-2 text-xs text-stone-200 outline-none focus:border-amber-500" /></td>
                     <td className="px-4 py-3 text-sm text-stone-400">{student.email || "Not provided"}</td>
                     <td className="px-4 py-3 text-sm text-stone-400">{student.enrolledDate ? new Date(student.enrolledDate).toLocaleDateString() : "Not available"}</td>
+                    <td className="px-4 py-3"><div className="flex min-w-32 flex-col gap-1.5"><button type="button" onClick={() => void handleSaveDirectoryStudent(student)} disabled={savingProfileStudentId === student.id} className="whitespace-nowrap rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60">{savingProfileStudentId === student.id ? "Saving..." : "Save Changes"}</button>{profileSaveMessages[student.id] && <span role="status" className={`text-[10px] ${profileSaveMessages[student.id] === "Profile saved." ? "text-emerald-300" : "text-red-300"}`}>{profileSaveMessages[student.id]}</span>}</div></td>
                   </tr>)}
                 </tbody>
               </table>
