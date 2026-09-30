@@ -326,7 +326,7 @@ export interface LessonEvaluation {
   published?: boolean;
 }
 
-export type StudentSubmissionStatus = "in_progress" | "submitted" | "reviewed";
+export type StudentSubmissionStatus = "in_progress" | "submitted" | "pending_evaluation" | "reviewed";
 
 export interface StudentSubmission {
   status: StudentSubmissionStatus;

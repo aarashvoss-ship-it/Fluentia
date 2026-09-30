@@ -249,12 +249,12 @@ export function StudentContextPanel({
                     className={`px-2 py-0.5 rounded text-[11px] font-medium ${
                       submissionData.status === "reviewed"
                         ? "bg-green-900/40 text-green-300"
-                        : submissionData.status === "submitted"
+                        : submissionData.status === "submitted" || submissionData.status === "pending_evaluation"
                         ? "bg-blue-900/40 text-blue-300"
                         : "bg-yellow-900/40 text-yellow-300"
                     }`}
                   >
-                    {submissionData.status}
+                    {submissionData.status === "pending_evaluation" || submissionData.status === "submitted" ? "Pending Evaluation" : submissionData.status}
                   </span>
                 </div>
 

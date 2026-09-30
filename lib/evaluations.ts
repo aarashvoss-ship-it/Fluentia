@@ -13,12 +13,12 @@ export interface CreateSubmissionInput {
   lesson_id: string;
   student_id: string;
   answers: Record<string, any>;
-  status?: "submitted" | "in_progress";
+  status?: "submitted" | "pending_evaluation" | "in_progress";
 }
 
 export interface UpdateSubmissionInput {
   answers?: Record<string, any>;
-  status?: "submitted" | "in_progress" | "reviewed";
+  status?: "submitted" | "pending_evaluation" | "in_progress" | "reviewed";
 }
 
 export interface CreateEvaluationInput {
@@ -517,7 +517,7 @@ export async function deleteEvaluation(id: string): Promise<void> {
     if (deleteError) throw deleteError;
 
     // Reset submission status back to 'submitted'
-    await updateSubmission(evaluation.submission_id, { status: "submitted" });
+    await updateSubmission(evaluation.submission_id, { status: "pending_evaluation" });
   } catch (error) {
     console.error(`Error deleting evaluation ${id}:`, error);
     throw error;

@@ -151,7 +151,7 @@ function getLessonStatus(state?: PublishedLessonState | null): LessonStatus {
   if (!state || state.status === "draft") return "not-started";
   if (state.submission?.status === "reviewed" || state.evaluation.published)
     return "completed";
-  if (state.submission?.status === "submitted") return "pending-review";
+  if (state.submission?.status === "submitted" || state.submission?.status === "pending_evaluation") return "pending-review";
   if (state.submission?.status === "in_progress") return "in-progress";
   return "not-started";
 }
@@ -1671,8 +1671,8 @@ function DashboardContent() {
                 {hasFeedback
                   ? "Feedback Ready"
                   : hasPendingReview
-                    ? "Pending Review"
-                    : "Pending Review"}
+                    ? "Pending Evaluation"
+                    : "Pending Evaluation"}
               </p>
             </div>
             </Tooltip>
@@ -1931,7 +1931,7 @@ function DashboardContent() {
                     status === "completed"
                       ? "COMPLETED"
                       : status === "pending-review"
-                        ? "PENDING REVIEW"
+                        ? "PENDING EVALUATION"
                         : status === "in-progress"
                           ? "IN PROGRESS"
                           : "NOT STARTED";
@@ -1939,7 +1939,7 @@ function DashboardContent() {
                     status === "completed"
                       ? "View Results & Feedback"
                       : status === "pending-review"
-                        ? "Submitted - Pending Review"
+                        ? "Submitted - Pending Evaluation"
                         : status === "in-progress"
                           ? "Continue Lesson"
                           : "Start Lesson";

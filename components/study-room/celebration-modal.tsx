@@ -3,12 +3,14 @@
 import React from "react";
 import { CheckCircle2, ArrowRight, ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 
 export interface StepResult {
   id: string;
   step: string;
   prompt?: string;
   answer: string;
+  mediaUrls?: string[];
   referenceAnswer?: string;
 }
 
@@ -20,6 +22,8 @@ interface CelebrationModalProps {
   studentName?: string;
   dashboardHref?: string;
   stepResults?: StepResult[];
+  isSubmitting?: boolean;
+  submitError?: string | null;
 }
 
 export function CelebrationModal({
@@ -30,6 +34,8 @@ export function CelebrationModal({
   studentName = "Student",
   dashboardHref = "/dashboard",
   stepResults = [],
+  isSubmitting = false,
+  submitError,
 }: CelebrationModalProps) {
   const router = useRouter();
 
@@ -79,7 +85,8 @@ export function CelebrationModal({
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <div>
                       <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">Your response</p>
-                      <p className="mt-1 whitespace-pre-wrap text-stone-200">{result.answer || "No response submitted"}</p>
+                      {result.answer ? <p className="mt-1 whitespace-pre-wrap text-stone-200">{result.answer}</p> : !result.mediaUrls?.length && <p className="mt-1 whitespace-pre-wrap text-stone-500">No response submitted</p>}
+                      {result.mediaUrls?.map((url, index) => <div key={`${url}-${index}`} className="mt-2"><CustomAudioPlayer src={url} label={`${result.step} recording`} /></div>)}
                     </div>
                     {result.referenceAnswer && <div>
                       <p className="text-[10px] uppercase tracking-[0.1em] text-amber-500/80">Reference / Correct Answer</p>
@@ -95,11 +102,13 @@ export function CelebrationModal({
         {/* Action Buttons */}
         <div className="sticky bottom-0 z-10 shrink-0 space-y-3 border-t border-stone-800 bg-[#141413] p-8 pt-4">
           {/* Primary CTA */}
+          {submitError && <p role="alert" className="text-xs text-red-300">Submission could not be saved: {submitError}</p>}
           <button
             onClick={onSubmit}
-            className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-medium text-sm transition-all duration-150 shadow-lg shadow-amber-500/10 active:scale-[0.99]"
+            disabled={isSubmitting}
+            className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-medium text-sm transition-all duration-150 shadow-lg shadow-amber-500/10 active:scale-[0.99] disabled:cursor-wait disabled:opacity-60"
           >
-            <span>Submit &amp; View Results</span>
+            <span>{isSubmitting ? "Saving Submission..." : "Submit &amp; View Results"}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
 

@@ -14,7 +14,7 @@ import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { resolveUserUuid } from "@/lib/identity";
 
 export type LessonStatus = "draft" | "published";
-export type SubmissionStatus = "not_started" | "in_progress" | "submitted" | "reviewed";
+export type SubmissionStatus = "not_started" | "in_progress" | "submitted" | "pending_evaluation" | "reviewed";
 
 export interface StudentProgressRecord {
   currentStep: StudyStepId;
@@ -241,6 +241,7 @@ function mapLessonRow(row: SupabaseRow): LessonContent {
 function mapSubmission(row: SupabaseRow): StudentSubmission {
   const content = row.answers || row.content || {};
   return {
+    ...content,
     status: row.status || content.status || "in_progress",
     listeningAnswers: content.listeningAnswers || {},
     readingAnswers: content.readingAnswers || {},
@@ -418,7 +419,7 @@ export async function saveStudentProgress(
 ): Promise<StudentProgressRecord> {
   const updated = {
     ...progress,
-    completed: progress.completed ?? (progress.status === "submitted" || progress.status === "reviewed"),
+    completed: progress.completed ?? (progress.status === "submitted" || progress.status === "pending_evaluation" || progress.status === "reviewed"),
     updatedAt: new Date().toISOString(),
   };
   if (isSupabaseConfigured()) {
@@ -492,8 +493,8 @@ export async function submitStudentLesson(
           await saveStudentProgress(slug, {
             currentStep: progress.currentStep || "warm_up",
             completedSteps: progress.completedSteps || [],
-            completed: progress.completed ?? (submission.status === "submitted" || submission.status === "reviewed"),
-            status: progress.status || (submission.status === "submitted" ? "submitted" : "in_progress"),
+            completed: progress.completed ?? (submission.status === "submitted" || submission.status === "pending_evaluation" || submission.status === "reviewed"),
+            status: progress.status || (submission.status === "pending_evaluation" ? "pending_evaluation" : submission.status === "submitted" ? "submitted" : "in_progress"),
             updatedAt: new Date().toISOString(),
           }, studentToken);
         }
@@ -514,8 +515,8 @@ export async function submitStudentLesson(
     await saveStudentProgress(slug, {
       currentStep: progress.currentStep || "warm_up",
       completedSteps: progress.completedSteps || [],
-      completed: progress.completed ?? (submission.status === "submitted" || submission.status === "reviewed"),
-      status: progress.status || (submission.status === "submitted" ? "submitted" : "in_progress"),
+      completed: progress.completed ?? (submission.status === "submitted" || submission.status === "pending_evaluation" || submission.status === "reviewed"),
+      status: progress.status || (submission.status === "pending_evaluation" ? "pending_evaluation" : submission.status === "submitted" ? "submitted" : "in_progress"),
       updatedAt: new Date().toISOString(),
     }, studentToken);
   }

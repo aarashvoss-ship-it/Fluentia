@@ -291,6 +291,7 @@ export default function LessonPage() {
   const [submissionHydrated, setSubmissionHydrated] = useState(false);
   const [completedSteps, setCompletedSteps] = useState<StudyStepId[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [publishedLesson, setPublishedLesson] = useState<PublishedLessonState | null>(null);
   const [submission, setSubmission] = useState<StudentSubmission>({
     status: "in_progress",
@@ -302,6 +303,7 @@ export default function LessonPage() {
     quizSelections: {},
     audioUploads: {},
   });
+  const submissionSaveQueue = useRef<Promise<void>>(Promise.resolve());
   const [visibleSampleAnswers, setVisibleSampleAnswers] = useState<Record<string, boolean>>({});
   const [savedWords, setSavedWords] = useState<SavedVocabularyWord[]>([]);
   const [notes, setNotes] = useState<StudentNote[]>([]);
@@ -518,7 +520,7 @@ export default function LessonPage() {
       fetchStudentProgress(lesson.id, activeToken),
     ]).then(([state, progress]) => {
       const hydratedSubmission = state?.submission;
-      const canShowResults = hydratedSubmission?.status === "submitted" || hydratedSubmission?.status === "reviewed";
+      const canShowResults = hydratedSubmission?.status === "submitted" || hydratedSubmission?.status === "pending_evaluation" || hydratedSubmission?.status === "reviewed";
       const requestedNonResultsStep = requestedStep && requestedStep !== "results" ? requestedStep : null;
       const persistedStep = progress.currentStep !== "results" || canShowResults ? progress.currentStep : "warm_up";
       setPublishedLesson(state?.status !== "draft" ? state : null);
@@ -575,18 +577,22 @@ export default function LessonPage() {
     return () => document.removeEventListener("dblclick", handleDoubleClick);
   }, []);
 
-  async function persistSubmission(nextSubmission: StudentSubmission, nextProgress?: { currentStep?: StudyStepId; completedSteps?: StudyStepId[]; status?: "not_started" | "in_progress" | "submitted" | "reviewed" }) {
-    if (!lesson) return;
-    setSubmission(nextSubmission);
+  async function persistSubmission(nextSubmission: StudentSubmission, nextProgress?: { currentStep?: StudyStepId; completedSteps?: StudyStepId[]; status?: "not_started" | "in_progress" | "submitted" | "pending_evaluation" | "reviewed" }, optimistic = true): Promise<boolean> {
+    if (!lesson) return false;
+    if (optimistic) setSubmission(nextSubmission);
     setSubmissionSaveError(null);
     try {
       const tok = activeStudent?.token ?? lesson.student_token ?? undefined;
-      await submitStudentLesson(lesson.id, tok, nextSubmission, {
-        currentStep: nextProgress?.currentStep || currentStep,
-        completedSteps: nextProgress?.completedSteps || completedSteps,
-        status: nextProgress?.status || (nextSubmission.status === "submitted" ? "submitted" : "in_progress"),
-        updatedAt: new Date().toISOString(),
-      });
+      const save = submissionSaveQueue.current.then(() => submitStudentLesson(lesson.id, tok, nextSubmission, {
+          currentStep: nextProgress?.currentStep || currentStep,
+          completedSteps: nextProgress?.completedSteps || completedSteps,
+          status: nextProgress?.status || (nextSubmission.status === "submitted" || nextSubmission.status === "pending_evaluation" ? nextSubmission.status : "in_progress"),
+          updatedAt: new Date().toISOString(),
+        }));
+      submissionSaveQueue.current = save.then(() => undefined, () => undefined);
+      await save;
+      if (!optimistic) setSubmission(nextSubmission);
+      return true;
     } catch (error) {
       console.error("[Lesson Submission] Failed to persist student submission:", {
         lessonId: lesson.id,
@@ -594,6 +600,7 @@ export default function LessonPage() {
         error,
       });
       setSubmissionSaveError(error instanceof Error ? error.message : String(error));
+      return false;
     }
   }
 
@@ -625,16 +632,51 @@ export default function LessonPage() {
   const totalScore = evaluation
     ? Object.values(evaluation.scores).reduce<number>((total, score) => total + Number(score), 0)
     : 0;
-  const getStepResponse = (step: "warm_up" | "lesson") => {
-    const stepContent = lessonContent[step] as { blocks?: ContentBlock[] } | undefined;
-    const responses = stepContent?.blocks?.map((block) => {
-      if (block.type === "text") return submission.blockResponses?.[block.id];
-      if (block.type === "question") return submission.quizSelections?.[block.id];
-      if (block.type === "quiz") return block.questions.map((question) => `${question.prompt}: ${submission.quizSelections?.[question.id] || ""}`).filter(Boolean).join("\n");
-      if (block.type === "fill-in-the-blanks") return parseFillInBlanks(block.textWithBlanks).map((blank, blankIndex) => `${blank.answer}: ${submission.blockResponses?.[`${block.id}-blank-${blankIndex}`] || ""}`).join("\n");
-      return "";
-    }).filter(Boolean) || [];
-    return submission.blockResponses?.[step] || responses.join("\n") || "";
+  const getStepResponse = (step: Exclude<StudyStepId, "results">) => {
+    const responses: string[] = [];
+    const addResponse = (label: string, value?: string) => {
+      if (!value?.trim() || /^(https?:|blob:)/i.test(value.trim())) return;
+      const response = label ? `${label}: ${value.trim()}` : value.trim();
+      if (!responses.includes(response)) responses.push(response);
+    };
+    if (step === "warm_up" || step === "lesson") addResponse("Response", submission.blockResponses?.[step]);
+    if (step === "listening") {
+      (lessonContent.listening?.questions || []).forEach((question: { id: string; question: string }) => addResponse(question.question, submission.listeningAnswers?.[question.id]));
+    }
+    if (step === "reading") {
+      (lessonContent.reading?.analytical_questions || []).forEach((question: { id: string; question: string }) => addResponse(question.question, submission.readingAnswers?.[question.id]));
+    }
+    if (step === "writing") {
+      addResponse("Response", submission.writingText);
+      Object.entries(submission.writing_responses || {}).forEach(([id, value]) => addResponse(id, value));
+    }
+    const blocks = ((lessonContent[step] as { blocks?: ContentBlock[] } | undefined)?.blocks || []);
+    blocks.forEach((block) => {
+      if (block.type === "text") {
+        addResponse(block.title || "Response", submission.blockResponses?.[block.id]);
+      } else if (block.type === "question") {
+        addResponse(block.title || block.prompt, block.question_type === "open_ended" ? submission.blockResponses?.[block.id] : submission.quizSelections?.[block.id]);
+      } else if (block.type === "quiz") {
+        block.questions.forEach((question) => addResponse(question.prompt, submission.quizSelections?.[question.id]));
+      } else if (block.type === "fill-in-the-blanks") {
+        parseFillInBlanks(block.textWithBlanks).forEach((blank, index) => addResponse(blank.answer, submission.blockResponses?.[`${block.id}-blank-${index}`]));
+      } else if (block.type === "writing") {
+        addResponse(block.title || "Writing response", submission.writing_responses?.[block.id] || submission.blockResponses?.[block.id]);
+      }
+    });
+    return responses.join("\n");
+  };
+
+  const getStepMediaUrls = (step: Exclude<StudyStepId, "results">) => {
+    const blocks = ((lessonContent[step] as { blocks?: ContentBlock[] } | undefined)?.blocks || []);
+    const urls = blocks.map((block) => submission.audioUploads?.[block.id]).filter((url): url is string => Boolean(url));
+    if (step === "speaking") {
+      if (submission.speakingAudioUrl) urls.push(submission.speakingAudioUrl);
+      Object.values(submission.blockResponses || {}).forEach((value) => {
+        if (/^(https?:|blob:)/i.test(value) || /\.(webm|mp3|wav|m4a|mp4)(\?|$)/i.test(value)) urls.push(value);
+      });
+    }
+    return [...new Set(urls)];
   };
 
   const getBlockAnswerKeys = (step: "warm_up" | "lesson" | "listening" | "reading") => {
@@ -666,12 +708,12 @@ export default function LessonPage() {
   );
 
   const stepResults: StepResult[] = [
-    { id: "warm-up", step: "Warm-up", prompt: lessonContent.warm_up?.quote?.text || lessonContent.warm_up?.intro_narrative?.text, answer: getStepResponse("warm_up"), referenceAnswer: getBlockAnswerKeys("warm_up") || undefined },
-    { id: "lesson", step: "Lesson", prompt: lessonContent.lesson?.core_concept?.text, answer: getStepResponse("lesson"), referenceAnswer: getBlockAnswerKeys("lesson") || undefined },
-    { id: "listening", step: "Listening", prompt: (lessonContent.listening?.questions || []).map((question: { question: string }) => question.question).join("\n"), answer: Object.values(submission.listeningAnswers).join("\n"), referenceAnswer: getAnswerKeys("listening") || undefined },
-    { id: "reading", step: "Reading", prompt: (lessonContent.reading?.analytical_questions || []).map((question: { question: string }) => question.question).join("\n"), answer: Object.values(submission.readingAnswers).join("\n"), referenceAnswer: getAnswerKeys("reading") || undefined },
-    { id: "writing", step: "Writing", prompt: lessonContent.writing?.prompt?.text, answer: submission.writingText },
-    { id: "speaking", step: "Speaking", prompt: lessonContent.speaking?.scenario?.text, answer: submission.speakingAudioUrl || Object.values(submission.audioUploads || {})[0] || Object.values(submission.blockResponses || {}).find((v: string) => typeof v === "string" && (v.startsWith("http") || v.endsWith(".webm") || v.endsWith(".mp3") || v.includes("blob:"))) || "" },
+    { id: "warm-up", step: "Warm-up", prompt: lessonContent.warm_up?.quote?.text || lessonContent.warm_up?.intro_narrative?.text, answer: getStepResponse("warm_up"), mediaUrls: getStepMediaUrls("warm_up"), referenceAnswer: getBlockAnswerKeys("warm_up") || undefined },
+    { id: "lesson", step: "Lesson", prompt: lessonContent.lesson?.core_concept?.text, answer: getStepResponse("lesson"), mediaUrls: getStepMediaUrls("lesson"), referenceAnswer: getBlockAnswerKeys("lesson") || undefined },
+    { id: "listening", step: "Listening", prompt: (lessonContent.listening?.questions || []).map((question: { question: string }) => question.question).join("\n"), answer: getStepResponse("listening"), mediaUrls: getStepMediaUrls("listening"), referenceAnswer: getAnswerKeys("listening") || undefined },
+    { id: "reading", step: "Reading", prompt: (lessonContent.reading?.analytical_questions || []).map((question: { question: string }) => question.question).join("\n"), answer: getStepResponse("reading"), mediaUrls: getStepMediaUrls("reading"), referenceAnswer: getAnswerKeys("reading") || undefined },
+    { id: "writing", step: "Writing", prompt: lessonContent.writing?.prompt?.text, answer: getStepResponse("writing"), mediaUrls: getStepMediaUrls("writing") },
+    { id: "speaking", step: "Speaking", prompt: lessonContent.speaking?.scenario?.text, answer: getStepResponse("speaking"), mediaUrls: getStepMediaUrls("speaking") },
   ];
 
   const currentIndex = STUDY_STEPS.findIndex((s) => s.id === currentStep);
@@ -716,15 +758,24 @@ export default function LessonPage() {
   }
 
   async function handleSubmitFinal() {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    const submittedAt = new Date().toISOString();
+    const saved = await persistSubmission(
+      { ...submission, status: "pending_evaluation", submittedAt },
+      { currentStep: "results", completedSteps: [...STUDY_STEPS.map((step) => step.id)], status: "pending_evaluation" },
+      false,
+    );
+    setIsSubmitting(false);
+    if (!saved) return;
     setIsModalOpen(false);
-    markStepComplete("speaking");
-    markStepComplete("results");
+    setCompletedSteps([...STUDY_STEPS.map((step) => step.id)]);
     setCurrentStep("results");
-    await persistSubmission({ ...submission, status: "submitted", submittedAt: new Date().toISOString() }, { currentStep: "results", completedSteps: [...STUDY_STEPS.map((step) => step.id)], status: "submitted" });
   }
 
   const isResultsStep = currentStep === "results";
   const areTranscriptsUnlocked = submission.status === "submitted"
+    || submission.status === "pending_evaluation"
     || submission.status === "reviewed"
     || completedSteps.includes("results")
     || isResultsStep;
@@ -955,7 +1006,7 @@ export default function LessonPage() {
                   Audio Immersion
                 </span>
               </div>}
-              {lessonContent.listening?.transcript?.text && <h3 className="text-xl font-semibold text-stone-100">{lessonContent.listening.transcript.text}</h3>}
+              {lessonContent.listening?.transcript?.text && <MediaTranscriptAccordion transcript={lessonContent.listening.transcript.text} isUnlocked={areTranscriptsUnlocked} />}
               {lessonContent.listening?.audio_url && <CustomAudioPlayer src={lessonContent.listening.audio_url} label="Listening audio" />}
               <div className="space-y-3">
                 {(lessonContent.listening?.questions || []).map((question: { id: string; question: string; options?: string[] }) => (
@@ -1126,7 +1177,8 @@ export default function LessonPage() {
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
                         <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">Your response</p>
-                        {result.answer && (result.answer.startsWith("http") || result.answer.startsWith("blob:") || result.answer.endsWith(".webm") || result.answer.endsWith(".mp3") || result.answer.endsWith(".wav")) ? <CustomAudioPlayer src={result.answer} label="Your speaking recording" /> : <p className="mt-1 whitespace-pre-wrap text-sm text-stone-300">{result.answer || "No response submitted"}</p>}
+                        {result.answer ? <p className="mt-1 whitespace-pre-wrap text-sm text-stone-300">{result.answer}</p> : !result.mediaUrls?.length && <p className="mt-1 text-sm text-stone-500">No response submitted</p>}
+                        {result.mediaUrls?.map((url, index) => <div key={`${url}-${index}`} className="mt-2"><CustomAudioPlayer src={url} label={`${result.step} recording`} /></div>)}
                       </div>
                       {result.referenceAnswer && <div>
                         <p className="text-[10px] uppercase tracking-[0.1em] text-amber-500/80">Reference / Correct Answer</p>
@@ -1148,7 +1200,7 @@ export default function LessonPage() {
                       ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
                       : "border-[#394252] bg-[#171d28] text-stone-400"
                   }`}>
-                    {isEvaluationPublished ? "Reviewed" : "Pending Review"}
+                    {submission.status === "reviewed" || isEvaluationPublished ? "Reviewed" : "Pending Evaluation"}
                   </span>
                 </div>
                 <div className="grid gap-5 pt-4 md:grid-cols-[180px_1fr]">
@@ -1233,6 +1285,8 @@ export default function LessonPage() {
         studentName={studentDisplayName}
         dashboardHref="/dashboard"
         stepResults={stepResults}
+        isSubmitting={isSubmitting}
+        submitError={submissionSaveError}
       />
       <LearningSidebar
         open={sidebarOpen}

@@ -1386,7 +1386,7 @@ export default function InstructorWorkstationPage({
               studentId: row.student_id,
               submittedAt: row.submitted_at,
               submission: {
-                status: "submitted",
+                status: row.status === "pending_evaluation" ? "pending_evaluation" : "submitted",
                 listeningAnswers: answers.listeningAnswers || {},
                 readingAnswers: answers.readingAnswers || {},
                 writingText: answers.writingText || "",
@@ -1820,14 +1820,14 @@ export default function InstructorWorkstationPage({
 
   const submissionState = workstationState.submission?.status === "reviewed" || workstationState.evaluation.published
     ? "Reviewed"
-    : workstationState.submission?.status === "submitted"
-      ? "Submitted (Needs Review)"
+    : workstationState.submission?.status === "submitted" || workstationState.submission?.status === "pending_evaluation"
+      ? "Pending Evaluation"
       : workstationState.submission?.status === "in_progress"
         ? "In Progress"
         : "Not Started";
   const submissionStateClass = submissionState === "Reviewed"
     ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-    : submissionState === "Submitted (Needs Review)"
+    : submissionState === "Pending Evaluation"
       ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
       : "border-[#394252] bg-[#171d28] text-stone-400";
 
