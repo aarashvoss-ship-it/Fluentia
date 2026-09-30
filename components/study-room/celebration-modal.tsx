@@ -9,9 +9,14 @@ export interface StepResult {
   id: string;
   step: string;
   prompt?: string;
-  responses: { question?: string; answer: string }[];
+  responses: {
+    question: string;
+    answer: string;
+    correctAnswer?: string;
+    explanation?: string;
+    isCorrect?: boolean;
+  }[];
   mediaUrls?: string[];
-  referenceAnswer?: string;
 }
 
 interface CelebrationModalProps {
@@ -74,31 +79,29 @@ export function CelebrationModal({
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Six-Step Review</p>
               <p className="mt-1 text-xs text-stone-500">Review each submitted response before finalizing the lesson.</p>
             </div>
-            <div className="min-h-0 max-h-[calc(90vh-23rem)] space-y-2 overflow-y-auto overscroll-contain pr-1 scroll-smooth">
+            <div className="min-h-0 max-h-[calc(90vh-23rem)] space-y-4 overflow-y-auto overscroll-contain pr-1 scroll-smooth">
               {stepResults.map((result) => (
-                <div key={result.id} className="rounded-lg border border-stone-800 bg-stone-950/50 p-3 text-xs">
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="font-semibold uppercase tracking-[0.12em] text-amber-400">{result.step}</p>
-                    <span className="text-[10px] uppercase tracking-[0.1em] text-stone-600">Submitted</span>
+                <section key={result.id} className="rounded-lg border border-stone-800 bg-stone-950/50 p-3 text-xs">
+                  <h3 className="font-semibold uppercase tracking-[0.12em] text-amber-400">{result.step}</h3>
+                  {result.prompt && <p className="mt-2 whitespace-pre-wrap text-stone-400">{result.prompt}</p>}
+                  <div className="mt-3 space-y-2">
+                    {result.responses.map((response, index) => <article key={`${response.question}-${index}`} className="rounded-md border border-stone-800 bg-[#141413] p-3">
+                      <p className="font-medium text-stone-200">Question {index + 1}: {response.question}</p>
+                      <p className="mt-2 text-[10px] uppercase tracking-[0.1em] text-stone-500">Your Response</p>
+                      <p className="mt-1 whitespace-pre-wrap text-stone-200">{response.answer || "No response submitted"}</p>
+                      {response.correctAnswer && <div className="mt-2">
+                        <p className="text-[10px] uppercase tracking-[0.1em] text-amber-500/80">Correct Answer</p>
+                        <p className="mt-1 whitespace-pre-wrap text-amber-200">{response.correctAnswer}</p>
+                      </div>}
+                      {(response.explanation || response.isCorrect === false) && <div className="mt-2">
+                        <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">Explanation</p>
+                        <p className="mt-1 whitespace-pre-wrap text-stone-300">{response.explanation || "Compare your response with the correct answer."}</p>
+                      </div>}
+                    </article>)}
+                    {!result.responses.length && !result.mediaUrls?.length && <p className="text-stone-500">No response submitted</p>}
+                    {result.mediaUrls?.map((url, index) => <div key={`${url}-${index}`}><CustomAudioPlayer src={url} label={`${result.step} recording`} /></div>)}
                   </div>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    {result.responses.length > 0 ? result.responses.map((response, index) => <div key={`${response.question || "response"}-${index}`} className="contents">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">Question</p>
-                        <p className="mt-1 whitespace-pre-wrap text-stone-400">{response.question || result.prompt || "Response"}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">Student&apos;s response</p>
-                        <p className="mt-1 whitespace-pre-wrap text-stone-200">{response.answer}</p>
-                      </div>
-                    </div>) : !result.mediaUrls?.length && <p className="text-stone-500">No response submitted</p>}
-                    {result.mediaUrls?.map((url, index) => <div key={`${url}-${index}`} className="sm:col-span-2"><CustomAudioPlayer src={url} label={`${result.step} recording`} /></div>)}
-                    {result.referenceAnswer && <div>
-                      <p className="text-[10px] uppercase tracking-[0.1em] text-amber-500/80">Reference / Correct Answer</p>
-                      <p className="mt-1 whitespace-pre-wrap text-amber-200">{result.referenceAnswer}</p>
-                    </div>}
-                  </div>
-                </div>
+                </section>
               ))}
             </div>
           </div>

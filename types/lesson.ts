@@ -38,6 +38,7 @@ export interface QuizQuestion {
   options: string[];
   correctAnswer?: string;
   correct_answer?: string;
+  explanation?: string;
 }
 
 export interface FillInTheBlanksContentBlock extends ContentBlockBase {
@@ -70,6 +71,7 @@ export interface ContentBlockBase {
   id: string;
   type: ContentBlockType;
   title: string;
+  explanation?: string;
   enabled: boolean;
   is_active?: boolean;
   layoutMode?: "global" | "inline-row";
@@ -176,6 +178,7 @@ export interface StepListeningContent {
     question: string;
     options?: string[];
     correct_answer?: string;
+    explanation?: string;
     enabled: boolean;
   }>;
 }
@@ -194,6 +197,7 @@ export interface StepReadingContent {
     id: string;
     question: string;
     correct_answer?: string;
+    explanation?: string;
     enabled: boolean;
   }>;
 }

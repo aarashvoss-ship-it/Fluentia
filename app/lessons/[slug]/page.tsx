@@ -703,7 +703,7 @@ export default function LessonPage() {
     ? Object.values(evaluation.scores).reduce<number>((total, score) => total + Number(score), 0)
     : 0;
   const stripMarkdown = (value: string) => value
-    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/^\s{0,3}#{1,6}\s*/gm, "")
     .replace(/^\s*>\s?/gm, "")
     .replace(/(\*\*|__)(.*?)\1/g, "$2")
     .replace(/(`{1,3})(.*?)\1/g, "$2")
@@ -714,26 +714,50 @@ export default function LessonPage() {
     .replace(/^\s*\d+[.)]\s+/gm, "")
     .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/<[^>]*>/g, "")
+    .replace(/[*_~`]/g, "")
     .trim();
 
   const getStepResponses = (step: Exclude<StudyStepId, "results">) => {
-    const responses: { question?: string; answer: string }[] = [];
-    const addResponse = (question: string | undefined, value?: string) => {
-      const answer = value?.trim();
-      if (!answer || /^(https?:|blob:)/i.test(answer)) return;
-      const cleanedAnswer = stripMarkdown(answer);
-      if (!cleanedAnswer || responses.some((response) => response.question === question && response.answer === cleanedAnswer)) return;
-      responses.push({ question, answer: cleanedAnswer });
+    const responses: StepResult["responses"] = [];
+    const addResponse = (question: string | undefined, value?: string, correctAnswer?: string, explanation?: string) => {
+      if (!question && !value) return;
+      if (value && /^(https?:|blob:)/i.test(value.trim())) return;
+      const cleanedQuestion = stripMarkdown(question || "Response");
+      const cleanedAnswer = stripMarkdown(value || "");
+      const cleanedCorrectAnswer = correctAnswer ? stripMarkdown(correctAnswer) : undefined;
+      const cleanedExplanation = explanation ? stripMarkdown(explanation) : undefined;
+      if (responses.some((response) => response.question === cleanedQuestion && response.answer === cleanedAnswer)) return;
+      const isCorrect = cleanedAnswer && cleanedCorrectAnswer
+        ? cleanedAnswer.localeCompare(cleanedCorrectAnswer, undefined, { sensitivity: "accent" }) === 0
+        : undefined;
+      responses.push({
+        question: cleanedQuestion,
+        answer: cleanedAnswer,
+        correctAnswer: cleanedCorrectAnswer || undefined,
+        explanation: cleanedExplanation || undefined,
+        isCorrect,
+      });
     };
     if (step === "warm_up" || step === "lesson") addResponse(undefined, submission.blockResponses?.[step]);
     if (step === "listening") {
-      (lessonContent.listening?.questions || []).forEach((question: { id: string; question: string }) => addResponse(question.question, submission.listeningAnswers?.[question.id]));
+      (lessonContent.listening?.questions || []).forEach((question: { id: string; question: string; options?: string[]; correct_answer?: string; explanation?: string }) => addResponse(
+        question.question,
+        submission.listeningAnswers?.[question.id],
+        question.options?.length ? question.correct_answer || lessonContent.results?.answer_keys?.listening?.[question.id] : undefined,
+        question.explanation,
+      ));
     }
     if (step === "reading") {
-      (lessonContent.reading?.analytical_questions || []).forEach((question: { id: string; question: string }) => addResponse(question.question, submission.readingAnswers?.[question.id]));
+      (lessonContent.reading?.analytical_questions || []).forEach((question: { id: string; question: string; correct_answer?: string; explanation?: string }) => addResponse(
+        question.question,
+        submission.readingAnswers?.[question.id],
+        undefined,
+        question.explanation,
+      ));
     }
     if (step === "writing") {
-      addResponse("Writing response", submission.writingText);
+      addResponse(lessonContent.writing?.prompt?.text || "Writing response", submission.writingText);
       Object.entries(submission.writing_responses || {}).forEach(([id, value]) => addResponse(id, value));
     }
     const blocks = ((lessonContent[step] as { blocks?: ContentBlock[] } | undefined)?.blocks || []);
@@ -741,14 +765,29 @@ export default function LessonPage() {
       if (block.type === "text") {
         addResponse(block.title || "Response", submission.blockResponses?.[block.id]);
       } else if (block.type === "question") {
-        addResponse(block.prompt || block.title, block.question_type === "open_ended" ? submission.blockResponses?.[block.id] : submission.quizSelections?.[block.id]);
+        addResponse(
+          block.prompt || block.title,
+          block.question_type === "open_ended" ? submission.blockResponses?.[block.id] : submission.quizSelections?.[block.id],
+          block.question_type === "open_ended" ? undefined : block.correct_answer || lessonContent.results?.answer_keys?.[step]?.[block.id],
+          block.explanation,
+        );
       } else if (block.type === "quiz") {
-        block.questions.forEach((question) => addResponse(question.prompt, submission.quizSelections?.[question.id]));
+        block.questions.forEach((question) => addResponse(
+          question.prompt,
+          submission.quizSelections?.[question.id],
+          question.correct_answer || question.correctAnswer || lessonContent.results?.answer_keys?.[step]?.[question.id] || lessonContent.results?.quiz_breakdown?.find((item: { questionId: string; correctResponse: string }) => item.questionId === question.id)?.correctResponse,
+          question.explanation || lessonContent.results?.quiz_breakdown?.find((item: { questionId: string; explanation?: string }) => item.questionId === question.id)?.explanation,
+        ));
       } else if (block.type === "fill-in-the-blanks") {
         const blankQuestion = block.textWithBlanks.replace(/\[[^\]]+\]/g, "_____");
-        parseFillInBlanks(block.textWithBlanks).forEach((_, index) => addResponse(`${blankQuestion} (Blank ${index + 1})`, submission.blockResponses?.[`${block.id}-blank-${index}`]));
+        parseFillInBlanks(block.textWithBlanks).forEach((blank, index) => addResponse(
+          `${blankQuestion} (Blank ${index + 1})`,
+          submission.blockResponses?.[`${block.id}-blank-${index}`],
+          block.acceptableAnswers[index]?.join(" / ") || blank.answer,
+          block.explanation,
+        ));
       } else if (block.type === "writing") {
-        addResponse(block.title || "Writing response", submission.writing_responses?.[block.id] || submission.blockResponses?.[block.id]);
+        addResponse(block.prompt || block.title || "Writing response", submission.writing_responses?.[block.id] || submission.blockResponses?.[block.id], undefined, block.explanation);
       }
     });
     return responses;
@@ -766,26 +805,9 @@ export default function LessonPage() {
     return [...new Set(urls)];
   };
 
-  const getBlockAnswerKeys = (step: "warm_up" | "lesson" | "listening" | "reading") => {
-    const blocks = ((lessonContent[step] as { blocks?: ContentBlock[] } | undefined)?.blocks || []);
-    return blocks.flatMap((block) => {
-      if (block.type === "question") return block.correct_answer.trim();
-      if (block.type === "quiz") return block.questions.map((question) => (question.correct_answer || question.correctAnswer || "").trim());
-      if (block.type === "fill-in-the-blanks") return block.acceptableAnswers.flatMap((answers) => answers).map((answer) => answer.trim());
-      return [];
-    }).filter(Boolean).join("\n");
-  };
-
-  const getAnswerKeys = (step: "listening" | "reading") => {
-    const keys = step === "listening"
-      ? (lessonContent.listening?.questions || []).map((question: { id: string; correct_answer?: string }) => question.correct_answer || lessonContent.results?.answer_keys?.listening?.[question.id] || "")
-      : (lessonContent.reading?.analytical_questions || []).map((question: { id: string; correct_answer?: string }) => question.correct_answer || lessonContent.results?.answer_keys?.reading?.[question.id] || "");
-    return [...keys, getBlockAnswerKeys(step)].filter(Boolean).join("\n");
-  };
-
   const benchmarkResults = (lessonContent.results || {}) as {
     answer_keys?: Record<string, Record<string, string>>;
-    quiz_breakdown?: Array<{ questionId: string; correctResponse: string; skill: string }>;
+    quiz_breakdown?: Array<{ questionId: string; correctResponse: string; skill: string; explanation?: string }>;
     feedback_notes?: Record<string, string>;
     instructor_feedback?: { status?: string; strengths?: string; areasToImprove?: string; nextStep?: string };
     stepLabel?: string;
@@ -795,10 +817,10 @@ export default function LessonPage() {
   );
 
   const stepResults: StepResult[] = [
-    { id: "warm-up", step: "Warm-up", prompt: lessonContent.warm_up?.quote?.text || lessonContent.warm_up?.intro_narrative?.text, responses: getStepResponses("warm_up"), mediaUrls: getStepMediaUrls("warm_up"), referenceAnswer: getBlockAnswerKeys("warm_up") || undefined },
-    { id: "lesson", step: "Lesson", prompt: lessonContent.lesson?.core_concept?.text, responses: getStepResponses("lesson"), mediaUrls: getStepMediaUrls("lesson"), referenceAnswer: getBlockAnswerKeys("lesson") || undefined },
-    { id: "listening", step: "Listening", responses: getStepResponses("listening"), mediaUrls: getStepMediaUrls("listening"), referenceAnswer: getAnswerKeys("listening") || undefined },
-    { id: "reading", step: "Reading", responses: getStepResponses("reading"), mediaUrls: getStepMediaUrls("reading"), referenceAnswer: getAnswerKeys("reading") || undefined },
+    { id: "warm-up", step: "Warm-up", prompt: lessonContent.warm_up?.quote?.text || lessonContent.warm_up?.intro_narrative?.text, responses: getStepResponses("warm_up"), mediaUrls: getStepMediaUrls("warm_up") },
+    { id: "lesson", step: "Lesson", prompt: lessonContent.lesson?.core_concept?.text, responses: getStepResponses("lesson"), mediaUrls: getStepMediaUrls("lesson") },
+    { id: "listening", step: "Listening", responses: getStepResponses("listening"), mediaUrls: getStepMediaUrls("listening") },
+    { id: "reading", step: "Reading", responses: getStepResponses("reading"), mediaUrls: getStepMediaUrls("reading") },
     { id: "writing", step: "Writing", prompt: lessonContent.writing?.prompt?.text, responses: getStepResponses("writing"), mediaUrls: getStepMediaUrls("writing") },
     { id: "speaking", step: "Speaking", prompt: lessonContent.speaking?.scenario?.text, responses: getStepResponses("speaking"), mediaUrls: getStepMediaUrls("speaking") },
   ];
@@ -1234,23 +1256,6 @@ export default function LessonPage() {
                 {lessonContent.results?.self_reflection?.text && <p className="text-stone-400 text-sm">{lessonContent.results.self_reflection.text}</p>}
               </div>
               <div className="grid gap-4 text-left md:grid-cols-2">
-                {benchmarkResults.answer_keys && <div className="rounded-xl border border-[#202631] bg-[#121721] p-5">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Answer Keys</p>
-                  <div className="mt-3 space-y-3 text-sm text-stone-300">
-                    {Object.entries(benchmarkResults.answer_keys).map(([section, answers]) => (
-                      <div key={section}>
-                        <p className="text-xs font-semibold capitalize text-stone-400">{section.replaceAll("_", " ")}</p>
-                        {Object.entries(answers).map(([questionId, answer]) => <p key={questionId} className="mt-1"><span className="text-stone-500">{questionId}:</span> {answer}</p>)}
-                      </div>
-                    ))}
-                  </div>
-                </div>}
-                {benchmarkResults.quiz_breakdown?.length ? <div className="rounded-xl border border-[#202631] bg-[#121721] p-5">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Quiz Breakdown</p>
-                  <div className="mt-3 space-y-3 text-sm text-stone-300">
-                    {benchmarkResults.quiz_breakdown.map((item) => <div key={item.questionId}><p className="text-xs text-stone-500">{item.skill}</p><p className="mt-1">{item.questionId}: <span className="text-amber-200">{item.correctResponse}</span></p></div>)}
-                  </div>
-                </div> : null}
               </div>
               {resultSummary?.type === "text" && <div className="rounded-xl border border-[#202631] bg-[#121721] p-5 text-left">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Summary</p>
@@ -1266,30 +1271,35 @@ export default function LessonPage() {
                 <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Instructor Feedback</p><span className="rounded border border-amber-500/30 px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-amber-300">{benchmarkResults.instructor_feedback.status || "pending"}</span></div>
                 <p className="mt-3 text-sm text-stone-400">Your instructor feedback will appear here after your writing and speaking responses are reviewed.</p>
               </div>}
-              <div className="space-y-3 text-left">
+              <div className="space-y-5 text-left">
                 {stepResults.map((result) => (
-                  <div key={result.id} className="grid gap-3 rounded-xl border border-[#202631] bg-[#121721] p-4 md:grid-cols-[150px_1fr]">
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">{result.step}</p>
+                  <section key={result.id} className="rounded-xl border border-[#202631] bg-[#121721] p-5">
+                    <div className="mb-4 border-b border-[#202631] pb-3">
+                      <h4 className="text-sm font-semibold uppercase tracking-[0.12em] text-amber-400">{result.step}</h4>
+                      {result.prompt && <p className="mt-2 whitespace-pre-wrap text-sm text-stone-400">{stripMarkdown(result.prompt)}</p>}
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {result.responses.length > 0 ? result.responses.map((response, index) => <div key={`${response.question || "response"}-${index}`} className="contents">
-                        <div>
-                          <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">Question</p>
-                          <p className="mt-1 whitespace-pre-wrap text-sm text-stone-400">{response.question || result.prompt || "Response"}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">Student&apos;s response</p>
-                          <p className="mt-1 whitespace-pre-wrap text-sm text-stone-300">{response.answer}</p>
-                        </div>
-                      </div>) : !result.mediaUrls?.length && <p className="text-sm text-stone-500">No response submitted</p>}
-                      {result.mediaUrls?.map((url, index) => <div key={`${url}-${index}`} className="sm:col-span-2"><CustomAudioPlayer src={url} label={`${result.step} recording`} /></div>)}
-                      {result.referenceAnswer && <div>
-                        <p className="text-[10px] uppercase tracking-[0.1em] text-amber-500/80">Reference / Correct Answer</p>
-                        <p className="mt-1 whitespace-pre-wrap text-sm text-amber-200">{result.referenceAnswer}</p>
-                      </div>}
+                    <div className="space-y-3">
+                      {result.responses.map((response, index) => (
+                        <article key={`${response.question}-${index}`} className="rounded-lg border border-[#293343] bg-[#0c1017] p-4">
+                          <h5 className="text-sm font-medium leading-relaxed text-stone-100">Question {index + 1}: {response.question}</h5>
+                          <div className="mt-3">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Your Response</p>
+                            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-stone-300">{response.answer || <span className="italic text-stone-500">No response submitted</span>}</p>
+                          </div>
+                          {response.correctAnswer && <div className="mt-3">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-500/80">Correct Answer</p>
+                            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-amber-200">{response.correctAnswer}</p>
+                          </div>}
+                          {(response.explanation || response.isCorrect === false) && <div className="mt-3 border-t border-[#293343] pt-3">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Explanation</p>
+                            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-stone-400">{response.explanation || "Compare your response with the correct answer."}</p>
+                          </div>}
+                        </article>
+                      ))}
+                      {!result.responses.length && !result.mediaUrls?.length && <p className="text-sm text-stone-500">No response submitted</p>}
+                      {result.mediaUrls?.map((url, index) => <div key={`${url}-${index}`}><CustomAudioPlayer src={url} label={`${result.step} recording`} /></div>)}
                     </div>
-                  </div>
+                  </section>
                 ))}
               </div>
 
