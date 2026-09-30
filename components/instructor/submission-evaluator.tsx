@@ -4,11 +4,8 @@ import React, { useEffect, useState } from "react";
 import { CheckCircle, Award, AlertCircle } from "lucide-react";
 import { LessonEvaluation } from "@/types/lesson";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import {
-  getSubmissionByLessonAndStudent,
-  createEvaluation,
-  updateEvaluation,
-} from "@/lib/evaluations";
+import { getSubmissionByLessonAndStudent } from "@/lib/evaluations";
+import { saveInstructorFeedback } from "@/services/storage-service";
 
 export interface FeedbackPayload {
   scores: Record<string, number>;
@@ -73,7 +70,6 @@ export function SubmissionEvaluator({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
-  const [evaluationId, setEvaluationId] = useState<string | null>(null);
   const [submissionLoadState, setSubmissionLoadState] = useState<
     "idle" | "loading" | "loaded" | "missing"
   >(useSupabase ? "idle" : "loaded");
@@ -107,9 +103,6 @@ export function SubmissionEvaluator({
       if (submission) {
         setSubmissionId(submission.id);
         setSubmissionLoadState("loaded");
-        if (submission.evaluation) {
-          setEvaluationId(submission.evaluation.id);
-        }
       } else if (pendingSubmissionId) {
         setSubmissionId(pendingSubmissionId);
         setSubmissionLoadState("loaded");
@@ -135,28 +128,6 @@ export function SubmissionEvaluator({
           studyHubPrescription: feedback.study_hub_prescription || undefined,
           voiceFeedbackUrl: feedback.voice_feedback_url || undefined,
           published: Boolean(feedback.is_published),
-        });
-      } else if (submission?.evaluation) {
-        const evaluationFeedback = submission.evaluation.feedback || "";
-        let legacyRubric: Partial<LessonEvaluation> | null = null;
-        if (evaluationFeedback.startsWith("FLUENTIA_REPORT_CARD:")) {
-          try {
-            legacyRubric = JSON.parse(evaluationFeedback.slice("FLUENTIA_REPORT_CARD:".length)) as Partial<LessonEvaluation>;
-          } catch {
-            legacyRubric = null;
-          }
-        }
-        const rubricScores = legacyRubric?.scores || defaultScores;
-        onUpdateEvaluation?.({
-          scores: rubricScores,
-          totalScore: Number(submission.evaluation.score ?? legacyRubric?.totalScore ?? Object.values(rubricScores).reduce<number>((total, score) => total + Number(score), 0)),
-          comments: legacyRubric?.comments || evaluationFeedback,
-          criterionFeedback: legacyRubric?.criterionFeedback || {},
-          strengths: legacyRubric?.strengths,
-          areasToImprove: legacyRubric?.areasToImprove,
-          studyHubPrescription: legacyRubric?.studyHubPrescription,
-          voiceFeedbackUrl: legacyRubric?.voiceFeedbackUrl,
-          published: true,
         });
       }
     } catch (error) {
@@ -188,7 +159,7 @@ export function SubmissionEvaluator({
     }
 
     // Supabase-based submission
-    if (!lessonId || !studentId || !instructorId || !submissionId) {
+    if (!lessonId || !studentId || !submissionId) {
       setSubmitError("Missing required data for submission");
       return;
     }
@@ -205,38 +176,14 @@ export function SubmissionEvaluator({
         return;
       }
 
-      const feedbackText = `
-Scores:
-- Task Achievement & Depth: ${scores.task}/5
-- Coherence & Flow: ${scores.coherence}/5
-- Lexical Precision & Range: ${scores.lexical}/5
-- Grammatical Accuracy: ${scores.grammar}/5
-
-${Object.entries(criterionFeedback)
-  .filter(([, value]) => value)
-  .map(([criterion, feedback]) => `${criterion}: ${feedback}`)
-  .join("\n\n")}
-
-General Feedback:
-${comments}
-      `.trim();
-
-      if (evaluationId) {
-        // Update existing evaluation
-        await updateEvaluation(evaluationId, {
-          feedback: feedbackText,
-          score: totalScoreNumeric,
-        });
-      } else {
-        // Create new evaluation
-        const result = await createEvaluation({
-          submission_id: submissionId,
-          instructor_id: instructorId,
-          feedback: feedbackText,
-          score: totalScoreNumeric,
-        });
-        setEvaluationId(result.id);
-      }
+      await saveInstructorFeedback(lessonId, studentId, {
+        ...evaluation,
+        scores,
+        totalScore: totalScoreNumeric,
+        comments,
+        criterionFeedback,
+        published: true,
+      });
 
       setIsSubmitted(true);
       setTimeout(() => setIsSubmitted(false), 3000);

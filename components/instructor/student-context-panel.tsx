@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { Target, AlertCircle, History, Sparkles, Loader } from "lucide-react";
 import { StudentProfile } from "@/types/lesson";
 import type { StudentProfileSaveMode } from "@/lib/student-profiles";
-import { getSubmissionByLessonAndStudent, getEvaluationBySubmissionId } from "@/lib/evaluations";
+import { getSubmissionByLessonAndStudent } from "@/lib/evaluations";
 
 interface StudentContextPanelProps {
   studentName?: string;

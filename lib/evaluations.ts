@@ -5,14 +5,14 @@
 
 import { supabase, type SubmissionRow, type EvaluationRow, isSupabaseConfigured } from "@/lib/supabase";
 
-function isMissingEvaluationTable(error: unknown) {
+function isMissingFeedbackTable(error: unknown) {
   if (!error || typeof error !== "object") return false;
   const details = error as { code?: string; message?: string; status?: number };
   return details.status === 404
     || details.code === "42P01"
     || details.code === "PGRST204"
     || details.code === "PGRST205"
-    || /relation .*evaluations.* does not exist|could not find the table .*evaluations|schema cache/i.test(details.message || "");
+    || /does not exist|could not find the table|schema cache/i.test(details.message || "");
 }
 
 // ============================================================================
@@ -45,6 +45,28 @@ export interface UpdateEvaluationInput {
 
 export interface SubmissionWithEvaluation extends SubmissionRow {
   evaluation?: EvaluationRow;
+}
+
+async function getFeedbackForSubmission(submission: SubmissionRow): Promise<EvaluationRow | undefined> {
+  const { data, error } = await supabase
+    .from("instructor_feedback")
+    .select("*")
+    .eq("lesson_id", submission.lesson_id)
+    .eq("student_id", submission.student_id)
+    .maybeSingle();
+  if (error) {
+    if (isMissingFeedbackTable(error) || error.code === "PGRST116") return undefined;
+    throw error;
+  }
+  if (!data) return undefined;
+  return {
+    id: data.id,
+    submission_id: submission.id,
+    instructor_id: data.instructor_id || "",
+    feedback: data.comments || "",
+    score: data.total_score ?? null,
+    evaluated_at: data.updated_at || "",
+  };
 }
 
 // ============================================================================
@@ -106,14 +128,7 @@ export async function getSubmissionById(id: string): Promise<SubmissionWithEvalu
 
     if (!submission) return null;
 
-    // Fetch evaluation if exists
-    const { data: evaluation } = await supabase
-      .from("evaluations")
-      .select("*")
-      .eq("submission_id", id)
-      .order("evaluated_at", { ascending: false })
-      .limit(1)
-      .single();
+    const evaluation = await getFeedbackForSubmission(submission);
 
     return {
       ...submission,
@@ -144,22 +159,12 @@ export async function getSubmissionsByLessonId(
 
     if (error) throw error;
 
-    // Enrich with evaluations
+    // Enrich with published instructor feedback.
     const enriched = await Promise.all(
-      (submissions || []).map(async (submission) => {
-        const { data: evaluation } = await supabase
-          .from("evaluations")
-          .select("*")
-          .eq("submission_id", submission.id)
-          .order("evaluated_at", { ascending: false })
-          .limit(1)
-          .single();
-
-        return {
-          ...submission,
-          evaluation: evaluation || undefined,
-        };
-      })
+      (submissions || []).map(async (submission) => ({
+        ...submission,
+        evaluation: await getFeedbackForSubmission(submission),
+      }))
     );
 
     return enriched;
@@ -188,22 +193,12 @@ export async function getSubmissionsByStudentId(
 
     if (error) throw error;
 
-    // Enrich with evaluations
+    // Enrich with published instructor feedback.
     const enriched = await Promise.all(
-      (submissions || []).map(async (submission) => {
-        const { data: evaluation } = await supabase
-          .from("evaluations")
-          .select("*")
-          .eq("submission_id", submission.id)
-          .order("evaluated_at", { ascending: false })
-          .limit(1)
-          .single();
-
-        return {
-          ...submission,
-          evaluation: evaluation || undefined,
-        };
-      })
+      (submissions || []).map(async (submission) => ({
+        ...submission,
+        evaluation: await getFeedbackForSubmission(submission),
+      }))
     );
 
     return enriched;
@@ -240,14 +235,7 @@ export async function getSubmissionByLessonAndStudent(
 
     if (!submission) return null;
 
-    // Fetch evaluation if exists
-    const { data: evaluation } = await supabase
-      .from("evaluations")
-      .select("*")
-      .eq("submission_id", submission.id)
-      .order("evaluated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const evaluation = await getFeedbackForSubmission(submission);
 
     return {
       ...submission,
@@ -326,38 +314,45 @@ export async function createEvaluation(
     throw new Error("Supabase not configured");
   }
 
-  try {
-    // Insert evaluation
-    const instructorUuid = input.instructor_id;
-    const { data: evaluation, error: evalError } = await supabase
-      .from("evaluations")
-      .insert([
-        {
-          submission_id: input.submission_id,
-          instructor_id: instructorUuid,
-          feedback: input.feedback || null,
-          score: input.score || null,
-          evaluated_at: new Date().toISOString(),
-        },
-      ])
-      .select()
-      .single();
+  const { data: submission, error: submissionError } = await supabase
+    .from("submissions")
+    .select("id,lesson_id,student_id")
+    .eq("id", input.submission_id)
+    .maybeSingle();
+  if (submissionError) throw submissionError;
+  if (!submission) throw new Error("Submission not found.");
 
-    if (evalError) throw evalError;
+  const evaluatedAt = new Date().toISOString();
+  const { data: feedback, error: feedbackError } = await supabase
+    .from("instructor_feedback")
+    .upsert({
+      lesson_id: submission.lesson_id,
+      student_id: submission.student_id,
+      rubric_scores: {},
+      total_score: input.score || 0,
+      comments: input.feedback || "",
+      criterion_feedback: {},
+      is_published: true,
+      updated_at: evaluatedAt,
+    }, { onConflict: "lesson_id,student_id" })
+    .select("*")
+    .single();
+  if (feedbackError) throw feedbackError;
 
-    // Update submission status to 'reviewed'
-    const { error: updateError } = await supabase
-      .from("submissions")
-      .update({ status: "evaluated" })
-      .eq("id", input.submission_id);
+  const { error: statusError } = await supabase
+    .from("submissions")
+    .update({ status: "evaluated" })
+    .eq("id", input.submission_id);
+  if (statusError) throw statusError;
 
-    if (updateError) throw updateError;
-
-    return evaluation;
-  } catch (error) {
-    if (!isMissingEvaluationTable(error)) console.error("Error creating evaluation:", error);
-    throw error;
-  }
+  return {
+    id: feedback.id,
+    submission_id: input.submission_id,
+    instructor_id: input.instructor_id,
+    feedback: feedback.comments || "",
+    score: feedback.total_score ?? input.score ?? null,
+    evaluated_at: feedback.updated_at || evaluatedAt,
+  };
 }
 
 /**
@@ -369,19 +364,33 @@ export async function getEvaluationById(id: string): Promise<EvaluationRow | nul
   }
 
   try {
-    const { data, error } = await supabase
-      .from("evaluations")
+    const { data: feedback, error } = await supabase
+      .from("instructor_feedback")
       .select("*")
       .eq("id", id)
-      .single();
+      .maybeSingle();
 
-    if (error && error.code !== "PGRST116") {
-      throw error;
-    }
-
-    return data || null;
+    if (error) throw error;
+    if (!feedback) return null;
+    const { data: submission, error: submissionError } = await supabase
+      .from("submissions")
+      .select("id")
+      .eq("lesson_id", feedback.lesson_id)
+      .eq("student_id", feedback.student_id)
+      .order("submitted_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (submissionError) throw submissionError;
+    return submission ? {
+      id: feedback.id,
+      submission_id: submission.id,
+      instructor_id: "",
+      feedback: feedback.comments || "",
+      score: feedback.total_score ?? null,
+      evaluated_at: feedback.updated_at || "",
+    } : null;
   } catch (error) {
-    if (isMissingEvaluationTable(error)) return null;
+    if (isMissingFeedbackTable(error)) return null;
     console.error(`Error fetching evaluation ${id}:`, error);
     throw error;
   }
@@ -398,21 +407,15 @@ export async function getEvaluationBySubmissionId(
   }
 
   try {
-    const { data, error } = await supabase
-      .from("evaluations")
+    const { data: submission, error: submissionError } = await supabase
+      .from("submissions")
       .select("*")
-      .eq("submission_id", submissionId)
-      .order("evaluated_at", { ascending: false })
-      .limit(1)
-      .single();
-
-    if (error && error.code !== "PGRST116") {
-      throw error;
-    }
-
-    return data || null;
+      .eq("id", submissionId)
+      .maybeSingle();
+    if (submissionError) throw submissionError;
+    return submission ? await getFeedbackForSubmission(submission) || null : null;
   } catch (error) {
-    if (isMissingEvaluationTable(error)) return null;
+    if (isMissingFeedbackTable(error)) return null;
     console.error(`Error fetching evaluation for submission ${submissionId}:`, error);
     throw error;
   }
@@ -427,29 +430,32 @@ export async function getEvaluationsByLessonId(lessonId: string): Promise<Evalua
   }
 
   try {
-    // First get all submissions for this lesson
+    const { data: feedbackRows, error } = await supabase
+      .from("instructor_feedback")
+      .select("*")
+      .eq("lesson_id", lessonId)
+      .order("updated_at", { ascending: false });
+    if (error) throw error;
+    if (!feedbackRows?.length) return [];
+
     const { data: submissions, error: subError } = await supabase
       .from("submissions")
-      .select("id")
+      .select("id,lesson_id,student_id")
       .eq("lesson_id", lessonId);
-
     if (subError) throw subError;
-
-    const submissionIds = (submissions || []).map((s) => s.id);
-    if (submissionIds.length === 0) return [];
-
-    // Then get evaluations for those submissions
-    const { data: evaluations, error } = await supabase
-      .from("evaluations")
-      .select("*")
-      .in("submission_id", submissionIds)
-      .order("evaluated_at", { ascending: false });
-
-    if (error) throw error;
-
-    return evaluations || [];
+    return feedbackRows.flatMap((feedback) => {
+      const submission = submissions?.find((row) => row.student_id === feedback.student_id);
+      return submission ? [{
+        id: feedback.id,
+        submission_id: submission.id,
+        instructor_id: "",
+        feedback: feedback.comments || "",
+        score: feedback.total_score ?? null,
+        evaluated_at: feedback.updated_at || "",
+      }] : [];
+    });
   } catch (error) {
-    if (isMissingEvaluationTable(error)) return [];
+    if (isMissingFeedbackTable(error)) return [];
     console.error(`Error fetching evaluations for lesson ${lessonId}:`, error);
     throw error;
   }
@@ -466,17 +472,37 @@ export async function getEvaluationsByInstructorId(
   }
 
   try {
-    const { data, error } = await supabase
-      .from("evaluations")
+    const { data: lessons, error: lessonError } = await supabase
+      .from("lessons")
+      .select("id")
+      .eq("instructor_id", instructorId);
+    if (lessonError) throw lessonError;
+    const lessonIds = (lessons || []).map((lesson) => lesson.id);
+    if (!lessonIds.length) return [];
+    const { data: feedbackRows, error } = await supabase
+      .from("instructor_feedback")
       .select("*")
-      .eq("instructor_id", instructorId)
-      .order("evaluated_at", { ascending: false });
-
+      .in("lesson_id", lessonIds)
+      .order("updated_at", { ascending: false });
     if (error) throw error;
-
-    return data || [];
+    const { data: submissions, error: submissionsError } = await supabase
+      .from("submissions")
+      .select("id,lesson_id,student_id")
+      .in("lesson_id", lessonIds);
+    if (submissionsError) throw submissionsError;
+    return (feedbackRows || []).flatMap((feedback) => {
+      const submission = submissions?.find((row) => row.lesson_id === feedback.lesson_id && row.student_id === feedback.student_id);
+      return submission ? [{
+        id: feedback.id,
+        submission_id: submission.id,
+        instructor_id: instructorId,
+        feedback: feedback.comments || "",
+        score: feedback.total_score ?? null,
+        evaluated_at: feedback.updated_at || "",
+      }] : [];
+    });
   } catch (error) {
-    if (isMissingEvaluationTable(error)) return [];
+    if (isMissingFeedbackTable(error)) return [];
     console.error(`Error fetching evaluations for instructor ${instructorId}:`, error);
     throw error;
   }
@@ -494,17 +520,38 @@ export async function updateEvaluation(
   }
 
   try {
-    const { data, error } = await supabase
-      .from("evaluations")
-      .update(input)
+    const { data: feedback, error } = await supabase
+      .from("instructor_feedback")
+      .update({
+        ...(input.feedback !== undefined ? { comments: input.feedback } : {}),
+        ...(input.score !== undefined ? { total_score: input.score } : {}),
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", id)
       .select()
       .single();
 
     if (error) throw error;
-    return data;
+    const { data: submission, error: submissionError } = await supabase
+      .from("submissions")
+      .select("id")
+      .eq("lesson_id", feedback.lesson_id)
+      .eq("student_id", feedback.student_id)
+      .order("submitted_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (submissionError) throw submissionError;
+    if (!submission) throw new Error("Submission not found for this feedback row.");
+    return {
+      id: feedback.id,
+      submission_id: submission.id,
+      instructor_id: "",
+      feedback: feedback.comments || "",
+      score: feedback.total_score ?? null,
+      evaluated_at: feedback.updated_at || "",
+    };
   } catch (error) {
-    if (!isMissingEvaluationTable(error)) console.error(`Error updating evaluation ${id}:`, error);
+    if (!isMissingFeedbackTable(error)) console.error(`Error updating evaluation ${id}:`, error);
     throw error;
   }
 }
@@ -518,22 +565,19 @@ export async function deleteEvaluation(id: string): Promise<void> {
   }
 
   try {
-    // Get submission ID before deleting evaluation
     const evaluation = await getEvaluationById(id);
     if (!evaluation) throw new Error("Evaluation not found");
 
-    // Delete evaluation
     const { error: deleteError } = await supabase
-      .from("evaluations")
+      .from("instructor_feedback")
       .delete()
       .eq("id", id);
 
     if (deleteError) throw deleteError;
 
-    // Reset submission status back to 'submitted'
     await updateSubmission(evaluation.submission_id, { status: "pending_evaluation" });
   } catch (error) {
-    if (!isMissingEvaluationTable(error)) console.error(`Error deleting evaluation ${id}:`, error);
+    if (!isMissingFeedbackTable(error)) console.error(`Error deleting evaluation ${id}:`, error);
     throw error;
   }
 }
