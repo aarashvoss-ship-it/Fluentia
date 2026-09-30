@@ -840,7 +840,6 @@ export default function LessonPage() {
     { id: "writing", step: "Writing", prompt: lessonContent.writing?.prompt?.text, responses: getStepResponses("writing") },
     { id: "speaking", step: "Speaking", prompt: lessonContent.speaking?.scenario?.text, responses: getStepResponses("speaking") },
   ];
-  const interactiveStepResults = stepResults.filter((result) => result.responses.length > 0);
 
   const currentIndex = STUDY_STEPS.findIndex((s) => s.id === currentStep);
   const lockedSteps = getLockedSteps(completedSteps);
@@ -1289,13 +1288,17 @@ export default function LessonPage() {
                 <p className="mt-3 text-sm text-stone-400">Your instructor feedback will appear here after your writing and speaking responses are reviewed.</p>
               </div>}
               <div className="space-y-5 text-left">
-                {interactiveStepResults.map((result) => (
+                {stepResults.map((result) => (
                   <section key={result.id} className="rounded-xl border border-[#202631] bg-[#121721] p-5">
                     <div className="mb-4 border-b border-[#202631] pb-3">
                       <h4 className="text-sm font-semibold uppercase tracking-[0.12em] text-amber-400">{result.step}</h4>
                       {result.prompt && <p className="mt-2 whitespace-pre-wrap text-sm text-stone-400">{stripMarkdown(result.prompt)}</p>}
                     </div>
                     <div className="space-y-3">
+                      {result.responses.length === 0 && <div className="rounded-lg border border-dashed border-[#394252] bg-[#0c1017]/60 px-4 py-5 text-center">
+                        <p className="text-sm font-medium text-stone-300">Instructional Step Completed</p>
+                        <p className="mt-1 text-xs leading-relaxed text-stone-500">This stage focused on learning content and required no interactive response.</p>
+                      </div>}
                       {result.responses.map((response, index) => (
                         <article key={`${response.question}-${index}`} className="rounded-lg border border-[#293343] bg-[#0c1017] p-4">
                           <h5 className="text-sm font-medium leading-relaxed text-stone-100">Question {index + 1}: {response.question}</h5>
@@ -1414,7 +1417,7 @@ export default function LessonPage() {
         onReview={handleReviewAnswers}
         studentName={studentDisplayName}
         dashboardHref="/dashboard"
-        stepResults={interactiveStepResults}
+        stepResults={stepResults}
         isSubmitting={isSubmitting}
         submitError={submissionSaveError}
       />

@@ -98,7 +98,10 @@ export function CelebrationModal({
                         <p className="mt-1 whitespace-pre-wrap text-stone-300">{response.explanation || "Compare your response with the correct answer."}</p>
                       </div>}
                     </article>)}
-                    {!result.responses.length && <p className="text-stone-500">No response submitted</p>}
+                    {!result.responses.length && <div className="rounded-md border border-dashed border-stone-800 bg-black/20 px-3 py-4 text-center">
+                      <p className="font-medium text-stone-300">Instructional Step Completed</p>
+                      <p className="mt-1 leading-relaxed text-stone-500">This stage focused on learning content and required no interactive response.</p>
+                    </div>}
                   </div>
                 </section>
               ))}
