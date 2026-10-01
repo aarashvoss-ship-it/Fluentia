@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { ChunkErrorRecoveryReset } from "@/components/shared/chunk-error-recovery";
+import { DisplaySettingsProvider } from "@/components/shared/display-settings";
 import "./globals.css";
 
 const inter = Inter({
@@ -26,7 +27,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning className={`${inter.variable} font-sans`}>
       <body suppressHydrationWarning className={`${inter.className} antialiased bg-background text-text-primary selection:bg-accent/20 selection:text-accent`}>
         <ChunkErrorRecoveryReset />
-        {children}
+        <DisplaySettingsProvider>{children}</DisplaySettingsProvider>
       </body>
     </html>
   );
