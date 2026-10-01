@@ -88,21 +88,21 @@ const AVATAR_PRESETS = [
 const BANNER_PRESETS = [
   {
     id: "default-dark",
-    label: "Default Dark",
+    label: "Default",
     image:
-      "https://images.unsplash.com/photo-1519608487953-e999c86e7455?w=1600&q=85",
+      "https://images.unsplash.com/photo-1460551204960-763bc82b7d8f?q=80&w=1172&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
   {
     id: "mountains",
-    label: "Mountains",
+    label: "Preset 2",
     image:
-      "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1600&q=85",
+      "https://plus.unsplash.com/premium_photo-1664303991463-36449a65d3d6?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
   {
     id: "architecture",
-    label: "Abstract Architecture",
+    label: "Preset 3",
     image:
-      "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=1600&q=85",
+      "https://images.unsplash.com/photo-1674340344714-60088fbfbde3?q=80&w=747&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
 ] as const;
 
@@ -118,6 +118,8 @@ type ProfilePreferences = {
   customAvatarUrl?: string;
   bannerPreset?: (typeof BANNER_PRESETS)[number]["id"];
   customBannerUrl?: string;
+  bannerPosition?: number;
+  banner_position?: number;
 };
 
 type DashboardError = {
@@ -195,6 +197,7 @@ function DashboardContent() {
   const [bannerPreset, setBannerPreset] =
     useState<ProfilePreferences["bannerPreset"]>("default-dark");
   const [customBannerUrl, setCustomBannerUrl] = useState("");
+  const [bannerPosition, setBannerPosition] = useState(50);
   const [profileImageStatus, setProfileImageStatus] = useState<string | null>(null);
   const [profileSaveNotice, setProfileSaveNotice] = useState<string | null>(null);
   const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
@@ -236,6 +239,9 @@ function DashboardContent() {
           : customization.avatar_url || "";
         setCustomAvatarUrl(avatarUrl);
         setCustomBannerUrl(customization.banner_url || "");
+        if (typeof customization.banner_position === "number") {
+          setBannerPosition(customization.banner_position);
+        }
         setActiveStudent((current) => current ? {
           ...current,
           profile: {
@@ -374,6 +380,9 @@ function DashboardContent() {
         setAvatarInitials(savedInitials.replace(/[^a-z]/gi, "").slice(0, 3).toUpperCase());
         setCustomAvatarUrl(profile.avatarUrl || localPreferences.customAvatarUrl || localPreferences.avatar_url || localCustomization.custom_avatar_url || localCustomization.avatar_url || "");
         setCustomBannerUrl(profile.bannerUrl || localPreferences.customBannerUrl || localPreferences.banner_url || localCustomization.banner_url || "");
+        setBannerPreset(localPreferences.bannerPreset || "default-dark");
+        const savedBannerPosition = localPreferences.bannerPosition ?? localPreferences.banner_position ?? localCustomization.banner_position;
+        setBannerPosition(typeof savedBannerPosition === "number" ? savedBannerPosition : 50);
         console.log("[Student Profile Modal] profile load identifier:", {
           studentToken,
           studentId: activeStudent.id,
@@ -664,6 +673,8 @@ function DashboardContent() {
         setCustomBannerUrl(
           active.profile.bannerUrl || preferences.customBannerUrl || preferences.banner_url || localCustomization.banner_url || "",
         );
+        const savedBannerPosition = preferences.bannerPosition ?? preferences.banner_position ?? localCustomization.banner_position ?? userMetadata.banner_position;
+        setBannerPosition(typeof savedBannerPosition === "number" && Number.isFinite(savedBannerPosition) ? savedBannerPosition : 50);
         setIsMounted(true);
         const refreshLessons = () =>
           void loadDashboard(studentToken).catch((error) =>
@@ -916,6 +927,8 @@ function DashboardContent() {
       bannerPreset,
       banner_url: bannerUrl,
       customBannerUrl: bannerUrl,
+      bannerPosition,
+      banner_position: bannerPosition,
     };
     const customization = {
       avatar_bg_color: nextAvatarColor,
@@ -923,6 +936,7 @@ function DashboardContent() {
       avatar_url: avatarUrl,
       custom_avatar_url: avatarUrl,
       banner_url: bannerUrl,
+      banner_position: bannerPosition,
     };
     try {
       window.localStorage.setItem("student_customization", JSON.stringify(customization));
@@ -961,6 +975,7 @@ function DashboardContent() {
           avatar_url: avatarUrl,
           custom_avatar_url: avatarUrl,
           banner_url: bannerUrl,
+          banner_position: bannerPosition,
         },
       });
       if (metadataError) throw metadataError;
@@ -1067,11 +1082,7 @@ function DashboardContent() {
       <div className="mx-auto max-w-7xl px-4 pt-6 md:px-6">
         <header
           style={{
-            backgroundImage: hasCustomBanner
-              ? `url("${dashboardHeaderBanner}")`
-              : `linear-gradient(90deg, rgba(12,16,23,.96), rgba(12,16,23,.62)), url("${dashboardHeaderBanner}")`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
+            backgroundColor: "#0c1017",
           }}
           className="relative flex min-h-[280px] w-full items-start overflow-hidden rounded-xl bg-slate-950 bg-cover bg-center md:min-h-[300px]"
         >
@@ -1079,20 +1090,15 @@ function DashboardContent() {
             src={dashboardHeaderBanner}
             alt=""
             onError={() => setBannerLoadFailed(true)}
-            className="absolute inset-0 h-full w-full object-cover opacity-0"
+            style={{ objectPosition: `center ${bannerPosition}%` }}
+            className="absolute inset-0 h-full w-full object-cover"
             aria-hidden="true"
           />
           {!hasCustomBanner && (
-            <>
-              <div
-                className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=1800&q=80')] bg-cover bg-center opacity-40"
-                aria-hidden="true"
-              />
-              <div
-                className="absolute inset-0 bg-[linear-gradient(0deg,rgba(12,16,23,.98),transparent_65%)]"
-                aria-hidden="true"
-              />
-            </>
+            <div
+              className="absolute inset-0 bg-[linear-gradient(90deg,rgba(12,16,23,.72),rgba(12,16,23,.24)),linear-gradient(0deg,rgba(12,16,23,.92),transparent_65%)]"
+              aria-hidden="true"
+            />
           )}
           <div className="relative z-10 flex w-full flex-col items-start px-4 pt-6 pb-8 md:px-6 text-left">
             {profileOpen && (
@@ -1599,6 +1605,51 @@ function DashboardContent() {
                         </div>
                         <div className="space-y-2">
                           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Custom banner image</p>
+                          <div className="grid grid-cols-3 gap-2" aria-label="Preset banner gallery">
+                            {BANNER_PRESETS.map((preset) => {
+                              const isSelected = bannerPreset === preset.id
+                                && (!customBannerUrl.trim() || customBannerUrl.trim() === preset.image);
+                              return (
+                                <button
+                                  key={preset.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setBannerPreset(preset.id);
+                                    setCustomBannerUrl(preset.image);
+                                    setBannerLoadFailed(false);
+                                  }}
+                                  aria-label={`Use ${preset.label} banner`}
+                                  aria-pressed={isSelected}
+                                  className={`overflow-hidden rounded-md border transition ${isSelected ? "border-amber-500 ring-1 ring-amber-500/50" : "border-[#394252] hover:border-amber-500/50"}`}
+                                >
+                                  <img src={preset.image} alt="" className="h-12 w-full object-cover" />
+                                  <span className="block truncate px-1.5 py-1 text-left text-[9px] text-stone-300">
+                                    {preset.label}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <div className="overflow-hidden rounded-md border border-[#29303c] bg-[#0c1017]">
+                            <img
+                              src={activeBannerUrl}
+                              alt="Banner preview"
+                              style={{ objectPosition: `center ${bannerPosition}%` }}
+                              className="h-20 w-full object-cover"
+                            />
+                          </div>
+                          <label className="block text-[10px] text-stone-400">
+                            Vertical position <span className="float-right text-stone-500">{bannerPosition}%</span>
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={bannerPosition}
+                              onChange={(event) => setBannerPosition(Number(event.target.value))}
+                              aria-label="Banner vertical position"
+                              className="mt-1 w-full accent-amber-500"
+                            />
+                          </label>
                           <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 hover:border-amber-500/50">
                             <Upload className="h-4 w-4" />{isUploadingBanner ? "Uploading banner..." : "Upload banner image"}
                             <input ref={bannerFileRef} type="file" accept="image/jpeg,image/png,image/webp" disabled={isUploadingBanner} onChange={(event) => void uploadProfileImage(event.target.files?.[0], "banner")} className="sr-only" />
