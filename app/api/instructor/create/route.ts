@@ -22,7 +22,7 @@ async function upsertInstructorWithSchemaFallback(
   adminClient: SupabaseClient,
   payload: Record<string, unknown>,
 ): Promise<{ data: Record<string, unknown>; omittedColumns: string[] }> {
-  let currentPayload = { ...payload };
+  const currentPayload = { ...payload };
   let selectedColumns = instructorSelect;
   let lastError: unknown;
 
