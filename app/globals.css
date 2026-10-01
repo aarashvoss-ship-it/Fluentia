@@ -56,8 +56,6 @@ body {
 }
 
 .student-profile-note {
-  field-sizing: content;
-  max-height: 20rem;
   overflow-y: auto;
   scrollbar-color: #596273 transparent;
   scrollbar-width: thin;

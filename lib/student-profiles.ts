@@ -238,7 +238,6 @@ export async function saveStudentProfile(
       email: profile.email || null,
       target_level: targetLevel || null,
       level: targetLevel || null,
-      enrolled_date: profile.enrolledDate || null,
       target_goal: profile.targetGoal || null,
       core_goal: profile.targetGoal || null,
       focus_weaknesses: normalizeFocusWeaknesses(profile.weaknesses || (profile as Partial<StudentProfile> & Record<string, unknown>).focus_weaknesses),
