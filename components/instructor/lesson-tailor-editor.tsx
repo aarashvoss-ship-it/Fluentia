@@ -10,8 +10,7 @@ import { FillInBlanksMarkdown } from "@/components/study-room/fill-in-blanks-mar
 import { WritingBlockEditor } from "@/components/shared/writing-block";
 import { parseFillInBlanks } from "@/lib/fill-in-blanks";
 import { uploadLessonAsset, uploadLessonMedia } from "@/services/storage-service";
-import { Tooltip } from "@/components/shared/tooltip";
-import { DynamicLucideIcon, LucideIconPicker } from "@/components/shared/lucide-icon-picker";
+import { DynamicLucideIcon } from "@/components/shared/lucide-icon-picker";
 import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import { Eye, FileText, Layers, LoaderCircle, MoveDown, MoveUp, Plus, Trash2, UploadCloud, X, ChevronDown, ChevronUp, Mic, Square } from "lucide-react";
 
@@ -130,7 +129,6 @@ export function LessonTailorEditor({
   const [openTranscript, setOpenTranscript] = useState<Record<string, boolean>>({});
   const [openTranscriptPreview, setOpenTranscriptPreview] = useState<Record<string, boolean>>({});
   const [collapsedBlocks, setCollapsedBlocks] = useState<Record<string, boolean>>({});
-  const [markdownHelpBlock, setMarkdownHelpBlock] = useState<string | null>(null);
   const [fillBlankModes, setFillBlankModes] = useState<Record<string, "edit" | "preview">>({});
   const [fillBlankPreviewValues, setFillBlankPreviewValues] = useState<Record<string, string>>({});
   const transcriptWrapRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
@@ -449,7 +447,7 @@ export function LessonTailorEditor({
         {!isOpen && preview ? <MarkdownContent value={preview} className="line-clamp-2 px-2 pb-1.5 text-[11px] leading-relaxed text-stone-500" /> : null}
         {isOpen && (
           <div id={`transcript-${block.id}`} className="border-t border-[#202631] p-2">
-            <TiptapEditor value={block.transcript || ""} onChange={(value) => updateDynamicBlock(step, index, { transcript: value })} onHelp={() => setMarkdownHelpBlock(block.id)} placeholder="Paste script or audio/video transcript here..." ariaLabel="Media Transcript (Optional)" />
+            <TiptapEditor value={block.transcript || ""} onChange={(value) => updateDynamicBlock(step, index, { transcript: value })} placeholder="Paste script or audio/video transcript here..." ariaLabel="Media Transcript (Optional)" />
           </div>
         )}
       </div>
@@ -566,11 +564,6 @@ export function LessonTailorEditor({
             </div>
             <div id={`block-content-${block.id}`} className={`overflow-hidden transition-[max-height,opacity] duration-200 ${isExpanded ? "max-h-[5000px] opacity-100" : "max-h-0 opacity-0"}`} aria-hidden={!isExpanded}>
             <input value={block.title} onChange={(event) => updateDynamicBlock(step, index, { title: event.target.value })} placeholder="Block title" className="mb-2 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.type} block title`} />
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded border border-[#29303c] bg-[#0c1017]/60 px-3 py-2">
-              <span className="text-xs font-medium text-stone-300">Block Icon</span>
-              <LucideIconPicker value={block.icon || ""} onChange={(icon) => updateDynamicBlock(step, index, { icon })} />
-              {block.icon && <button type="button" onClick={() => updateDynamicBlock(step, index, { icon: undefined })} className="text-[11px] text-stone-500 underline hover:text-stone-300">Clear</button>}
-            </div>
             <div className="mb-3 grid gap-2 sm:grid-cols-3">
               <label className="text-[11px] text-stone-500">Layout mode
                 <select value={block.layoutMode || "global"} onChange={(event) => updateDynamicBlock(step, index, { layoutMode: event.target.value as "global" | "inline-row", sidebarBlockId: event.target.value === "global" ? undefined : block.sidebarBlockId })} className="mt-1 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 [color-scheme:dark]" aria-label={`${block.type} block layout mode`}>
@@ -600,7 +593,7 @@ export function LessonTailorEditor({
                 </span>
               </label>
               {(block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true) && <label className="block text-xs text-stone-500">Student response type<select value={block.studentResponseType || "text"} onChange={(event) => updateDynamicBlock(step, index, { studentResponseType: event.target.value as "text" | "voice" | "audio" | "file" })} className="mt-1 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 [color-scheme:dark]" aria-label="Student response type"><option value="text">Text response</option><option value="voice">Voice response</option><option value="audio">Audio response</option><option value="file">File upload</option></select></label>}
-              <TiptapEditor value={block.body} onChange={(value) => updateDynamicBlock(step, index, { body: value })} onHelp={() => setMarkdownHelpBlock(block.id)} placeholder="Start typing lesson content or use formatting options..." ariaLabel="Text block body" />
+              <TiptapEditor value={block.body} onChange={(value) => updateDynamicBlock(step, index, { body: value })} placeholder="Start typing lesson content or use formatting options..." ariaLabel="Text block body" />
               {(block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true) && (block.studentResponseType || "text") === "text" && <textarea rows={6} placeholder="Write your response here..." readOnly className="min-h-[140px] w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" aria-label="Student response field preview" />}
               {(block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true) && (block.studentResponseType === "voice" || block.studentResponseType === "audio") && <div className="flex items-center gap-2 rounded border border-[#394252] bg-[#171d28] p-3 text-xs text-stone-400"><Mic className="h-4 w-4 text-amber-400" />Voice recorder preview</div>}
               {(block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true) && block.studentResponseType === "file" && <div className="rounded border border-[#394252] bg-[#171d28] p-3 text-xs text-stone-400">File upload preview</div>}
@@ -650,9 +643,9 @@ export function LessonTailorEditor({
                     <option value="open_ended">Open-Ended Response</option>
                   </select>
                 </label>
-                <TiptapEditor value={block.prompt} onChange={(value) => updateDynamicBlock(step, index, { prompt: value })} onHelp={() => setMarkdownHelpBlock(block.id)} placeholder="Question or task prompt" ariaLabel="Question or task prompt" />
+                <TiptapEditor value={block.prompt} onChange={(value) => updateDynamicBlock(step, index, { prompt: value })} placeholder="Question or task prompt" ariaLabel="Question or task prompt" />
                 {(block.question_type || "multiple_choice") === "open_ended" ? (
-                  <TiptapEditor value={block.sample_answer || ""} onChange={(value) => updateDynamicBlock(step, index, { sample_answer: value })} onHelp={() => setMarkdownHelpBlock(block.id)} placeholder="Optional model answer or evaluation guide" ariaLabel="Sample answer or instructor guide" />
+                  <TiptapEditor value={block.sample_answer || ""} onChange={(value) => updateDynamicBlock(step, index, { sample_answer: value })} placeholder="Optional model answer or evaluation guide" ariaLabel="Sample answer or instructor guide" />
                 ) : (
                   <>
                     {block.options.map((option, optionIndex) => (
@@ -729,19 +722,6 @@ export function LessonTailorEditor({
       <div className="space-y-4">
         {renderDynamicBuilder(activeStep)}
       </div>
-      {markdownHelpBlock && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="markdown-help-title" onMouseDown={(event) => { if (event.target === event.currentTarget) setMarkdownHelpBlock(null); }}>
-          <div className="w-full max-w-md rounded-lg border border-[#394252] bg-[#171d28] p-5 shadow-2xl">
-            <div className="flex items-center justify-between gap-3 border-b border-[#293343] pb-3">
-              <h3 id="markdown-help-title" className="text-sm font-semibold text-stone-100">Markdown quick guide</h3>
-              <button type="button" onClick={() => setMarkdownHelpBlock(null)} className="rounded p-1 text-stone-400 hover:bg-[#0c1017] hover:text-stone-100" aria-label="Close Markdown help"><X className="h-4 w-4" /></button>
-            </div>
-            <div className="grid grid-cols-2 gap-2 pt-4 text-xs text-stone-300">
-              <code># Heading 1</code><code>## Heading 2</code><code>### Heading 3</code><code>- Nested list item</code><code>**bold** and *italic*</code><code>&gt; Blockquote</code><code>---</code><code>`inline code`</code>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

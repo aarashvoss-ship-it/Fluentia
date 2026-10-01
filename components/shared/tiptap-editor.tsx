@@ -5,30 +5,40 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
+import Color from "@tiptap/extension-color";
+import { TextStyle } from "@tiptap/extension-text-style";
 import { Markdown } from "@tiptap/markdown";
 import {
   Bold,
   Code2,
-  HelpCircle,
   Italic,
   Link2,
   List,
   ListOrdered,
   Lightbulb,
   Minus,
+  Palette,
   Quote,
   Strikethrough,
 } from "lucide-react";
+import { useState } from "react";
 import { Tooltip } from "@/components/shared/tooltip";
 import { LucideIconPicker } from "@/components/shared/lucide-icon-picker";
 import { InlineLucideIcon } from "@/components/shared/inline-lucide-icon";
+
+const MarkdownTextStyle = TextStyle.extend({
+  renderMarkdown(node, helpers) {
+    const content = helpers.renderChildren(node.content || []);
+    const color = typeof node.attrs?.color === "string" ? node.attrs.color : "";
+    return color ? `<span style="color: ${color}">${content}</span>` : content;
+  },
+});
 
 type TiptapEditorProps = {
   value: string;
   onChange: (markdown: string) => void;
   placeholder?: string;
   ariaLabel: string;
-  onHelp?: () => void;
 };
 
 function ToolbarButton({
@@ -63,15 +73,17 @@ export function TiptapEditor({
   onChange,
   placeholder = "Start typing lesson content or use formatting options...",
   ariaLabel,
-  onHelp,
 }: TiptapEditorProps) {
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const [isColorPaletteOpen, setIsColorPaletteOpen] = useState(false);
 
   const extensions = useMemo(() => [
     StarterKit.configure({ link: false }),
     Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true }),
     Placeholder.configure({ placeholder }),
+    MarkdownTextStyle,
+    Color.configure({ types: ["textStyle"] }),
     InlineLucideIcon,
     Markdown,
   ], [placeholder]);
@@ -107,21 +119,11 @@ export function TiptapEditor({
     if (href?.trim()) editor.chain().focus().setLink({ href: href.trim() }).run();
   };
 
+  const textColors = ["#f3f4f6", "#f59e0b", "#ef4444", "#10b981", "#06b6d4", "#a78bfa", "#f472b6", "#9ca3af"];
+
   return (
     <div className="tiptap-editor space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        {onHelp && (
-          <Tooltip content="View Markdown formatting help">
-            <button
-              type="button"
-              onClick={onHelp}
-              className="inline-flex items-center gap-1 text-[10px] uppercase text-stone-500 hover:text-amber-300"
-              aria-label="Open Markdown help"
-            >
-              Markdown <HelpCircle className="h-3.5 w-3.5" />
-            </button>
-          </Tooltip>
-        )}
         <div className="flex flex-wrap items-center gap-0.5 rounded border border-[#202631] bg-[#0c1017] p-1" role="toolbar" aria-label="Rich text formatting">
           <ToolbarButton label="Heading 1" active={!!editor?.isActive("heading", { level: 1 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}>H1</ToolbarButton>
           <ToolbarButton label="Heading 2" active={!!editor?.isActive("heading", { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>H2</ToolbarButton>
@@ -138,8 +140,41 @@ export function TiptapEditor({
           <ToolbarButton label="Code block" active={!!editor?.isActive("codeBlock")} onClick={() => editor?.chain().focus().toggleCodeBlock().run()}><Code2 className="h-3.5 w-3.5" /></ToolbarButton>
           <ToolbarButton label="Horizontal rule" onClick={() => editor?.chain().focus().setHorizontalRule().run()}><Minus className="h-3.5 w-3.5" /></ToolbarButton>
           <ToolbarButton label={editor?.isActive("link") ? "Remove link" : "Add link"} active={!!editor?.isActive("link")} onClick={applyLink}><Link2 className="h-3.5 w-3.5" /></ToolbarButton>
+          <div className="relative">
+            <ToolbarButton label="Text color" active={!!editor?.isActive("textStyle")} onClick={() => setIsColorPaletteOpen((open) => !open)}><Palette className="h-3.5 w-3.5" /></ToolbarButton>
+            {isColorPaletteOpen && (
+              <div className="absolute right-0 top-full z-40 mt-2 grid w-36 grid-cols-4 gap-2 rounded-md border border-[#394252] bg-[#171d28] p-3 shadow-xl" role="dialog" aria-label="Choose text color">
+                {textColors.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => {
+                      editor?.chain().focus().setColor(color).run();
+                      setIsColorPaletteOpen(false);
+                    }}
+                    className="h-6 w-6 rounded-full border border-white/30 transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    style={{ backgroundColor: color }}
+                    aria-label={`Set text color ${color}`}
+                    title={color}
+                  />
+                ))}
+                <button
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    editor?.chain().focus().unsetColor().run();
+                    setIsColorPaletteOpen(false);
+                  }}
+                  className="col-span-4 rounded border border-[#394252] px-2 py-1 text-[10px] text-stone-300 hover:border-amber-500/60"
+                >
+                  Clear color
+                </button>
+              </div>
+            )}
+          </div>
           <LucideIconPicker
-            triggerLabel="Icon"
+            triggerLabel="Insert Icon"
             onChange={(name) => editor?.chain().focus().insertContent({ type: "inlineLucideIcon", attrs: { name } }).run()}
           />
         </div>
