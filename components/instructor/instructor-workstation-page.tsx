@@ -257,6 +257,7 @@ export default function InstructorWorkstationPage({
   const [savingProfileStudentId, setSavingProfileStudentId] = useState<string | null>(null);
   const [profileSaveMessages, setProfileSaveMessages] = useState<Record<string, string>>({});
   const [profileSaveToast, setProfileSaveToast] = useState<string | null>(null);
+  const [expandedStudentIds, setExpandedStudentIds] = useState<Set<string>>(() => new Set());
   const [librarySearch, setLibrarySearch] = useState("");
   const [libraryLevel, setLibraryLevel] = useState("all");
   const [libraryDomain, setLibraryDomain] = useState("all");
@@ -573,6 +574,15 @@ export default function InstructorWorkstationPage({
     if (selectedStudentId === studentId) {
       setWorkstationState((current) => ({ ...current, studentProfile: { ...current.studentProfile, ...changes } }));
     }
+  }
+
+  function toggleStudentProfile(studentId: string) {
+    setExpandedStudentIds((current) => {
+      const next = new Set(current);
+      if (next.has(studentId)) next.delete(studentId);
+      else next.add(studentId);
+      return next;
+    });
   }
 
   async function handleSaveDirectoryStudent(event: React.MouseEvent<HTMLButtonElement>, student: StudentUser) {
@@ -2128,7 +2138,7 @@ export default function InstructorWorkstationPage({
 
   return (
     <div className="min-h-screen w-full bg-[#0c1017] font-sans text-[#e8e7e4]">
-      <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 md:py-8">
+      <div className={`${activeTab === "students" ? "w-full max-w-full px-6" : "mx-auto w-full max-w-6xl px-4 sm:px-6"} py-6 md:py-8`}>
         <div className="mb-6 flex items-center">
           <img src="/logo.png" alt="Fluentia" className="h-10 w-auto object-contain" />
         </div>
@@ -2296,7 +2306,7 @@ export default function InstructorWorkstationPage({
           {quickTagEditor && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !quickTagSaving) setQuickTagEditor(null); }}><section role="dialog" aria-modal="true" aria-labelledby="quick-tag-editor-title" className="w-full max-w-lg rounded-lg border border-[#394252] bg-[#171d28] p-5 shadow-2xl"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Lesson metadata</p><h3 id="quick-tag-editor-title" className="mt-1 text-lg font-semibold text-stone-100">Edit level & tags</h3></div><button type="button" aria-label="Close tag editor" disabled={quickTagSaving} onClick={() => setQuickTagEditor(null)} className="rounded border border-[#394252] p-1.5 text-stone-400 hover:text-stone-100 disabled:opacity-50"><X className="h-4 w-4" /></button></div><div className="mt-5 grid gap-3 sm:grid-cols-2"><label className="text-xs text-stone-400">CEFR Level<select value={quickTagEditor.level} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, level: event.target.value } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-white [color-scheme:dark]">{CEFR_LEVELS.map((level) => <option key={level}>{level}</option>)}</select></label><label className="text-xs text-stone-400">Domain<input value={quickTagEditor.tags.domain} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, domain: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Skill Focus<input value={quickTagEditor.tags.skill_focus} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, skill_focus: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Practice Type<input value={quickTagEditor.tags.practice_type} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, practice_type: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400 sm:col-span-2">Custom Tags<input value={quickTagEditor.customTagsText} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, customTagsText: event.target.value } : current)} placeholder="Comma-separated custom tags" className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label></div>{quickTagError && <p role="alert" className="mt-3 text-xs text-red-300">{quickTagError}</p>}<div className="mt-5 flex justify-end gap-2"><button type="button" disabled={quickTagSaving} onClick={() => setQuickTagEditor(null)} className="rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 disabled:opacity-50">Cancel</button><button type="button" disabled={quickTagSaving} onClick={() => void saveQuickTagEditor()} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 disabled:opacity-50">{quickTagSaving ? "Saving..." : <><Check className="h-3.5 w-3.5" />Save tags</>}</button></div></section></div>}
         </section>}
 
-        {activeTab === "students" && <section className="space-y-5" aria-labelledby="students-profile-title">
+        {activeTab === "students" && <section className="w-full min-w-0 space-y-5" aria-labelledby="students-profile-title">
           {profileSaveToast && <div role="status" aria-live="polite" className="fixed right-6 top-6 z-[70] flex items-center gap-2.5 rounded-lg border border-emerald-400/40 bg-[#11251d] px-4 py-3 text-sm font-medium text-emerald-200 shadow-xl"><Check className="h-4 w-4 shrink-0" aria-hidden="true" />{profileSaveToast}</div>}
           <div className="flex flex-wrap items-end justify-between gap-4 border-b border-[#202631] pb-4">
             <div>
@@ -2313,25 +2323,64 @@ export default function InstructorWorkstationPage({
             </label>
           </div>
           {studentsError && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{studentsError}</p>}
-          {studentsLoading ? <p className="py-10 text-center text-sm text-stone-500">Loading student profiles...</p> : filteredStudentDirectory.length > 0 ? <div className="overflow-hidden rounded-xl border border-[#202631] bg-[#171d28]/60">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1350px] table-fixed border-collapse text-left">
-                <thead className="border-b border-[#293343] bg-[#0c1017]/70 text-[10px] uppercase tracking-[0.12em] text-stone-500">
-                  <tr><th className="w-[220px] px-3 py-3 font-semibold">Student</th><th className="w-[110px] px-3 py-3 font-semibold">Current Level</th><th className="w-[220px] px-3 py-3 font-semibold">Core Goal</th><th className="w-[200px] px-3 py-3 font-semibold">Focus Weaknesses</th><th className="w-[140px] px-3 py-3 font-semibold">Assigned Instructor</th><th className="w-[320px] px-3 py-3 font-semibold">Dashboard Note</th><th className="w-[140px] px-3 py-3 font-semibold">Actions</th></tr>
-                </thead>
-                <tbody className="divide-y divide-[#202631]">
-                  {filteredStudentDirectory.map((student) => <tr key={student.id} className="hover:bg-white/[0.02]">
-                    <td className="w-[220px] px-3 py-3 align-top"><div className="flex min-w-0 flex-col gap-2"><span className="break-words text-sm font-medium text-stone-200">{student.name}</span><input type="email" value={student.email ?? ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { email: event.target.value })} aria-label={`${student.name} email`} placeholder="Email address" className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></div></td>
-                    <td className="w-[110px] px-2 py-3 align-top"><select value={normalizeStudentLevel(student.profile.targetLevel || student.profile.level)} onChange={(event) => void handleStudentLevelChange(student, event.target.value as StudentCefrLevel)} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-2 text-xs text-amber-300 [color-scheme:dark]" aria-label={`Set ${student.name}'s level`}>{!normalizeStudentLevel(student.profile.targetLevel || student.profile.level) && <option value="" disabled>Not set</option>}{STUDENT_CEFR_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select></td>
-                    <td className="w-[220px] px-3 py-3 align-top"><input value={student.profile.targetGoal || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { targetGoal: event.target.value })} aria-label={`${student.name} core goal`} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></td>
-                    <td className="w-[200px] px-3 py-3 align-top"><input value={(student.profile.weaknesses || []).join(", ")} onChange={(event) => updateDirectoryStudentProfile(student.id, { weaknesses: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} aria-label={`${student.name} focus weaknesses`} placeholder="Separate with commas" className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></td>
-                    <td className="w-[140px] px-3 py-3 align-top"><input value={student.profile.assignedInstructor || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { assignedInstructor: event.target.value })} aria-label={`${student.name} assigned instructor`} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></td>
-                    <td className="w-[320px] px-3 py-3 align-top"><textarea value={student.profile.teacherNotes || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { teacherNotes: event.target.value })} aria-label={`${student.name} dashboard note`} rows={4} className="student-profile-note h-24 w-full resize-none overflow-x-hidden overflow-y-auto rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs text-stone-200 outline-none focus:border-amber-500" /></td>
-                    <td className="w-[140px] px-3 py-3 align-top"><div className="flex flex-col items-start gap-2.5"><button type="button" onClick={(event) => void handleSaveDirectoryStudent(event, student)} disabled={savingProfileStudentId === student.id} className="h-10 whitespace-nowrap rounded-md bg-amber-500 px-3 text-xs font-semibold text-slate-950 hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60">{savingProfileStudentId === student.id ? "Saving..." : "Save Changes"}</button>{student.enrolledDate && <span className="text-[11px] text-stone-500">Enrolled {new Date(student.enrolledDate).toLocaleDateString()}</span>}{profileSaveMessages[student.id] && <span role="status" className={`text-[10px] ${profileSaveMessages[student.id] === "Profile saved successfully!" ? "text-emerald-300" : "text-red-300"}`}>{profileSaveMessages[student.id]}</span>}</div></td>
-                  </tr>)}
-                </tbody>
-              </table>
-            </div>
+          {studentsLoading ? <p className="py-10 text-center text-sm text-stone-500">Loading student profiles...</p> : filteredStudentDirectory.length > 0 ? <div className="w-full space-y-3">
+            {filteredStudentDirectory.map((student) => {
+              const isExpanded = expandedStudentIds.has(student.id);
+              const level = normalizeStudentLevel(student.profile.targetLevel || student.profile.level);
+              const saveMessage = profileSaveMessages[student.id];
+              const isSaving = savingProfileStudentId === student.id;
+              const isSaved = saveMessage === "Profile saved successfully!";
+              const hasSaveError = Boolean(saveMessage) && !isSaved;
+              return <article key={student.id} className="w-full overflow-hidden rounded-xl border border-[#293343] bg-[#141a23] shadow-sm shadow-black/10">
+                <button type="button" onClick={() => toggleStudentProfile(student.id)} aria-expanded={isExpanded} aria-controls={`student-profile-${student.id}`} className="flex w-full flex-col gap-3 px-4 py-4 text-left transition-colors hover:bg-white/[0.025] sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                  <span className="flex w-full min-w-0 flex-col gap-1.5 sm:flex-1">
+                    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="break-words text-sm font-semibold text-stone-100">{student.name}</span>
+                      <span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${level ? "border-amber-500/30 bg-amber-500/10 text-amber-300" : "border-[#394252] text-stone-500"}`}>{level || "Not set"}</span>
+                    </span>
+                    <span className="break-all text-xs text-stone-400">{student.email || "No email"}</span>
+                  </span>
+                  <span className="flex w-full shrink-0 items-center justify-between gap-3 sm:w-auto sm:justify-end sm:gap-5">
+                    <span className="inline-flex items-center gap-2 text-xs text-stone-400">
+                      <span className={`h-2 w-2 rounded-full ${isSaving ? "animate-pulse bg-amber-400" : isSaved ? "bg-emerald-400" : hasSaveError ? "bg-rose-400" : "bg-stone-600"}`} />
+                      {isSaving ? "Saving" : isSaved ? "Saved" : hasSaveError ? "Needs attention" : "Profile"}
+                    </span>
+                    <span className="text-right text-[11px] text-stone-500 sm:text-xs">{student.enrolledDate ? `Enrolled ${new Date(student.enrolledDate).toLocaleDateString()}` : "Date unavailable"}</span>
+                    <ChevronDown className={`h-4 w-4 text-stone-400 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} aria-hidden="true" />
+                  </span>
+                </button>
+                <div id={`student-profile-${student.id}`} aria-hidden={!isExpanded} inert={!isExpanded} className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${isExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+                  <div className="min-h-0 overflow-hidden">
+                    <div className="border-t border-[#293343] px-4 py-5 sm:px-5">
+                      <div className="grid min-w-0 gap-5 md:grid-cols-2 2xl:grid-cols-3">
+                        <section className="min-w-0 space-y-4" aria-label={`${student.name} identity and assignment`}>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Email address<input type="email" value={student.email ?? ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { email: event.target.value })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Current Level<select value={level} onChange={(event) => void handleStudentLevelChange(student, event.target.value as StudentCefrLevel)} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-amber-300 [color-scheme:dark]">{!level && <option value="" disabled>Not set</option>}{STUDENT_CEFR_LEVELS.map((optionLevel) => <option key={optionLevel} value={optionLevel}>{optionLevel}</option>)}</select></label>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Assigned Instructor<input value={student.profile.assignedInstructor || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { assignedInstructor: event.target.value })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
+                        </section>
+                        <section className="min-w-0 space-y-4" aria-label={`${student.name} goals and focus`}>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Core Goal<input value={student.profile.targetGoal || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { targetGoal: event.target.value })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Focus Weaknesses<input value={(student.profile.weaknesses || []).join(", ")} onChange={(event) => updateDirectoryStudentProfile(student.id, { weaknesses: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} placeholder="Separate with commas" className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
+                        </section>
+                        <section className="min-w-0 space-y-1.5 md:col-span-2 2xl:col-span-1" aria-label={`${student.name} dashboard note`}>
+                          <label className="block text-xs font-medium text-stone-400">Dashboard Note</label>
+                          <textarea value={student.profile.teacherNotes || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { teacherNotes: event.target.value })} rows={4} className="student-profile-note h-24 w-full resize-none overflow-x-hidden overflow-y-auto rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs leading-relaxed text-stone-200 outline-none focus:border-amber-500" />
+                        </section>
+                      </div>
+                      <div className="mt-5 flex flex-col-reverse gap-3 border-t border-[#293343] pt-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-h-5 text-xs" role="status" aria-live="polite">
+                          {saveMessage && <span className={isSaved ? "text-emerald-300" : "text-rose-300"}>{saveMessage}</span>}
+                        </div>
+                        <button type="button" onClick={(event) => void handleSaveDirectoryStudent(event, student)} disabled={isSaving} className="inline-flex h-10 items-center justify-center gap-2 self-end rounded-md bg-amber-500 px-4 text-xs font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60">
+                          {isSaving && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-950/30 border-t-slate-950" aria-hidden="true" />}
+                          {isSaving ? "Saving..." : "Save Changes"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </article>;
+            })}
           </div> : <div className="rounded-xl border border-dashed border-[#394252] px-6 py-12 text-center text-sm text-stone-500">No student profiles match this level.</div>}
         </section>}
 
