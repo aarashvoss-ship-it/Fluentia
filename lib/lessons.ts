@@ -834,13 +834,12 @@ export async function updateLesson(
         .select("id")
         .abortSignal(AbortSignal.timeout(8000));
       if (updateError) {
-        console.error("Supabase lessons PATCH error response:", {
-          code: updateError.code,
-          message: updateError.message,
-          details: updateError.details,
-          hint: updateError.hint,
-          raw: JSON.stringify(updateError, Object.getOwnPropertyNames(updateError)),
-        });
+        console.error("Supabase lessons PATCH error response:", updateError);
+        console.error(
+          "Supabase lessons PATCH error response (serialized):",
+          JSON.stringify(updateError, Object.getOwnPropertyNames(updateError), 2),
+        );
+        console.error("Supabase lessons PATCH payload:", updatePayload);
       }
       const triedMissingColumns = new Set<string>();
       let retryCount = 0;
@@ -872,13 +871,12 @@ export async function updateLesson(
           .select("id")
           .abortSignal(AbortSignal.timeout(8000)));
         if (updateError) {
-          console.error("Supabase lessons PATCH retry error response:", {
-            code: updateError.code,
-            message: updateError.message,
-            details: updateError.details,
-            hint: updateError.hint,
-            raw: JSON.stringify(updateError, Object.getOwnPropertyNames(updateError)),
-          });
+          console.error("Supabase lessons PATCH retry error response:", updateError);
+          console.error(
+            "Supabase lessons PATCH retry error response (serialized):",
+            JSON.stringify(updateError, Object.getOwnPropertyNames(updateError), 2),
+          );
+          console.error("Supabase lessons PATCH retry payload:", updatePayload);
         }
       }
 
