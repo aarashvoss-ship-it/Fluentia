@@ -259,8 +259,17 @@ export async function PATCH(request: Request) {
     updated_at: new Date().toISOString(),
   }).eq("id", student.id).select("id").maybeSingle();
   if (profileUpdateError) {
-    console.error("Student profile database update failed:", profileUpdateError);
-    return NextResponse.json({ error: "Supabase could not save the student profile." }, { status: 500 });
+    console.error("Student profile database update failed:", {
+      code: profileUpdateError.code,
+      message: profileUpdateError.message,
+      details: profileUpdateError.details,
+      hint: profileUpdateError.hint,
+    });
+    const missingColumn = profileUpdateError.code === "42703" || profileUpdateError.code === "PGRST204";
+    const message = missingColumn
+      ? `Production Supabase is missing a student profile column (${profileUpdateError.code}). Apply migrations 036, 038, and 039.`
+      : `Supabase rejected the student profile update (${profileUpdateError.code || "database error"}): ${profileUpdateError.message}`;
+    return NextResponse.json({ error: message }, { status: 500 });
   }
   if (!updatedProfile) {
     return NextResponse.json({ error: "Supabase did not confirm the student profile update." }, { status: 404 });
