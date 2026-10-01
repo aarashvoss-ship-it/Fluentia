@@ -11,7 +11,6 @@ import { Markdown } from "@tiptap/markdown";
 import {
   Bold,
   Code2,
-  CircleHelp,
   Italic,
   Link2,
   List,
@@ -19,6 +18,7 @@ import {
   Lightbulb,
   Minus,
   Palette,
+  PlusCircle,
   Quote,
   Strikethrough,
 } from "lucide-react";
@@ -196,7 +196,7 @@ export function TiptapEditor({
           </div>
           <LucideIconPicker
             triggerLabel="Insert Icon"
-            triggerIcon={CircleHelp}
+            triggerIcon={PlusCircle}
             onChange={(name) => editor?.chain().focus().insertContent({ type: "inlineLucideIcon", attrs: { name } }).run()}
           />
         </div>
