@@ -11,6 +11,7 @@ import { Markdown } from "@tiptap/markdown";
 import {
   Bold,
   Code2,
+  CircleHelp,
   Italic,
   Link2,
   List,
@@ -195,6 +196,7 @@ export function TiptapEditor({
           </div>
           <LucideIconPicker
             triggerLabel="Insert Icon"
+            triggerIcon={CircleHelp}
             onChange={(name) => editor?.chain().focus().insertContent({ type: "inlineLucideIcon", attrs: { name } }).run()}
           />
         </div>

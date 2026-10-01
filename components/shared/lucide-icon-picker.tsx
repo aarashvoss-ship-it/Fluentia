@@ -59,10 +59,12 @@ export function LucideIconPicker({
   value,
   onChange,
   triggerLabel,
+  triggerIcon,
 }: {
   value?: string;
   onChange: (iconName: string) => void;
   triggerLabel?: string;
+  triggerIcon?: LucideIcon;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -72,6 +74,7 @@ export function LucideIconPicker({
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
   const selectedName = value && isRenderableIcon(ICON_COMPONENTS[value]) ? value : "";
+  const TriggerIcon = triggerIcon ?? (selectedName ? ICON_COMPONENTS[selectedName] : CircleHelp);
   const normalizedSearch = search.trim().toLowerCase();
 
   const updatePopoverPosition = () => {
@@ -134,7 +137,7 @@ export function LucideIconPicker({
         title={selectedName ? `Selected icon: ${selectedName}` : "Choose icon"}
         className="inline-flex min-h-9 min-w-28 items-center justify-center gap-2 rounded border border-amber-500/40 bg-[#0c1017] px-3 text-xs font-medium text-stone-200 hover:border-amber-500/80"
       >
-        <DynamicLucideIcon name={selectedName} className="h-4 w-4 text-amber-300" aria-hidden="true" />
+        <TriggerIcon className="h-4 w-4 text-amber-300" aria-hidden="true" />
         {triggerLabel || selectedName || "Choose icon"}
       </button>
       {isOpen && typeof document !== "undefined" && createPortal(
