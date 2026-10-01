@@ -34,6 +34,10 @@ const MarkdownTextStyle = TextStyle.extend({
   },
 });
 
+function normalizeEscapedBoldMarkdown(markdown: string) {
+  return markdown.replace(/\\\*\s*\\\*\s*(.+?)\s*\\\*\s*\\\*/g, "**$1**");
+}
+
 type TiptapEditorProps = {
   value: string;
   onChange: (markdown: string) => void;
@@ -78,6 +82,7 @@ export function TiptapEditor({
   onChangeRef.current = onChange;
   const [isColorPaletteOpen, setIsColorPaletteOpen] = useState(false);
   const colorPaletteRef = useRef<HTMLDivElement | null>(null);
+  const normalizedValue = normalizeEscapedBoldMarkdown(value);
 
   const extensions = useMemo(() => [
     StarterKit.configure({ link: false }),
@@ -91,7 +96,7 @@ export function TiptapEditor({
 
   const editor = useEditor({
     extensions,
-    content: value,
+    content: normalizedValue,
     contentType: "markdown",
     immediatelyRender: false,
     editorProps: {
@@ -106,9 +111,12 @@ export function TiptapEditor({
   }, [extensions]);
 
   useEffect(() => {
-    if (!editor || editor.getMarkdown() === value) return;
-    editor.commands.setContent(value, { contentType: "markdown", emitUpdate: false });
-  }, [editor, value]);
+    if (!editor) return;
+    if (editor.getMarkdown() !== normalizedValue) {
+      editor.commands.setContent(normalizedValue, { contentType: "markdown", emitUpdate: false });
+    }
+    if (normalizedValue !== value) onChangeRef.current(normalizedValue);
+  }, [editor, normalizedValue, value]);
 
   useEffect(() => {
     if (!isColorPaletteOpen) return;
@@ -136,7 +144,7 @@ export function TiptapEditor({
   return (
     <div className="tiptap-editor w-full min-w-0 space-y-2">
       <div className="w-full min-w-0">
-        <div className="box-border flex w-full min-w-0 flex-wrap items-center justify-end gap-1.5 rounded border border-[#202631] bg-[#0c1017] p-1" role="toolbar" aria-label="Rich text formatting">
+        <div className="box-border flex w-full min-w-0 flex-wrap items-center justify-center gap-1.5 rounded border border-[#202631] bg-[#0c1017] p-1" role="toolbar" aria-label="Rich text formatting">
           <ToolbarButton label="Heading 1" active={!!editor?.isActive("heading", { level: 1 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}>H1</ToolbarButton>
           <ToolbarButton label="Heading 2" active={!!editor?.isActive("heading", { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>H2</ToolbarButton>
           <ToolbarButton label="Heading 3" active={!!editor?.isActive("heading", { level: 3 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}>H3</ToolbarButton>
