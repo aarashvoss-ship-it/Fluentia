@@ -311,6 +311,48 @@ function DashboardContent() {
   }, [activeStudent?.token]);
 
   useEffect(() => {
+    const identifiers = [...new Set([activeStudent?.id, activeStudent?.token].filter((value): value is string => Boolean(value)))];
+    if (identifiers.length === 0) return;
+
+    const readBadgeSettings = () => {
+      try {
+        const readScopedValue = (key: string) => identifiers
+          .map((identifier) => window.localStorage.getItem(`${key}:${identifier}`))
+          .find((value) => value !== null);
+        const color = readScopedValue("student_badge_color");
+        const initials = readScopedValue("student_badge_initials");
+        if (color) {
+          setAvatarColor(color);
+          const preset = AVATAR_PRESETS.find((option) => option.backgroundColor === color);
+          if (preset) setAvatarPreset(preset.id);
+        }
+        if (initials !== undefined) setAvatarInitials((initials || "").replace(/[^a-z]/gi, "").slice(0, 3).toUpperCase());
+        if (color || initials !== undefined) {
+          setActiveStudent((current) => current ? {
+            ...current,
+            profile: {
+              ...current.profile,
+              ...(color ? { avatarBgColor: color } : {}),
+              ...(initials !== undefined ? { avatarInitials: (initials || "").replace(/[^a-z]/gi, "").slice(0, 3).toUpperCase() } : {}),
+            },
+          } : current);
+        }
+      } catch (error) {
+        logDashboardError("Student badge preferences could not be restored:", error);
+      }
+    };
+
+    readBadgeSettings();
+    const handleStorage = (event: StorageEvent) => {
+      if (identifiers.some((identifier) => event.key === `student_badge_color:${identifier}` || event.key === `student_badge_initials:${identifier}`)) {
+        readBadgeSettings();
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, [activeStudent?.id, activeStudent?.token]);
+
+  useEffect(() => {
     if (!profileOpen || !activeStudent?.token) return;
     const studentToken = activeStudent.token;
     void getStudentProfile(studentToken)
@@ -536,6 +578,12 @@ function DashboardContent() {
             fullName: student?.name || fallbackName,
             level: "",
             targetGoal: "",
+            avatarBgColor: typeof roleProfile?.avatar_bg_color === "string"
+              ? roleProfile.avatar_bg_color
+              : typeof userMetadata.avatar_bg_color === "string" ? userMetadata.avatar_bg_color : undefined,
+            avatarInitials: typeof roleProfile?.avatar_initials === "string"
+              ? roleProfile.avatar_initials
+              : typeof userMetadata.avatar_initials === "string" ? userMetadata.avatar_initials : undefined,
             avatarUrl: typeof roleProfile?.avatar_url === "string"
               ? roleProfile.avatar_url
               : typeof userMetadata.custom_avatar_url === "string"
@@ -879,6 +927,11 @@ function DashboardContent() {
     try {
       window.localStorage.setItem("student_customization", JSON.stringify(customization));
       window.localStorage.setItem(`fluentia:profile:${token}`, JSON.stringify(preferences));
+      const badgeIdentifiers = [...new Set([activeStudent.id, activeStudent.token, token].filter(Boolean))];
+      for (const identifier of badgeIdentifiers) {
+        window.localStorage.setItem(`student_badge_color:${identifier}`, nextAvatarColor);
+        window.localStorage.setItem(`student_badge_initials:${identifier}`, initials);
+      }
     } catch (error) {
       logDashboardError("Profile customization could not be cached locally:", error);
     }

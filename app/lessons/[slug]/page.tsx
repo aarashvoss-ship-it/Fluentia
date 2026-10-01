@@ -328,7 +328,6 @@ export default function LessonPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [guidanceOpen, setGuidanceOpen] = useState(false);
   const [submissionSaveError, setSubmissionSaveError] = useState<string | null>(null);
-  const [studentBannerUrl, setStudentBannerUrl] = useState<string | null>(null);
   const [bannerLoadFailed, setBannerLoadFailed] = useState(false);
 
   useEffect(() => {
@@ -481,40 +480,6 @@ export default function LessonPage() {
       mounted = false;
     };
   }, [requestedSlug]);
-
-  useEffect(() => {
-    const token = activeStudent?.token;
-    if (!token) return;
-    const readBannerPreference = () => {
-      try {
-        const stored = window.localStorage.getItem(`fluentia:profile:${token}`);
-        if (!stored) {
-          setStudentBannerUrl(null);
-          return;
-        }
-        const preferences = JSON.parse(stored) as { customBannerUrl?: string; bannerPreset?: string };
-        const presetImages: Record<string, string> = {
-          "default-dark": "https://images.unsplash.com/photo-1519608487953-e999c86e7455?w=1600&q=85",
-          mountains: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1600&q=85",
-          architecture: "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=1600&q=85",
-        };
-        const candidate = typeof preferences.customBannerUrl === "string" && preferences.customBannerUrl.trim()
-          ? preferences.customBannerUrl.trim()
-          : presetImages[preferences.bannerPreset || "default-dark"];
-        setStudentBannerUrl(candidate || null);
-        setBannerLoadFailed(false);
-      } catch {
-        setStudentBannerUrl(null);
-      }
-    };
-    readBannerPreference();
-    window.addEventListener("storage", readBannerPreference);
-    window.addEventListener("fluentia:student-profile-updated", readBannerPreference);
-    return () => {
-      window.removeEventListener("storage", readBannerPreference);
-      window.removeEventListener("fluentia:student-profile-updated", readBannerPreference);
-    };
-  }, [activeStudent?.token]);
 
   useEffect(() => {
     if (!lessonReady || !studentReady || lessonNotFound || !lesson) return;
@@ -695,10 +660,12 @@ export default function LessonPage() {
   const instructor = { fullName: INSTRUCTOR_USER.name, initials: "AV" };
   const lessonBanner = typeof lessonContent.coverImage === "string"
     ? lessonContent.coverImage
-    : typeof lesson?.banner_url === "string"
-      ? lesson.banner_url
-      : undefined;
-  const heroBanner = bannerLoadFailed ? "https://images.unsplash.com/photo-1519608487953-e999c86e7455?w=1600&q=85" : studentBannerUrl || lessonBanner;
+    : typeof lessonContent.bannerUrl === "string"
+      ? lessonContent.bannerUrl
+      : typeof lesson?.banner_url === "string"
+        ? lesson.banner_url
+        : undefined;
+  const heroBanner = bannerLoadFailed ? undefined : lessonBanner;
   const evaluation = publishedLesson?.evaluation;
   const isEvaluationPublished = evaluation?.published === true;
   const totalScore = evaluation?.totalScore ?? (evaluation
