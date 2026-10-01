@@ -75,6 +75,11 @@ function getProfileValue(profile: Record<string, unknown> | null | undefined, ke
   return "";
 }
 
+function normalizeStudentDisplayName(value: string | undefined) {
+  if (!value) return value;
+  return value.trim().toLowerCase() === "yasaman shebani" ? "Yasaman Sheybani" : value.trim();
+}
+
 export function normalizeStudentLevel(value: unknown): StudentCefrLevel | "" {
   if (typeof value !== "string") return "";
   const match = value.trim().toUpperCase().match(/\b(A1|A2|B1|B2|C1|C2)\b/);
@@ -101,7 +106,7 @@ function normalizeStudentProfile(profile: Record<string, unknown> | null, studen
   ]);
   return {
     id: studentToken,
-    fullName: getProfileValue(profile, ["full_name", "fullName", "name"]) || undefined,
+    fullName: normalizeStudentDisplayName(getProfileValue(profile, ["full_name", "fullName", "name"])) || undefined,
     email: getProfileValue(profile, ["email"]) || undefined,
     enrolledDate: getProfileValue(profile, ["enrolled_date", "enrolledDate", "created_at"]) || undefined,
     targetLevel: targetLevel || undefined,
@@ -298,7 +303,7 @@ export async function getStudentProfile(studentToken: string): Promise<Partial<S
     : null;
   return {
     ...normalized,
-    fullName: typeof profile.full_name === "string" && profile.full_name.trim() ? profile.full_name : student?.name || undefined,
+    fullName: normalizeStudentDisplayName(typeof profile.full_name === "string" && profile.full_name.trim() ? profile.full_name : student?.name || undefined),
     email: typeof profile.email === "string" && profile.email.trim() ? profile.email : student?.email || undefined,
     enrolledDate: typeof profile.enrolled_date === "string" ? profile.enrolled_date : student?.created_at || undefined,
     targetLevel: normalizeStudentLevel(profile.target_level || profile.level) || undefined,
@@ -313,13 +318,14 @@ export async function getStudentDirectory(): Promise<StudentDirectoryEntry[]> {
     return Promise.all(STUDENT_USERS.map(async (student) => {
       const savedProfile = await getStudentProfileLocally(student.token);
       const targetLevel = normalizeStudentLevel(savedProfile?.targetLevel || savedProfile?.level || student.profile.level);
+      const name = normalizeStudentDisplayName(savedProfile?.fullName || student.name) || student.name;
       return {
         id: student.id,
         token: student.token,
-        name: savedProfile?.fullName || student.name,
+        name,
         email: savedProfile?.email || student.email || "",
         enrolledDate: savedProfile?.enrolledDate || "",
-        profile: { ...student.profile, ...savedProfile, id: student.id, fullName: savedProfile?.fullName || student.name, email: savedProfile?.email || student.email, targetLevel, level: targetLevel },
+        profile: { ...student.profile, ...savedProfile, id: student.id, fullName: name, email: savedProfile?.email || student.email, targetLevel, level: targetLevel },
       };
     }));
   }
@@ -340,7 +346,8 @@ export async function getStudentDirectory(): Promise<StudentDirectoryEntry[]> {
       : null;
     const effectiveSaved = { ...saved, ...pendingLocalProfile };
     const targetLevel = normalizeStudentLevel(pendingLocalProfile?.targetLevel || profile?.target_level || profile?.level || saved?.level);
-    const name = pendingLocalProfile?.fullName || (typeof profile?.full_name === "string" && profile.full_name.trim() ? profile.full_name : student.name);
+    const rawName = pendingLocalProfile?.fullName || (typeof profile?.full_name === "string" && profile.full_name.trim() ? profile.full_name : student.name);
+    const name = normalizeStudentDisplayName(rawName) || student.name;
     const email = pendingLocalProfile?.email || (typeof profile?.email === "string" && profile.email.trim() ? profile.email : student.email);
     const enrolledDate = pendingLocalProfile?.enrolledDate || (typeof profile?.enrolled_date === "string" ? profile.enrolled_date : student.created_at || "");
     return {
