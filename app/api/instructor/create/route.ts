@@ -62,6 +62,7 @@ async function findAuthUserByEmail(adminClient: SupabaseClient, email: string) {
 }
 
 export async function POST(request: Request) {
+  console.log("Service role key status:", !!process.env.SUPABASE_SERVICE_ROLE_KEY);
   const context = await getInstructorAdminContext();
   if (!context.ok) return NextResponse.json({ error: context.message }, { status: context.status });
 

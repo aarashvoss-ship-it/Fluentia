@@ -9,7 +9,8 @@ type InstructorAdminContext =
 export async function getInstructorAdminContext(): Promise<InstructorAdminContext> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    || process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !anonKey) return { ok: false, status: 503, message: "Supabase is not configured on the server." };
   if (!serviceRoleKey) {
     console.error("SUPABASE_SERVICE_ROLE_KEY is undefined; attempting instructor management with NEXT_PUBLIC_SUPABASE_ANON_KEY. Admin operations may fail.");
