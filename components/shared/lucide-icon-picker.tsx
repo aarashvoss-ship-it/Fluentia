@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import * as LucideIcons from "lucide-react";
 import { CircleHelp, Search } from "lucide-react";
 import type { LucideIcon, LucideProps } from "lucide-react";
@@ -57,16 +58,35 @@ export function DynamicLucideIcon({
 export function LucideIconPicker({
   value,
   onChange,
+  triggerLabel,
 }: {
   value?: string;
   onChange: (iconName: string) => void;
+  triggerLabel?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<(typeof ICON_CATEGORIES)[number]["id"]>("popular");
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
   const selectedName = value && isRenderableIcon(ICON_COMPONENTS[value]) ? value : "";
   const normalizedSearch = search.trim().toLowerCase();
+
+  const updatePopoverPosition = () => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const bounds = trigger.getBoundingClientRect();
+    const popoverWidth = Math.min(336, window.innerWidth - 32);
+    const popoverHeight = Math.min(390, window.innerHeight - 32);
+    const left = Math.max(16, Math.min(bounds.left, window.innerWidth - popoverWidth - 16));
+    const hasRoomBelow = bounds.bottom + popoverHeight + 8 <= window.innerHeight - 16;
+    const top = hasRoomBelow
+      ? bounds.bottom + 8
+      : Math.max(16, bounds.top - popoverHeight - 8);
+    setPopoverPosition({ top, left });
+  };
 
   const visibleIcons = useMemo(() => {
     const names = normalizedSearch
@@ -77,40 +97,53 @@ export function LucideIconPicker({
 
   useEffect(() => {
     if (!isOpen) return;
+    updatePopoverPosition();
     const handlePointerDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && !rootRef.current?.contains(event.target)) {
+      if (event.target instanceof Node
+        && !rootRef.current?.contains(event.target)
+        && !popoverRef.current?.contains(event.target)) {
         setIsOpen(false);
       }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") setIsOpen(false);
     };
+    window.addEventListener("resize", updatePopoverPosition);
+    window.addEventListener("scroll", updatePopoverPosition, true);
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", updatePopoverPosition);
+      window.removeEventListener("scroll", updatePopoverPosition, true);
     };
   }, [isOpen]);
 
   return (
     <div ref={rootRef} className="relative inline-block">
       <button
+        ref={triggerRef}
         type="button"
-        onClick={() => setIsOpen((open) => !open)}
+        onClick={() => {
+          if (!isOpen) updatePopoverPosition();
+          setIsOpen((open) => !open);
+        }}
         aria-expanded={isOpen}
         aria-haspopup="dialog"
         title={selectedName ? `Selected icon: ${selectedName}` : "Choose icon"}
         className="inline-flex min-h-9 min-w-28 items-center justify-center gap-2 rounded border border-amber-500/40 bg-[#0c1017] px-3 text-xs font-medium text-stone-200 hover:border-amber-500/80"
       >
         <DynamicLucideIcon name={selectedName} className="h-4 w-4 text-amber-300" aria-hidden="true" />
-        {selectedName || "Choose icon"}
+        {triggerLabel || selectedName || "Choose icon"}
       </button>
-      {isOpen && (
+      {isOpen && typeof document !== "undefined" && createPortal(
         <div
+          ref={popoverRef}
           role="dialog"
           aria-label="Choose a Lucide icon"
-          className="absolute left-0 top-full z-50 mt-2 w-[min(21rem,calc(100vw-2.5rem))] rounded-md border border-[#394252] bg-[#171d28] p-3 shadow-2xl"
+          style={{ position: "fixed", top: popoverPosition.top, left: popoverPosition.left, zIndex: 10000 }}
+          className="w-[min(21rem,calc(100vw-2rem))] rounded-md border border-[#394252] bg-[#171d28] p-3 shadow-2xl"
         >
           <label className="relative block">
             <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-stone-500" aria-hidden="true" />
@@ -158,7 +191,8 @@ export function LucideIconPicker({
             ))}
             {visibleIcons.length === 0 && <p className="col-span-full py-6 text-center text-xs text-stone-500">No icons found.</p>}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

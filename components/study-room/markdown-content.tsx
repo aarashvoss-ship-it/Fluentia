@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
 import { CheckCircle2, XCircle } from "lucide-react";
+import { DynamicLucideIcon } from "@/components/shared/lucide-icon-picker";
 
 const parseBracketsToBadges = (content: string) => {
   if (!content) return "";
@@ -65,6 +66,10 @@ function normalizeMarkdown(value: string) {
   return normalized;
 }
 
+function renderLucideIconTokens(value: string) {
+  return value.replace(/\{\{lucide:([A-Za-z][A-Za-z0-9]*)\}\}/g, '<span data-lucide-icon="$1"></span>');
+}
+
 export function MarkdownContent({ value, className = "", plainCode = false, dataTables = false }: { value: string; className?: string; plainCode?: boolean; dataTables?: boolean }) {
   const renderPlainCode = plainCode || className.includes("text-slate-300");
   return (
@@ -73,6 +78,11 @@ export function MarkdownContent({ value, className = "", plainCode = false, data
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw]}
         components={{
+          span: ({ children, ...props }) => {
+            const iconName = (props as { "data-lucide-icon"?: string })["data-lucide-icon"];
+            if (iconName) return <DynamicLucideIcon name={iconName} className="mx-1 inline-block h-4 w-4 align-middle text-amber-300" aria-label={iconName} />;
+            return <span {...props}>{children}</span>;
+          },
           h1: ({ children }) => <h1 className="mb-4 mt-6 text-2xl font-semibold leading-tight text-stone-100">{children}</h1>,
           h2: ({ children }) => <h2 className="mb-3 mt-5 text-lg font-semibold leading-tight text-stone-100">{children}</h2>,
           h3: ({ children }) => <h3 className="mb-3 mt-4 text-base font-semibold leading-tight text-stone-100">{children}</h3>,
@@ -122,7 +132,7 @@ export function MarkdownContent({ value, className = "", plainCode = false, data
           },
         }}
       >
-        {parseBracketsToBadges(normalizeMarkdown(value))}
+        {parseBracketsToBadges(renderLucideIconTokens(normalizeMarkdown(value)))}
       </ReactMarkdown>
     </div>
   );
