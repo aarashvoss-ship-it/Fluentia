@@ -171,11 +171,6 @@ function buildSafeProfileUpdatePayload(profile: Partial<StudentProfile> | Record
   };
 }
 
-function isMissingCustomizationColumn(error: { code?: string; message?: string }) {
-  return (error.code === "42703" || error.code === "PGRST204")
-    && /(avatar_url|banner_url)/i.test(error.message || "");
-}
-
 function saveStudentProfileLocally(studentToken: string, profile: StudentProfile, pendingSync = true) {
   if (typeof window === "undefined" || !window.localStorage) return false;
   try {
@@ -237,59 +232,21 @@ export async function saveStudentProfile(
       full_name: profile.fullName || null,
       email: profile.email || null,
       target_level: targetLevel || null,
-      level: targetLevel || null,
-      target_goal: profile.targetGoal || null,
       core_goal: profile.targetGoal || null,
       focus_weaknesses: normalizeFocusWeaknesses(profile.weaknesses || (profile as Partial<StudentProfile> & Record<string, unknown>).focus_weaknesses),
       assigned_instructor: profile.assignedInstructor || null,
-      instructor_note: instructorNotes || null,
       dashboard_note: instructorNotes || null,
-      avatar_url: profile.avatarUrl || null,
-      banner_url: profile.bannerUrl || null,
       updated_at: new Date().toISOString(),
     };
 
-    const profileUpdateCandidates = [
-      { ...canonicalProfileUpdate },
-      { ...canonicalProfileUpdate, core_goal: undefined },
-      { ...canonicalProfileUpdate, target_goal: profile.targetGoal || null, core_goal: undefined },
-    ].map((candidate) => Object.fromEntries(Object.entries(candidate).filter(([, value]) => value !== undefined && value !== null))) as Record<string, unknown>[];
-
-    let lastError: { code?: string; message?: string; details?: string } | null = null;
-    let saved = false;
-    for (const candidate of profileUpdateCandidates) {
-      const { error } = await supabase.from("profiles").update(candidate).eq("id", canonicalId);
-      if (!error) {
-        saved = true;
-        break;
-      }
-      lastError = error;
-      if (error && isMissingCustomizationColumn(error)) {
-        const { avatar_url: _avatarUrl, banner_url: _bannerUrl, ...fallbackUpdate } = candidate;
-        const fallback = await supabase.from("profiles").update(fallbackUpdate).eq("id", canonicalId);
-        if (!fallback.error) {
-          saved = true;
-          break;
-        }
-        lastError = fallback.error;
-      }
-      const unsupportedColumns = ["core_goal", "dashboard_note", "focus_weaknesses", "assigned_instructor", "target_level"]
-        .filter((column) => new RegExp(`\\b${column}\\b`, "i").test((error.message || "") + " " + (error.details || "")));
-      if (unsupportedColumns.length > 0) {
-        const fallbackPayload = Object.fromEntries(Object.entries(candidate).filter(([key]) => !unsupportedColumns.includes(key)));
-        if (Object.keys(fallbackPayload).length > 0) {
-          const fallback = await supabase.from("profiles").update(fallbackPayload).eq("id", canonicalId);
-          if (!fallback.error) {
-            saved = true;
-            break;
-          }
-          lastError = fallback.error;
-        }
-      }
-    }
-    if (!saved && lastError) {
-      throw lastError;
-    }
+    const { data: updatedProfile, error: profileUpdateError } = await supabase
+      .from("profiles")
+      .update(canonicalProfileUpdate)
+      .eq("id", canonicalId)
+      .select("id")
+      .maybeSingle();
+    if (profileUpdateError) throw profileUpdateError;
+    if (!updatedProfile) throw new Error("Supabase did not confirm that the student profile was updated.");
 
     const { error: studentError } = await supabase.from("students").update({
       name: profile.fullName,

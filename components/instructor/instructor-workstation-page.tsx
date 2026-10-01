@@ -547,7 +547,7 @@ export default function InstructorWorkstationPage({
       level: targetLevel || "",
       weaknesses: profile.weaknesses || [],
     };
-    await saveStudentProfile(studentToken, nextProfile);
+    const saveMode = await saveStudentProfile(studentToken, nextProfile);
     setStudents((current) => current.map((currentStudent) => currentStudent.id === student.id ? {
       ...currentStudent,
       name: nextProfile.fullName,
@@ -556,6 +556,7 @@ export default function InstructorWorkstationPage({
     } : currentStudent));
     if (selectedStudentId === student.id) setWorkstationState((current) => ({ ...current, studentProfile: nextProfile }));
     window.dispatchEvent(new CustomEvent(FLUENTIA_DATA_UPDATED_EVENT, { detail: { type: "student-profile", studentToken } }));
+    return saveMode;
   }
 
   async function handleSaveSelectedStudentProfile(profile: StudentProfile) {
@@ -566,6 +567,7 @@ export default function InstructorWorkstationPage({
   function updateDirectoryStudentProfile(studentId: string, changes: Partial<StudentProfile>) {
     setStudents((current) => current.map((student) => student.id === studentId ? {
       ...student,
+      ...(changes.email !== undefined ? { email: changes.email } : {}),
       profile: { ...student.profile, ...changes },
     } : student));
     if (selectedStudentId === studentId) {
@@ -577,10 +579,15 @@ export default function InstructorWorkstationPage({
     event.preventDefault();
     setSavingProfileStudentId(student.id);
     setProfileSaveMessages((current) => ({ ...current, [student.id]: "" }));
+    setProfileSaveToast(null);
     try {
-      await saveStudentProfileEntry(student, student.profile);
-      setProfileSaveMessages((current) => ({ ...current, [student.id]: "Profile saved successfully!" }));
-      setProfileSaveToast("Profile saved successfully!");
+      const saveMode = await saveStudentProfileEntry(student, student.profile);
+      if (saveMode === "database") {
+        setProfileSaveMessages((current) => ({ ...current, [student.id]: "Profile saved successfully!" }));
+        setProfileSaveToast("Profile saved successfully!");
+      } else {
+        setProfileSaveMessages((current) => ({ ...current, [student.id]: "Saved locally, but Supabase did not confirm the update." }));
+      }
     } catch (error) {
       setProfileSaveMessages((current) => ({ ...current, [student.id]: error instanceof Error ? error.message : "Unable to save student profile." }));
     } finally {
@@ -2308,19 +2315,19 @@ export default function InstructorWorkstationPage({
           {studentsError && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{studentsError}</p>}
           {studentsLoading ? <p className="py-10 text-center text-sm text-stone-500">Loading student profiles...</p> : filteredStudentDirectory.length > 0 ? <div className="overflow-hidden rounded-xl border border-[#202631] bg-[#171d28]/60">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1220px] table-fixed border-collapse text-left">
+              <table className="w-full min-w-[1350px] table-fixed border-collapse text-left">
                 <thead className="border-b border-[#293343] bg-[#0c1017]/70 text-[10px] uppercase tracking-[0.12em] text-stone-500">
-                  <tr><th className="min-w-[200px] px-3 py-3 font-semibold">Student</th><th className="w-[120px] px-3 py-3 font-semibold">Current Level</th><th className="min-w-[200px] px-3 py-3 font-semibold">Core Goal</th><th className="min-w-[200px] px-3 py-3 font-semibold">Focus Weaknesses</th><th className="w-[150px] px-3 py-3 font-semibold">Assigned Instructor</th><th className="min-w-[280px] px-3 py-3 font-semibold">Dashboard Note</th><th className="w-[150px] px-3 py-3 font-semibold">Actions</th></tr>
+                  <tr><th className="w-[220px] px-3 py-3 font-semibold">Student</th><th className="w-[110px] px-3 py-3 font-semibold">Current Level</th><th className="w-[220px] px-3 py-3 font-semibold">Core Goal</th><th className="w-[200px] px-3 py-3 font-semibold">Focus Weaknesses</th><th className="w-[140px] px-3 py-3 font-semibold">Assigned Instructor</th><th className="w-[320px] px-3 py-3 font-semibold">Dashboard Note</th><th className="w-[140px] px-3 py-3 font-semibold">Actions</th></tr>
                 </thead>
                 <tbody className="divide-y divide-[#202631]">
                   {filteredStudentDirectory.map((student) => <tr key={student.id} className="hover:bg-white/[0.02]">
-                    <td className="min-w-[200px] px-3 py-3 align-top"><div className="flex min-w-0 flex-col gap-2"><span className="break-words text-sm font-medium text-stone-200">{student.name}</span><input type="email" value={student.profile.email ?? student.email ?? ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { email: event.target.value })} aria-label={`${student.name} email`} placeholder="Email address" className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></div></td>
-                    <td className="w-[120px] px-2 py-3 align-top"><select value={normalizeStudentLevel(student.profile.targetLevel || student.profile.level)} onChange={(event) => void handleStudentLevelChange(student, event.target.value as StudentCefrLevel)} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-2 text-xs text-amber-300 [color-scheme:dark]" aria-label={`Set ${student.name}'s level`}>{!normalizeStudentLevel(student.profile.targetLevel || student.profile.level) && <option value="" disabled>Not set</option>}{STUDENT_CEFR_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select></td>
-                    <td className="min-w-[200px] px-3 py-3 align-top"><input value={student.profile.targetGoal || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { targetGoal: event.target.value })} aria-label={`${student.name} core goal`} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></td>
-                    <td className="min-w-[200px] px-3 py-3 align-top"><input value={(student.profile.weaknesses || []).join(", ")} onChange={(event) => updateDirectoryStudentProfile(student.id, { weaknesses: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} aria-label={`${student.name} focus weaknesses`} placeholder="Separate with commas" className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></td>
-                    <td className="w-[150px] px-3 py-3 align-top"><input value={student.profile.assignedInstructor || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { assignedInstructor: event.target.value })} aria-label={`${student.name} assigned instructor`} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></td>
-                    <td className="min-w-[280px] px-3 py-3 align-top"><textarea value={student.profile.teacherNotes || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { teacherNotes: event.target.value })} aria-label={`${student.name} dashboard note`} rows={4} className="student-profile-note h-20 w-full resize-y overflow-y-auto rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs text-stone-200 outline-none focus:border-amber-500" /></td>
-                    <td className="w-[150px] px-3 py-3 align-top"><div className="flex flex-col gap-2.5"><button type="button" onClick={(event) => void handleSaveDirectoryStudent(event, student)} disabled={savingProfileStudentId === student.id} className="h-10 whitespace-nowrap rounded-md bg-amber-500 px-3 text-xs font-semibold text-slate-950 hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60">{savingProfileStudentId === student.id ? "Saving..." : "Save Changes"}</button>{student.enrolledDate && <span className="text-[11px] text-stone-500">Enrolled {new Date(student.enrolledDate).toLocaleDateString()}</span>}{profileSaveMessages[student.id] && <span role="status" className={`text-[10px] ${profileSaveMessages[student.id] === "Profile saved successfully!" ? "text-emerald-300" : "text-red-300"}`}>{profileSaveMessages[student.id]}</span>}</div></td>
+                    <td className="w-[220px] px-3 py-3 align-top"><div className="flex min-w-0 flex-col gap-2"><span className="break-words text-sm font-medium text-stone-200">{student.name}</span><input type="email" value={student.email ?? ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { email: event.target.value })} aria-label={`${student.name} email`} placeholder="Email address" className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></div></td>
+                    <td className="w-[110px] px-2 py-3 align-top"><select value={normalizeStudentLevel(student.profile.targetLevel || student.profile.level)} onChange={(event) => void handleStudentLevelChange(student, event.target.value as StudentCefrLevel)} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-2 text-xs text-amber-300 [color-scheme:dark]" aria-label={`Set ${student.name}'s level`}>{!normalizeStudentLevel(student.profile.targetLevel || student.profile.level) && <option value="" disabled>Not set</option>}{STUDENT_CEFR_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select></td>
+                    <td className="w-[220px] px-3 py-3 align-top"><input value={student.profile.targetGoal || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { targetGoal: event.target.value })} aria-label={`${student.name} core goal`} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></td>
+                    <td className="w-[200px] px-3 py-3 align-top"><input value={(student.profile.weaknesses || []).join(", ")} onChange={(event) => updateDirectoryStudentProfile(student.id, { weaknesses: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} aria-label={`${student.name} focus weaknesses`} placeholder="Separate with commas" className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></td>
+                    <td className="w-[140px] px-3 py-3 align-top"><input value={student.profile.assignedInstructor || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { assignedInstructor: event.target.value })} aria-label={`${student.name} assigned instructor`} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></td>
+                    <td className="w-[320px] px-3 py-3 align-top"><textarea value={student.profile.teacherNotes || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { teacherNotes: event.target.value })} aria-label={`${student.name} dashboard note`} rows={4} className="student-profile-note h-24 w-full resize-none overflow-x-hidden overflow-y-auto rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs text-stone-200 outline-none focus:border-amber-500" /></td>
+                    <td className="w-[140px] px-3 py-3 align-top"><div className="flex flex-col items-start gap-2.5"><button type="button" onClick={(event) => void handleSaveDirectoryStudent(event, student)} disabled={savingProfileStudentId === student.id} className="h-10 whitespace-nowrap rounded-md bg-amber-500 px-3 text-xs font-semibold text-slate-950 hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60">{savingProfileStudentId === student.id ? "Saving..." : "Save Changes"}</button>{student.enrolledDate && <span className="text-[11px] text-stone-500">Enrolled {new Date(student.enrolledDate).toLocaleDateString()}</span>}{profileSaveMessages[student.id] && <span role="status" className={`text-[10px] ${profileSaveMessages[student.id] === "Profile saved successfully!" ? "text-emerald-300" : "text-red-300"}`}>{profileSaveMessages[student.id]}</span>}</div></td>
                   </tr>)}
                 </tbody>
               </table>
