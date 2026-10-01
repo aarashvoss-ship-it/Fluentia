@@ -5,6 +5,7 @@ import {
   Minus,
   Moon,
   Plus,
+  RotateCw,
   SlidersHorizontal,
   Sparkles,
   Sun,
@@ -13,6 +14,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   type CSSProperties,
   type ReactNode,
@@ -72,9 +74,30 @@ export function useDisplaySettings() {
 function DisplayCustomizer() {
   const { settings, setSettings } = useDisplaySettings();
   const [open, setOpen] = useState(false);
+  const customizerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !customizerRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
 
   return (
-    <div className="display-customizer">
+    <div ref={customizerRef} className="display-customizer">
       {open && (
         <section className="display-customizer-panel" aria-label="Display and appearance settings">
           <header className="display-customizer-header">
@@ -82,14 +105,25 @@ function DisplayCustomizer() {
               <p className="display-customizer-eyebrow">FLUENTIA</p>
               <h2>Display &amp; appearance</h2>
             </div>
-            <button
-              className="display-customizer-close"
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="Close display settings"
-            >
-              <SlidersHorizontal size={17} />
-            </button>
+            <div className="display-customizer-actions">
+              <button
+                className="display-customizer-reset"
+                type="button"
+                onClick={() => setSettings(DEFAULT_SETTINGS)}
+                aria-label="Reset display settings to defaults"
+              >
+                <RotateCw size={14} />
+                <span>Reset</span>
+              </button>
+              <button
+                className="display-customizer-close"
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Close display settings"
+              >
+                <SlidersHorizontal size={17} />
+              </button>
+            </div>
           </header>
 
           <fieldset className="display-theme-options">
@@ -222,6 +256,7 @@ export function DisplaySettingsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.displayTheme = settings.theme;
+    root.classList.toggle("light", settings.theme === "light");
     root.style.setProperty("--display-brightness", String(settings.brightness / 100));
     root.style.setProperty("--display-contrast", String(settings.contrast / 100));
     root.style.setProperty("--display-font-scale", String(settings.fontSize / 100));
