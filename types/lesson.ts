@@ -71,6 +71,7 @@ export interface ContentBlockBase {
   id: string;
   type: ContentBlockType;
   title: string;
+  icon?: string;
   explanation?: string;
   enabled: boolean;
   is_active?: boolean;

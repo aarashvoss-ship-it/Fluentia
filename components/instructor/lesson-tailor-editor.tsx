@@ -11,6 +11,7 @@ import { WritingBlockEditor } from "@/components/shared/writing-block";
 import { parseFillInBlanks } from "@/lib/fill-in-blanks";
 import { uploadLessonAsset, uploadLessonMedia } from "@/services/storage-service";
 import { Tooltip } from "@/components/shared/tooltip";
+import { DynamicLucideIcon, LucideIconPicker } from "@/components/shared/lucide-icon-picker";
 import { Eye, FileText, Layers, Lightbulb, LoaderCircle, MoveDown, MoveUp, Plus, Trash2, UploadCloud, X, ChevronDown, ChevronUp, HelpCircle, Mic, Square } from "lucide-react";
 
 interface LessonTailorEditorProps {
@@ -724,6 +725,7 @@ export function LessonTailorEditor({
             <div className="mb-3 flex cursor-pointer items-center justify-between gap-2" onClick={() => toggleBlockCollapse(block.id)}>
               <button type="button" onClick={(event) => { event.stopPropagation(); toggleBlockCollapse(block.id); }} className="flex min-w-0 items-center gap-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400 hover:text-amber-300" aria-expanded={isExpanded} aria-controls={`block-content-${block.id}`}>
                 {isExpanded ? <ChevronUp className="h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
+                {block.icon && <DynamicLucideIcon name={block.icon} className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
                 <span className="truncate">{index + 1}. {block.type} block{!isActive ? " · Inactive" : ""}</span>
               </button>
               <div className="flex items-center gap-1" onClick={(event) => event.stopPropagation()}>
@@ -737,6 +739,11 @@ export function LessonTailorEditor({
             </div>
             <div id={`block-content-${block.id}`} className={`overflow-hidden transition-[max-height,opacity] duration-200 ${isExpanded ? "max-h-[5000px] opacity-100" : "max-h-0 opacity-0"}`} aria-hidden={!isExpanded}>
             <input value={block.title} onChange={(event) => updateDynamicBlock(step, index, { title: event.target.value })} placeholder="Block title" className="mb-2 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.type} block title`} />
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <span className="text-[11px] text-stone-500">Block icon</span>
+              <LucideIconPicker value={block.icon || ""} onChange={(icon) => updateDynamicBlock(step, index, { icon })} />
+              {block.icon && <button type="button" onClick={() => updateDynamicBlock(step, index, { icon: undefined })} className="text-[11px] text-stone-500 underline hover:text-stone-300">Clear</button>}
+            </div>
             <div className="mb-3 grid gap-2 sm:grid-cols-3">
               <label className="text-[11px] text-stone-500">Layout mode
                 <select value={block.layoutMode || "global"} onChange={(event) => updateDynamicBlock(step, index, { layoutMode: event.target.value as "global" | "inline-row", sidebarBlockId: event.target.value === "global" ? undefined : block.sidebarBlockId })} className="mt-1 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 [color-scheme:dark]" aria-label={`${block.type} block layout mode`}>
