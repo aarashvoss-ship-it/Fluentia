@@ -24,7 +24,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning className={`${inter.variable} font-sans`}>
-      <body suppressHydrationWarning className="font-sans bg-background text-text-primary antialiased selection:bg-accent/20 selection:text-accent">
+      <body suppressHydrationWarning className={`${inter.className} antialiased bg-background text-text-primary selection:bg-accent/20 selection:text-accent`}>
         <ChunkErrorRecoveryReset />
         {children}
       </body>
