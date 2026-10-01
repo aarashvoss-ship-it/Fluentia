@@ -153,7 +153,6 @@ const LESSON_UPDATE_COLUMNS = [
   "status",
   "subject",
   "grade",
-  "tags",
   "assigned_all_students",
   "banner_url",
   "student_id",
@@ -803,12 +802,14 @@ export async function updateLesson(
 
   try {
     const { content, changes_summary, banner_url, student_id, student_token, instructor_id, is_published, slug, title, subtitle, module_number, status, subject, grade, tags, assigned_all_students } = input;
-    const safeContent = sanitizeLessonContent(content);
+    const safeContent = sanitizeLessonContent(
+      content && tags !== undefined ? { ...content, tags } : content,
+    );
     const resolvedStudentId = student_id || undefined;
     const resolvedInstructorId = instructor_id || undefined;
     // Update the lesson metadata
     const hasStudentTokenUpdate = Object.prototype.hasOwnProperty.call(input, "student_token");
-    if (title !== undefined || subtitle !== undefined || module_number !== undefined || slug !== undefined || status !== undefined || subject !== undefined || grade !== undefined || tags !== undefined || assigned_all_students !== undefined || banner_url !== undefined || resolvedStudentId || resolvedInstructorId || hasStudentTokenUpdate || is_published !== undefined) {
+    if (title !== undefined || subtitle !== undefined || module_number !== undefined || slug !== undefined || status !== undefined || subject !== undefined || grade !== undefined || assigned_all_students !== undefined || banner_url !== undefined || resolvedStudentId || resolvedInstructorId || hasStudentTokenUpdate || is_published !== undefined) {
       let updatePayload = sanitizeLessonUpdatePayload({
         ...(title !== undefined ? { title } : {}),
         ...(subtitle !== undefined ? { subtitle: typeof subtitle === "string" ? subtitle.trim() : subtitle } : {}),
@@ -817,7 +818,6 @@ export async function updateLesson(
         ...(status !== undefined ? { status } : is_published !== undefined ? { status: is_published ? "published" : "draft" } : {}),
         ...(subject !== undefined ? { subject } : {}),
         ...(grade !== undefined ? { grade } : {}),
-        ...(tags !== undefined ? { tags } : {}),
         ...(assigned_all_students !== undefined ? { assigned_all_students } : {}),
         ...(banner_url !== undefined ? { banner_url } : {}),
         ...(resolvedStudentId ? { student_id: resolvedStudentId } : {}),

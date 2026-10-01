@@ -100,7 +100,10 @@ function normalizeCefrLevel(value: unknown) {
 }
 
 function normalizeLessonTags(value: unknown, content: Record<string, any> = {}): LessonTags {
-  const source = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const embeddedTags = content.tags && typeof content.tags === "object" && !Array.isArray(content.tags)
+    ? content.tags as Record<string, unknown>
+    : {};
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : embeddedTags;
   const custom = Array.isArray(source.custom) ? source.custom : Array.isArray(source.custom_tags) ? source.custom_tags : [];
   const stringValue = (candidate: unknown, fallback: unknown) => typeof candidate === "string" ? candidate : typeof fallback === "string" ? fallback : "";
   return {
@@ -3246,6 +3249,7 @@ export default function InstructorWorkstationPage({
                         }))}
                         placeholder="Start typing sidebar content or use formatting options..."
                         ariaLabel={`Sidebar content for ${block.title || "sidebar block"}`}
+                        compact
                       />
                     </div>
                   ))}

@@ -44,16 +44,19 @@ type TiptapEditorProps = {
   onChange: (markdown: string) => void;
   placeholder?: string;
   ariaLabel: string;
+  compact?: boolean;
 };
 
 function ToolbarButton({
   label,
   active = false,
+  compact = false,
   onClick,
   children,
 }: {
   label: string;
   active?: boolean;
+  compact?: boolean;
   onClick: () => void;
   children: React.ReactNode;
 }) {
@@ -65,7 +68,7 @@ function ToolbarButton({
         onClick={onClick}
         aria-label={label}
         aria-pressed={active}
-        className={`flex h-7 min-w-7 items-center justify-center rounded px-1.5 text-[11px] transition ${active ? "bg-amber-500/15 text-amber-300" : "text-stone-300 hover:bg-[#293343] hover:text-white"}`}
+        className={`flex items-center justify-center rounded transition ${compact ? "h-6 min-w-6 px-1 text-[10px]" : "h-7 min-w-7 px-1.5 text-[11px]"} ${active ? "bg-amber-500/15 text-amber-300" : "text-stone-300 hover:bg-[#293343] hover:text-white"}`}
       >
         {children}
       </button>
@@ -78,6 +81,7 @@ export function TiptapEditor({
   onChange,
   placeholder = "Start typing lesson content or use formatting options...",
   ariaLabel,
+  compact = false,
 }: TiptapEditorProps) {
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -145,24 +149,24 @@ export function TiptapEditor({
   return (
     <div className="tiptap-editor w-full min-w-0 space-y-2">
       <div className="w-full min-w-0">
-        <div className="box-border flex w-full min-w-0 flex-wrap items-center justify-center gap-1.5 rounded border border-[#202631] bg-[#0c1017] p-1" role="toolbar" aria-label="Rich text formatting">
-          <ToolbarButton label="Heading 1" active={!!editor?.isActive("heading", { level: 1 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}>H1</ToolbarButton>
-          <ToolbarButton label="Heading 2" active={!!editor?.isActive("heading", { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>H2</ToolbarButton>
-          <ToolbarButton label="Heading 3" active={!!editor?.isActive("heading", { level: 3 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}>H3</ToolbarButton>
-          <span className="mx-1 h-4 w-px bg-[#394252]" aria-hidden="true" />
-          <ToolbarButton label="Bold" active={!!editor?.isActive("bold")} onClick={() => editor?.chain().focus().toggleBold().run()}><Bold className="h-3.5 w-3.5" /></ToolbarButton>
-          <ToolbarButton label="Italic" active={!!editor?.isActive("italic")} onClick={() => editor?.chain().focus().toggleItalic().run()}><Italic className="h-3.5 w-3.5" /></ToolbarButton>
-          <ToolbarButton label="Strikethrough" active={!!editor?.isActive("strike")} onClick={() => editor?.chain().focus().toggleStrike().run()}><Strikethrough className="h-3.5 w-3.5" /></ToolbarButton>
-          <span className="mx-1 h-4 w-px bg-[#394252]" aria-hidden="true" />
-          <ToolbarButton label="Bullet list" active={!!editor?.isActive("bulletList")} onClick={() => editor?.chain().focus().toggleBulletList().run()}><List className="h-3.5 w-3.5" /></ToolbarButton>
-          <ToolbarButton label="Numbered list" active={!!editor?.isActive("orderedList")} onClick={() => editor?.chain().focus().toggleOrderedList().run()}><ListOrdered className="h-3.5 w-3.5" /></ToolbarButton>
-          <span className="mx-1 h-4 w-px bg-[#394252]" aria-hidden="true" />
-          <ToolbarButton label="Callout / blockquote" active={!!editor?.isActive("blockquote")} onClick={() => editor?.chain().focus().toggleBlockquote().run()}><Lightbulb className="h-3.5 w-3.5" /></ToolbarButton>
-          <ToolbarButton label="Code block" active={!!editor?.isActive("codeBlock")} onClick={() => editor?.chain().focus().toggleCodeBlock().run()}><Code2 className="h-3.5 w-3.5" /></ToolbarButton>
-          <ToolbarButton label="Horizontal rule" onClick={() => editor?.chain().focus().setHorizontalRule().run()}><Minus className="h-3.5 w-3.5" /></ToolbarButton>
-          <ToolbarButton label={editor?.isActive("link") ? "Remove link" : "Add link"} active={!!editor?.isActive("link")} onClick={applyLink}><Link2 className="h-3.5 w-3.5" /></ToolbarButton>
+        <div className={`box-border flex w-full min-w-0 flex-wrap items-center justify-center rounded border border-[#202631] bg-[#0c1017] p-1 ${compact ? "gap-1" : "gap-1.5"}`} role="toolbar" aria-label="Rich text formatting">
+          <ToolbarButton compact={compact} label="Heading 1" active={!!editor?.isActive("heading", { level: 1 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}>H1</ToolbarButton>
+          <ToolbarButton compact={compact} label="Heading 2" active={!!editor?.isActive("heading", { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>H2</ToolbarButton>
+          <ToolbarButton compact={compact} label="Heading 3" active={!!editor?.isActive("heading", { level: 3 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}>H3</ToolbarButton>
+          <span className={`${compact ? "mx-0.5" : "mx-1"} h-4 w-px bg-[#394252]`} aria-hidden="true" />
+          <ToolbarButton compact={compact} label="Bold" active={!!editor?.isActive("bold")} onClick={() => editor?.chain().focus().toggleBold().run()}><Bold className="h-3.5 w-3.5" /></ToolbarButton>
+          <ToolbarButton compact={compact} label="Italic" active={!!editor?.isActive("italic")} onClick={() => editor?.chain().focus().toggleItalic().run()}><Italic className="h-3.5 w-3.5" /></ToolbarButton>
+          <ToolbarButton compact={compact} label="Strikethrough" active={!!editor?.isActive("strike")} onClick={() => editor?.chain().focus().toggleStrike().run()}><Strikethrough className="h-3.5 w-3.5" /></ToolbarButton>
+          <span className={`${compact ? "mx-0.5" : "mx-1"} h-4 w-px bg-[#394252]`} aria-hidden="true" />
+          <ToolbarButton compact={compact} label="Bullet list" active={!!editor?.isActive("bulletList")} onClick={() => editor?.chain().focus().toggleBulletList().run()}><List className="h-3.5 w-3.5" /></ToolbarButton>
+          <ToolbarButton compact={compact} label="Numbered list" active={!!editor?.isActive("orderedList")} onClick={() => editor?.chain().focus().toggleOrderedList().run()}><ListOrdered className="h-3.5 w-3.5" /></ToolbarButton>
+          <span className={`${compact ? "mx-0.5" : "mx-1"} h-4 w-px bg-[#394252]`} aria-hidden="true" />
+          <ToolbarButton compact={compact} label="Callout / blockquote" active={!!editor?.isActive("blockquote")} onClick={() => editor?.chain().focus().toggleBlockquote().run()}><Lightbulb className="h-3.5 w-3.5" /></ToolbarButton>
+          <ToolbarButton compact={compact} label="Code block" active={!!editor?.isActive("codeBlock")} onClick={() => editor?.chain().focus().toggleCodeBlock().run()}><Code2 className="h-3.5 w-3.5" /></ToolbarButton>
+          <ToolbarButton compact={compact} label="Horizontal rule" onClick={() => editor?.chain().focus().setHorizontalRule().run()}><Minus className="h-3.5 w-3.5" /></ToolbarButton>
+          <ToolbarButton compact={compact} label={editor?.isActive("link") ? "Remove link" : "Add link"} active={!!editor?.isActive("link")} onClick={applyLink}><Link2 className="h-3.5 w-3.5" /></ToolbarButton>
           <div ref={colorPaletteRef} className="relative">
-            <ToolbarButton label="Text color" active={!!editor?.isActive("textStyle")} onClick={() => setIsColorPaletteOpen((open) => !open)}><Palette className="h-3.5 w-3.5" /></ToolbarButton>
+            <ToolbarButton compact={compact} label="Text color" active={!!editor?.isActive("textStyle")} onClick={() => setIsColorPaletteOpen((open) => !open)}><Palette className="h-3.5 w-3.5" /></ToolbarButton>
             {isColorPaletteOpen && (
               <div className="absolute right-0 top-full z-40 mt-2 grid w-36 grid-cols-4 gap-2 rounded-md border border-[#394252] bg-[#171d28] p-3 shadow-xl" role="dialog" aria-label="Choose text color">
                 {textColors.map((color) => (
@@ -197,6 +201,7 @@ export function TiptapEditor({
           <LucideIconPicker
             triggerLabel="Insert Icon"
             triggerIcon={PlusCircle}
+            compact={compact}
             onChange={(name) => editor?.chain().focus().insertContent({ type: "inlineLucideIcon", attrs: { name } }).run()}
           />
         </div>

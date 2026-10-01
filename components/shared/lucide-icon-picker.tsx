@@ -60,11 +60,13 @@ export function LucideIconPicker({
   onChange,
   triggerLabel,
   triggerIcon,
+  compact = false,
 }: {
   value?: string;
   onChange: (iconName: string) => void;
   triggerLabel?: string;
   triggerIcon?: LucideIcon;
+  compact?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -135,9 +137,9 @@ export function LucideIconPicker({
         aria-expanded={isOpen}
         aria-haspopup="dialog"
         title={selectedName ? `Selected icon: ${selectedName}` : "Choose icon"}
-        className="inline-flex min-h-9 min-w-28 items-center justify-center gap-2 rounded border border-amber-500/40 bg-[#0c1017] px-3 text-xs font-medium text-stone-200 hover:border-amber-500/80"
+        className={`inline-flex items-center justify-center rounded border border-amber-500/40 bg-[#0c1017] font-medium text-stone-200 hover:border-amber-500/80 ${compact ? "min-h-7 min-w-0 gap-1 px-1.5 text-[10px]" : "min-h-9 min-w-28 gap-2 px-3 text-xs"}`}
       >
-        <TriggerIcon className="h-4 w-4 text-amber-300" aria-hidden="true" />
+        <TriggerIcon className={`${compact ? "h-3.5 w-3.5" : "h-4 w-4"} shrink-0 text-amber-300`} aria-hidden="true" />
         {triggerLabel || selectedName || "Choose icon"}
       </button>
       {isOpen && typeof document !== "undefined" && createPortal(
