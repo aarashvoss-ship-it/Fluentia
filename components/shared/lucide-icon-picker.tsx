@@ -136,11 +136,14 @@ export function LucideIconPicker({
         }}
         aria-expanded={isOpen}
         aria-haspopup="dialog"
-        title={selectedName ? `Selected icon: ${selectedName}` : "Choose icon"}
-        className={`inline-flex items-center justify-center rounded border border-amber-500/40 bg-[#0c1017] font-medium text-stone-200 hover:border-amber-500/80 ${compact ? "min-h-7 min-w-0 gap-1 px-1.5 text-[10px]" : "min-h-9 min-w-28 gap-2 px-3 text-xs"}`}
+        aria-label={triggerLabel || (selectedName ? `Selected icon: ${selectedName}` : "Choose icon")}
+        title={triggerLabel || (selectedName ? `Selected icon: ${selectedName}` : "Choose icon")}
+        className={compact
+          ? "flex h-6 min-w-6 items-center justify-center rounded p-1 text-stone-300 transition hover:bg-[#293343] hover:text-white"
+          : "inline-flex min-h-9 min-w-28 items-center justify-center gap-2 rounded border border-amber-500/40 bg-[#0c1017] px-3 text-xs font-medium text-stone-200 hover:border-amber-500/80"}
       >
-        <TriggerIcon className={`${compact ? "h-3.5 w-3.5" : "h-4 w-4"} shrink-0 text-amber-300`} aria-hidden="true" />
-        {triggerLabel || selectedName || "Choose icon"}
+        <TriggerIcon className={`${compact ? "h-4 w-4" : "h-4 w-4 text-amber-300"} shrink-0`} aria-hidden="true" />
+        {!compact && (triggerLabel || selectedName || "Choose icon")}
       </button>
       {isOpen && typeof document !== "undefined" && createPortal(
         <div
