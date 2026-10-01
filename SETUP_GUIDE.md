@@ -33,7 +33,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` is required only for instructor-side student creation. Keep it server-only; never rename it with a `NEXT_PUBLIC_` prefix or expose it to browser code.
+`SUPABASE_SERVICE_ROLE_KEY` is required for instructor-side student and instructor management. Keep it server-only; never rename it with a `NEXT_PUBLIC_` prefix or expose it to browser code.
 
 **How to find these values:**
 1. Go to [Supabase Dashboard](https://app.supabase.com)

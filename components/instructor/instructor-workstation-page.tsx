@@ -24,6 +24,7 @@ import { StudyRoomBlockRow } from "@/components/study-room/study-room-block-row"
 import { parseInteractiveTranscript } from "@/lib/transcripts";
 import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player";
 import { getStudentDirectory, getStudentProfile, normalizeStudentLevel, saveStudentProfile, STUDENT_CEFR_LEVELS, updateStudentTargetLevel, type StudentCefrLevel } from "@/lib/student-profiles";
+import { getInstructorDirectory, type InstructorDirectoryEntry, type InstructorStatus } from "@/lib/instructors";
 import { MusicLibraryManager } from "@/components/instructor/music-library-manager";
 import { InstructorChatWidget } from "@/components/instructor/instructor-chat-widget";
 import { useLessonEditorStore } from "@/lib/lesson-editor-store";
@@ -45,6 +46,13 @@ type AddStudentDraft = {
   coreGoal: string;
   dashboardNote: string;
 };
+type AddInstructorDraft = {
+  fullName: string;
+  email: string;
+  specialization: string;
+  status: InstructorStatus;
+  bio: string;
+};
 const EMPTY_ADD_STUDENT_DRAFT: AddStudentDraft = {
   fullName: "",
   email: "",
@@ -54,6 +62,31 @@ const EMPTY_ADD_STUDENT_DRAFT: AddStudentDraft = {
   coreGoal: "",
   dashboardNote: "",
 };
+const EMPTY_ADD_INSTRUCTOR_DRAFT: AddInstructorDraft = {
+  fullName: "",
+  email: "",
+  specialization: "",
+  status: "active",
+  bio: "",
+};
+
+function normalizeInstructorRecord(value: unknown, assignedCount = 0): InstructorDirectoryEntry {
+  const record = value as Record<string, unknown>;
+  return {
+    id: typeof record.id === "string" ? record.id : "",
+    name: typeof record.name === "string" ? record.name : "",
+    email: typeof record.email === "string" ? record.email : "",
+    slug: typeof record.slug === "string" ? record.slug : "",
+    token: typeof record.token === "string" ? record.token : "",
+    specialization: typeof record.specialization === "string" ? record.specialization : "",
+    status: record.status === "on_leave" ? "on_leave" : "active",
+    maxStudentCapacity: Number.isFinite(record.max_student_capacity) ? Number(record.max_student_capacity) : 20,
+    assignedCount,
+    bio: typeof record.bio === "string" ? record.bio : "",
+    createdAt: typeof record.created_at === "string" ? record.created_at : "",
+    updatedAt: typeof record.updated_at === "string" ? record.updated_at : "",
+  };
+}
 
 const CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
 const EMPTY_LESSON_TAGS: LessonTags = { domain: "", skill_focus: "", practice_type: "", custom: [] };
@@ -256,6 +289,16 @@ export default function InstructorWorkstationPage({
   const [resourceLessonId, setResourceLessonId] = useState<string | null>(null);
 
   const [students, setStudents] = useState<StudentUser[]>([]);
+  const [instructors, setInstructors] = useState<InstructorDirectoryEntry[]>([]);
+  const [instructorsLoading, setInstructorsLoading] = useState(false);
+  const [instructorsError, setInstructorsError] = useState<string | null>(null);
+  const [expandedInstructorIds, setExpandedInstructorIds] = useState<Set<string>>(() => new Set());
+  const [savingInstructorId, setSavingInstructorId] = useState<string | null>(null);
+  const [instructorSaveMessages, setInstructorSaveMessages] = useState<Record<string, string>>({});
+  const [isAddInstructorOpen, setIsAddInstructorOpen] = useState(false);
+  const [addInstructorDraft, setAddInstructorDraft] = useState<AddInstructorDraft>(EMPTY_ADD_INSTRUCTOR_DRAFT);
+  const [isAddingInstructor, setIsAddingInstructor] = useState(false);
+  const [addInstructorError, setAddInstructorError] = useState<string | null>(null);
   const selectedStudent = students.find((student) => student.id === selectedStudentId) || null;
   const [studentsLoading, setStudentsLoading] = useState(true);
   const [studentsError, setStudentsError] = useState<string | null>(null);
@@ -270,7 +313,7 @@ export default function InstructorWorkstationPage({
   const [publishedLessonCount, setPublishedLessonCount] = useState(0);
   const [draftLessonCount, setDraftLessonCount] = useState(0);
   const [lessonStatus, setLessonStatus] = useState<"draft" | "published">("published");
-  const [activeTab, setActiveTab] = useState<"dashboard" | "library" | "resources" | "builder" | "evaluation" | "students" | "music">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "students" | "instructors" | "library" | "builder" | "evaluation" | "music" | "resources">("dashboard");
   const [studentLevelFilter, setStudentLevelFilter] = useState<"All" | StudentCefrLevel>("All");
   const [studentInstructorFilter, setStudentInstructorFilter] = useState("All instructors");
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
@@ -400,6 +443,28 @@ export default function InstructorWorkstationPage({
     const timeout = window.setTimeout(() => setProfileSaveToast(null), 4000);
     return () => window.clearTimeout(timeout);
   }, [profileSaveToast]);
+
+  useEffect(() => {
+    if (!isMounted || activeTab !== "instructors") return;
+    let cancelled = false;
+    setInstructorsLoading(true);
+    setInstructorsError(null);
+    getInstructorDirectory()
+      .then((directory) => {
+        if (cancelled) return;
+        setInstructors(directory.map((instructor) => ({
+          ...instructor,
+          assignedCount: students.filter((student) => student.profile.assignedInstructor?.trim().toLowerCase() === instructor.name.trim().toLowerCase()).length,
+        })));
+      })
+      .catch((error) => {
+        if (!cancelled) setInstructorsError(error instanceof Error ? error.message : "Unable to load instructor profiles.");
+      })
+      .finally(() => {
+        if (!cancelled) setInstructorsLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [activeTab, isMounted, students]);
 
   const updateBuilderLevel = (level: string) => {
     setNewLesson((previous) => ({ ...previous, level }));
@@ -608,6 +673,21 @@ export default function InstructorWorkstationPage({
     });
   }
 
+  function toggleInstructorProfile(instructorId: string) {
+    setExpandedInstructorIds((current) => {
+      const next = new Set(current);
+      if (next.has(instructorId)) next.delete(instructorId);
+      else next.add(instructorId);
+      return next;
+    });
+  }
+
+  function updateInstructorProfile(instructorId: string, changes: Partial<InstructorDirectoryEntry>) {
+    setInstructors((current) => current.map((instructor) => instructor.id === instructorId
+      ? { ...instructor, ...changes }
+      : instructor));
+  }
+
   async function handleSaveDirectoryStudent(event: React.MouseEvent<HTMLButtonElement>, student: StudentUser) {
     event.preventDefault();
     setSavingProfileStudentId(student.id);
@@ -655,6 +735,79 @@ export default function InstructorWorkstationPage({
       setAddStudentError(error instanceof Error ? error.message : "Unable to add student.");
     } finally {
       setIsAddingStudent(false);
+    }
+  }
+
+  async function handleCreateInstructor(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsAddingInstructor(true);
+    setAddInstructorError(null);
+    try {
+      const response = await fetch("/api/instructor/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(addInstructorDraft),
+      });
+      const result = await response.json() as { instructor?: unknown; error?: string };
+      if (!response.ok || !result.instructor) throw new Error(result.error || "Unable to create instructor.");
+      const createdInstructor = normalizeInstructorRecord(result.instructor);
+      setInstructors((current) => [createdInstructor, ...current.filter((instructor) => instructor.id !== createdInstructor.id)]);
+      setExpandedInstructorIds((current) => new Set(current).add(createdInstructor.id));
+      setAddInstructorDraft(EMPTY_ADD_INSTRUCTOR_DRAFT);
+      setIsAddInstructorOpen(false);
+    } catch (error) {
+      setAddInstructorError(error instanceof Error ? error.message : "Unable to create instructor.");
+    } finally {
+      setIsAddingInstructor(false);
+    }
+  }
+
+  async function persistInstructorUpdate(instructor: InstructorDirectoryEntry, changes: Partial<InstructorDirectoryEntry>) {
+    const response = await fetch(`/api/instructor/${encodeURIComponent(instructor.id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: changes.name ?? instructor.name,
+        email: changes.email ?? instructor.email,
+        specialization: changes.specialization ?? instructor.specialization,
+        status: changes.status ?? instructor.status,
+        maxStudentCapacity: changes.maxStudentCapacity ?? instructor.maxStudentCapacity,
+        bio: changes.bio ?? instructor.bio,
+      }),
+    });
+    const result = await response.json() as { instructor?: unknown; error?: string };
+    if (!response.ok || !result.instructor) throw new Error(result.error || "Unable to save instructor profile.");
+    const updatedInstructor = normalizeInstructorRecord(result.instructor, instructor.assignedCount);
+    setInstructors((current) => current.map((item) => item.id === instructor.id ? updatedInstructor : item));
+    return updatedInstructor;
+  }
+
+  async function handleSaveInstructor(event: React.MouseEvent<HTMLButtonElement>, instructor: InstructorDirectoryEntry) {
+    event.preventDefault();
+    setSavingInstructorId(instructor.id);
+    setInstructorSaveMessages((current) => ({ ...current, [instructor.id]: "" }));
+    try {
+      await persistInstructorUpdate(instructor, instructor);
+      setInstructorSaveMessages((current) => ({ ...current, [instructor.id]: "Instructor profile saved." }));
+    } catch (error) {
+      setInstructorSaveMessages((current) => ({ ...current, [instructor.id]: error instanceof Error ? error.message : "Unable to save instructor profile." }));
+    } finally {
+      setSavingInstructorId(null);
+    }
+  }
+
+  async function handleDeactivateInstructor(event: React.MouseEvent<HTMLButtonElement>, instructor: InstructorDirectoryEntry) {
+    event.preventDefault();
+    if (instructor.status === "on_leave" || !window.confirm(`Place ${instructor.name} on leave? Their profile will remain available for reactivation.`)) return;
+    setSavingInstructorId(instructor.id);
+    setInstructorSaveMessages((current) => ({ ...current, [instructor.id]: "" }));
+    try {
+      await persistInstructorUpdate(instructor, { status: "on_leave" });
+      setInstructorSaveMessages((current) => ({ ...current, [instructor.id]: "Instructor placed on leave." }));
+    } catch (error) {
+      setInstructorSaveMessages((current) => ({ ...current, [instructor.id]: error instanceof Error ? error.message : "Unable to deactivate instructor." }));
+    } finally {
+      setSavingInstructorId(null);
     }
   }
 
@@ -2195,7 +2348,7 @@ export default function InstructorWorkstationPage({
 
   return (
     <div className="min-h-screen w-full bg-[#0c1017] font-sans text-[#e8e7e4]">
-      <div className={`${activeTab === "students" ? "w-full max-w-full px-6" : "mx-auto w-full max-w-6xl px-4 sm:px-6"} py-6 md:py-8`}>
+      <div className={`${activeTab === "students" || activeTab === "instructors" ? "w-full max-w-full px-6" : "mx-auto w-full max-w-6xl px-4 sm:px-6"} py-6 md:py-8`}>
         <div className="mb-6 flex items-center">
           <img src="/logo.png" alt="Fluentia" className="h-10 w-auto object-contain" />
         </div>
@@ -2224,15 +2377,8 @@ export default function InstructorWorkstationPage({
         <nav className="sticky top-0 z-20 mb-8 border-b border-[#202631] bg-[#0c1017]/95 backdrop-blur" aria-label="Instructor workstation views">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-0 flex-wrap gap-x-1">
-              {([["dashboard", "Dashboard"], ["library", "Lesson Library"], ["builder", "Lesson Builder"], ["evaluation", "Student Evaluation"], ["students", "Students Profile"], ["music", "Music Library"]] as const).map(([tab, label]) => <Tooltip key={tab} content={`Open ${label}`}><button type="button" onClick={() => handleWorkspaceTabChange(tab)} className={`whitespace-nowrap border-b-2 px-3 py-3 text-xs font-semibold transition sm:px-4 ${activeTab === tab ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}>{label}</button></Tooltip>)}
+              {([["dashboard", "Dashboard"], ["students", "Students Directory"], ["instructors", "Instructors Directory"], ["library", "Lesson Library"], ["builder", "Lesson Builder"], ["evaluation", "Student Evaluation"], ["music", "Music Library"]] as const).map(([tab, label]) => <Tooltip key={tab} content={`Open ${label}`}><button type="button" onClick={() => handleWorkspaceTabChange(tab)} className={`whitespace-nowrap border-b-2 px-3 py-3 text-xs font-semibold transition sm:px-4 ${activeTab === tab ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}>{label}</button></Tooltip>)}
             </div>
-            <label className="flex w-full max-w-[240px] items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400 sm:ml-auto sm:w-64">
-              <span className="sr-only">Active student</span>
-              <Tooltip content="Choose which student's lesson workspace to manage"><select value={selectedStudentId || ""} onChange={(event) => { const nextStudent = students.find((student) => student.id === event.target.value); if (nextStudent) void handleStudentChange(nextStudent); }} className="w-full rounded-md border border-amber-500/50 bg-[#171d28] px-3 py-2 text-xs font-medium normal-case tracking-normal text-white outline-none transition-colors hover:border-amber-400 focus:border-amber-400 [color-scheme:dark]" aria-label="Select active student">
-                <option value="" className="bg-[#0c1017] text-white">{studentsLoading ? "Loading students..." : studentsError ? "Unable to load students" : students.length === 0 ? "No registered students" : "Choose a student"}</option>
-                {students.map((student) => <option key={student.id} value={student.id} className="bg-[#0c1017] text-white">{student.name}</option>)}
-              </select></Tooltip>
-            </label>
           </div>
         </nav>
 
@@ -2475,6 +2621,87 @@ export default function InstructorWorkstationPage({
               </article>;
             })}
           </div> : <div className="rounded-xl border border-dashed border-[#394252] px-6 py-12 text-center text-sm text-stone-500">No student profiles match this level.</div>}
+        </section>}
+
+        {activeTab === "instructors" && <section className="w-full min-w-0 space-y-5" aria-labelledby="instructors-profile-title">
+          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-[#202631] pb-4">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Instructor Directory</p>
+              <h2 id="instructors-profile-title" className="mt-1 font-sans text-2xl font-semibold text-stone-100">Instructors Profile</h2>
+              <p className="mt-1 text-sm text-stone-500">{instructors.length} instructor{instructors.length === 1 ? "" : "s"}</p>
+            </div>
+            <button type="button" onClick={() => { setAddInstructorError(null); setIsAddInstructorOpen(true); }} className="inline-flex h-10 items-center gap-2 rounded-md bg-amber-500 px-4 text-xs font-semibold text-slate-950 transition hover:bg-amber-400"><Plus className="h-4 w-4" aria-hidden="true" />Add Instructor</button>
+          </div>
+          {instructorsError && <p role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-300">{instructorsError}</p>}
+          {instructorsLoading ? <p className="py-10 text-center text-sm text-stone-500">Loading instructor profiles...</p> : instructors.length > 0 ? <div className="w-full space-y-3">
+            {instructors.map((instructor) => {
+              const isExpanded = expandedInstructorIds.has(instructor.id);
+              const isSaving = savingInstructorId === instructor.id;
+              const saveMessage = instructorSaveMessages[instructor.id];
+              const isSaved = saveMessage === "Instructor profile saved." || saveMessage === "Instructor placed on leave.";
+              const updatedLabel = instructor.updatedAt ? `Updated ${new Date(instructor.updatedAt).toLocaleDateString()}` : "Date unavailable";
+              return <article key={instructor.id} className="w-full overflow-hidden rounded-xl border border-[#293343] bg-[#141a23] shadow-sm shadow-black/10">
+                <button type="button" onClick={() => toggleInstructorProfile(instructor.id)} aria-expanded={isExpanded} aria-controls={`instructor-profile-${instructor.id}`} className="flex w-full flex-col gap-3 px-4 py-4 text-left transition-colors hover:bg-white/[0.025] sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                  <span className="flex w-full min-w-0 flex-col gap-1.5 sm:flex-1">
+                    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="break-words text-sm font-semibold text-stone-100">{instructor.name}</span>
+                      <span className="max-w-full truncate rounded border border-sky-400/25 bg-sky-400/10 px-2 py-0.5 text-[10px] font-semibold text-sky-200">{instructor.specialization || "Specialization not set"}</span>
+                    </span>
+                    <span className="break-all text-xs text-stone-400">{instructor.email}</span>
+                  </span>
+                  <span className="flex w-full shrink-0 items-center justify-between gap-3 sm:w-auto sm:justify-end sm:gap-5">
+                    <span className={`rounded border px-2 py-1 text-[10px] font-semibold uppercase ${instructor.status === "active" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/30 bg-amber-500/10 text-amber-300"}`}>{instructor.status === "active" ? "Active" : "On Leave"}</span>
+                    <span className="text-right text-[11px] text-stone-500 sm:text-xs">{updatedLabel}</span>
+                    <ChevronDown className={`h-4 w-4 text-stone-400 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} aria-hidden="true" />
+                  </span>
+                </button>
+                <div id={`instructor-profile-${instructor.id}`} aria-hidden={!isExpanded} inert={!isExpanded} className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${isExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+                  <div className="min-h-0 overflow-hidden">
+                    <div className="border-t border-[#293343] px-4 py-5 sm:px-5">
+                      <div className="grid min-w-0 gap-5 md:grid-cols-2 2xl:grid-cols-3">
+                        <section className="min-w-0 space-y-4" aria-label={`${instructor.name} contact and availability`}>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Email<input type="email" value={instructor.email} onChange={(event) => updateInstructorProfile(instructor.id, { email: event.target.value })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Specialization / Area of Expertise<input value={instructor.specialization} onChange={(event) => updateInstructorProfile(instructor.id, { specialization: event.target.value })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Status / Availability<select value={instructor.status} onChange={(event) => updateInstructorProfile(instructor.id, { status: event.target.value as InstructorStatus })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none [color-scheme:dark] focus:border-amber-500"><option value="active">Active</option><option value="on_leave">On Leave</option></select></label>
+                        </section>
+                        <section className="min-w-0 space-y-4 md:col-span-1 2xl:col-span-2" aria-label={`${instructor.name} capacity and bio`}>
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <label className="block space-y-1.5 text-xs font-medium text-stone-400">Max Student Capacity<input type="number" min={1} max={1000} value={instructor.maxStudentCapacity} onChange={(event) => updateInstructorProfile(instructor.id, { maxStudentCapacity: Number(event.target.value) })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
+                            <div className="flex items-end pb-2 text-xs text-stone-400">Assigned Students <span className="ml-2 font-semibold text-stone-200">{instructor.assignedCount}</span></div>
+                          </div>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Bio / Instructor Note<textarea value={instructor.bio} onChange={(event) => updateInstructorProfile(instructor.id, { bio: event.target.value })} rows={4} className="h-24 w-full resize-y overflow-y-auto rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs leading-relaxed text-stone-200 outline-none focus:border-amber-500" /></label>
+                        </section>
+                      </div>
+                      <div className="mt-5 flex flex-col-reverse gap-3 border-t border-[#293343] pt-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-h-5 text-xs" role="status" aria-live="polite">{saveMessage && <span className={isSaved ? "text-emerald-300" : "text-rose-300"}>{saveMessage}</span>}</div>
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          {instructor.status === "active" && <button type="button" onClick={(event) => void handleDeactivateInstructor(event, instructor)} disabled={isSaving} className="h-10 rounded-md border border-rose-400/30 px-3 text-xs font-semibold text-rose-300 transition hover:bg-rose-400/10 disabled:opacity-50">Deactivate</button>}
+                          <button type="button" onClick={(event) => void handleSaveInstructor(event, instructor)} disabled={isSaving} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-amber-500 px-4 text-xs font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60">{isSaving && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-950/30 border-t-slate-950" aria-hidden="true" />}{isSaving ? "Saving..." : "Save Changes"}</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </article>;
+            })}
+          </div> : <div className="rounded-xl border border-dashed border-[#394252] px-6 py-12 text-center text-sm text-stone-500">No instructor profiles are available.</div>}
+
+          {isAddInstructorOpen && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !isAddingInstructor) setIsAddInstructorOpen(false); }}>
+            <section role="dialog" aria-modal="true" aria-labelledby="add-instructor-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-[#394252] bg-[#141a23] p-5 shadow-2xl sm:p-6">
+              <div className="flex items-start justify-between gap-4 border-b border-[#293343] pb-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Instructor Directory</p><h3 id="add-instructor-title" className="mt-1 text-xl font-semibold text-stone-100">Add Instructor</h3></div><button type="button" onClick={() => setIsAddInstructorOpen(false)} disabled={isAddingInstructor} aria-label="Close add instructor dialog" className="rounded-md p-2 text-stone-400 transition hover:bg-white/5 hover:text-stone-100 disabled:opacity-50"><X className="h-4 w-4" /></button></div>
+              <form onSubmit={(event) => void handleCreateInstructor(event)} className="mt-5 space-y-5">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block space-y-1.5 text-xs font-medium text-stone-400">Full Name<input required maxLength={120} value={addInstructorDraft.fullName} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, fullName: event.target.value }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none focus:border-amber-500" /></label>
+                  <label className="block space-y-1.5 text-xs font-medium text-stone-400">Email<input required type="email" maxLength={254} value={addInstructorDraft.email} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, email: event.target.value }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none focus:border-amber-500" /></label>
+                  <label className="block space-y-1.5 text-xs font-medium text-stone-400">Specialization<input value={addInstructorDraft.specialization} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, specialization: event.target.value }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none focus:border-amber-500" /></label>
+                  <label className="block space-y-1.5 text-xs font-medium text-stone-400">Status<select value={addInstructorDraft.status} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, status: event.target.value as InstructorStatus }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none [color-scheme:dark] focus:border-amber-500"><option value="active">Active</option><option value="on_leave">On Leave</option></select></label>
+                  <label className="block space-y-1.5 text-xs font-medium text-stone-400 sm:col-span-2">Bio<textarea value={addInstructorDraft.bio} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, bio: event.target.value }))} rows={4} className="h-24 w-full resize-y overflow-y-auto rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500" /></label>
+                </div>
+                {addInstructorError && <p role="alert" className="rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{addInstructorError}</p>}
+                <div className="flex flex-col-reverse gap-3 border-t border-[#293343] pt-4 sm:flex-row sm:justify-end"><button type="button" onClick={() => setIsAddInstructorOpen(false)} disabled={isAddingInstructor} className="h-10 rounded-md border border-[#394252] px-4 text-xs font-semibold text-stone-300 transition hover:bg-white/5 disabled:opacity-50">Cancel</button><button type="submit" disabled={isAddingInstructor} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-amber-500 px-4 text-xs font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60">{isAddingInstructor ? "Adding..." : "Add Instructor"}</button></div>
+              </form>
+            </section>
+          </div>}
         </section>}
 
         {activeTab === "resources" && (() => {
