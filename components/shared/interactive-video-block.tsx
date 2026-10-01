@@ -117,7 +117,7 @@ export function InteractiveVideoBlock({
           </button>
           <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${isTranscriptExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
             <div className="overflow-hidden">
-              <div id={transcriptId} className="max-h-[350px] overflow-y-auto overscroll-contain border-t border-[#202631] scroll-smooth">
+              <div id={transcriptId} className="max-h-[350px] overflow-y-auto overscroll-contain border-t border-[#202631] scroll-smooth pr-2">
                 <div className="space-y-1 p-2">
                   {transcriptLines.map((line) => (
                     <button
