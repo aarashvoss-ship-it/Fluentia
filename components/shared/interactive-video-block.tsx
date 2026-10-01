@@ -104,7 +104,7 @@ export function InteractiveVideoBlock({
       ) : null}
 
       {showTranscript && !transcriptLocked && transcriptLines.length > 0 && (
-        <div className="overflow-hidden rounded border border-[#202631] bg-[#0c1017]/50" aria-label="Interactive transcript">
+        <div className="rounded border border-[#202631] bg-[#0c1017]/50" aria-label="Interactive transcript">
           <button
             type="button"
             onClick={() => setIsTranscriptExpanded((expanded) => !expanded)}
@@ -117,7 +117,7 @@ export function InteractiveVideoBlock({
           </button>
           <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${isTranscriptExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
             <div className="overflow-hidden">
-              <div id={transcriptId} className="max-h-[420px] overflow-y-auto overflow-x-hidden border-t border-[#202631] scroll-smooth">
+              <div id={transcriptId} className="max-h-[350px] overflow-y-auto overscroll-contain border-t border-[#202631] scroll-smooth">
                 <div className="space-y-1 p-2">
                   {transcriptLines.map((line) => (
                     <button
