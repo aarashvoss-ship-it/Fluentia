@@ -37,6 +37,7 @@ import { DictionaryModal } from "@/components/study-room/dictionary-modal";
 import { Tooltip } from "@/components/shared/tooltip";
 import { LearningSidebar } from "@/components/study-room/learning-sidebar";
 import { ChatWidget } from "@/components/study-room/chat-widget";
+import { DisplaySettingsControl } from "@/components/shared/display-settings";
 import { AccessCard } from "@/components/access/access-card";
 import {
   getStudentProfile,
@@ -1307,31 +1308,32 @@ function DashboardContent() {
             Welcome back, <span className="text-[#e6e4e0]">{displayName}</span>.
           </p>
           <div className="ml-auto flex items-center gap-2">
-            <Tooltip content="Look up a word in the dictionary">
-            <button
-              type="button"
-              onClick={() => setDictionaryOpen(true)}
-              aria-label="Open dictionary"
-              className={`group h-9 px-3 flex items-center gap-2 rounded-lg bg-slate-800/80 border text-xs font-medium transition-all cursor-pointer ${dictionaryOpen ? "border-amber-500/60 text-amber-400" : "border-slate-700/60 text-slate-300 hover:border-amber-500/60 hover:text-amber-400 hover:bg-slate-800"}`}
-            >
-              <BookOpen
-                className={`w-4 h-4 shrink-0 ${dictionaryOpen ? "text-amber-400" : "text-slate-400 group-hover:text-amber-400"}`}
-              />
-            </button>
-            </Tooltip>
             <Tooltip content="Open your Learning Hub, notes, and study resources">
             <button
               type="button"
               onClick={() => setSidebarOpen((open) => !open)}
               aria-expanded={sidebarOpen}
               aria-controls="learning-sidebar"
-              className={`group h-9 px-3 flex items-center gap-2 rounded-lg bg-slate-800/80 border text-xs font-medium transition-all cursor-pointer ${sidebarOpen ? "border-amber-500/60 text-amber-400" : "border-slate-700/60 text-slate-300 hover:border-amber-500/60 hover:text-amber-400 hover:bg-slate-800"}`}
+              className={`group h-8 px-3 flex items-center gap-2 rounded-lg bg-slate-800/80 border text-xs font-medium transition-all cursor-pointer ${sidebarOpen ? "border-amber-500/60 text-amber-400" : "border-slate-700/60 text-slate-300 hover:border-amber-500/60 hover:text-amber-400 hover:bg-slate-800"}`}
             >
               <PanelRight
                 className={`w-4 h-4 shrink-0 ${sidebarOpen ? "text-amber-400" : "text-slate-400 group-hover:text-amber-400"}`}
               />
               Learning Hub
             </button>
+            </Tooltip>
+            <Tooltip content="Look up a word in the dictionary">
+              <button
+                type="button"
+                onClick={() => setDictionaryOpen(true)}
+                aria-label="Open dictionary"
+                className={`group flex h-8 w-8 items-center justify-center rounded-lg border bg-slate-800/80 transition-all cursor-pointer ${dictionaryOpen ? "border-amber-500/60 text-amber-400" : "border-slate-700/60 text-slate-300 hover:border-amber-500/60 hover:text-amber-400 hover:bg-slate-800"}`}
+              >
+                <BookOpen className={`h-4 w-4 shrink-0 ${dictionaryOpen ? "text-amber-400" : "text-slate-400 group-hover:text-amber-400"}`} />
+              </button>
+            </Tooltip>
+            <Tooltip content="Display and appearance">
+              <DisplaySettingsControl />
             </Tooltip>
           </div>
         </div>

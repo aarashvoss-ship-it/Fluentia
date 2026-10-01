@@ -71,7 +71,7 @@ export function useDisplaySettings() {
   return context;
 }
 
-function DisplayCustomizer() {
+export function DisplaySettingsControl() {
   const { settings, setSettings } = useDisplaySettings();
   const [open, setOpen] = useState(false);
   const customizerRef = useRef<HTMLDivElement>(null);
@@ -225,11 +225,12 @@ function DisplayCustomizer() {
       <button
         type="button"
         className={`display-customizer-trigger${open ? " is-open" : ""}`}
+        title="Display and appearance"
         aria-label={open ? "Close display settings" : "Open display settings"}
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
-        {open ? <SlidersHorizontal size={20} /> : <Sun size={20} />}
+        <SlidersHorizontal size={16} />
       </button>
     </div>
   );
@@ -272,16 +273,17 @@ export function DisplaySettingsProvider({ children }: { children: ReactNode }) {
   }, [settings, storageLoaded]);
 
   const setSettings = (nextSettings: DisplaySettings) => setSettingsState(nextSettings);
-  const contentStyle = {
-    "--display-warmth-opacity": settings.warmth / 100,
-  } as CSSProperties;
+  const customFilter =
+    settings.brightness === 100 && settings.contrast === 100 && settings.warmth === 0 && settings.theme !== "sepia"
+      ? "none"
+      : `brightness(${settings.brightness / 100}) contrast(${settings.contrast / 100}) sepia(${(settings.warmth / 100) * 0.5 + (settings.theme === "sepia" ? 0.35 : 0)})`;
+  const contentStyle = { "--display-filter": customFilter } as CSSProperties;
 
   return (
     <DisplaySettingsContext.Provider value={{ settings, setSettings }}>
       <div id="fluentia-display-content" style={contentStyle}>
         {children}
       </div>
-      <DisplayCustomizer />
     </DisplaySettingsContext.Provider>
   );
 }

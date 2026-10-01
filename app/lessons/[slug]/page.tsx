@@ -25,6 +25,7 @@ import { FillInBlanksMarkdown } from "@/components/study-room/fill-in-blanks-mar
 import { WritingBlockRenderer } from "@/components/shared/writing-block";
 import { StudyRoomBlockRow } from "@/components/study-room/study-room-block-row";
 import { Tooltip } from "@/components/shared/tooltip";
+import { DisplaySettingsControl } from "@/components/shared/display-settings";
 import { parseFillInBlanks } from "@/lib/fill-in-blanks";
 import { uploadStudentAudio } from "@/services/storage-service";
 import type { OptionIndexingStyle } from "@/types/lesson";
@@ -1078,6 +1079,7 @@ export default function LessonPage() {
             {((typeof lesson.instructor_note === "string" && lesson.instructor_note.trim()) || (typeof rawLessonContent.instructorGuidance === "string" && rawLessonContent.instructorGuidance.trim())) && <Tooltip content="Open lesson guidance"><button type="button" onClick={() => setGuidanceOpen((open) => !open)} aria-expanded={guidanceOpen} aria-label="Open lesson guidance" className={`flex h-8 w-8 items-center justify-center rounded-md border bg-transparent transition-colors ${guidanceOpen ? "border-amber-500 text-amber-400" : "border-slate-700/50 text-slate-400 hover:border-slate-600 hover:text-slate-200"}`}><Lightbulb className="h-4 w-4" /></button></Tooltip>}
             <Tooltip content="Open your notes, resources, and study tools"><button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex h-8 items-center gap-1.5 rounded-md border bg-transparent px-3 text-xs transition-colors ${sidebarOpen ? "border-amber-500 text-amber-400" : "border-slate-700/50 text-slate-400 hover:border-slate-600 hover:text-slate-200"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button></Tooltip>
             <Tooltip content="Look up a word"><button type="button" onClick={() => setDictionaryWord("")} aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-700/50 bg-transparent text-slate-400 transition-colors hover:border-slate-600 hover:text-slate-200"><BookOpen className="w-4 h-4" /></button></Tooltip>
+            <Tooltip content="Display and appearance"><DisplaySettingsControl /></Tooltip>
             <Tooltip content="Return to your course overview"><Link href="/dashboard" className="flex h-8 items-center gap-1 rounded-md border border-slate-700/50 bg-transparent px-3 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-slate-200"><ChevronRight className="h-3 w-3 rotate-180" />Course overview</Link></Tooltip>
           </div>
         </div>

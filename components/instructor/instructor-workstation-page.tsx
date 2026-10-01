@@ -29,6 +29,7 @@ import { MusicLibraryManager } from "@/components/instructor/music-library-manag
 import { InstructorChatWidget } from "@/components/instructor/instructor-chat-widget";
 import { useLessonEditorStore } from "@/lib/lesson-editor-store";
 import { Tooltip } from "@/components/shared/tooltip";
+import { DisplaySettingsControl } from "@/components/shared/display-settings";
 
 interface InstructorWorkstationProps {
   instructorId: string;
@@ -2375,6 +2376,7 @@ export default function InstructorWorkstationPage({
             <div className="flex min-w-0 flex-wrap gap-x-1">
               {([["dashboard", "Dashboard"], ["students", "Students Directory"], ["instructors", "Instructors Directory"], ["library", "Lesson Library"], ["builder", "Lesson Builder"], ["evaluation", "Student Evaluation"], ["music", "Music Library"]] as const).map(([tab, label]) => <Tooltip key={tab} content={`Open ${label}`}><button type="button" onClick={() => handleWorkspaceTabChange(tab)} className={`whitespace-nowrap border-b-2 px-3 py-3 text-xs font-semibold transition sm:px-4 ${activeTab === tab ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}>{label}</button></Tooltip>)}
             </div>
+            <Tooltip content="Display and appearance"><DisplaySettingsControl /></Tooltip>
           </div>
         </nav>
 
