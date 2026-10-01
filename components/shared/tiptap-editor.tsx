@@ -53,12 +53,14 @@ function ToolbarButton({
   compact = false,
   onClick,
   children,
+  title,
 }: {
   label: string;
   active?: boolean;
   compact?: boolean;
   onClick: () => void;
   children: React.ReactNode;
+  title?: string;
 }) {
   return (
     <Tooltip content={label}>
@@ -67,6 +69,7 @@ function ToolbarButton({
         onMouseDown={(event) => event.preventDefault()}
         onClick={onClick}
         aria-label={label}
+        title={title || label}
         aria-pressed={active}
         className={`flex items-center justify-center rounded transition ${compact ? "h-6 min-w-6 px-1 text-[10px]" : "h-7 min-w-7 px-1.5 text-[11px]"} ${active ? "bg-amber-500/15 text-amber-300" : "text-stone-300 hover:bg-[#293343] hover:text-white"}`}
       >
@@ -149,7 +152,7 @@ export function TiptapEditor({
   return (
     <div className="tiptap-editor w-full min-w-0 space-y-2">
       <div className="w-full min-w-0">
-        <div className={`box-border flex w-full min-w-0 flex-nowrap items-center justify-start overflow-x-auto rounded border border-[#202631] bg-[#0c1017] p-1 ${compact ? "gap-1" : "gap-1.5"}`} role="toolbar" aria-label="Rich text formatting">
+        <div className={`box-border flex w-full min-w-0 items-center justify-start rounded border border-[#202631] bg-[#0c1017] p-1 ${compact ? "gap-1" : "gap-1.5"}`} role="toolbar" aria-label="Rich text formatting">
           <ToolbarButton compact={compact} label="Normal paragraph" active={!!editor?.isActive("paragraph")} onClick={() => editor?.chain().focus().setParagraph().run()}>P</ToolbarButton>
           <ToolbarButton compact={compact} label="Heading 1" active={!!editor?.isActive("heading", { level: 1 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}>H1</ToolbarButton>
           <ToolbarButton compact={compact} label="Heading 2" active={!!editor?.isActive("heading", { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>H2</ToolbarButton>
@@ -199,14 +202,11 @@ export function TiptapEditor({
               </div>
             )}
           </div>
-          <div className="shrink-0">
-            <LucideIconPicker
-              triggerLabel="Insert Icon"
-              triggerIcon={PlusCircle}
-              compact={compact}
-              onChange={(name) => editor?.chain().focus().insertContent({ type: "inlineLucideIcon", attrs: { name } }).run()}
-            />
-          </div>
+          <ToolbarButton compact={compact} label="Insert Icon" title="Insert Icon" onClick={() => {
+            if (!editor) return;
+            const picker = document.querySelector("[data-lucide-icon-picker-trigger]") as HTMLElement | null;
+            picker?.click();
+          }}><PlusCircle className="h-3.5 w-3.5" /></ToolbarButton>
         </div>
       </div>
       <div className="rounded border border-[#202631] bg-[#0c1017] px-3 py-2 text-xs text-stone-200 outline-none transition focus-within:border-amber-500 [&_.ProseMirror]:min-h-[100px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:leading-relaxed [&_.ProseMirror_h1]:my-3 [&_.ProseMirror_h1]:text-xl [&_.ProseMirror_h1]:font-semibold [&_.ProseMirror_h2]:my-2 [&_.ProseMirror_h2]:text-lg [&_.ProseMirror_h2]:font-semibold [&_.ProseMirror_h3]:my-2 [&_.ProseMirror_h3]:text-base [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_blockquote]:my-2 [&_.ProseMirror_blockquote]:border-l-2 [&_.ProseMirror_blockquote]:border-amber-500 [&_.ProseMirror_blockquote]:pl-3 [&_.ProseMirror_pre]:my-2 [&_.ProseMirror_pre]:overflow-x-auto [&_.ProseMirror_pre]:rounded [&_.ProseMirror_pre]:bg-[#171d28] [&_.ProseMirror_pre]:p-3 [&_.ProseMirror_code]:rounded [&_.ProseMirror_code]:bg-[#171d28] [&_.ProseMirror_code]:px-1 [&_.ProseMirror_ul]:my-2 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5 [&_.ProseMirror_ol]:my-2 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-5 [&_.ProseMirror_hr]:my-3 [&_.ProseMirror_a]:text-amber-300 [&_.ProseMirror_a]:underline">
