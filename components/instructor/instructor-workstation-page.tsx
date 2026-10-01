@@ -32,6 +32,7 @@ import { Tooltip } from "@/components/shared/tooltip";
 import { DisplaySettingsControl } from "@/components/shared/display-settings";
 import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import { DynamicLucideIcon, LucideIconPicker } from "@/components/shared/lucide-icon-picker";
+import { StudentStudyRoomPreview, STUDENT_PREVIEW_CHANNEL, type StudentPreviewSnapshot, type StudentPreviewStep } from "@/components/instructor/student-study-room-preview";
 
 interface InstructorWorkstationProps {
   instructorId: string;
@@ -413,7 +414,9 @@ export default function InstructorWorkstationPage({
 
   const [isPublishing, setIsPublishing] = useState(false);
   const [viewMode, setViewMode] = useState<"instructor" | "student">("instructor");
+  const [isSplitPreviewOpen, setIsSplitPreviewOpen] = useState(false);
   const [previewStep, setPreviewStep] = useState<"warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking" | "results">("warm_up");
+  const previewChannelRef = useRef<BroadcastChannel | null>(null);
   const [saveIndicator, setSaveIndicator] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const hasLoadedLesson = useRef(false);
   const lastSavedDraftSignature = useRef<string | null>(null);
@@ -444,6 +447,40 @@ export default function InstructorWorkstationPage({
     customTagsText: "",
     status: "draft" as "draft" | "published",
   });
+
+  const livePreviewSnapshot: StudentPreviewSnapshot = {
+    content: workstationState.content,
+    sidebarBlocksByStep,
+    step: previewStep,
+    title: newLesson.title,
+    subtitle: newLesson.subtitle,
+    bannerUrl: workstationState.bannerUrl,
+    moduleNumber: Number(newLesson.moduleNumber) || 1,
+  };
+  const livePreviewSnapshotRef = useRef(livePreviewSnapshot);
+  livePreviewSnapshotRef.current = livePreviewSnapshot;
+
+  useEffect(() => {
+    if (!("BroadcastChannel" in window)) return;
+    const channel = new BroadcastChannel(STUDENT_PREVIEW_CHANNEL);
+    previewChannelRef.current = channel;
+    channel.onmessage = (event: MessageEvent<{ type?: string; step?: StudentPreviewStep }>) => {
+      if (event.data?.type === "preview-ready") {
+        channel.postMessage({ type: "preview-state", snapshot: livePreviewSnapshotRef.current });
+      }
+      if (event.data?.type === "preview-step" && event.data.step) {
+        setPreviewStep(event.data.step);
+      }
+    };
+    return () => {
+      channel.close();
+      if (previewChannelRef.current === channel) previewChannelRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    previewChannelRef.current?.postMessage({ type: "preview-state", snapshot: livePreviewSnapshot });
+  }, [workstationState.content, sidebarBlocksByStep, previewStep, newLesson.title, newLesson.subtitle, newLesson.moduleNumber, workstationState.bannerUrl]);
 
   useEffect(() => {
     if (!profileSaveToast) return;
@@ -2391,6 +2428,8 @@ export default function InstructorWorkstationPage({
           {activeTab === "builder" && <div className="flex min-w-0 flex-col items-stretch gap-2 md:items-end">
             <div className="flex flex-wrap items-center justify-end gap-2">
               <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold ${lessonStatus === "published" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/30 bg-amber-500/10 text-amber-300"}`}><span className={`h-1.5 w-1.5 rounded-full ${lessonStatus === "published" ? "bg-emerald-400" : "bg-amber-400"}`} />{lessonStatus === "published" ? "Published" : "Draft"}</span>
+              <button type="button" aria-pressed={isSplitPreviewOpen} onClick={() => { setViewMode("instructor"); setIsSplitPreviewOpen((open) => !open); }} className={`rounded border px-2.5 py-1.5 text-[11px] font-medium transition ${isSplitPreviewOpen ? "border-amber-500/60 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#0c1017] text-stone-300 hover:border-amber-500/50 hover:text-stone-100"}`}>Split Preview</button>
+              <button type="button" onClick={() => { setViewMode("instructor"); window.open("/instructor/preview", "fluentia-student-live-preview"); }} className="rounded border border-[#394252] bg-[#0c1017] px-2.5 py-1.5 text-[11px] font-medium text-stone-300 transition hover:border-amber-500/50 hover:text-stone-100">Pop-out Preview</button>
               <div role="group" aria-label="Workstation view" className="inline-flex rounded-md border border-[#394252] bg-[#0c1017] p-0.5">
                 <Tooltip content="Edit lesson content and settings"><button type="button" aria-pressed={viewMode === "instructor"} onClick={() => setViewMode("instructor")} className={`rounded px-2.5 py-1.5 text-[11px] font-semibold transition ${viewMode === "instructor" ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-100"}`}>Edit Mode</button></Tooltip>
                 <Tooltip content="Preview the lesson as a student"><button type="button" aria-pressed={viewMode === "student"} onClick={() => setViewMode("student")} className={`rounded px-2.5 py-1.5 text-[11px] font-semibold transition ${viewMode === "student" ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-100"}`}>Student View</button></Tooltip>
@@ -3113,16 +3152,7 @@ export default function InstructorWorkstationPage({
 
         {activeTab === "music" && <MusicLibraryManager />}
 
-        {activeTab === "builder" && viewMode === "student" && <section className="overflow-hidden rounded-xl border border-[#202631] bg-[#121721]" aria-label="Student Study Room preview">
-          <header className="flex flex-wrap items-center gap-4 border-b border-[#293343] p-5">
-            {workstationState.bannerUrl && <img src={workstationState.bannerUrl} alt="" className="h-16 w-28 rounded-md object-cover" />}
-            <div className="min-w-0 flex-1"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">{newLesson.moduleNumber ? `Module ${newLesson.moduleNumber}` : "Student Study Room"}</p><h2 className="mt-1 truncate text-xl font-semibold text-stone-100">{newLesson.title || "Untitled Lesson"}</h2><p className="mt-1 text-sm text-stone-400">{newLesson.subtitle || "Your instructor has prepared this lesson for you."}</p></div>
-            {workstationState.content.ambientMusicUrl && <AmbientMusicPlayer src={workstationState.content.ambientMusicUrl} />}
-          </header>
-          <div className="border-b border-[#293343] px-5 pb-4 pt-5"><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">{previewSteps.find(([step]) => step === previewStep)?.[1]}</p><h3 className="mt-1 text-lg font-semibold text-stone-100">{previewStep === "lesson" ? conceptualFramingBlock?.title || "Lesson" : previewSteps.find(([step]) => step === previewStep)?.[1]}</h3>{newLesson.subtitle.trim() && <p className="mt-2 text-sm text-stone-400">{newLesson.subtitle}</p>}</div>
-          <div className="p-5"><Stepper currentStep={previewStep} completedSteps={[]} lockedSteps={[]} onStepClick={(step) => setPreviewStep(step)} /></div>
-          <div className="min-h-[560px] border-t border-[#293343] p-5">{renderPreviewStep()}</div>
-        </section>}
+        {activeTab === "builder" && viewMode === "student" && <StudentStudyRoomPreview {...livePreviewSnapshot} onStepChange={setPreviewStep} />}
 
         {activeTab === "builder" && viewMode === "instructor" && <>
           <section className="mb-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" aria-labelledby="lesson-details-title">
@@ -3155,7 +3185,14 @@ export default function InstructorWorkstationPage({
           </section>
           <main className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-12">
             <div className="h-full min-w-0 lg:col-span-8">
-              <LessonTailorEditor key={databaseLessonId || "new-lesson"} content={workstationState.content} sidebarBlocksByStep={sidebarBlocksByStep} onActiveStepChange={setSidebarStep} onChange={(content: StrictStepContent) => setWorkstationState((previous) => ({ ...previous, content }))} />
+              {isSplitPreviewOpen ? (
+                <div className="grid min-w-0 gap-4 xl:grid-cols-2">
+                  <div className="min-w-0"><LessonTailorEditor key={databaseLessonId || "new-lesson"} content={workstationState.content} sidebarBlocksByStep={sidebarBlocksByStep} onActiveStepChange={setSidebarStep} onChange={(content: StrictStepContent) => setWorkstationState((previous) => ({ ...previous, content }))} /></div>
+                  <div className="min-w-0 overflow-hidden rounded-xl border border-[#202631]"><StudentStudyRoomPreview {...livePreviewSnapshot} onStepChange={setPreviewStep} embedded /></div>
+                </div>
+              ) : (
+                <LessonTailorEditor key={databaseLessonId || "new-lesson"} content={workstationState.content} sidebarBlocksByStep={sidebarBlocksByStep} onActiveStepChange={setSidebarStep} onChange={(content: StrictStepContent) => setWorkstationState((previous) => ({ ...previous, content }))} />
+              )}
             </div>
             <aside className="h-full space-y-6 lg:col-span-4">
               <details className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" open={heroBannerOpen} onToggle={(event) => setHeroBannerOpen(event.currentTarget.open)}>

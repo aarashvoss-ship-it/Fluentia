@@ -26,6 +26,7 @@ import { WritingBlockRenderer } from "@/components/shared/writing-block";
 import { StudyRoomBlockRow } from "@/components/study-room/study-room-block-row";
 import { Tooltip } from "@/components/shared/tooltip";
 import { DisplaySettingsControl } from "@/components/shared/display-settings";
+import { DynamicLucideIcon } from "@/components/shared/lucide-icon-picker";
 import { parseFillInBlanks } from "@/lib/fill-in-blanks";
 import { uploadStudentAudio } from "@/services/storage-service";
 import type { OptionIndexingStyle } from "@/types/lesson";
@@ -912,7 +913,7 @@ export default function LessonPage() {
     || isResultsStep;
   const lessonStudentToken = activeStudent?.token ?? lesson?.student_token ?? lesson?.student_id ?? "student";
   const studentDisplayName = activeStudent?.name || "Student";
-  const currentStepSidebarBlocks = ((rawLessonContent.sidebarBlocks as Record<string, { id: string; title: string; body: string; parentMainBlockId?: string }[]> | undefined)?.[currentStep] || []);
+  const currentStepSidebarBlocks = ((rawLessonContent.sidebarBlocks as Record<string, { id: string; title: string; body: string; icon?: string; parentMainBlockId?: string }[]> | undefined)?.[currentStep] || []);
 
   if (!isMounted) {
     return <div className="fluentia-study-room min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
@@ -949,9 +950,9 @@ export default function LessonPage() {
   }
 
   const renderDynamicBlocks = (blocks: ContentBlock[]) => {
-    const renderSidebarBlock = (sidebarBlock: { id: string; title: string; body: string }) => (
+    const renderSidebarBlock = (sidebarBlock: { id: string; title: string; body: string; icon?: string }) => (
       <div className="rounded-xl border border-[#202631] bg-[#121721] p-4">
-        {sidebarBlock.title.trim() && sidebarBlock.title.trim() !== "Sidebar note" && <MarkdownContent value={sidebarBlock.title} className="text-xs font-semibold text-amber-400 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-xs [&_p]:m-0" />}
+        {sidebarBlock.title.trim() && sidebarBlock.title.trim() !== "Sidebar note" && <div className="flex items-start gap-2">{sidebarBlock.icon && <DynamicLucideIcon name={sidebarBlock.icon} className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />}<MarkdownContent value={sidebarBlock.title} className="text-xs font-semibold text-amber-400 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-xs [&_p]:m-0" /></div>}
         <MarkdownContent value={sidebarBlock.body || ""} className="mt-2 text-sm leading-relaxed text-slate-300 [&_strong]:font-semibold [&_strong]:text-amber-400" />
       </div>
     );
@@ -981,7 +982,7 @@ export default function LessonPage() {
         const expandsInlineRow = block.layoutMode === "inline-row" && !sidebarBlock && block.rowEmptyMode === "full";
         const article = (
         <article key={block.id} className="rounded-xl border border-[#202631] bg-[#121721] p-5">
-          {block.title && <h3 className="mb-3 font-sans text-xl font-semibold text-stone-100">{block.title}</h3>}
+          {block.title && <h3 className="mb-3 flex items-center gap-2 font-sans text-xl font-semibold text-stone-100">{block.icon && <DynamicLucideIcon name={block.icon} className="h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />}{block.title}</h3>}
           {block.type === "text" && <><MarkdownContent value={block.body} className="text-sm leading-relaxed text-stone-300" />{hasStudentResponse(block) && (() => { const responseType = getStudentResponseType(block); if (responseType === "voice" || responseType === "audio") return <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />; if (responseType === "file") return <FileResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value } })} />; return <textarea value={submission.blockResponses?.[block.id] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [block.id]: event.target.value } })} rows={8} placeholder="Write your response here..." className="mt-4 w-full min-h-[200px] resize-y rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.title || "Text"} response`} />; })()}</>}
           {block.type === "audio" && <>{block.audioUrl && <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio assignment"} />}{block.allowStudentVoiceResponse === true && <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />}<MediaTranscriptAccordion transcript={block.transcript} isUnlocked={areTranscriptsUnlocked} /></>}
           {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} transcriptLocked={!areTranscriptsUnlocked} />{!areTranscriptsUnlocked && <MediaTranscriptAccordion transcript={block.transcript} isUnlocked={false} />}{block.show_reflection_prompt !== false && block.reflection_prompt_text?.trim() && <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-4"><p className="text-sm font-semibold text-amber-200">Reflection Question</p><p className="mt-2 text-sm leading-relaxed text-stone-300">{block.reflection_prompt_text.trim()}</p><textarea value={submission.blockResponses?.[`${block.id}-reflection`] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [`${block.id}-reflection`]: event.target.value } })} rows={5} placeholder="Write your reflection here..." className="mt-3 w-full resize-y rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500" aria-label="Reflection question response" /></div>}</>}
