@@ -256,6 +256,7 @@ export default function InstructorWorkstationPage({
   const [studentLevelFilter, setStudentLevelFilter] = useState<"All" | StudentCefrLevel>("All");
   const [savingProfileStudentId, setSavingProfileStudentId] = useState<string | null>(null);
   const [profileSaveMessages, setProfileSaveMessages] = useState<Record<string, string>>({});
+  const [profileSaveToast, setProfileSaveToast] = useState<string | null>(null);
   const [librarySearch, setLibrarySearch] = useState("");
   const [libraryLevel, setLibraryLevel] = useState("all");
   const [libraryDomain, setLibraryDomain] = useState("all");
@@ -369,6 +370,12 @@ export default function InstructorWorkstationPage({
     customTagsText: "",
     status: "draft" as "draft" | "published",
   });
+
+  useEffect(() => {
+    if (!profileSaveToast) return;
+    const timeout = window.setTimeout(() => setProfileSaveToast(null), 4000);
+    return () => window.clearTimeout(timeout);
+  }, [profileSaveToast]);
 
   const updateBuilderLevel = (level: string) => {
     setNewLesson((previous) => ({ ...previous, level }));
@@ -535,7 +542,7 @@ export default function InstructorWorkstationPage({
       ...profile,
       id: student.id,
       fullName: profile.fullName.trim() || student.name,
-      email: profile.email?.trim() || student.email || "",
+      email: profile.email?.trim() ?? student.email ?? "",
       targetLevel: targetLevel || undefined,
       level: targetLevel || "",
       weaknesses: profile.weaknesses || [],
@@ -544,7 +551,7 @@ export default function InstructorWorkstationPage({
     setStudents((current) => current.map((currentStudent) => currentStudent.id === student.id ? {
       ...currentStudent,
       name: nextProfile.fullName,
-      email: nextProfile.email || currentStudent.email,
+      email: nextProfile.email ?? currentStudent.email,
       profile: nextProfile,
     } : currentStudent));
     if (selectedStudentId === student.id) setWorkstationState((current) => ({ ...current, studentProfile: nextProfile }));
@@ -572,7 +579,8 @@ export default function InstructorWorkstationPage({
     setProfileSaveMessages((current) => ({ ...current, [student.id]: "" }));
     try {
       await saveStudentProfileEntry(student, student.profile);
-      setProfileSaveMessages((current) => ({ ...current, [student.id]: "Profile saved." }));
+      setProfileSaveMessages((current) => ({ ...current, [student.id]: "Profile saved successfully!" }));
+      setProfileSaveToast("Profile saved successfully!");
     } catch (error) {
       setProfileSaveMessages((current) => ({ ...current, [student.id]: error instanceof Error ? error.message : "Unable to save student profile." }));
     } finally {
@@ -2282,6 +2290,7 @@ export default function InstructorWorkstationPage({
         </section>}
 
         {activeTab === "students" && <section className="space-y-5" aria-labelledby="students-profile-title">
+          {profileSaveToast && <div role="status" aria-live="polite" className="fixed right-6 top-6 z-[70] flex items-center gap-2.5 rounded-lg border border-emerald-400/40 bg-[#11251d] px-4 py-3 text-sm font-medium text-emerald-200 shadow-xl"><Check className="h-4 w-4 shrink-0" aria-hidden="true" />{profileSaveToast}</div>}
           <div className="flex flex-wrap items-end justify-between gap-4 border-b border-[#202631] pb-4">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Student Directory</p>
@@ -2305,7 +2314,7 @@ export default function InstructorWorkstationPage({
                 </thead>
                 <tbody className="divide-y divide-[#202631]">
                   {filteredStudentDirectory.map((student) => <tr key={student.id} className="hover:bg-white/[0.02]">
-                    <td className="min-w-[180px] px-3 py-3 align-top"><div className="flex min-w-0 flex-col gap-1"><span className="break-words text-sm font-medium text-stone-200">{student.name}</span><span className="break-words text-xs text-stone-500">{student.email || "No email"}</span></div></td>
+                    <td className="min-w-[180px] px-3 py-3 align-top"><div className="flex min-w-0 flex-col gap-2"><span className="break-words text-sm font-medium text-stone-200">{student.name}</span><input type="email" value={student.profile.email ?? student.email ?? ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { email: event.target.value })} aria-label={`${student.name} email`} placeholder="Email address" className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></div></td>
                     <td className="w-[110px] px-2 py-3 align-top"><select value={normalizeStudentLevel(student.profile.targetLevel || student.profile.level)} onChange={(event) => void handleStudentLevelChange(student, event.target.value as StudentCefrLevel)} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-2 text-xs text-amber-300 [color-scheme:dark]" aria-label={`Set ${student.name}'s level`}>{!normalizeStudentLevel(student.profile.targetLevel || student.profile.level) && <option value="" disabled>Not set</option>}{STUDENT_CEFR_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select></td>
                     <td className="min-w-[220px] px-3 py-3 align-top"><input value={student.profile.targetGoal || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { targetGoal: event.target.value })} aria-label={`${student.name} core goal`} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></td>
                     <td className="min-w-[200px] px-3 py-3 align-top"><input value={(student.profile.weaknesses || []).join(", ")} onChange={(event) => updateDirectoryStudentProfile(student.id, { weaknesses: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} aria-label={`${student.name} focus weaknesses`} placeholder="Separate with commas" className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></td>
@@ -2316,7 +2325,7 @@ export default function InstructorWorkstationPage({
                       textarea.style.height = `${Math.min(Math.max(textarea.scrollHeight, 80), 320)}px`;
                       updateDirectoryStudentProfile(student.id, { teacherNotes: textarea.value });
                     }} aria-label={`${student.name} dashboard note`} rows={3} className="student-profile-note min-h-20 w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs text-stone-200 outline-none focus:border-amber-500" /></td>
-                    <td className="w-[150px] px-3 py-3 align-top"><div className="flex flex-col gap-2.5"><button type="button" onClick={(event) => void handleSaveDirectoryStudent(event, student)} disabled={savingProfileStudentId === student.id} className="h-10 whitespace-nowrap rounded-md bg-amber-500 px-3 text-xs font-semibold text-slate-950 hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60">{savingProfileStudentId === student.id ? "Saving..." : "Save Changes"}</button>{student.enrolledDate && <span className="text-[11px] text-stone-500">Enrolled {new Date(student.enrolledDate).toLocaleDateString()}</span>}{profileSaveMessages[student.id] && <span role="status" className={`text-[10px] ${profileSaveMessages[student.id] === "Profile saved." ? "text-emerald-300" : "text-red-300"}`}>{profileSaveMessages[student.id]}</span>}</div></td>
+                    <td className="w-[150px] px-3 py-3 align-top"><div className="flex flex-col gap-2.5"><button type="button" onClick={(event) => void handleSaveDirectoryStudent(event, student)} disabled={savingProfileStudentId === student.id} className="h-10 whitespace-nowrap rounded-md bg-amber-500 px-3 text-xs font-semibold text-slate-950 hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60">{savingProfileStudentId === student.id ? "Saving..." : "Save Changes"}</button>{student.enrolledDate && <span className="text-[11px] text-stone-500">Enrolled {new Date(student.enrolledDate).toLocaleDateString()}</span>}{profileSaveMessages[student.id] && <span role="status" className={`text-[10px] ${profileSaveMessages[student.id] === "Profile saved successfully!" ? "text-emerald-300" : "text-red-300"}`}>{profileSaveMessages[student.id]}</span>}</div></td>
                   </tr>)}
                 </tbody>
               </table>
