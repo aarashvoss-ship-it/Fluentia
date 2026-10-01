@@ -115,25 +115,23 @@ export function InteractiveVideoBlock({
             <span>Show / Hide Transcript</span>
             <ChevronDown className={`h-4 w-4 shrink-0 text-amber-400 transition-transform duration-200 ${isTranscriptExpanded ? "rotate-180" : ""}`} aria-hidden="true" />
           </button>
-          <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${isTranscriptExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
-            <div className="overflow-hidden">
-              <div id={transcriptId} className="max-h-[320px] overflow-y-auto overscroll-contain border-t border-[#202631] scroll-smooth pr-2">
-                <div className="space-y-1 p-2">
-                  {transcriptLines.map((line) => (
-                    <button
-                      key={`${line.seconds}-${line.text}`}
-                      type="button"
-                      onClick={() => seekToTimestamp(line.seconds)}
-                      className="flex w-full min-w-0 items-start gap-2 rounded px-2 py-1.5 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-200"
-                    >
-                      <span className="shrink-0 rounded border border-amber-500/40 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-amber-300">[{line.timestamp}]</span>
-                      <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">{line.text}</span>
-                    </button>
-                  ))}
-                </div>
+          {isTranscriptExpanded && (
+            <div id={transcriptId} className="max-h-[320px] overflow-y-auto overscroll-contain border-t border-[#202631] scroll-smooth pr-2">
+              <div className="space-y-1 p-2">
+                {transcriptLines.map((line) => (
+                  <button
+                    key={`${line.seconds}-${line.text}`}
+                    type="button"
+                    onClick={() => seekToTimestamp(line.seconds)}
+                    className="flex w-full min-w-0 items-start gap-2 rounded px-2 py-1.5 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-200"
+                  >
+                    <span className="shrink-0 rounded border border-amber-500/40 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-amber-300">[{line.timestamp}]</span>
+                    <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">{line.text}</span>
+                  </button>
+                ))}
               </div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>
