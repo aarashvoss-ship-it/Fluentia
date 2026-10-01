@@ -55,6 +55,27 @@ body {
   display: none;
 }
 
+.student-profile-note {
+  field-sizing: content;
+  max-height: 20rem;
+  overflow-y: auto;
+  scrollbar-color: #596273 transparent;
+  scrollbar-width: thin;
+}
+
+.student-profile-note::-webkit-scrollbar {
+  width: 6px;
+}
+
+.student-profile-note::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.student-profile-note::-webkit-scrollbar-thumb {
+  background-color: #596273;
+  border-radius: 9999px;
+}
+
 .fluentia-tooltip-trigger {
   position: relative;
   display: inline-flex;
