@@ -3171,7 +3171,7 @@ export default function InstructorWorkstationPage({
                       ...current,
                       [sidebarStep]: [...(current[sidebarStep] || []), { id: `sidebar-${Date.now()}`, title: "Sidebar note", body: "" }],
                     }))}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-amber-500 bg-[#0c1017] px-3 py-2 text-sm font-semibold text-amber-400 transition hover:bg-amber-500/10"
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded border border-amber-500/40 bg-[#0c1017] px-3 text-xs font-normal text-stone-200 transition hover:border-amber-500/80"
                   >
                     <Plus className="h-3.5 w-3.5" /> Add Block
                   </button>
