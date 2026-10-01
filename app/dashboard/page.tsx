@@ -1109,11 +1109,6 @@ function DashboardContent() {
                 className="fixed inset-0 z-0 cursor-default bg-black/55"
               />
             )}
-            <span className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/40 rounded-md">
-              {nextLesson
-                ? `ENGLISH - MODULE ${activeModuleNumber ?? 1}`
-                : "ENGLISH - NO ACTIVE MODULE"}
-            </span>
             <h1 className="mt-3 font-sans text-3xl font-semibold text-[#f1eee8]">
               Welcome back, {displayName}.
             </h1>
