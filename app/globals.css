@@ -509,3 +509,11 @@ body {
     animation: none;
   }
 }
+
+.tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {
+  color: #667084;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}

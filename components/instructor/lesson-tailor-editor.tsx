@@ -12,7 +12,8 @@ import { parseFillInBlanks } from "@/lib/fill-in-blanks";
 import { uploadLessonAsset, uploadLessonMedia } from "@/services/storage-service";
 import { Tooltip } from "@/components/shared/tooltip";
 import { DynamicLucideIcon, LucideIconPicker } from "@/components/shared/lucide-icon-picker";
-import { Eye, FileText, Layers, Lightbulb, LoaderCircle, MoveDown, MoveUp, Plus, Trash2, UploadCloud, X, ChevronDown, ChevronUp, HelpCircle, Mic, Square } from "lucide-react";
+import { TiptapEditor } from "@/components/shared/tiptap-editor";
+import { Eye, FileText, Layers, LoaderCircle, MoveDown, MoveUp, Plus, Trash2, UploadCloud, X, ChevronDown, ChevronUp, Mic, Square } from "lucide-react";
 
 interface LessonTailorEditorProps {
   content: StrictStepContent;
@@ -20,133 +21,6 @@ interface LessonTailorEditorProps {
   onPreview?: () => void;
   onActiveStepChange?: (step: Exclude<StudyStepId, "results">) => void;
   sidebarBlocksByStep?: Partial<Record<StudyStepId, { id: string; title: string; body: string }[]>>;
-}
-
-function MarkdownEditor({
-  value,
-  onChange,
-  onHelp,
-  placeholder,
-  ariaLabel,
-  rows = 4,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  onHelp: () => void;
-  placeholder: string;
-  ariaLabel: string;
-  rows?: number;
-}) {
-  const [mode, setMode] = useState<"write" | "preview">("write");
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const selectionRef = useRef({ start: value.length, end: value.length });
-  const colorPalette = [
-    { name: "Gray", value: "#9ca3af" },
-    { name: "Amber", value: "#f59e0b" },
-    { name: "Coral", value: "#ef4444" },
-    { name: "Emerald", value: "#10b981" },
-    { name: "Cyan", value: "#06b6d4" },
-    { name: "Purple", value: "#d946ef" },
-  ];
-  const updateSelection = (prefix: string, suffix = "") => {
-    const textarea = textareaRef.current;
-    const start = textarea?.selectionStart ?? selectionRef.current.start;
-    const end = textarea?.selectionEnd ?? selectionRef.current.end;
-    const hasSelection = end > start;
-    const selected = hasSelection ? value.slice(start, end) : "Colored text";
-    const nextValue = `${value.slice(0, start)}${prefix}${selected}${suffix}${value.slice(end)}`;
-    onChange(nextValue);
-    requestAnimationFrame(() => {
-      const nextStart = start + prefix.length;
-      const nextEnd = nextStart + selected.length;
-      textarea?.focus();
-      textarea?.setSelectionRange(nextStart, nextEnd);
-      selectionRef.current = { start: nextStart, end: nextEnd };
-    });
-  };
-  const insertCallout = () => {
-    const textarea = textareaRef.current;
-    const start = textarea?.selectionStart ?? selectionRef.current.start;
-    const end = textarea?.selectionEnd ?? selectionRef.current.end;
-    const selected = end > start ? value.slice(start, end) : "Replace this text with your executive template or key takeaway.";
-    const callout = `> **Executive Template**\n>\n> ${selected}`;
-    const nextValue = `${value.slice(0, start)}${callout}${value.slice(end)}`;
-    onChange(nextValue);
-    requestAnimationFrame(() => {
-      const placeholderStart = start + callout.lastIndexOf(selected);
-      const placeholderEnd = placeholderStart + selected.length;
-      textarea?.focus();
-      textarea?.setSelectionRange(placeholderStart, placeholderEnd);
-      selectionRef.current = { start: placeholderStart, end: placeholderEnd };
-    });
-  };
-  const prependLine = (prefix: string) => {
-    const textarea = document.activeElement instanceof HTMLTextAreaElement ? document.activeElement : null;
-    const start = textarea?.selectionStart ?? value.length;
-    const lineStart = value.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
-    onChange(`${value.slice(0, lineStart)}${prefix}${value.slice(lineStart)}`);
-  };
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <Tooltip content="View Markdown formatting help"><button type="button" onClick={onHelp} className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.12em] text-stone-500 hover:text-amber-300" aria-label="Open Markdown help">
-          Markdown <HelpCircle className="h-3.5 w-3.5" />
-        </button></Tooltip>
-        <div className="flex rounded border border-[#394252] p-0.5" role="tablist" aria-label="Markdown editor mode">
-          <Tooltip content="Edit lesson text using Markdown"><button type="button" role="tab" aria-selected={mode === "write"} onClick={() => setMode("write")} className={`px-2 py-1 text-[10px] ${mode === "write" ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-200"}`}>Write</button></Tooltip>
-          <Tooltip content="Preview the formatted lesson text"><button type="button" role="tab" aria-selected={mode === "preview"} onClick={() => setMode("preview")} className={`px-2 py-1 text-[10px] ${mode === "preview" ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-200"}`}>Preview</button></Tooltip>
-        </div>
-      </div>
-      {mode === "write" ? (
-        <>
-          <div className="flex flex-wrap items-center gap-1 rounded border border-[#202631] bg-[#0c1017] p-1" role="toolbar" aria-label="Markdown formatting">
-            <Tooltip content="Insert a level-one heading"><button type="button" onClick={() => prependLine("# ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]">H1</button></Tooltip>
-            <Tooltip content="Insert a level-two heading"><button type="button" onClick={() => prependLine("## ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]">H2</button></Tooltip>
-            <Tooltip content="Insert a level-three heading"><button type="button" onClick={() => prependLine("### ")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]">H3</button></Tooltip>
-            <Tooltip content="Bold selected text"><button type="button" onClick={() => updateSelection("**", "**")} className="rounded px-2 py-1 text-xs font-bold text-stone-300 hover:bg-[#293343]">B</button></Tooltip>
-            <Tooltip content="Italicize selected text"><button type="button" onClick={() => updateSelection("*", "*")} className="rounded px-2 py-1 text-xs italic text-stone-300 hover:bg-[#293343]">I</button></Tooltip>
-            <Tooltip content="Start a bulleted list"><button type="button" onClick={() => prependLine("- ")} className="rounded px-2 py-1 text-xs text-stone-300 hover:bg-[#293343]">List</button></Tooltip>
-            <Tooltip content="Insert a horizontal divider"><button type="button" onClick={() => onChange(`${value}\n---\n`)} className="rounded px-2 py-1 text-xs text-stone-300 hover:bg-[#293343]">HR</button></Tooltip>
-            <Tooltip content="Insert a highlighted callout or executive template"><button type="button" onMouseDown={(event) => event.preventDefault()} onClick={insertCallout} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-amber-300 hover:bg-[#293343]" aria-label="Insert callout or executive template"><Lightbulb className="h-3.5 w-3.5" />Callout / Template</button></Tooltip>
-            <span className="mx-1 h-4 w-px bg-[#394252]" aria-hidden="true" />
-            <span className="sr-only">Text color</span>
-            {colorPalette.map((color) => (
-              <Tooltip key={color.value} content={`Apply ${color.name} text color`}>
-              <button
-                key={color.value}
-                type="button"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => updateSelection(`<span style="color: ${color.value}">`, "</span>")}
-                className="h-4 w-4 rounded-full border border-white/30 transition-transform hover:scale-125 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-1 focus:ring-offset-[#0c1017]"
-                style={{ backgroundColor: color.value }}
-                aria-label={`Apply ${color.name} text color`}
-                title={color.name}
-              />
-              </Tooltip>
-            ))}
-          </div>
-          <textarea
-            ref={textareaRef}
-            value={value}
-            onChange={(event) => {
-              selectionRef.current = { start: event.target.selectionStart, end: event.target.selectionEnd };
-              onChange(event.target.value);
-            }}
-            onSelect={(event) => { selectionRef.current = { start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd }; }}
-            onKeyUp={(event) => { selectionRef.current = { start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd }; }}
-            onMouseUp={(event) => { selectionRef.current = { start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd }; }}
-            placeholder={placeholder}
-            rows={rows}
-            className="min-h-[100px] w-full resize-y overflow-auto rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500"
-            aria-label={ariaLabel}
-          />
-          <p className="text-[11px] leading-relaxed text-stone-500"><Lightbulb className="mr-1 inline h-3 w-3 text-amber-400" aria-hidden="true" />Tip: Wrap any word in brackets like [Micro-decisions] to automatically create a highlighted key-term badge for students.</p>
-        </>
-      ) : (
-        value.trim() ? <MarkdownContent value={value} className="min-h-[100px] rounded border border-[#202631] bg-[#0c1017]/50 p-3 text-sm leading-relaxed text-stone-300" /> : <p className="min-h-[100px] rounded border border-[#202631] bg-[#0c1017]/50 p-3 text-sm text-stone-500">Add content to preview this block.</p>
-      )}
-    </div>
-  );
 }
 
 function QuestionSettings({ value, onChange }: { value?: OptionIndexingStyle; onChange: (value: OptionIndexingStyle) => void }) {
@@ -253,7 +127,6 @@ export function LessonTailorEditor({
   const draftContentRef = useRef(content);
   const lastEmittedContentRef = useRef(JSON.stringify(content));
   const localUpdatePendingRef = useRef(false);
-  const textAreaRefs = React.useRef<Record<string, HTMLTextAreaElement | null>>({});
   const [openTranscript, setOpenTranscript] = useState<Record<string, boolean>>({});
   const [openTranscriptPreview, setOpenTranscriptPreview] = useState<Record<string, boolean>>({});
   const [collapsedBlocks, setCollapsedBlocks] = useState<Record<string, boolean>>({});
@@ -576,57 +449,11 @@ export function LessonTailorEditor({
         {!isOpen && preview ? <MarkdownContent value={preview} className="line-clamp-2 px-2 pb-1.5 text-[11px] leading-relaxed text-stone-500" /> : null}
         {isOpen && (
           <div id={`transcript-${block.id}`} className="border-t border-[#202631] p-2">
-            <MarkdownEditor value={block.transcript || ""} onChange={(value) => updateDynamicBlock(step, index, { transcript: value })} onHelp={() => setMarkdownHelpBlock(block.id)} placeholder="Paste script or audio/video transcript here..." ariaLabel="Media Transcript (Optional)" />
+            <TiptapEditor value={block.transcript || ""} onChange={(value) => updateDynamicBlock(step, index, { transcript: value })} onHelp={() => setMarkdownHelpBlock(block.id)} placeholder="Paste script or audio/video transcript here..." ariaLabel="Media Transcript (Optional)" />
           </div>
         )}
       </div>
     );
-  };
-
-  const applyMarkdown = (step: StudyStepId, index: number, prefix: string, suffix = "") => {
-    const block = getBlocks(step)[index];
-    if (!block || block.type !== "text") return;
-    const textarea = textAreaRefs.current[block.id];
-    const value = block.body;
-    const start = textarea?.selectionStart ?? value.length;
-    const end = textarea?.selectionEnd ?? value.length;
-    const selected = value.slice(start, end) || "text";
-    const nextValue = `${value.slice(0, start)}${prefix}${selected}${suffix}${value.slice(end)}`;
-    updateDynamicBlock(step, index, { body: nextValue });
-    requestAnimationFrame(() => {
-      const nextStart = start + prefix.length;
-      const nextEnd = nextStart + selected.length;
-      textarea?.focus();
-      textarea?.setSelectionRange(nextStart, nextEnd);
-    });
-  };
-
-  const prependMarkdownLine = (step: StudyStepId, index: number, prefix: string) => {
-    const block = getBlocks(step)[index];
-    if (!block || block.type !== "text") return;
-    const textarea = textAreaRefs.current[block.id];
-    const value = block.body;
-    const start = textarea?.selectionStart ?? value.length;
-    const lineStart = value.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
-    const nextValue = `${value.slice(0, lineStart)}${prefix}${value.slice(lineStart)}`;
-    updateDynamicBlock(step, index, { body: nextValue });
-    requestAnimationFrame(() => textarea?.focus());
-  };
-
-  const insertMarkdownSnippet = (step: StudyStepId, index: number, snippet: string) => {
-    const block = getBlocks(step)[index];
-    if (!block || block.type !== "text") return;
-    const textarea = textAreaRefs.current[block.id];
-    const value = block.body;
-    const start = textarea?.selectionStart ?? value.length;
-    const end = textarea?.selectionEnd ?? value.length;
-    const nextValue = `${value.slice(0, start)}${snippet}${value.slice(end)}`;
-    updateDynamicBlock(step, index, { body: nextValue });
-    requestAnimationFrame(() => {
-      textarea?.focus();
-      const cursor = start + snippet.length;
-      textarea?.setSelectionRange(cursor, cursor);
-    });
   };
 
   const renderDynamicBuilder = (step: StudyStepId) => {
@@ -773,7 +600,7 @@ export function LessonTailorEditor({
                 </span>
               </label>
               {(block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true) && <label className="block text-xs text-stone-500">Student response type<select value={block.studentResponseType || "text"} onChange={(event) => updateDynamicBlock(step, index, { studentResponseType: event.target.value as "text" | "voice" | "audio" | "file" })} className="mt-1 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 [color-scheme:dark]" aria-label="Student response type"><option value="text">Text response</option><option value="voice">Voice response</option><option value="audio">Audio response</option><option value="file">File upload</option></select></label>}
-              <MarkdownEditor value={block.body} onChange={(value) => updateDynamicBlock(step, index, { body: value })} onHelp={() => setMarkdownHelpBlock(block.id)} placeholder="Main body content" ariaLabel="Text block body" />
+              <TiptapEditor value={block.body} onChange={(value) => updateDynamicBlock(step, index, { body: value })} onHelp={() => setMarkdownHelpBlock(block.id)} placeholder="Start typing lesson content or use formatting options..." ariaLabel="Text block body" />
               {(block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true) && (block.studentResponseType || "text") === "text" && <textarea rows={6} placeholder="Write your response here..." readOnly className="min-h-[140px] w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" aria-label="Student response field preview" />}
               {(block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true) && (block.studentResponseType === "voice" || block.studentResponseType === "audio") && <div className="flex items-center gap-2 rounded border border-[#394252] bg-[#171d28] p-3 text-xs text-stone-400"><Mic className="h-4 w-4 text-amber-400" />Voice recorder preview</div>}
               {(block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true) && block.studentResponseType === "file" && <div className="rounded border border-[#394252] bg-[#171d28] p-3 text-xs text-stone-400">File upload preview</div>}
@@ -815,7 +642,31 @@ export function LessonTailorEditor({
             {block.type === "writing" && <WritingBlockEditor block={block} onChange={(changes) => updateDynamicBlock(step, index, changes)} />}
             {block.type === "image" && <div className="space-y-2"><MediaAssetInput kind="image" value={block.imageUrl} onChange={(value) => updateDynamicBlock(step, index, { imageUrl: value })} /><input value={block.caption} onChange={(event) => updateDynamicBlock(step, index, { caption: event.target.value })} placeholder="Image caption" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Image block caption" /></div>}
             {block.type === "resource" && <div className="space-y-2"><MediaAssetInput kind="resource" value={block.resourceUrl} onChange={(value) => updateDynamicBlock(step, index, { resourceUrl: value })} /><input value={block.description || ""} onChange={(event) => updateDynamicBlock(step, index, { description: event.target.value })} placeholder="Document description" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Document description" /></div>}
-            {block.type === "question" && <div className="space-y-2"><label className="block text-xs text-stone-500">Question type<select value={block.question_type || "multiple_choice"} onChange={(event) => updateDynamicBlock(step, index, { question_type: event.target.value as "multiple_choice" | "open_ended" })} className="mt-1 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 [color-scheme:dark]" aria-label="Question type"><option value="multiple_choice">Multiple Choice</option><option value="open_ended">Open-Ended Response</option></select></label><MarkdownEditor value={block.prompt} onChange={(value) => updateDynamicBlock(step, index, { prompt: value })} onHelp={() => setMarkdownHelpBlock(block.id)} placeholder="Question or task prompt" ariaLabel="Question or task prompt" rows={4} />{(block.question_type || "multiple_choice") === "open_ended" ? <MarkdownEditor value={block.sample_answer || ""} onChange={(value) => updateDynamicBlock(step, index, { sample_answer: value })} onHelp={() => setMarkdownHelpBlock(block.id)} placeholder="Optional model answer or evaluation guide" ariaLabel="Sample answer or instructor guide" rows={4} /> : <>{block.options.map((option, optionIndex) => <div key={`${block.id}-${optionIndex}`} className="flex gap-2"><input value={option} onChange={(event) => updateDynamicBlock(step, index, { options: block.options.map((value, valueIndex) => valueIndex === optionIndex ? event.target.value : value) })} placeholder={`Option ${optionIndex + 1} (optional)`} className="min-w-0 flex-1 rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`Question option ${optionIndex + 1}`} /><button type="button" onClick={() => updateDynamicBlock(step, index, { options: block.options.filter((_, valueIndex) => valueIndex !== optionIndex) })} disabled={block.options.length <= 1} aria-label={`Remove question option ${optionIndex + 1}`} className="rounded border border-[#394252] px-2 text-stone-500 hover:border-red-400 hover:text-red-300 disabled:opacity-30"><X className="h-3.5 w-3.5" /></button></div>)}<button type="button" onClick={() => updateDynamicBlock(step, index, { options: [...block.options, ""] })} className="flex items-center gap-1 text-xs text-amber-300 hover:text-amber-200"><Plus className="h-3 w-3" /> Add option</button><input value={block.correct_answer} onChange={(event) => updateDynamicBlock(step, index, { correct_answer: event.target.value })} placeholder="Correct Answer / Key" className="w-full rounded border border-amber-500/30 bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Correct Answer / Key" /></>}</div>}
+            {block.type === "question" && (
+              <div className="space-y-2">
+                <label className="block text-xs text-stone-500">Question type
+                  <select value={block.question_type || "multiple_choice"} onChange={(event) => updateDynamicBlock(step, index, { question_type: event.target.value as "multiple_choice" | "open_ended" })} className="mt-1 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 [color-scheme:dark]" aria-label="Question type">
+                    <option value="multiple_choice">Multiple Choice</option>
+                    <option value="open_ended">Open-Ended Response</option>
+                  </select>
+                </label>
+                <TiptapEditor value={block.prompt} onChange={(value) => updateDynamicBlock(step, index, { prompt: value })} onHelp={() => setMarkdownHelpBlock(block.id)} placeholder="Question or task prompt" ariaLabel="Question or task prompt" />
+                {(block.question_type || "multiple_choice") === "open_ended" ? (
+                  <TiptapEditor value={block.sample_answer || ""} onChange={(value) => updateDynamicBlock(step, index, { sample_answer: value })} onHelp={() => setMarkdownHelpBlock(block.id)} placeholder="Optional model answer or evaluation guide" ariaLabel="Sample answer or instructor guide" />
+                ) : (
+                  <>
+                    {block.options.map((option, optionIndex) => (
+                      <div key={`${block.id}-${optionIndex}`} className="flex gap-2">
+                        <input value={option} onChange={(event) => updateDynamicBlock(step, index, { options: block.options.map((value, valueIndex) => valueIndex === optionIndex ? event.target.value : value) })} placeholder={`Option ${optionIndex + 1} (optional)`} className="min-w-0 flex-1 rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`Question option ${optionIndex + 1}`} />
+                        <button type="button" onClick={() => updateDynamicBlock(step, index, { options: block.options.filter((_, valueIndex) => valueIndex !== optionIndex) })} disabled={block.options.length <= 1} aria-label={`Remove question option ${optionIndex + 1}`} className="rounded border border-[#394252] px-2 text-stone-500 hover:border-red-400 hover:text-red-300 disabled:opacity-30"><X className="h-3.5 w-3.5" /></button>
+                      </div>
+                    ))}
+                    <button type="button" onClick={() => updateDynamicBlock(step, index, { options: [...block.options, ""] })} className="flex items-center gap-1 text-xs text-amber-300 hover:text-amber-200"><Plus className="h-3 w-3" /> Add option</button>
+                    <input value={block.correct_answer} onChange={(event) => updateDynamicBlock(step, index, { correct_answer: event.target.value })} placeholder="Correct Answer / Key" className="w-full rounded border border-amber-500/30 bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Correct Answer / Key" />
+                  </>
+                )}
+              </div>
+            )}
             {block.type === "quiz" && <div className="space-y-2"><div className="flex items-center justify-between text-xs text-stone-400"><span>Questions</span><button type="button" onClick={() => updateDynamicBlock(step, index, { questions: [...block.questions, { id: `${block.id}-q${block.questions.length + 1}`, prompt: "", options: ["", "", ""], correct_answer: "" }] })} className="flex items-center gap-1 text-amber-300 hover:text-amber-200"><Plus className="h-3 w-3" /> Add question</button></div>{block.questions.map((question, questionIndex) => <div key={`${question.id || "question"}-${questionIndex}`} className="space-y-2 rounded border border-[#202631] bg-[#0c1017] p-2"><input value={question.prompt} onChange={(event) => updateDynamicBlock(step, index, { questions: block.questions.map((item, itemIndex) => itemIndex === questionIndex ? { ...item, prompt: event.target.value } : item) })} placeholder={`Question ${questionIndex + 1}`} className="w-full rounded border border-[#202631] bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`Quiz question ${questionIndex + 1}`} />{question.prompt.trim() ? <MarkdownContent value={question.prompt} className="text-xs text-stone-300" /> : <p className="text-xs text-stone-500">Add a question prompt to preview it.</p>}<button type="button" onClick={() => updateDynamicBlock(step, index, { questions: block.questions.map((item, itemIndex) => itemIndex === questionIndex ? { ...item, options: [...item.options, ""] } : item) })} className="flex items-center gap-1 text-amber-300 hover:text-amber-200"><Plus className="h-3 w-3" /> Add option</button>{question.options.map((option, optionIndex) => <input key={`${question.id || "question"}-${questionIndex}-${optionIndex}`} value={option} onChange={(event) => updateDynamicBlock(step, index, { questions: block.questions.map((item, itemIndex) => itemIndex === questionIndex ? { ...item, options: item.options.map((value, valueIndex) => valueIndex === optionIndex ? event.target.value : value) } : item) })} placeholder={`Option ${optionIndex + 1}`} className="w-full rounded border border-[#202631] bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`Quiz question ${questionIndex + 1} option ${optionIndex + 1}`} />)}<input value={question.correct_answer || question.correctAnswer || ""} onChange={(event) => updateDynamicBlock(step, index, { questions: block.questions.map((item, itemIndex) => itemIndex === questionIndex ? { ...item, correct_answer: event.target.value } : item) })} placeholder="Correct Answer / Key" className="w-full rounded border border-amber-500/30 bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`Quiz question ${questionIndex + 1} Correct Answer / Key`} /></div>)}</div>}
             </div>
           </div>
