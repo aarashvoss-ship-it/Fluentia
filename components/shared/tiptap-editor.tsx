@@ -77,6 +77,7 @@ export function TiptapEditor({
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const [isColorPaletteOpen, setIsColorPaletteOpen] = useState(false);
+  const colorPaletteRef = useRef<HTMLDivElement | null>(null);
 
   const extensions = useMemo(() => [
     StarterKit.configure({ link: false }),
@@ -109,6 +110,17 @@ export function TiptapEditor({
     editor.commands.setContent(value, { contentType: "markdown", emitUpdate: false });
   }, [editor, value]);
 
+  useEffect(() => {
+    if (!isColorPaletteOpen) return;
+    const handleOutsidePointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !colorPaletteRef.current?.contains(event.target)) {
+        setIsColorPaletteOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", handleOutsidePointerDown);
+    return () => document.removeEventListener("pointerdown", handleOutsidePointerDown);
+  }, [isColorPaletteOpen]);
+
   const applyLink = () => {
     if (!editor) return;
     if (editor.isActive("link")) {
@@ -140,7 +152,7 @@ export function TiptapEditor({
           <ToolbarButton label="Code block" active={!!editor?.isActive("codeBlock")} onClick={() => editor?.chain().focus().toggleCodeBlock().run()}><Code2 className="h-3.5 w-3.5" /></ToolbarButton>
           <ToolbarButton label="Horizontal rule" onClick={() => editor?.chain().focus().setHorizontalRule().run()}><Minus className="h-3.5 w-3.5" /></ToolbarButton>
           <ToolbarButton label={editor?.isActive("link") ? "Remove link" : "Add link"} active={!!editor?.isActive("link")} onClick={applyLink}><Link2 className="h-3.5 w-3.5" /></ToolbarButton>
-          <div className="relative">
+          <div ref={colorPaletteRef} className="relative">
             <ToolbarButton label="Text color" active={!!editor?.isActive("textStyle")} onClick={() => setIsColorPaletteOpen((open) => !open)}><Palette className="h-3.5 w-3.5" /></ToolbarButton>
             {isColorPaletteOpen && (
               <div className="absolute right-0 top-full z-40 mt-2 grid w-36 grid-cols-4 gap-2 rounded-md border border-[#394252] bg-[#171d28] p-3 shadow-xl" role="dialog" aria-label="Choose text color">
