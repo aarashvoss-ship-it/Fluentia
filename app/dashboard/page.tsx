@@ -316,6 +316,22 @@ function DashboardContent() {
     void getStudentProfile(studentToken)
       .then((profile) => {
         if (!profile) return;
+        let localCustomization: Partial<ProfilePreferences> = {};
+        let localPreferences: ProfilePreferences = {};
+        try {
+          localCustomization = JSON.parse(window.localStorage.getItem("student_customization") || "{}") as Partial<ProfilePreferences>;
+          localPreferences = JSON.parse(window.localStorage.getItem(`fluentia:profile:${studentToken}`) || "{}") as ProfilePreferences;
+        } catch {
+          // The persisted profile remains the source of truth if local fallback data is malformed.
+        }
+        const savedColor = profile.avatarBgColor || localPreferences.avatar_bg_color || localCustomization.avatar_bg_color || AVATAR_PRESETS[0].backgroundColor;
+        setAvatarColor(savedColor);
+        const savedPreset = AVATAR_PRESETS.find((preset) => preset.backgroundColor === savedColor);
+        setAvatarPreset(savedPreset?.id || localPreferences.avatarPreset || "amber");
+        const savedInitials = profile.avatarInitials ?? localPreferences.avatar_initials ?? localCustomization.avatar_initials ?? "";
+        setAvatarInitials(savedInitials.replace(/[^a-z]/gi, "").slice(0, 3).toUpperCase());
+        setCustomAvatarUrl(profile.avatarUrl || localPreferences.customAvatarUrl || localPreferences.avatar_url || localCustomization.custom_avatar_url || localCustomization.avatar_url || "");
+        setCustomBannerUrl(profile.bannerUrl || localPreferences.customBannerUrl || localPreferences.banner_url || localCustomization.banner_url || "");
         console.log("[Student Profile Modal] profile load identifier:", {
           studentToken,
           studentId: activeStudent.id,
@@ -567,14 +583,14 @@ function DashboardContent() {
         const profileAvatarColor = typeof roleProfile?.avatar_bg_color === "string"
           ? roleProfile.avatar_bg_color
           : "";
-        const savedAvatarColor = localCustomization.avatar_bg_color || profileAvatarColor || preferences.avatar_bg_color || metadataAvatarColor;
+        const savedAvatarColor = profileAvatarColor || preferences.avatar_bg_color || localCustomization.avatar_bg_color || metadataAvatarColor;
         const colorPreset = AVATAR_PRESETS.find((preset) => preset.backgroundColor === savedAvatarColor)?.id;
         setAvatarPreset(colorPreset || preferences.avatarPreset || "amber");
         setAvatarColor(savedAvatarColor || AVATAR_PRESETS[0].backgroundColor);
         const profileAvatarInitials = typeof roleProfile?.avatar_initials === "string"
           ? roleProfile.avatar_initials
           : "";
-        const savedAvatarInitials = (localCustomization.avatar_initials || profileAvatarInitials || preferences.avatar_initials
+        const savedAvatarInitials = (profileAvatarInitials || preferences.avatar_initials || localCustomization.avatar_initials
           || (typeof userMetadata.avatar_initials === "string" ? userMetadata.avatar_initials : ""))
           .replace(/[^a-z]/gi, "")
           .slice(0, 3)
@@ -588,23 +604,17 @@ function DashboardContent() {
             avatarInitials: savedAvatarInitials,
           },
         } : current);
-        const savedAvatarUrl = typeof localCustomization.custom_avatar_url === "string"
-          ? localCustomization.custom_avatar_url
-          : typeof localCustomization.avatar_url === "string"
-            ? localCustomization.avatar_url
-            : typeof preferences.customAvatarUrl === "string"
-              ? preferences.customAvatarUrl
-              : typeof preferences.avatar_url === "string"
-                ? preferences.avatar_url
-                : typeof userMetadata.custom_avatar_url === "string"
-                  ? userMetadata.custom_avatar_url
-                  : typeof userMetadata.avatar_url === "string"
-                    ? userMetadata.avatar_url
-                    : active.profile.avatarUrl || "";
+        const savedAvatarUrl = active.profile.avatarUrl
+          || preferences.customAvatarUrl
+          || preferences.avatar_url
+          || localCustomization.custom_avatar_url
+          || localCustomization.avatar_url
+          || (typeof userMetadata.custom_avatar_url === "string" ? userMetadata.custom_avatar_url : "")
+          || (typeof userMetadata.avatar_url === "string" ? userMetadata.avatar_url : "");
         setCustomAvatarUrl(savedAvatarUrl);
         setBannerPreset(preferences.bannerPreset || "default-dark");
         setCustomBannerUrl(
-          localCustomization.banner_url || preferences.customBannerUrl || preferences.banner_url || active.profile.bannerUrl || "",
+          active.profile.bannerUrl || preferences.customBannerUrl || preferences.banner_url || localCustomization.banner_url || "",
         );
         setIsMounted(true);
         const refreshLessons = () =>
@@ -719,12 +729,12 @@ function DashboardContent() {
     .slice(0, 2)
     .toUpperCase();
   const customizedInitials = avatarInitials.trim().replace(/[^a-z0-9]/gi, "").slice(0, 3).toUpperCase();
-  const profileInitials = customizedInitials || defaultProfileInitials;
-  const visibleAvatarInitials = profileInitials;
+  const profileInitials = activeStudent.profile?.avatarInitials || customizedInitials || defaultProfileInitials;
+  const visibleAvatarInitials = customizedInitials || defaultProfileInitials;
   const selectedAvatar =
     AVATAR_PRESETS.find((preset) => preset.id === avatarPreset) ||
     AVATAR_PRESETS[0];
-  const badgeColor = avatarColor || activeStudent.profile?.avatarBgColor || "#f59e0b";
+  const badgeColor = activeStudent.profile?.avatarBgColor || avatarColor || "#f59e0b";
   const selectedBanner =
     BANNER_PRESETS.find((preset) => preset.id === bannerPreset) ||
     BANNER_PRESETS[0];
@@ -1494,6 +1504,7 @@ function DashboardContent() {
                                 onClick={() => {
                                   setAvatarPreset(preset.id);
                                   setAvatarColor(preset.backgroundColor);
+                                  setCustomAvatarUrl("");
                                 }}
                                 aria-label={`Use ${preset.label} badge color`}
                                 aria-pressed={avatarPreset === preset.id}
