@@ -41,6 +41,116 @@ interface InstructorWorkstationProps {
 
 type SidebarBlock = { id: string; title: string; body: string; icon?: string; parentMainBlockId?: string };
 type SidebarBlocksByStep = Partial<Record<"warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking", SidebarBlock[]>>;
+
+function StepSidebarEditorPanel({
+  sidebarStep,
+  setSidebarStep,
+  sidebarBlocksByStep,
+  setSidebarBlocksByStep,
+  mainBlocks,
+}: {
+  sidebarStep: keyof SidebarBlocksByStep;
+  setSidebarStep: (step: keyof SidebarBlocksByStep) => void;
+  sidebarBlocksByStep: SidebarBlocksByStep;
+  setSidebarBlocksByStep: React.Dispatch<React.SetStateAction<SidebarBlocksByStep>>;
+  mainBlocks: ContentBlock[];
+}) {
+  return (
+    <section className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="font-sans text-xl font-semibold text-stone-100">Step Sidebar</h3>
+        <button
+          type="button"
+          onClick={() => setSidebarBlocksByStep((current) => ({
+            ...current,
+            [sidebarStep]: [...(current[sidebarStep] || []), { id: `sidebar-${Date.now()}`, title: "Sidebar note", body: "" }],
+          }))}
+          className="inline-flex min-h-9 items-center gap-1.5 rounded border border-amber-500/40 bg-[#0c1017] px-3 text-xs font-normal text-stone-200 transition hover:border-amber-500/80"
+        >
+          <Plus className="h-3.5 w-3.5" /> Add Block
+        </button>
+      </div>
+      <label className="mt-3 block text-xs text-stone-500">
+        Editing step
+        <select value={sidebarStep} onChange={(event) => setSidebarStep(event.target.value as keyof SidebarBlocksByStep)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark]" aria-label="Sidebar step">
+          <option value="warm_up">Warm-up</option>
+          <option value="lesson">Lesson</option>
+          <option value="listening">Listening</option>
+          <option value="reading">Reading</option>
+          <option value="writing">Writing</option>
+          <option value="speaking">Speaking</option>
+        </select>
+      </label>
+      <div className="mt-4 space-y-3">
+        {(sidebarBlocksByStep[sidebarStep] || []).map((block) => (
+          <div key={block.id} className="space-y-3 rounded-md border border-[#202631] bg-[#171d28] p-3">
+            <div className="flex items-center gap-2">
+              <input
+                value={block.title}
+                onChange={(event) => setSidebarBlocksByStep((current) => ({
+                  ...current,
+                  [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, title: event.target.value } : item),
+                }))}
+                className="h-9 min-w-0 flex-1 rounded border border-[#394252] bg-[#0c1017] px-2.5 text-xs font-semibold text-stone-200 outline-none focus:border-amber-500"
+                aria-label="Sidebar block title"
+              />
+              <button
+                type="button"
+                onClick={() => setSidebarBlocksByStep((current) => ({
+                  ...current,
+                  [sidebarStep]: (current[sidebarStep] || []).filter((item) => item.id !== block.id),
+                }))}
+                aria-label={`Delete ${block.title}`}
+                title="Delete sidebar block"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-[#394252] text-stone-400 transition hover:border-red-500/60 hover:text-red-300"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-[#29303c] bg-[#0c1017]/60 px-3 py-2">
+              <span className="text-xs font-medium text-stone-300">Block Icon</span>
+              <LucideIconPicker
+                value={block.icon || ""}
+                triggerLabel="Select Icon"
+                onChange={(icon) => setSidebarBlocksByStep((current) => ({
+                  ...current,
+                  [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, icon } : item),
+                }))}
+              />
+            </div>
+            <label className="block text-[11px] text-stone-500">
+              Align Next To (Main Block)
+              <select
+                value={block.parentMainBlockId || ""}
+                onChange={(event) => setSidebarBlocksByStep((current) => ({
+                  ...current,
+                  [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, parentMainBlockId: event.target.value || undefined } : item),
+                }))}
+                className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark] focus:border-amber-500"
+                aria-label={`Align ${block.title || "sidebar block"} next to main block`}
+              >
+                <option value="">Top of Sidebar (Default Unlinked)</option>
+                {mainBlocks.map((mainBlock, mainIndex) => <option key={mainBlock.id} value={mainBlock.id}>{mainIndex + 1}. {mainBlock.title || `${mainBlock.type} block`}</option>)}
+              </select>
+            </label>
+            <TiptapEditor
+              value={block.body}
+              onChange={(body) => setSidebarBlocksByStep((current) => ({
+                ...current,
+                [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, body } : item),
+              }))}
+              placeholder="Start typing sidebar content or use formatting options..."
+              ariaLabel={`Sidebar content for ${block.title || "sidebar block"}`}
+              compact
+            />
+          </div>
+        ))}
+        {(sidebarBlocksByStep[sidebarStep] || []).length === 0 && <p className="rounded-md border border-dashed border-[#394252] p-4 text-xs text-stone-500">No sidebar blocks for this step.</p>}
+      </div>
+    </section>
+  );
+}
+
 type AddStudentDraft = {
   fullName: string;
   email: string;
@@ -413,7 +523,6 @@ export default function InstructorWorkstationPage({
   });
 
   const [isPublishing, setIsPublishing] = useState(false);
-  const [viewMode, setViewMode] = useState<"instructor" | "student">("instructor");
   const [isSplitPreviewOpen, setIsSplitPreviewOpen] = useState(false);
   const [previewStep, setPreviewStep] = useState<"warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking" | "results">("warm_up");
   const previewChannelRef = useRef<BroadcastChannel | null>(null);
@@ -574,7 +683,6 @@ export default function InstructorWorkstationPage({
     setSaveIndicator("idle");
     setValidationErrors({});
     setPublishStatus(null);
-    setViewMode("instructor");
     setPreviewStep("warm_up");
     setAudioFile(null);
     setResourceFile(null);
@@ -2414,6 +2522,31 @@ export default function InstructorWorkstationPage({
   if (!isMounted) return null;
   if (accessDenied) return <AccessCard title="Access Denied" message="Your instructor account does not have access to this workspace." />;
 
+  const lessonEditorPanel = (
+    <LessonTailorEditor
+      key={databaseLessonId || "new-lesson"}
+      content={workstationState.content}
+      sidebarBlocksByStep={sidebarBlocksByStep}
+      onActiveStepChange={setSidebarStep}
+      onChange={(content: StrictStepContent) => setWorkstationState((previous) => ({ ...previous, content }))}
+    />
+  );
+  const heroBannerPanel = (
+    <details className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" open={heroBannerOpen} onToggle={(event) => setHeroBannerOpen(event.currentTarget.open)}>
+      <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-semibold text-stone-200"><span>Hero Banner</span><ChevronDown className={`h-4 w-4 text-amber-400 transition-transform ${heroBannerOpen ? "rotate-180" : ""}`} aria-hidden="true" /></summary>
+      <div className="mt-4"><InstructorBannerManager bannerUrl={workstationState.bannerUrl} customInput={workstationState.customBannerUrl} onUpdateBanner={(bannerUrl: string) => setWorkstationState((previous) => ({ ...previous, bannerUrl }))} onUpdateCustomInput={(customBannerUrl: string) => setWorkstationState((previous) => ({ ...previous, customBannerUrl }))} /></div>
+    </details>
+  );
+  const sidebarEditorPanel = (
+    <StepSidebarEditorPanel
+      sidebarStep={sidebarStep}
+      setSidebarStep={setSidebarStep}
+      sidebarBlocksByStep={sidebarBlocksByStep}
+      setSidebarBlocksByStep={setSidebarBlocksByStep}
+      mainBlocks={((workstationState.content[sidebarStep] as { blocks?: ContentBlock[] } | undefined)?.blocks || []) as ContentBlock[]}
+    />
+  );
+
   return (
     <div className="min-h-screen w-full bg-[#0c1017] font-sans text-[#e8e7e4]">
       <div className={`${activeTab === "students" || activeTab === "instructors" ? "w-full max-w-full px-6" : "mx-auto w-full max-w-6xl px-4 sm:px-6"} py-6 md:py-8`}>
@@ -2428,12 +2561,8 @@ export default function InstructorWorkstationPage({
           {activeTab === "builder" && <div className="flex min-w-0 flex-col items-stretch gap-2 md:items-end">
             <div className="flex flex-wrap items-center justify-end gap-2">
               <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold ${lessonStatus === "published" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/30 bg-amber-500/10 text-amber-300"}`}><span className={`h-1.5 w-1.5 rounded-full ${lessonStatus === "published" ? "bg-emerald-400" : "bg-amber-400"}`} />{lessonStatus === "published" ? "Published" : "Draft"}</span>
-              <button type="button" aria-pressed={isSplitPreviewOpen} onClick={() => { setViewMode("instructor"); setIsSplitPreviewOpen((open) => !open); }} className={`rounded border px-2.5 py-1.5 text-[11px] font-medium transition ${isSplitPreviewOpen ? "border-amber-500/60 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#0c1017] text-stone-300 hover:border-amber-500/50 hover:text-stone-100"}`}>Split Preview</button>
-              <button type="button" onClick={() => { setViewMode("instructor"); window.open("/instructor/preview", "fluentia-student-live-preview"); }} className="rounded border border-[#394252] bg-[#0c1017] px-2.5 py-1.5 text-[11px] font-medium text-stone-300 transition hover:border-amber-500/50 hover:text-stone-100">Pop-out Preview</button>
-              <div role="group" aria-label="Workstation view" className="inline-flex rounded-md border border-[#394252] bg-[#0c1017] p-0.5">
-                <Tooltip content="Edit lesson content and settings"><button type="button" aria-pressed={viewMode === "instructor"} onClick={() => setViewMode("instructor")} className={`rounded px-2.5 py-1.5 text-[11px] font-semibold transition ${viewMode === "instructor" ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-100"}`}>Edit Mode</button></Tooltip>
-                <Tooltip content="Preview the lesson as a student"><button type="button" aria-pressed={viewMode === "student"} onClick={() => setViewMode("student")} className={`rounded px-2.5 py-1.5 text-[11px] font-semibold transition ${viewMode === "student" ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-100"}`}>Student View</button></Tooltip>
-              </div>
+              <button type="button" aria-pressed={isSplitPreviewOpen} onClick={() => setIsSplitPreviewOpen((open) => !open)} className={`rounded border px-2.5 py-1.5 text-[11px] font-medium transition ${isSplitPreviewOpen ? "border-amber-500/60 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#0c1017] text-stone-300 hover:border-amber-500/50 hover:text-stone-100"}`}>Split Preview</button>
+              <button type="button" onClick={() => { window.open("/instructor/preview", "fluentia-student-live-preview"); }} className="rounded border border-[#394252] bg-[#0c1017] px-2.5 py-1.5 text-[11px] font-medium text-stone-300 transition hover:border-amber-500/50 hover:text-stone-100">Pop-out Preview</button>
               <Tooltip content="Save the current lesson draft"><button type="button" onClick={handleSaveDraft} className="rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-amber-400">Save Changes</button></Tooltip>
               {lessonStatus === "published" ? <Tooltip content="Remove this lesson from student access"><button type="button" onClick={handleUnpublish} disabled={isPublishing || !databaseLessonId} className="rounded-md border border-[#394252] px-3 py-2 text-xs font-semibold text-stone-300 transition hover:border-red-400 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50">Unpublish</button></Tooltip> : <Tooltip content="Publish this lesson for students"><button type="button" onClick={handleConfirmPublish} disabled={isPublishing} className="rounded-md border border-[#394252] px-3 py-2 text-xs font-semibold text-stone-300 transition hover:border-amber-500/60 hover:text-amber-300 disabled:cursor-wait disabled:opacity-60">Publish</button></Tooltip>}
             </div>
@@ -3152,9 +3281,7 @@ export default function InstructorWorkstationPage({
 
         {activeTab === "music" && <MusicLibraryManager />}
 
-        {activeTab === "builder" && viewMode === "student" && <StudentStudyRoomPreview {...livePreviewSnapshot} onStepChange={setPreviewStep} />}
-
-        {activeTab === "builder" && viewMode === "instructor" && <>
+        {activeTab === "builder" && <>
           <section className="mb-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" aria-labelledby="lesson-details-title">
                 {Object.keys(validationErrors).length > 0 && <div className="mb-4 space-y-1 rounded-md border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300" role="alert">{Object.entries(validationErrors).map(([field, message]) => <p key={field}>{message}</p>)}</div>}
             <div className="mb-4">
@@ -3183,120 +3310,26 @@ export default function InstructorWorkstationPage({
             </div>
 <label className="mt-3 block text-xs text-stone-400">Lesson-Specific Guidance<textarea value={newLesson.instructorGuidance} onChange={(e) => setNewLesson((previous) => ({ ...previous, instructorGuidance: e.target.value }))} placeholder="Guidance shown inside this lesson's Study Room" rows={3} className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
           </section>
-          <main className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-12">
-            <div className="h-full min-w-0 lg:col-span-8">
-              {isSplitPreviewOpen ? (
-                <div className="grid min-w-0 gap-4 xl:grid-cols-2">
-                  <div className="min-w-0"><LessonTailorEditor key={databaseLessonId || "new-lesson"} content={workstationState.content} sidebarBlocksByStep={sidebarBlocksByStep} onActiveStepChange={setSidebarStep} onChange={(content: StrictStepContent) => setWorkstationState((previous) => ({ ...previous, content }))} /></div>
-                  <div className="min-w-0 overflow-hidden rounded-xl border border-[#202631]"><StudentStudyRoomPreview {...livePreviewSnapshot} onStepChange={setPreviewStep} embedded /></div>
-                </div>
-              ) : (
-                <LessonTailorEditor key={databaseLessonId || "new-lesson"} content={workstationState.content} sidebarBlocksByStep={sidebarBlocksByStep} onActiveStepChange={setSidebarStep} onChange={(content: StrictStepContent) => setWorkstationState((previous) => ({ ...previous, content }))} />
-              )}
-            </div>
-            <aside className="h-full space-y-6 lg:col-span-4">
-              <details className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" open={heroBannerOpen} onToggle={(event) => setHeroBannerOpen(event.currentTarget.open)}>
-                <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-semibold text-stone-200"><span>Hero Banner</span><ChevronDown className={`h-4 w-4 text-amber-400 transition-transform ${heroBannerOpen ? "rotate-180" : ""}`} aria-hidden="true" /></summary>
-                <div className="mt-4"><InstructorBannerManager bannerUrl={workstationState.bannerUrl} customInput={workstationState.customBannerUrl} onUpdateBanner={(bannerUrl: string) => setWorkstationState((previous) => ({ ...previous, bannerUrl }))} onUpdateCustomInput={(customBannerUrl: string) => setWorkstationState((previous) => ({ ...previous, customBannerUrl }))} /></div>
-              </details>
-              <section className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="font-sans text-xl font-semibold text-stone-100">Step Sidebar</h3>
-                  <button
-                    type="button"
-                    onClick={() => setSidebarBlocksByStep((current) => ({
-                      ...current,
-                      [sidebarStep]: [...(current[sidebarStep] || []), { id: `sidebar-${Date.now()}`, title: "Sidebar note", body: "" }],
-                    }))}
-                    className="inline-flex min-h-9 items-center gap-1.5 rounded border border-amber-500/40 bg-[#0c1017] px-3 text-xs font-normal text-stone-200 transition hover:border-amber-500/80"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Add Block
-                  </button>
-                </div>
-                <label className="mt-3 block text-xs text-stone-500">
-                  Editing step
-                  <select value={sidebarStep} onChange={(event) => setSidebarStep(event.target.value as keyof SidebarBlocksByStep)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark]" aria-label="Sidebar step">
-                    <option value="warm_up">Warm-up</option>
-                    <option value="lesson">Lesson</option>
-                    <option value="listening">Listening</option>
-                    <option value="reading">Reading</option>
-                    <option value="writing">Writing</option>
-                    <option value="speaking">Speaking</option>
-                  </select>
-                </label>
-                <div className="mt-4 space-y-3">
-                  {(sidebarBlocksByStep[sidebarStep] || []).map((block) => (
-                    <div key={block.id} className="space-y-3 rounded-md border border-[#202631] bg-[#171d28] p-3">
-                      <div className="flex items-center gap-2">
-                        <input
-                          value={block.title}
-                          onChange={(event) => setSidebarBlocksByStep((current) => ({
-                            ...current,
-                            [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, title: event.target.value } : item),
-                          }))}
-                          className="h-9 min-w-0 flex-1 rounded border border-[#394252] bg-[#0c1017] px-2.5 text-xs font-semibold text-stone-200 outline-none focus:border-amber-500"
-                          aria-label="Sidebar block title"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setSidebarBlocksByStep((current) => ({
-                            ...current,
-                            [sidebarStep]: (current[sidebarStep] || []).filter((item) => item.id !== block.id),
-                          }))}
-                          aria-label={`Delete ${block.title}`}
-                          title="Delete sidebar block"
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-[#394252] text-stone-400 transition hover:border-red-500/60 hover:text-red-300"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                      <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-[#29303c] bg-[#0c1017]/60 px-3 py-2">
-                        <span className="text-xs font-medium text-stone-300">Block Icon</span>
-                        <LucideIconPicker
-                          value={block.icon || ""}
-                          triggerLabel="Select Icon"
-                          onChange={(icon) => setSidebarBlocksByStep((current) => ({
-                            ...current,
-                            [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, icon } : item),
-                          }))}
-                        />
-                      </div>
-                      <label className="block text-[11px] text-stone-500">
-                        Align Next To (Main Block)
-                        <select
-                          value={block.parentMainBlockId || ""}
-                          onChange={(event) => setSidebarBlocksByStep((current) => ({
-                            ...current,
-                            [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, parentMainBlockId: event.target.value || undefined } : item),
-                          }))}
-                          className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark] focus:border-amber-500"
-                          aria-label={`Align ${block.title || "sidebar block"} next to main block`}
-                        >
-                          <option value="">Top of Sidebar (Default Unlinked)</option>
-                          {((((workstationState.content[sidebarStep] as { blocks?: ContentBlock[] } | undefined)?.blocks || []) as ContentBlock[]).map((mainBlock, mainIndex) => (
-                            <option key={mainBlock.id} value={mainBlock.id}>{mainIndex + 1}. {mainBlock.title || `${mainBlock.type} block`}</option>
-                          )))}
-                        </select>
-                      </label>
-                      <TiptapEditor
-                        value={block.body}
-                        onChange={(body) => setSidebarBlocksByStep((current) => ({
-                          ...current,
-                          [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, body } : item),
-                        }))}
-                        placeholder="Start typing sidebar content or use formatting options..."
-                        ariaLabel={`Sidebar content for ${block.title || "sidebar block"}`}
-                        compact
-                      />
-                    </div>
-                  ))}
-                  {(sidebarBlocksByStep[sidebarStep] || []).length === 0 && (
-                    <p className="rounded-md border border-dashed border-[#394252] p-4 text-xs text-stone-500">No sidebar blocks for this step.</p>
-                  )}
-                </div>
-              </section>
-            </aside>
-          </main>
+          {isSplitPreviewOpen ? (
+            <main className="grid min-w-0 grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
+              <div className="h-[calc(100dvh-20rem)] min-h-[480px] min-w-0 space-y-6 overflow-y-auto overscroll-contain pr-1">
+                {lessonEditorPanel}
+                {heroBannerPanel}
+                {sidebarEditorPanel}
+              </div>
+              <div className="h-[calc(100dvh-20rem)] min-h-[480px] min-w-0 overflow-y-auto overscroll-contain rounded-xl border border-[#202631]">
+                <StudentStudyRoomPreview {...livePreviewSnapshot} onStepChange={setPreviewStep} embedded />
+              </div>
+            </main>
+          ) : (
+            <main className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-12">
+              <div className="h-full min-w-0 lg:col-span-8">{lessonEditorPanel}</div>
+              <aside className="h-full space-y-6 lg:col-span-4">
+                {heroBannerPanel}
+                {sidebarEditorPanel}
+              </aside>
+            </main>
+          )}
 
           <section className="mt-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" aria-label="Lesson builder resource panel">
             <div className="space-y-4">
