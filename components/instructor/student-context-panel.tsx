@@ -83,7 +83,8 @@ export function StudentContextPanel({
     setIsSavingProfile(true);
     setProfileSaveMessage(null);
     try {
-      await onSaveProfile?.(displayProfile);
+      if (!onSaveProfile) throw new Error("Student profile saving is unavailable.");
+      await onSaveProfile(displayProfile);
       setProfileSaveMessage("Profile saved successfully");
     } catch (error) {
       const errorMessage = error instanceof Error
@@ -92,21 +93,6 @@ export function StudentContextPanel({
           ? ((error as { message?: string; details?: string }).message || (error as { details?: string }).details || JSON.stringify(error))
           : String(error);
       console.error("Error saving student profile:", errorMessage);
-      if (studentId || displayProfile.id) {
-        const fallbackIdentifier = studentToken || studentId || displayProfile.id;
-        const fallbackKey = fallbackIdentifier ? `student_profile_${fallbackIdentifier}` : "";
-        try {
-          if (!fallbackKey) throw new Error("No student identifier is available for local profile storage.");
-          const serialized = JSON.stringify(displayProfile);
-          window.localStorage.setItem(fallbackKey, serialized);
-          window.localStorage.setItem(`fluentia:student-profile:${fallbackIdentifier}`, serialized);
-          window.dispatchEvent(new CustomEvent("fluentia:student-profile-updated", { detail: { studentToken: fallbackIdentifier } }));
-          setProfileSaveMessage("Profile saved successfully");
-          return;
-        } catch (fallbackError) {
-          console.error("Error saving student profile locally:", fallbackError);
-        }
-      }
       setProfileSaveMessage(`Profile save failed: ${errorMessage}`);
     } finally {
       setIsSavingProfile(false);

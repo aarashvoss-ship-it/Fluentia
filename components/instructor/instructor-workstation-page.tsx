@@ -694,13 +694,9 @@ export default function InstructorWorkstationPage({
     setProfileSaveMessages((current) => ({ ...current, [student.id]: "" }));
     setProfileSaveToast(null);
     try {
-      const saveMode = await saveStudentProfileEntry(student, student.profile);
-      if (saveMode === "database") {
-        setProfileSaveMessages((current) => ({ ...current, [student.id]: "Profile saved successfully!" }));
-        setProfileSaveToast("Profile saved successfully!");
-      } else {
-        setProfileSaveMessages((current) => ({ ...current, [student.id]: "Saved locally, but Supabase did not confirm the update." }));
-      }
+      await saveStudentProfileEntry(student, student.profile);
+      setProfileSaveMessages((current) => ({ ...current, [student.id]: "Profile saved successfully!" }));
+      setProfileSaveToast("Profile saved successfully!");
     } catch (error) {
       setProfileSaveMessages((current) => ({ ...current, [student.id]: error instanceof Error ? error.message : "Unable to save student profile." }));
     } finally {

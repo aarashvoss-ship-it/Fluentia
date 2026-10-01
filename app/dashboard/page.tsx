@@ -274,107 +274,25 @@ function DashboardContent() {
     });
 
     const loadInstructorNote = async () => {
-      const identifiers = [
-        ...new Set([studentToken, activeStudent?.id].filter(Boolean)),
-      ] as string[];
-      const readLocalProfile = (identifier: string) => {
-        try {
-          const stored =
-            window.localStorage.getItem(`student_profile_${identifier}`) ||
-            window.localStorage.getItem(
-              `fluentia:student-profile:${identifier}`,
-            );
-          return stored
-            ? (JSON.parse(stored) as Record<string, unknown>)
-            : null;
-        } catch {
-          return null;
-        }
-      };
-      const localNote =
-        identifiers
-          .map(readLocalProfile)
-          .map(getStudentProfileNote)
-          .find(Boolean) || "";
-      const localProfile = identifiers.map(readLocalProfile).find(Boolean);
-      if (localProfile) {
-        setActiveStudent((current) =>
-          current
-            ? {
-                ...current,
-                profile: {
-                  ...current.profile,
-                  fullName:
-                    typeof localProfile.fullName === "string"
-                      ? localProfile.fullName
-                      : current.profile.fullName,
-                  level:
-                    typeof localProfile.level === "string"
-                      ? localProfile.level
-                      : current.profile.level,
-                  targetGoal:
-                    typeof localProfile.targetGoal === "string"
-                      ? localProfile.targetGoal
-                      : typeof localProfile.learning_goal === "string"
-                        ? localProfile.learning_goal
-                        : typeof localProfile.core_goal === "string"
-                          ? localProfile.core_goal
-                          : typeof localProfile.learningGoal === "string"
-                            ? localProfile.learningGoal
-                            : current.profile.targetGoal,
-                  assignedInstructor:
-                    typeof localProfile.assignedInstructor === "string"
-                      ? localProfile.assignedInstructor
-                      : typeof localProfile.assigned_instructor === "string"
-                        ? localProfile.assigned_instructor
-                        : current.profile.assignedInstructor,
-                  teacherNotes:
-                    getStudentProfileNote(localProfile) ||
-                    current.profile.teacherNotes,
-                },
-              }
-            : current,
-        );
-      }
-      setSavedInstructorNote(localNote);
-
-      for (const identifier of identifiers) {
-        try {
-          const remoteProfile = await getStudentProfile(identifier);
-          const remoteNote = getStudentProfileNote(
-            remoteProfile as Record<string, unknown> | null,
-          );
-          if (remoteProfile) {
-            setActiveStudent((current) =>
-              current
-                ? {
-                    ...current,
-                    name: remoteProfile.fullName || current.name,
-                    profile: {
-                      ...current.profile,
-                      fullName:
-                        remoteProfile.fullName || current.profile.fullName,
-                      level: remoteProfile.level || current.profile.level,
-                      targetGoal:
-                        remoteProfile.targetGoal || current.profile.targetGoal,
-                      assignedInstructor:
-                        remoteProfile.assignedInstructor ||
-                        current.profile.assignedInstructor,
-                      teacherNotes:
-                        remoteProfile.teacherNotes ||
-                        current.profile.teacherNotes,
-                    },
-                  }
-                : current,
-            );
-          }
-          if (remoteNote) {
-            setSavedInstructorNote(remoteNote);
-            return;
-          }
-        } catch {
-          // Local fallback is already displayed.
-        }
+      try {
+        const remoteProfile = await getStudentProfile(studentToken);
+        if (!remoteProfile) return;
+        setActiveStudent((current) => current ? {
+          ...current,
+          name: remoteProfile.fullName || current.name,
+          profile: {
+            ...current.profile,
+            ...remoteProfile,
+            fullName: remoteProfile.fullName || current.profile.fullName,
+            level: remoteProfile.level || current.profile.level,
+            targetGoal: remoteProfile.targetGoal || current.profile.targetGoal,
+            assignedInstructor: remoteProfile.assignedInstructor || current.profile.assignedInstructor,
+            teacherNotes: remoteProfile.teacherNotes || current.profile.teacherNotes,
+          },
+        } : current);
+        setSavedInstructorNote(getStudentProfileNote(remoteProfile as Record<string, unknown>));
+      } catch (error) {
+        logDashboardError("Student profile could not be loaded from Supabase:", error);
       }
     };
 
@@ -1008,13 +926,12 @@ function DashboardContent() {
       }
       if (profileError) throw profileError;
 
-      const saveMode = await saveStudentProfile(token, {
+      await saveStudentProfile(token, {
         ...activeStudent.profile,
         fullName: displayName,
         avatarUrl,
         bannerUrl,
-      }, { strict: true });
-      if (saveMode !== "database") throw new Error("Supabase did not confirm that the student profile was saved.");
+      });
       const { data: refreshedUser, error: refreshError } = await supabase.auth.getUser();
       if (refreshError) throw refreshError;
       if (refreshedUser.user) {

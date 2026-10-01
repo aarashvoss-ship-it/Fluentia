@@ -29,11 +29,8 @@ export interface StudentDirectoryEntry {
   profile: StudentProfile;
 }
 
-export type StudentProfileSaveMode = "database" | "local";
+export type StudentProfileSaveMode = "database";
 
-const localProfileKey = (studentToken: string) => `fluentia:student-profile:${studentToken}`;
-const requestedLocalProfileKey = (studentToken: string) => `student_profile_${studentToken}`;
-const pendingLocalProfileKey = (studentToken: string) => `fluentia:student-profile-pending:${studentToken}`;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function broadcastStudentProfileUpdate(studentToken: string) {
@@ -125,182 +122,38 @@ function normalizeStudentProfile(profile: Record<string, unknown> | null, studen
   };
 }
 
-function normalizeFocusWeaknesses(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value.map((entry) => typeof entry === "string" ? entry.trim() : String(entry ?? "").trim()).filter(Boolean);
-  }
-  if (typeof value === "string") {
-    return value.split(/[\n,;]+/).map((entry) => entry.trim()).filter(Boolean);
-  }
-  return [];
-}
-
-function normalizeCoreGoal(profile: Partial<StudentProfile> | Record<string, unknown>): string {
-  const record = profile as Record<string, unknown>;
-  const candidate = [
-    record.core_goal,
-    record.target_goal,
-    record.targetGoal,
-    record.learningGoal,
-    record.learning_goal,
-    record.goal,
-    (profile as Partial<StudentProfile>).targetGoal,
-    (profile as Partial<StudentProfile>).learningGoal,
-  ].find((value): value is string => typeof value === "string" && value.trim().length > 0);
-  return candidate ? candidate.trim() : "";
-}
-
-function buildSafeProfileUpdatePayload(profile: Partial<StudentProfile> | Record<string, unknown>) {
-  const record = profile as Record<string, unknown>;
-  const targetLevel = normalizeStudentLevel((profile as Partial<StudentProfile>).targetLevel ?? (profile as Partial<StudentProfile>).level ?? record.target_level ?? record.level);
-  const coreGoal = normalizeCoreGoal(profile);
-  const focusWeaknesses = normalizeFocusWeaknesses((profile as Partial<StudentProfile>).weaknesses ?? record.focus_weaknesses ?? record.weaknesses);
-  const assignedInstructor = typeof (profile as Partial<StudentProfile>).assignedInstructor === "string"
-    ? (profile as Partial<StudentProfile>).assignedInstructor!.trim()
-    : typeof record.assigned_instructor === "string"
-      ? record.assigned_instructor.trim()
-      : typeof record.assignedInstructor === "string"
-        ? record.assignedInstructor.trim()
-        : "";
-  const dashboardNote = getStudentProfileNote(record)
-    || (typeof record.dashboard_note === "string" ? record.dashboard_note : "")
-    || ((profile as Partial<StudentProfile>).teacherNotes || "");
-  const normalizedNote = typeof dashboardNote === "string" ? dashboardNote.trim() : "";
-  return {
-    target_level: targetLevel || null,
-    core_goal: coreGoal || null,
-    focus_weaknesses: focusWeaknesses,
-    assigned_instructor: assignedInstructor || null,
-    dashboard_note: normalizedNote || null,
-    updated_at: new Date().toISOString(),
-  };
-}
-
-function saveStudentProfileLocally(studentToken: string, profile: StudentProfile, pendingSync = true) {
-  if (typeof window === "undefined" || !window.localStorage) return false;
-  try {
-    const serialized = JSON.stringify(profile);
-    window.localStorage.setItem(localProfileKey(studentToken), serialized);
-    window.localStorage.setItem(requestedLocalProfileKey(studentToken), serialized);
-    if (pendingSync) window.localStorage.setItem(pendingLocalProfileKey(studentToken), "true");
-    else window.localStorage.removeItem(pendingLocalProfileKey(studentToken));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function hasPendingLocalStudentProfile(studentToken: string) {
-  if (typeof window === "undefined" || !window.localStorage) return false;
-  try {
-    return window.localStorage.getItem(pendingLocalProfileKey(studentToken)) === "true";
-  } catch {
-    return false;
-  }
-}
-
-function getStudentProfileLocally(studentToken: string): Partial<StudentProfile> | null {
-  if (typeof window === "undefined" || !window.localStorage) return null;
-  try {
-    const stored = window.localStorage.getItem(requestedLocalProfileKey(studentToken))
-      || window.localStorage.getItem(localProfileKey(studentToken));
-    return normalizeStudentProfile(stored ? JSON.parse(stored) as Record<string, unknown> : null, studentToken);
-  } catch {
-    return null;
-  }
-}
-
 export async function saveStudentProfile(
   studentToken: string,
   profile: StudentProfile,
-  options: { strict?: boolean } = {},
 ): Promise<StudentProfileSaveMode> {
-  if (!isSupabaseConfigured()) {
-    saveStudentProfileLocally(studentToken, profile);
-    broadcastStudentProfileUpdate(studentToken);
-    return "local";
-  }
+  if (!isSupabaseConfigured()) throw new Error("Supabase is not configured; student profiles cannot be saved.");
 
-  try {
-    const instructorNotes = getStudentProfileNote(profile as unknown as Record<string, unknown>);
-    const profileId = profile.id && uuidPattern.test(profile.id) ? profile.id : "";
-    const studentQuery = profileId
-      ? supabase.from("students").select("id,token").eq("id", profileId).maybeSingle()
-      : supabase.from("students").select("id,token").eq("token", studentToken).maybeSingle();
-    const { data: student, error: studentLookupError } = await studentQuery;
-    if (studentLookupError) throw studentLookupError;
-    const canonicalId = profileId || student?.id || "";
-    if (!canonicalId) throw new Error("Unable to resolve the canonical student profile.");
+  const response = await fetch("/api/instructor/students", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ studentId: profile.id || studentToken, profile }),
+  });
+  const result = await response.json().catch(() => ({})) as { error?: string; studentId?: string };
+  if (!response.ok) throw new Error(result.error || "Unable to save student profile to Supabase.");
 
-    const targetLevel = normalizeStudentLevel(profile.targetLevel || profile.level);
-    const canonicalProfileUpdate = {
-      full_name: profile.fullName || null,
-      email: profile.email || null,
-      target_level: targetLevel || null,
-      core_goal: profile.targetGoal || null,
-      focus_weaknesses: normalizeFocusWeaknesses(profile.weaknesses || (profile as Partial<StudentProfile> & Record<string, unknown>).focus_weaknesses),
-      assigned_instructor: profile.assignedInstructor || null,
-      dashboard_note: instructorNotes || null,
-      updated_at: new Date().toISOString(),
-    };
-
-    const { data: updatedProfile, error: profileUpdateError } = await supabase
-      .from("profiles")
-      .update(canonicalProfileUpdate)
-      .eq("id", canonicalId)
-      .select("id")
-      .maybeSingle();
-    if (profileUpdateError) throw profileUpdateError;
-    if (!updatedProfile) throw new Error("Supabase did not confirm that the student profile was updated.");
-
-    const { error: studentError } = await supabase.from("students").update({
-      name: profile.fullName,
-      email: profile.email,
-      updated_at: new Date().toISOString(),
-    }).eq("id", canonicalId);
-    if (studentError) throw studentError;
-
-    saveStudentProfileLocally(studentToken, { ...profile, id: canonicalId, level: targetLevel, targetLevel }, false);
-    broadcastStudentProfileUpdate(studentToken);
-    return "database";
-  } catch (error) {
-    const details = error && typeof error === "object"
-      ? error as { message?: string; details?: string; hint?: string; code?: string }
-      : {};
-    console.error("Supabase Profile Save Error:", details.message, details.details);
-    if (options.strict) {
-      if (saveStudentProfileLocally(studentToken, profile)) {
-        broadcastStudentProfileUpdate(studentToken);
-      }
-      throw error;
-    }
-    if (details.message || details.details) {
-      console.warn("Student profile database sync unavailable; using local storage:", details.message || details.details);
-    }
-    if (saveStudentProfileLocally(studentToken, profile)) {
-      broadcastStudentProfileUpdate(studentToken);
-      return "local";
-    }
-    throw error;
-  }
+  broadcastStudentProfileUpdate(studentToken);
+  return "database";
 }
 
 export async function getStudentProfile(studentToken: string): Promise<Partial<StudentProfile> | null> {
-  if (!isSupabaseConfigured()) return getStudentProfileLocally(studentToken);
+  if (!isSupabaseConfigured()) throw new Error("Supabase is not configured; student profiles cannot be loaded.");
 
   const studentQuery = uuidPattern.test(studentToken)
     ? supabase.from("students").select("id,name,email,token,created_at").eq("id", studentToken).maybeSingle()
     : supabase.from("students").select("id,name,email,token,created_at").eq("token", studentToken).maybeSingle();
-  const { data: student } = await studentQuery;
-  const profileId = student?.id || (uuidPattern.test(studentToken) ? studentToken : "");
-  if (!profileId) return getStudentProfileLocally(studentToken);
+  const { data: student, error: studentError } = await studentQuery;
+  if (studentError) throw studentError;
+  if (!student) return null;
+  const profileId = student.id;
   const { data: profile, error } = await supabase.from("profiles").select("*").eq("id", profileId).maybeSingle();
-  if (error || !profile) return getStudentProfileLocally(student?.token || studentToken);
+  if (error) throw error;
+  if (!profile) return null;
   const normalized = normalizeStudentProfile(profile as Record<string, unknown>, student?.token || studentToken) || {};
-  const resolvedToken = student?.token || studentToken;
-  const pendingLocalProfile = hasPendingLocalStudentProfile(resolvedToken)
-    ? getStudentProfileLocally(resolvedToken)
-    : null;
   return {
     ...normalized,
     fullName: normalizeStudentDisplayName(typeof profile.full_name === "string" && profile.full_name.trim() ? profile.full_name : student?.name || undefined),
@@ -308,48 +161,29 @@ export async function getStudentProfile(studentToken: string): Promise<Partial<S
     enrolledDate: typeof profile.enrolled_date === "string" ? profile.enrolled_date : student?.created_at || undefined,
     targetLevel: normalizeStudentLevel(profile.target_level || profile.level) || undefined,
     level: normalizeStudentLevel(profile.target_level || profile.level) || undefined,
-    ...pendingLocalProfile,
     id: profileId,
   };
 }
 
 export async function getStudentDirectory(): Promise<StudentDirectoryEntry[]> {
-  if (!isSupabaseConfigured()) {
-    return Promise.all(STUDENT_USERS.map(async (student) => {
-      const savedProfile = await getStudentProfileLocally(student.token);
-      const targetLevel = normalizeStudentLevel(savedProfile?.targetLevel || savedProfile?.level || student.profile.level);
-      const name = normalizeStudentDisplayName(savedProfile?.fullName || student.name) || student.name;
-      return {
-        id: student.id,
-        token: student.token,
-        name,
-        email: savedProfile?.email || student.email || "",
-        enrolledDate: savedProfile?.enrolledDate || "",
-        profile: { ...student.profile, ...savedProfile, id: student.id, fullName: name, email: savedProfile?.email || student.email, targetLevel, level: targetLevel },
-      };
-    }));
-  }
+  if (!isSupabaseConfigured()) throw new Error("Supabase is not configured; the student directory cannot be loaded.");
 
   const [{ data: students, error: studentsError }, { data: profiles, error: profilesError }] = await Promise.all([
     supabase.from("students").select("id,name,email,token,created_at").order("name", { ascending: true }),
     supabase.from("profiles").select("*").eq("role", "student"),
   ]);
   if (studentsError) throw studentsError;
-  if (profilesError) console.warn("Student profile directory fallback used:", profilesError.message);
+  if (profilesError) throw profilesError;
   const profilesById = new Map((profiles || []).map((profile) => [profile.id, profile as Record<string, unknown>]));
 
   return (students || []).map((student) => {
     const profile = profilesById.get(student.id);
     const saved = profile ? normalizeStudentProfile(profile, student.token) : null;
-    const pendingLocalProfile = hasPendingLocalStudentProfile(student.token)
-      ? getStudentProfileLocally(student.token)
-      : null;
-    const effectiveSaved = { ...saved, ...pendingLocalProfile };
-    const targetLevel = normalizeStudentLevel(pendingLocalProfile?.targetLevel || profile?.target_level || profile?.level || saved?.level);
-    const rawName = pendingLocalProfile?.fullName || (typeof profile?.full_name === "string" && profile.full_name.trim() ? profile.full_name : student.name);
+    const targetLevel = normalizeStudentLevel(profile?.target_level || profile?.level || saved?.level);
+    const rawName = typeof profile?.full_name === "string" && profile.full_name.trim() ? profile.full_name : student.name;
     const name = normalizeStudentDisplayName(rawName) || student.name;
-    const email = pendingLocalProfile?.email || (typeof profile?.email === "string" && profile.email.trim() ? profile.email : student.email);
-    const enrolledDate = pendingLocalProfile?.enrolledDate || (typeof profile?.enrolled_date === "string" ? profile.enrolled_date : student.created_at || "");
+    const email = typeof profile?.email === "string" && profile.email.trim() ? profile.email : student.email;
+    const enrolledDate = typeof profile?.enrolled_date === "string" ? profile.enrolled_date : student.created_at || "";
     return {
       id: student.id,
       token: student.token,
@@ -363,10 +197,10 @@ export async function getStudentDirectory(): Promise<StudentDirectoryEntry[]> {
         enrolledDate,
         targetLevel,
         level: targetLevel,
-        targetGoal: effectiveSaved.targetGoal || (typeof profile?.target_goal === "string" ? profile.target_goal : ""),
-        weaknesses: effectiveSaved.weaknesses || [],
-        teacherNotes: effectiveSaved.teacherNotes || "",
-        assignedInstructor: effectiveSaved.assignedInstructor || "",
+        targetGoal: saved?.targetGoal || "",
+        weaknesses: saved?.weaknesses || [],
+        teacherNotes: saved?.teacherNotes || "",
+        assignedInstructor: saved?.assignedInstructor || "",
         attendanceRate: 0,
         completedModulesCount: 0,
       },
@@ -377,7 +211,7 @@ export async function getStudentDirectory(): Promise<StudentDirectoryEntry[]> {
 export async function updateStudentTargetLevel(studentId: string, targetLevel: StudentCefrLevel, studentToken = studentId) {
   if (isSupabaseConfigured() && !uuidPattern.test(studentId)) throw new Error("A valid student profile ID is required.");
   const existing = await getStudentProfile(studentToken) || {};
-  const localProfile: StudentProfile = {
+  const profile: StudentProfile = {
     id: studentId,
     fullName: existing.fullName || STUDENT_USERS.find((student) => student.id === studentId || student.token === studentToken)?.name || "",
     email: existing.email || "",
@@ -393,21 +227,5 @@ export async function updateStudentTargetLevel(studentId: string, targetLevel: S
     bannerUrl: existing.bannerUrl,
     assignedInstructor: existing.assignedInstructor,
   };
-  if (isSupabaseConfigured()) {
-    const payload = buildSafeProfileUpdatePayload(localProfile);
-    const { error } = await supabase.from("profiles").update(payload).eq("id", studentId);
-    if (error) {
-      console.error("Supabase Profile Save Error:", error.message, error.details);
-      saveStudentProfileLocally(studentToken, localProfile);
-      saveStudentProfileLocally(studentId, localProfile);
-      broadcastStudentProfileUpdate(studentToken);
-      throw error;
-    }
-    saveStudentProfileLocally(studentToken, localProfile, false);
-    saveStudentProfileLocally(studentId, localProfile, false);
-  } else {
-    saveStudentProfileLocally(studentToken, localProfile);
-    saveStudentProfileLocally(studentId, localProfile);
-  }
-  broadcastStudentProfileUpdate(studentToken);
+  await saveStudentProfile(studentToken, profile);
 }
