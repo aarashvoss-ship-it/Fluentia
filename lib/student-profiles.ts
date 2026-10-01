@@ -119,6 +119,8 @@ function normalizeStudentProfile(profile: Record<string, unknown> | null, studen
     teacherNotes: getStudentProfileNote(profile) || undefined,
     avatarUrl: getProfileValue(profile, ["avatar_url", "avatarUrl"]) || undefined,
     bannerUrl: getProfileValue(profile, ["banner_url", "bannerUrl"]) || undefined,
+    avatarBgColor: getProfileValue(profile, ["avatar_bg_color", "avatarBgColor", "badgeColor"]) || undefined,
+    avatarInitials: getProfileValue(profile, ["avatar_initials", "avatarInitials", "badgeInitials"]) || undefined,
   };
 }
 
@@ -201,6 +203,10 @@ export async function getStudentDirectory(): Promise<StudentDirectoryEntry[]> {
         weaknesses: saved?.weaknesses || [],
         teacherNotes: saved?.teacherNotes || "",
         assignedInstructor: saved?.assignedInstructor || "",
+        avatarUrl: saved?.avatarUrl,
+        bannerUrl: saved?.bannerUrl,
+        avatarBgColor: saved?.avatarBgColor,
+        avatarInitials: saved?.avatarInitials,
         attendanceRate: 0,
         completedModulesCount: 0,
       },
@@ -225,6 +231,8 @@ export async function updateStudentTargetLevel(studentId: string, targetLevel: S
     completedModulesCount: 0,
     avatarUrl: existing.avatarUrl,
     bannerUrl: existing.bannerUrl,
+    avatarBgColor: existing.avatarBgColor,
+    avatarInitials: existing.avatarInitials,
     assignedInstructor: existing.assignedInstructor,
   };
   await saveStudentProfile(studentToken, profile);

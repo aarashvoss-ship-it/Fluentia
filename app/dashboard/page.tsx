@@ -932,6 +932,8 @@ function DashboardContent() {
         fullName: displayName,
         avatarUrl,
         bannerUrl,
+        avatarBgColor: nextAvatarColor,
+        avatarInitials: initials,
       });
       const { data: refreshedUser, error: refreshError } = await supabase.auth.getUser();
       if (refreshError) throw refreshError;
@@ -984,7 +986,7 @@ function DashboardContent() {
         },
       } : current);
       setBannerLoadFailed(false);
-      setProfileSaveNotice("Profile settings saved.");
+      setProfileSaveNotice("Profile customization saved successfully!");
       setProfileOpen(false);
     } catch (error) {
       console.error("Failed to save student profile customization:", error);

@@ -255,6 +255,12 @@ export async function PATCH(request: Request) {
     focus_weaknesses: focusWeaknesses,
     assigned_instructor: assignedInstructor || null,
     dashboard_note: dashboardNote || null,
+    ...(typeof profileInput.avatarBgColor === "string"
+      ? { avatar_bg_color: profileInput.avatarBgColor.trim() || null }
+      : {}),
+    ...(typeof profileInput.avatarInitials === "string"
+      ? { avatar_initials: profileInput.avatarInitials.replace(/[^a-z]/gi, "").slice(0, 3).toUpperCase() || null }
+      : {}),
     updated_at: new Date().toISOString(),
   };
   let profileUpdateResult = await adminClient.from("profiles").update({
