@@ -1,5 +1,3 @@
-import { supabase } from "@/lib/supabase";
-
 export type InstructorStatus = "active" | "on_leave";
 
 export interface InstructorDirectoryEntry {
@@ -18,24 +16,22 @@ export interface InstructorDirectoryEntry {
 }
 
 export async function getInstructorDirectory(): Promise<InstructorDirectoryEntry[]> {
-  const { data, error } = await supabase
-    .from("instructors")
-    .select("id,name,email,slug,token,specialization,status,max_student_capacity,bio,created_at,updated_at")
-    .order("name", { ascending: true });
-  if (error) throw error;
+  const response = await fetch("/api/instructor", { credentials: "same-origin" });
+  const result = await response.json() as { instructors?: Record<string, unknown>[]; error?: string };
+  if (!response.ok) throw new Error(result.error || "Unable to load instructor profiles.");
 
-  return (data || []).map((row) => ({
-    id: row.id,
-    name: row.name,
-    email: row.email,
-    slug: row.slug,
-    token: row.token,
-    specialization: row.specialization || "",
+  return (result.instructors || []).map((row) => ({
+    id: typeof row.id === "string" ? row.id : "",
+    name: typeof row.name === "string" ? row.name : "",
+    email: typeof row.email === "string" ? row.email : "",
+    slug: typeof row.slug === "string" ? row.slug : "",
+    token: typeof row.token === "string" ? row.token : "",
+    specialization: typeof row.specialization === "string" ? row.specialization : "",
     status: row.status === "on_leave" ? "on_leave" : "active",
-    maxStudentCapacity: Number.isFinite(row.max_student_capacity) ? row.max_student_capacity : 20,
+    maxStudentCapacity: Number.isFinite(row.max_student_capacity) ? Number(row.max_student_capacity) : 20,
     assignedCount: 0,
-    bio: row.bio || "",
-    createdAt: row.created_at || "",
-    updatedAt: row.updated_at || row.created_at || "",
+    bio: typeof row.bio === "string" ? row.bio : "",
+    createdAt: typeof row.created_at === "string" ? row.created_at : "",
+    updatedAt: typeof row.updated_at === "string" ? row.updated_at : typeof row.created_at === "string" ? row.created_at : "",
   }));
 }
