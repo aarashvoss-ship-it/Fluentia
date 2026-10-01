@@ -146,10 +146,7 @@ body {
   transition: filter 180ms ease;
 }
 
-#fluentia-display-content p,
-#fluentia-display-content li,
-#fluentia-display-content blockquote,
-#fluentia-display-content textarea {
+:root[data-font-scale-active="true"] #fluentia-display-content [data-reading-content] :is(p, li, blockquote) {
   font-size: calc(1em * var(--display-font-scale));
 }
 

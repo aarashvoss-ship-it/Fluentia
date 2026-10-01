@@ -257,6 +257,7 @@ export function DisplaySettingsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.displayTheme = settings.theme;
+    root.dataset.fontScaleActive = String(settings.fontSize !== 100);
     root.classList.toggle("light", settings.theme === "light");
     root.style.setProperty("--display-brightness", String(settings.brightness / 100));
     root.style.setProperty("--display-contrast", String(settings.contrast / 100));

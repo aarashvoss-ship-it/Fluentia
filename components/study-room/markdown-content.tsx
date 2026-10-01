@@ -68,7 +68,7 @@ function normalizeMarkdown(value: string) {
 export function MarkdownContent({ value, className = "", plainCode = false, dataTables = false }: { value: string; className?: string; plainCode?: boolean; dataTables?: boolean }) {
   const renderPlainCode = plainCode || className.includes("text-slate-300");
   return (
-    <div className={className}>
+    <div className={className} data-reading-content>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw]}
