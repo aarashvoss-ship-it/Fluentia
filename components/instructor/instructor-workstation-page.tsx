@@ -566,7 +566,8 @@ export default function InstructorWorkstationPage({
     }
   }
 
-  async function handleSaveDirectoryStudent(student: StudentUser) {
+  async function handleSaveDirectoryStudent(event: React.MouseEvent<HTMLButtonElement>, student: StudentUser) {
+    event.preventDefault();
     setSavingProfileStudentId(student.id);
     setProfileSaveMessages((current) => ({ ...current, [student.id]: "" }));
     try {
@@ -2312,7 +2313,7 @@ export default function InstructorWorkstationPage({
                     <td className="px-4 py-3"><textarea value={student.profile.teacherNotes || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { teacherNotes: event.target.value })} aria-label={`${student.name} dashboard note`} rows={2} className="w-56 resize-y rounded-md border border-[#394252] bg-[#0c1017] px-2.5 py-2 text-xs text-stone-200 outline-none focus:border-amber-500" /></td>
                     <td className="px-4 py-3 text-sm text-stone-400">{student.email || "Not provided"}</td>
                     <td className="px-4 py-3 text-sm text-stone-400">{student.enrolledDate ? new Date(student.enrolledDate).toLocaleDateString() : "Not available"}</td>
-                    <td className="px-4 py-3"><div className="flex min-w-32 flex-col gap-1.5"><button type="button" onClick={() => void handleSaveDirectoryStudent(student)} disabled={savingProfileStudentId === student.id} className="whitespace-nowrap rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60">{savingProfileStudentId === student.id ? "Saving..." : "Save Changes"}</button>{profileSaveMessages[student.id] && <span role="status" className={`text-[10px] ${profileSaveMessages[student.id] === "Profile saved." ? "text-emerald-300" : "text-red-300"}`}>{profileSaveMessages[student.id]}</span>}</div></td>
+                    <td className="px-4 py-3"><div className="flex min-w-32 flex-col gap-1.5"><button type="button" onClick={(event) => void handleSaveDirectoryStudent(event, student)} disabled={savingProfileStudentId === student.id} className="whitespace-nowrap rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60">{savingProfileStudentId === student.id ? "Saving..." : "Save Changes"}</button>{profileSaveMessages[student.id] && <span role="status" className={`text-[10px] ${profileSaveMessages[student.id] === "Profile saved." ? "text-emerald-300" : "text-red-300"}`}>{profileSaveMessages[student.id]}</span>}</div></td>
                   </tr>)}
                 </tbody>
               </table>
