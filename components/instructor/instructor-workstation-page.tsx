@@ -30,13 +30,15 @@ import { InstructorChatWidget } from "@/components/instructor/instructor-chat-wi
 import { useLessonEditorStore } from "@/lib/lesson-editor-store";
 import { Tooltip } from "@/components/shared/tooltip";
 import { DisplaySettingsControl } from "@/components/shared/display-settings";
+import { TiptapEditor } from "@/components/shared/tiptap-editor";
+import { DynamicLucideIcon, LucideIconPicker } from "@/components/shared/lucide-icon-picker";
 
 interface InstructorWorkstationProps {
   instructorId: string;
   lessonSlug: string;
 }
 
-type SidebarBlock = { id: string; title: string; body: string; parentMainBlockId?: string };
+type SidebarBlock = { id: string; title: string; body: string; icon?: string; parentMainBlockId?: string };
 type SidebarBlocksByStep = Partial<Record<"warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking", SidebarBlock[]>>;
 type AddStudentDraft = {
   fullName: string;
@@ -128,6 +130,7 @@ function normalizeSidebarBlocksByStep(raw: unknown): SidebarBlocksByStep {
         id: typeof item.id === "string" && item.id.trim() ? item.id.trim() : `sidebar-${key}-${Date.now()}-${index}`,
         title: typeof item.title === "string" ? item.title : typeof item.name === "string" ? item.name : "Sidebar note",
         body: typeof item.body === "string" ? item.body : typeof item.text === "string" ? item.text : "",
+        icon: typeof item.icon === "string" ? item.icon : undefined,
         parentMainBlockId: typeof item.parentMainBlockId === "string" && item.parentMainBlockId.trim() ? item.parentMainBlockId.trim() : undefined,
       }));
     if (blocks.length) out[key] = blocks;
@@ -2287,7 +2290,35 @@ export default function InstructorWorkstationPage({
           {block.type === "writing" && <WritingBlockRenderer block={block} isPreview />}
         </article>
         );
-        return <StudyRoomBlockRow key={block.id} sidebar={<>{blockIndex === 0 && topSidebarBlocks.map((topSidebarBlock) => <div key={topSidebarBlock.id} className="rounded-xl border border-[#202631] bg-[#121721] p-4"><p className="text-xs font-semibold text-amber-400">{topSidebarBlock.title}</p><MarkdownContent value={topSidebarBlock.body || ""} className="mt-2 text-sm leading-relaxed text-stone-300 [&_strong]:font-semibold [&_strong]:text-amber-400" /></div>)}{sidebarBlock && <div className="rounded-xl border border-[#202631] bg-[#121721] p-4"><p className="text-xs font-semibold text-amber-400">{sidebarBlock.title}</p><MarkdownContent value={sidebarBlock.body || ""} className="mt-2 text-sm leading-relaxed text-stone-300 [&_strong]:font-semibold [&_strong]:text-amber-400" /></div>}</>}>{article}</StudyRoomBlockRow>;
+        return (
+          <StudyRoomBlockRow
+            key={block.id}
+            sidebar={(
+              <>
+                {blockIndex === 0 && topSidebarBlocks.map((sidebarItem) => (
+                  <div key={sidebarItem.id} className="rounded-lg border border-[#202631] bg-[#121721] p-4">
+                    <p className="flex items-center gap-2 text-xs font-semibold text-amber-400">
+                      {sidebarItem.icon && <DynamicLucideIcon name={sidebarItem.icon} className="h-4 w-4" aria-hidden="true" />}
+                      {sidebarItem.title}
+                    </p>
+                    <MarkdownContent value={sidebarItem.body || ""} className="mt-2 text-sm leading-relaxed text-stone-300 [&_strong]:font-semibold [&_strong]:text-amber-400" />
+                  </div>
+                ))}
+                {sidebarBlock && (
+                  <div className="rounded-lg border border-[#202631] bg-[#121721] p-4">
+                    <p className="flex items-center gap-2 text-xs font-semibold text-amber-400">
+                      {sidebarBlock.icon && <DynamicLucideIcon name={sidebarBlock.icon} className="h-4 w-4" aria-hidden="true" />}
+                      {sidebarBlock.title}
+                    </p>
+                    <MarkdownContent value={sidebarBlock.body || ""} className="mt-2 text-sm leading-relaxed text-stone-300 [&_strong]:font-semibold [&_strong]:text-amber-400" />
+                  </div>
+                )}
+              </>
+            )}
+          >
+            {article}
+          </StudyRoomBlockRow>
+        );
       })}
       {stageContentBlocks.length === 0 && !conceptualFramingBlock && <p className="rounded-lg border border-dashed border-[#394252] p-6 text-sm text-stone-500">This step has no content blocks yet.</p>}
     </div>
@@ -3129,9 +3160,99 @@ export default function InstructorWorkstationPage({
                 <div className="mt-4"><InstructorBannerManager bannerUrl={workstationState.bannerUrl} customInput={workstationState.customBannerUrl} onUpdateBanner={(bannerUrl: string) => setWorkstationState((previous) => ({ ...previous, bannerUrl }))} onUpdateCustomInput={(customBannerUrl: string) => setWorkstationState((previous) => ({ ...previous, customBannerUrl }))} /></div>
               </details>
               <section className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
-                <div className="flex items-center justify-between gap-3"><h3 className="font-sans text-xl font-semibold text-stone-100">Step Sidebar</h3><button type="button" onClick={() => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: [...(current[sidebarStep] || []), { id: `sidebar-${Date.now()}`, title: "Sidebar note", body: "" }] }))} className="flex items-center gap-1.5 rounded-md border border-amber-500 px-3 py-2 text-sm text-amber-500"><Plus className="h-3.5 w-3.5" />Add Block</button></div>
-                <select value={sidebarStep} onChange={(event) => setSidebarStep(event.target.value as keyof SidebarBlocksByStep)} className="mt-3 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2 text-xs text-white [color-scheme:dark]" aria-label="Sidebar step"><option value="warm_up" className="bg-[#0c1017] text-white">Warm-up</option><option value="lesson" className="bg-[#0c1017] text-white">Lesson</option><option value="listening" className="bg-[#0c1017] text-white">Listening</option><option value="reading" className="bg-[#0c1017] text-white">Reading</option><option value="writing" className="bg-[#0c1017] text-white">Writing</option><option value="speaking" className="bg-[#0c1017] text-white">Speaking</option></select>
-                <div className="mt-4 space-y-3">{(sidebarBlocksByStep[sidebarStep] || []).map((block) => <div key={block.id} className="rounded-lg border border-[#202631] bg-[#0c1017] p-3"><div className="flex gap-2"><input value={block.title} onChange={(event) => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, title: event.target.value } : item) }))} className="min-w-0 flex-1 border-b border-[#394252] bg-transparent pb-1 text-xs font-semibold text-stone-200" aria-label="Sidebar block title" /><button type="button" onClick={() => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: (current[sidebarStep] || []).filter((item) => item.id !== block.id) }))} aria-label={`Delete ${block.title}`}><Trash2 className="h-3.5 w-3.5" /></button></div><label className="mt-3 block text-[11px] text-stone-500">Align Next To (Main Block):<select value={block.parentMainBlockId || ""} onChange={(event) => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, parentMainBlockId: event.target.value || undefined } : item) }))} className="mt-1 w-full rounded-md border border-[#202631] bg-[#171d28] p-2 text-xs text-stone-200 [color-scheme:dark]" aria-label={`Align ${block.title || "sidebar block"} next to main block`}><option value="">Top of Sidebar (Default Unlinked)</option>{((((workstationState.content[sidebarStep] as { blocks?: ContentBlock[] } | undefined)?.blocks || []) as ContentBlock[]).map((mainBlock, mainIndex) => <option key={mainBlock.id} value={mainBlock.id}>{mainIndex + 1}. {mainBlock.title || `${mainBlock.type} block`}</option>))}</select></label><textarea value={block.body} onChange={(event) => setSidebarBlocksByStep((current) => ({ ...current, [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, body: event.target.value } : item) }))} rows={3} className="mt-3 w-full resize-y rounded-md border border-[#202631] bg-[#171d28] p-2.5 text-xs text-stone-300" /></div>)}</div>
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="font-sans text-xl font-semibold text-stone-100">Step Sidebar</h3>
+                  <button
+                    type="button"
+                    onClick={() => setSidebarBlocksByStep((current) => ({
+                      ...current,
+                      [sidebarStep]: [...(current[sidebarStep] || []), { id: `sidebar-${Date.now()}`, title: "Sidebar note", body: "" }],
+                    }))}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-amber-500 bg-[#0c1017] px-3 py-2 text-sm font-semibold text-amber-400 transition hover:bg-amber-500/10"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add Block
+                  </button>
+                </div>
+                <label className="mt-3 block text-xs text-stone-500">
+                  Editing step
+                  <select value={sidebarStep} onChange={(event) => setSidebarStep(event.target.value as keyof SidebarBlocksByStep)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark]" aria-label="Sidebar step">
+                    <option value="warm_up">Warm-up</option>
+                    <option value="lesson">Lesson</option>
+                    <option value="listening">Listening</option>
+                    <option value="reading">Reading</option>
+                    <option value="writing">Writing</option>
+                    <option value="speaking">Speaking</option>
+                  </select>
+                </label>
+                <div className="mt-4 space-y-3">
+                  {(sidebarBlocksByStep[sidebarStep] || []).map((block) => (
+                    <div key={block.id} className="space-y-3 rounded-md border border-[#202631] bg-[#171d28] p-3">
+                      <div className="flex items-center gap-2">
+                        <input
+                          value={block.title}
+                          onChange={(event) => setSidebarBlocksByStep((current) => ({
+                            ...current,
+                            [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, title: event.target.value } : item),
+                          }))}
+                          className="h-9 min-w-0 flex-1 rounded border border-[#394252] bg-[#0c1017] px-2.5 text-xs font-semibold text-stone-200 outline-none focus:border-amber-500"
+                          aria-label="Sidebar block title"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setSidebarBlocksByStep((current) => ({
+                            ...current,
+                            [sidebarStep]: (current[sidebarStep] || []).filter((item) => item.id !== block.id),
+                          }))}
+                          aria-label={`Delete ${block.title}`}
+                          title="Delete sidebar block"
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-[#394252] text-stone-400 transition hover:border-red-500/60 hover:text-red-300"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-[#29303c] bg-[#0c1017]/60 px-3 py-2">
+                        <span className="text-xs font-medium text-stone-300">Block Icon</span>
+                        <LucideIconPicker
+                          value={block.icon || ""}
+                          triggerLabel="Select Icon"
+                          onChange={(icon) => setSidebarBlocksByStep((current) => ({
+                            ...current,
+                            [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, icon } : item),
+                          }))}
+                        />
+                      </div>
+                      <label className="block text-[11px] text-stone-500">
+                        Align Next To (Main Block)
+                        <select
+                          value={block.parentMainBlockId || ""}
+                          onChange={(event) => setSidebarBlocksByStep((current) => ({
+                            ...current,
+                            [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, parentMainBlockId: event.target.value || undefined } : item),
+                          }))}
+                          className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark] focus:border-amber-500"
+                          aria-label={`Align ${block.title || "sidebar block"} next to main block`}
+                        >
+                          <option value="">Top of Sidebar (Default Unlinked)</option>
+                          {((((workstationState.content[sidebarStep] as { blocks?: ContentBlock[] } | undefined)?.blocks || []) as ContentBlock[]).map((mainBlock, mainIndex) => (
+                            <option key={mainBlock.id} value={mainBlock.id}>{mainIndex + 1}. {mainBlock.title || `${mainBlock.type} block`}</option>
+                          )))}
+                        </select>
+                      </label>
+                      <TiptapEditor
+                        value={block.body}
+                        onChange={(body) => setSidebarBlocksByStep((current) => ({
+                          ...current,
+                          [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, body } : item),
+                        }))}
+                        placeholder="Start typing sidebar content or use formatting options..."
+                        ariaLabel={`Sidebar content for ${block.title || "sidebar block"}`}
+                      />
+                    </div>
+                  ))}
+                  {(sidebarBlocksByStep[sidebarStep] || []).length === 0 && (
+                    <p className="rounded-md border border-dashed border-[#394252] p-4 text-xs text-stone-500">No sidebar blocks for this step.</p>
+                  )}
+                </div>
               </section>
             </aside>
           </main>
