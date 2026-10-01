@@ -247,17 +247,29 @@ export async function PATCH(request: Request) {
     : typeof profileInput.dashboard_note === "string" ? profileInput.dashboard_note.trim() : "";
   const focusWeaknesses = normalizeWeaknesses(profileInput.weaknesses ?? profileInput.focus_weaknesses);
 
-  const { data: updatedProfile, error: profileUpdateError } = await adminClient.from("profiles").update({
+  const sharedProfileUpdate = {
     full_name: fullName,
     email,
-    target_level: targetLevel || null,
     target_goal: coreGoal || null,
     core_goal: coreGoal || null,
     focus_weaknesses: focusWeaknesses,
     assigned_instructor: assignedInstructor || null,
     dashboard_note: dashboardNote || null,
     updated_at: new Date().toISOString(),
+  };
+  let profileUpdateResult = await adminClient.from("profiles").update({
+    ...sharedProfileUpdate,
+    target_level: targetLevel || null,
   }).eq("id", student.id).select("id").maybeSingle();
+  if ((profileUpdateResult.error?.code === "42703" || profileUpdateResult.error?.code === "PGRST204")
+    && /target_level/i.test(profileUpdateResult.error.message)) {
+    console.warn("profiles.target_level is not available; saving the level to the legacy profiles.level column.");
+    profileUpdateResult = await adminClient.from("profiles").update({
+      ...sharedProfileUpdate,
+      level: targetLevel || null,
+    }).eq("id", student.id).select("id").maybeSingle();
+  }
+  const { data: updatedProfile, error: profileUpdateError } = profileUpdateResult;
   if (profileUpdateError) {
     console.error("Student profile database update failed:", {
       code: profileUpdateError.code,
