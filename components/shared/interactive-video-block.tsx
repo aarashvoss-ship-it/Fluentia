@@ -115,8 +115,8 @@ export function InteractiveVideoBlock({
             <span>Show / Hide Transcript</span>
             <ChevronDown className={`h-4 w-4 shrink-0 text-amber-400 transition-transform duration-200 ${isTranscriptExpanded ? "rotate-180" : ""}`} aria-hidden="true" />
           </button>
-          <div className={`overflow-hidden transition-[max-height] duration-300 ease-out ${isTranscriptExpanded ? "max-h-80" : "max-h-0"}`}>
-            <div id={transcriptId} className="max-h-80 overflow-y-auto border-t border-[#202631]">
+          <div className={`overflow-hidden transition-[max-height,opacity] duration-300 ease-out ${isTranscriptExpanded ? "max-h-[350px] opacity-100" : "max-h-0 opacity-0"}`}>
+            <div id={transcriptId} className="max-h-[350px] overflow-y-auto border-t border-[#202631]">
               <div className="space-y-1 p-2">
                 {transcriptLines.map((line) => (
                   <button

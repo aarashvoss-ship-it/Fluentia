@@ -271,8 +271,8 @@ function MediaTranscriptAccordion({ transcript, isUnlocked }: { transcript?: str
         Transcript
         <ChevronDown className={`ml-auto h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} aria-hidden="true" />
       </button>
-      <div className={`overflow-hidden transition-[max-height] duration-300 ease-out ${isOpen ? "max-h-80" : "max-h-0"}`}>
-        <div id={contentId} className="max-h-80 overflow-y-auto border-t border-[#293343] px-3 py-3">
+      <div className={`overflow-hidden transition-[max-height,opacity] duration-300 ease-out ${isOpen ? "max-h-[350px] opacity-100" : "max-h-0 opacity-0"}`}>
+        <div id={contentId} className="max-h-[350px] overflow-y-auto border-t border-[#293343] px-3 py-3">
           {transcript?.trim() ? <MarkdownContent value={transcript} className="text-sm leading-relaxed text-stone-300" /> : <p className="text-xs text-stone-500">No transcript was provided for this media.</p>}
         </div>
       </div>
