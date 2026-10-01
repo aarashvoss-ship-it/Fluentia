@@ -23,7 +23,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className={inter.variable}>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} font-sans`}>
       <body suppressHydrationWarning className="font-sans bg-background text-text-primary antialiased selection:bg-accent/20 selection:text-accent">
         <ChunkErrorRecoveryReset />
         {children}

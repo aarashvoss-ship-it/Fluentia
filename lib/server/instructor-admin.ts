@@ -11,7 +11,9 @@ export async function getInstructorAdminContext(): Promise<InstructorAdminContex
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !anonKey) return { ok: false, status: 503, message: "Supabase is not configured on the server." };
-  if (!serviceRoleKey) return { ok: false, status: 503, message: "Instructor management requires SUPABASE_SERVICE_ROLE_KEY." };
+  if (!serviceRoleKey) {
+    console.error("SUPABASE_SERVICE_ROLE_KEY is undefined; attempting instructor management with NEXT_PUBLIC_SUPABASE_ANON_KEY. Admin operations may fail.");
+  }
 
   const cookieStore = await cookies();
   const sessionClient = createServerClient(url, anonKey, {
@@ -29,7 +31,7 @@ export async function getInstructorAdminContext(): Promise<InstructorAdminContex
   const { data: { user }, error: authError } = await sessionClient.auth.getUser();
   if (authError || !user) return { ok: false, status: 401, message: "Sign in to manage instructors." };
 
-  const adminClient = createClient(url, serviceRoleKey, {
+  const adminClient = createClient(url, serviceRoleKey || anonKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const [{ data: instructor, error: instructorError }, { data: profile, error: profileError }] = await Promise.all([

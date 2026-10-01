@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Enter a name, valid email address, and CEFR level." }, { status: 400 });
   }
   if (!serviceRoleKey) {
-    return NextResponse.json({ error: "Student creation requires SUPABASE_SERVICE_ROLE_KEY in the server environment." }, { status: 503 });
+    console.error("SUPABASE_SERVICE_ROLE_KEY is undefined; attempting student creation with NEXT_PUBLIC_SUPABASE_ANON_KEY. Admin operations may fail.");
   }
 
   const cookieStore = await cookies();
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
   const { data: { user }, error: authError } = await sessionClient.auth.getUser();
   if (authError || !user) return NextResponse.json({ error: "Sign in as an instructor to add a student." }, { status: 401 });
 
-  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+  const adminClient = createClient(supabaseUrl, serviceRoleKey || anonKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const [{ data: instructor }, { data: profile }] = await Promise.all([
