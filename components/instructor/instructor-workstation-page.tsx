@@ -36,6 +36,24 @@ interface InstructorWorkstationProps {
 
 type SidebarBlock = { id: string; title: string; body: string; parentMainBlockId?: string };
 type SidebarBlocksByStep = Partial<Record<"warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking", SidebarBlock[]>>;
+type AddStudentDraft = {
+  fullName: string;
+  email: string;
+  currentLevel: StudentCefrLevel | "";
+  assignedInstructor: string;
+  focusWeaknesses: string;
+  coreGoal: string;
+  dashboardNote: string;
+};
+const EMPTY_ADD_STUDENT_DRAFT: AddStudentDraft = {
+  fullName: "",
+  email: "",
+  currentLevel: "",
+  assignedInstructor: "",
+  focusWeaknesses: "",
+  coreGoal: "",
+  dashboardNote: "",
+};
 
 const CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
 const EMPTY_LESSON_TAGS: LessonTags = { domain: "", skill_focus: "", practice_type: "", custom: [] };
@@ -254,6 +272,11 @@ export default function InstructorWorkstationPage({
   const [lessonStatus, setLessonStatus] = useState<"draft" | "published">("published");
   const [activeTab, setActiveTab] = useState<"dashboard" | "library" | "resources" | "builder" | "evaluation" | "students" | "music">("dashboard");
   const [studentLevelFilter, setStudentLevelFilter] = useState<"All" | StudentCefrLevel>("All");
+  const [studentInstructorFilter, setStudentInstructorFilter] = useState("All instructors");
+  const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
+  const [addStudentDraft, setAddStudentDraft] = useState<AddStudentDraft>(EMPTY_ADD_STUDENT_DRAFT);
+  const [isAddingStudent, setIsAddingStudent] = useState(false);
+  const [addStudentError, setAddStudentError] = useState<string | null>(null);
   const [savingProfileStudentId, setSavingProfileStudentId] = useState<string | null>(null);
   const [profileSaveMessages, setProfileSaveMessages] = useState<Record<string, string>>({});
   const [profileSaveToast, setProfileSaveToast] = useState<string | null>(null);
@@ -602,6 +625,36 @@ export default function InstructorWorkstationPage({
       setProfileSaveMessages((current) => ({ ...current, [student.id]: error instanceof Error ? error.message : "Unable to save student profile." }));
     } finally {
       setSavingProfileStudentId(null);
+    }
+  }
+
+  async function handleCreateStudent(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsAddingStudent(true);
+    setAddStudentError(null);
+    try {
+      const response = await fetch("/api/instructor/students", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(addStudentDraft),
+      });
+      const result = await response.json() as { student?: StudentUser; error?: string };
+      if (!response.ok || !result.student) {
+        throw new Error(result.error || "Unable to add student.");
+      }
+
+      const createdStudent = result.student;
+      setStudents((current) => [createdStudent, ...current.filter((student) => student.id !== createdStudent.id)]);
+      setStudentLevelFilter("All");
+      setStudentInstructorFilter("All instructors");
+      setExpandedStudentIds((current) => new Set(current).add(createdStudent.id));
+      setAddStudentDraft(EMPTY_ADD_STUDENT_DRAFT);
+      setIsAddStudentOpen(false);
+      setProfileSaveToast("Student added successfully!");
+    } catch (error) {
+      setAddStudentError(error instanceof Error ? error.message : "Unable to add student.");
+    } finally {
+      setIsAddingStudent(false);
     }
   }
 
@@ -2120,8 +2173,12 @@ export default function InstructorWorkstationPage({
     return firstValue.localeCompare(secondValue, undefined, { sensitivity: "base" }) || first.title.localeCompare(second.title);
   });
   const libraryDomains = [...new Set(createdLessons.map((lesson) => getLessonMetadata(lesson).domain))].sort();
-  const filteredStudentDirectory = students.filter((student) => studentLevelFilter === "All"
-    || normalizeStudentLevel(student.profile.targetLevel || student.profile.level) === studentLevelFilter);
+  const studentInstructorOptions = [...new Set(students
+    .map((student) => student.profile.assignedInstructor?.trim())
+    .filter((instructor): instructor is string => Boolean(instructor)))].sort((first, second) => first.localeCompare(second));
+  const filteredStudentDirectory = students.filter((student) => (studentLevelFilter === "All"
+    || normalizeStudentLevel(student.profile.targetLevel || student.profile.level) === studentLevelFilter)
+    && (studentInstructorFilter === "All instructors" || student.profile.assignedInstructor?.trim() === studentInstructorFilter));
   const activeResourceType = resourceDraft.type;
   const resourceAccept = activeResourceType === "image"
     ? "image/*"
@@ -2314,14 +2371,50 @@ export default function InstructorWorkstationPage({
               <h2 id="students-profile-title" className="mt-1 font-sans text-2xl font-semibold text-stone-100">Students Profile</h2>
               <p className="mt-1 text-sm text-stone-500">{filteredStudentDirectory.length} of {students.length} students</p>
             </div>
-            <label className="flex items-center gap-3 text-xs font-medium text-stone-400">
-              <span>Level</span>
-              <select value={studentLevelFilter} onChange={(event) => setStudentLevelFilter(event.target.value as typeof studentLevelFilter)} className="rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs text-white [color-scheme:dark]" aria-label="Filter students by level">
-                <option value="All">All levels</option>
-                {STUDENT_CEFR_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}
-              </select>
-            </label>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-xs font-medium text-stone-400">
+                <span>Level</span>
+                <select value={studentLevelFilter} onChange={(event) => setStudentLevelFilter(event.target.value as typeof studentLevelFilter)} className="rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs text-white [color-scheme:dark]" aria-label="Filter students by level">
+                  <option value="All">All levels</option>
+                  {STUDENT_CEFR_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}
+                </select>
+              </label>
+              <label className="flex items-center gap-2 text-xs font-medium text-stone-400">
+                <span>Instructor</span>
+                <select value={studentInstructorFilter} onChange={(event) => setStudentInstructorFilter(event.target.value)} className="max-w-[15rem] rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs text-white [color-scheme:dark]" aria-label="Filter students by instructor">
+                  <option>All instructors</option>
+                  {studentInstructorOptions.map((instructor) => <option key={instructor}>{instructor}</option>)}
+                </select>
+              </label>
+              <button type="button" onClick={() => { setAddStudentError(null); setIsAddStudentOpen(true); }} className="inline-flex h-10 items-center gap-2 rounded-md bg-amber-500 px-4 text-xs font-semibold text-slate-950 transition hover:bg-amber-400">
+                <Plus className="h-4 w-4" aria-hidden="true" />Add Student
+              </button>
+            </div>
           </div>
+          {isAddStudentOpen && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !isAddingStudent) setIsAddStudentOpen(false); }}>
+            <section role="dialog" aria-modal="true" aria-labelledby="add-student-title" className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-[#394252] bg-[#141a23] p-5 shadow-2xl sm:p-6">
+              <div className="flex items-start justify-between gap-4 border-b border-[#293343] pb-4">
+                <div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Student Directory</p><h3 id="add-student-title" className="mt-1 text-xl font-semibold text-stone-100">Add Student</h3></div>
+                <button type="button" onClick={() => setIsAddStudentOpen(false)} disabled={isAddingStudent} aria-label="Close add student dialog" className="rounded-md p-2 text-stone-400 transition hover:bg-white/5 hover:text-stone-100 disabled:opacity-50"><X className="h-4 w-4" /></button>
+              </div>
+              <form onSubmit={(event) => void handleCreateStudent(event)} className="mt-5 space-y-5">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Full Name<input required maxLength={120} value={addStudentDraft.fullName} onChange={(event) => setAddStudentDraft((current) => ({ ...current, fullName: event.target.value }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none focus:border-amber-500" /></label>
+                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Email<input required type="email" maxLength={254} value={addStudentDraft.email} onChange={(event) => setAddStudentDraft((current) => ({ ...current, email: event.target.value }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none focus:border-amber-500" /></label>
+                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Current Level<select required value={addStudentDraft.currentLevel} onChange={(event) => setAddStudentDraft((current) => ({ ...current, currentLevel: event.target.value as StudentCefrLevel | "" }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-amber-300 outline-none [color-scheme:dark] focus:border-amber-500"><option value="" disabled>Select a level</option>{STUDENT_CEFR_LEVELS.map((level) => <option key={level}>{level}</option>)}</select></label>
+                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Assigned Instructor<input value={addStudentDraft.assignedInstructor} onChange={(event) => setAddStudentDraft((current) => ({ ...current, assignedInstructor: event.target.value }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none focus:border-amber-500" /></label>
+                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Focus Weaknesses<textarea value={addStudentDraft.focusWeaknesses} onChange={(event) => setAddStudentDraft((current) => ({ ...current, focusWeaknesses: event.target.value }))} placeholder="Separate with commas" className="min-h-20 w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500" /></label>
+                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Core Goal<textarea value={addStudentDraft.coreGoal} onChange={(event) => setAddStudentDraft((current) => ({ ...current, coreGoal: event.target.value }))} className="min-h-20 w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500" /></label>
+                  <label className="space-y-1.5 text-xs font-medium text-stone-400 md:col-span-2">Dashboard Note<textarea value={addStudentDraft.dashboardNote} onChange={(event) => setAddStudentDraft((current) => ({ ...current, dashboardNote: event.target.value }))} className="min-h-24 w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500" /></label>
+                </div>
+                {addStudentError && <p role="alert" className="rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{addStudentError}</p>}
+                <div className="flex flex-col-reverse gap-3 border-t border-[#293343] pt-4 sm:flex-row sm:justify-end">
+                  <button type="button" onClick={() => setIsAddStudentOpen(false)} disabled={isAddingStudent} className="h-10 rounded-md border border-[#394252] px-4 text-xs font-semibold text-stone-300 transition hover:bg-white/5 disabled:opacity-50">Cancel</button>
+                  <button type="submit" disabled={isAddingStudent} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-amber-500 px-4 text-xs font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60">{isAddingStudent ? "Adding..." : "Add Student"}</button>
+                </div>
+              </form>
+            </section>
+          </div>}
           {studentsError && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{studentsError}</p>}
           {studentsLoading ? <p className="py-10 text-center text-sm text-stone-500">Loading student profiles...</p> : filteredStudentDirectory.length > 0 ? <div className="w-full space-y-3">
             {filteredStudentDirectory.map((student) => {
@@ -2359,12 +2452,12 @@ export default function InstructorWorkstationPage({
                           <label className="block space-y-1.5 text-xs font-medium text-stone-400">Assigned Instructor<input value={student.profile.assignedInstructor || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { assignedInstructor: event.target.value })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
                         </section>
                         <section className="min-w-0 space-y-4" aria-label={`${student.name} goals and focus`}>
-                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Core Goal<input value={student.profile.targetGoal || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { targetGoal: event.target.value })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
                           <label className="block space-y-1.5 text-xs font-medium text-stone-400">Focus Weaknesses<input value={(student.profile.weaknesses || []).join(", ")} onChange={(event) => updateDirectoryStudentProfile(student.id, { weaknesses: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} placeholder="Separate with commas" className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Core Goal<textarea value={student.profile.targetGoal || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { targetGoal: event.target.value })} rows={3} className="min-h-20 w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
                         </section>
                         <section className="min-w-0 space-y-1.5 md:col-span-2 2xl:col-span-1" aria-label={`${student.name} dashboard note`}>
                           <label className="block text-xs font-medium text-stone-400">Dashboard Note</label>
-                          <textarea value={student.profile.teacherNotes || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { teacherNotes: event.target.value })} rows={4} className="student-profile-note h-24 w-full resize-none overflow-x-hidden overflow-y-auto rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs leading-relaxed text-stone-200 outline-none focus:border-amber-500" />
+                          <textarea value={student.profile.teacherNotes || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { teacherNotes: event.target.value })} rows={4} className="student-profile-note h-24 w-full resize-y overflow-x-hidden overflow-y-auto rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs leading-relaxed text-stone-200 outline-none focus:border-amber-500" />
                         </section>
                       </div>
                       <div className="mt-5 flex flex-col-reverse gap-3 border-t border-[#293343] pt-4 sm:flex-row sm:items-center sm:justify-between">
