@@ -100,7 +100,8 @@ export function LucideIconPicker({
         onClick={() => setIsOpen((open) => !open)}
         aria-expanded={isOpen}
         aria-haspopup="dialog"
-        className="inline-flex min-h-9 items-center gap-2 rounded border border-[#394252] bg-[#0c1017] px-2.5 text-xs text-stone-300 hover:border-amber-500/60"
+        title={selectedName ? `Selected icon: ${selectedName}` : "Choose icon"}
+        className="inline-flex min-h-9 min-w-28 items-center justify-center gap-2 rounded border border-amber-500/40 bg-[#0c1017] px-3 text-xs font-medium text-stone-200 hover:border-amber-500/80"
       >
         <DynamicLucideIcon name={selectedName} className="h-4 w-4 text-amber-300" aria-hidden="true" />
         {selectedName || "Choose icon"}

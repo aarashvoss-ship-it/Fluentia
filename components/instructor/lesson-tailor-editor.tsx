@@ -739,8 +739,8 @@ export function LessonTailorEditor({
             </div>
             <div id={`block-content-${block.id}`} className={`overflow-hidden transition-[max-height,opacity] duration-200 ${isExpanded ? "max-h-[5000px] opacity-100" : "max-h-0 opacity-0"}`} aria-hidden={!isExpanded}>
             <input value={block.title} onChange={(event) => updateDynamicBlock(step, index, { title: event.target.value })} placeholder="Block title" className="mb-2 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.type} block title`} />
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <span className="text-[11px] text-stone-500">Block icon</span>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded border border-[#29303c] bg-[#0c1017]/60 px-3 py-2">
+              <span className="text-xs font-medium text-stone-300">Block Icon</span>
               <LucideIconPicker value={block.icon || ""} onChange={(icon) => updateDynamicBlock(step, index, { icon })} />
               {block.icon && <button type="button" onClick={() => updateDynamicBlock(step, index, { icon: undefined })} className="text-[11px] text-stone-500 underline hover:text-stone-300">Clear</button>}
             </div>
