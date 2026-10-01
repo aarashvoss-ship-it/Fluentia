@@ -12,6 +12,7 @@ import { parseFillInBlanks } from "@/lib/fill-in-blanks";
 import { uploadLessonAsset, uploadLessonMedia } from "@/services/storage-service";
 import { DynamicLucideIcon, LucideIconPicker } from "@/components/shared/lucide-icon-picker";
 import { TiptapEditor } from "@/components/shared/tiptap-editor";
+import { parseInteractiveTranscript } from "@/lib/transcripts";
 import { Eye, FileText, Layers, LoaderCircle, MoveDown, MoveUp, Plus, Trash2, UploadCloud, X, ChevronDown, ChevronRight, ChevronUp, Mic, Square } from "lucide-react";
 
 interface LessonTailorEditorProps {
@@ -406,6 +407,7 @@ export function LessonTailorEditor({
 
   const renderTranscriptField = (step: StudyStepId, index: number, block: ContentBlock & { transcript?: string }) => {
     const isOpen = openTranscript[block.id] ?? true;
+    const transcriptLines = parseInteractiveTranscript(block.transcript || "");
     const preview = (block.transcript || "").trim();
     return (
       <div className="overflow-hidden rounded border border-[#202631] bg-[#0c1017]/50">
@@ -419,13 +421,35 @@ export function LessonTailorEditor({
           aria-controls={`transcript-${block.id}`}
           className="flex w-full items-center justify-between px-2 py-1.5 text-left text-xs text-stone-400 hover:text-amber-300"
         >
-          <span className="text-[11px] font-medium uppercase tracking-[0.08em]">{block.type === "video" ? "Video Transcript" : "Audio Transcript"}{preview ? ` · ${preview.length} chars` : " (optional)"}</span>
+          <span className="text-[11px] font-medium uppercase tracking-[0.08em]">{block.type === "video" ? "Video Transcript" : "Audio Transcript"}{preview ? ` · ${transcriptLines.length || preview.length} items` : " (optional)"}</span>
           {isOpen ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-amber-400" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-amber-400" />}
         </button>
-        {!isOpen && preview ? <MarkdownContent value={preview} className="line-clamp-2 px-2 pb-1.5 text-[11px] leading-relaxed text-stone-500" /> : null}
         {isOpen && (
-          <div id={`transcript-${block.id}`} className="max-h-80 overflow-y-auto border-t border-[#202631] p-2">
-            <TiptapEditor value={block.transcript || ""} onChange={(value) => updateDynamicBlock(step, index, { transcript: value })} placeholder="Paste script or audio/video transcript here..." ariaLabel={`${block.type === "video" ? "Video" : "Audio"} transcript`} compact />
+          <div id={`transcript-${block.id}`} className="space-y-3 border-t border-[#202631] p-2">
+            <textarea
+              value={block.transcript || ""}
+              onChange={(event) => updateDynamicBlock(step, index, { transcript: event.target.value })}
+              placeholder="Paste transcript or VTT/SRT content here. Timestamp examples: 00:00:12 Welcome..."
+              rows={8}
+              className="max-h-80 min-h-[140px] w-full resize-y overflow-y-auto rounded border border-[#202631] bg-[#0c1017] p-2 text-xs leading-relaxed text-stone-200 outline-none focus:border-amber-500"
+              aria-label={`${block.type === "video" ? "Video" : "Audio"} transcript input"`}
+            />
+            {transcriptLines.length > 0 && (
+              <div className="overflow-hidden rounded border border-[#202631] bg-[#0c1017]/60">
+                <div className="max-h-80 overflow-y-auto divide-y divide-[#202631]">
+                  {transcriptLines.map((line, lineIndex) => (
+                    <button
+                      key={`${line.seconds}-${lineIndex}`}
+                      type="button"
+                      className="flex w-full items-start gap-3 px-3 py-2 text-left transition hover:bg-amber-500/5"
+                    >
+                      <span className="shrink-0 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-amber-300">[{line.timestamp}]</span>
+                      <span className="min-w-0 flex-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-stone-300">{line.text}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
