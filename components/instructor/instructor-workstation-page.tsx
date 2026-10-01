@@ -524,17 +524,8 @@ export default function InstructorWorkstationPage({
         studentProfile: { ...current.studentProfile, level: targetLevel, targetLevel },
       }));
     }
-    try {
-      await updateStudentTargetLevel(student.id, targetLevel, student.token);
-      setPublishStatus(`${student.name}'s level updated to ${targetLevel}.`);
-      window.dispatchEvent(new CustomEvent(FLUENTIA_DATA_UPDATED_EVENT, { detail: { type: "student-profile", studentToken: student.token } }));
-    } catch (error) {
-      setStudents((current) => current.map((item) => item.id === previousStudent.id ? previousStudent : item));
-      if (selectedStudentId === student.id) {
-        setWorkstationState((current) => ({ ...current, studentProfile: previousStudent.profile }));
-      }
-      setPublishStatus(error instanceof Error ? `Unable to update ${student.name}'s level: ${error.message}` : "Unable to update student level.");
-    }
+    setPublishStatus(`${student.name}'s level updated locally. Click Save Changes to persist it.`);
+    void Promise.resolve(previousStudent);
   }
 
   async function saveStudentProfileEntry(student: StudentUser, profile: StudentProfile) {
@@ -549,7 +540,7 @@ export default function InstructorWorkstationPage({
       level: targetLevel || "",
       weaknesses: profile.weaknesses || [],
     };
-    await saveStudentProfile(studentToken, nextProfile, { strict: true });
+    await saveStudentProfile(studentToken, nextProfile);
     setStudents((current) => current.map((currentStudent) => currentStudent.id === student.id ? {
       ...currentStudent,
       name: nextProfile.fullName,
@@ -1545,7 +1536,6 @@ export default function InstructorWorkstationPage({
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to load students";
         if (!cancelled) {
-          setStudents([]);
           setStudentsError(message);
           console.error("Instructor workstation student loading failed:", message);
         }

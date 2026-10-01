@@ -33,6 +33,7 @@ export type StudentProfileSaveMode = "database" | "local";
 
 const localProfileKey = (studentToken: string) => `fluentia:student-profile:${studentToken}`;
 const requestedLocalProfileKey = (studentToken: string) => `student_profile_${studentToken}`;
+const pendingLocalProfileKey = (studentToken: string) => `fluentia:student-profile-pending:${studentToken}`;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function broadcastStudentProfileUpdate(studentToken: string) {
@@ -83,6 +84,21 @@ export function normalizeStudentLevel(value: unknown): StudentCefrLevel | "" {
 function normalizeStudentProfile(profile: Record<string, unknown> | null, studentToken: string): Partial<StudentProfile> | null {
   if (!profile) return null;
   const targetLevel = normalizeStudentLevel(getProfileValue(profile, ["target_level", "targetLevel", "level"]));
+  const focusWeaknesses = Array.isArray(profile.focus_weaknesses)
+    ? profile.focus_weaknesses.filter((value): value is string => typeof value === "string")
+    : Array.isArray(profile.weaknesses)
+      ? profile.weaknesses.filter((value): value is string => typeof value === "string")
+      : typeof profile.focus_weaknesses === "string"
+        ? profile.focus_weaknesses.split(/[,;\n]+/).map((value) => value.trim()).filter(Boolean)
+        : undefined;
+  const coreGoal = getProfileValue(profile, [
+    "core_goal",
+    "target_goal",
+    "targetGoal",
+    "learningGoal",
+    "learning_goal",
+    "goal",
+  ]);
   return {
     id: studentToken,
     fullName: getProfileValue(profile, ["full_name", "fullName", "name"]) || undefined,
@@ -90,26 +106,68 @@ function normalizeStudentProfile(profile: Record<string, unknown> | null, studen
     enrolledDate: getProfileValue(profile, ["enrolled_date", "enrolledDate", "created_at"]) || undefined,
     targetLevel: targetLevel || undefined,
     level: targetLevel || undefined,
-    targetGoal: getProfileValue(profile, [
-      "targetGoal",
-      "learningGoal",
-      "learning_goal",
-      "core_goal",
-      "goal",
-    ]) || undefined,
+    targetGoal: coreGoal || undefined,
+    core_goal: coreGoal || undefined,
     assignedInstructor: getProfileValue(profile, [
       "assignedInstructor",
       "assigned_instructor",
       "instructor_name",
     ]) || undefined,
-    weaknesses: Array.isArray(profile.focus_weaknesses)
-      ? profile.focus_weaknesses.filter((value): value is string => typeof value === "string")
-      : Array.isArray(profile.weaknesses)
-        ? profile.weaknesses.filter((value): value is string => typeof value === "string")
-        : undefined,
+    weaknesses: focusWeaknesses,
     teacherNotes: getStudentProfileNote(profile) || undefined,
     avatarUrl: getProfileValue(profile, ["avatar_url", "avatarUrl"]) || undefined,
     bannerUrl: getProfileValue(profile, ["banner_url", "bannerUrl"]) || undefined,
+  };
+}
+
+function normalizeFocusWeaknesses(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((entry) => typeof entry === "string" ? entry.trim() : String(entry ?? "").trim()).filter(Boolean);
+  }
+  if (typeof value === "string") {
+    return value.split(/[\n,;]+/).map((entry) => entry.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function normalizeCoreGoal(profile: Partial<StudentProfile> | Record<string, unknown>): string {
+  const record = profile as Record<string, unknown>;
+  const candidate = [
+    record.core_goal,
+    record.target_goal,
+    record.targetGoal,
+    record.learningGoal,
+    record.learning_goal,
+    record.goal,
+    (profile as Partial<StudentProfile>).targetGoal,
+    (profile as Partial<StudentProfile>).learningGoal,
+  ].find((value): value is string => typeof value === "string" && value.trim().length > 0);
+  return candidate ? candidate.trim() : "";
+}
+
+function buildSafeProfileUpdatePayload(profile: Partial<StudentProfile> | Record<string, unknown>) {
+  const record = profile as Record<string, unknown>;
+  const targetLevel = normalizeStudentLevel((profile as Partial<StudentProfile>).targetLevel ?? (profile as Partial<StudentProfile>).level ?? record.target_level ?? record.level);
+  const coreGoal = normalizeCoreGoal(profile);
+  const focusWeaknesses = normalizeFocusWeaknesses((profile as Partial<StudentProfile>).weaknesses ?? record.focus_weaknesses ?? record.weaknesses);
+  const assignedInstructor = typeof (profile as Partial<StudentProfile>).assignedInstructor === "string"
+    ? (profile as Partial<StudentProfile>).assignedInstructor!.trim()
+    : typeof record.assigned_instructor === "string"
+      ? record.assigned_instructor.trim()
+      : typeof record.assignedInstructor === "string"
+        ? record.assignedInstructor.trim()
+        : "";
+  const dashboardNote = getStudentProfileNote(record)
+    || (typeof record.dashboard_note === "string" ? record.dashboard_note : "")
+    || ((profile as Partial<StudentProfile>).teacherNotes || "");
+  const normalizedNote = typeof dashboardNote === "string" ? dashboardNote.trim() : "";
+  return {
+    target_level: targetLevel || null,
+    core_goal: coreGoal || null,
+    focus_weaknesses: focusWeaknesses,
+    assigned_instructor: assignedInstructor || null,
+    dashboard_note: normalizedNote || null,
+    updated_at: new Date().toISOString(),
   };
 }
 
@@ -118,12 +176,27 @@ function isMissingCustomizationColumn(error: { code?: string; message?: string }
     && /(avatar_url|banner_url)/i.test(error.message || "");
 }
 
-function saveStudentProfileLocally(studentToken: string, profile: StudentProfile) {
+function saveStudentProfileLocally(studentToken: string, profile: StudentProfile, pendingSync = true) {
   if (typeof window === "undefined" || !window.localStorage) return false;
-  const serialized = JSON.stringify(profile);
-  window.localStorage.setItem(localProfileKey(studentToken), serialized);
-  window.localStorage.setItem(requestedLocalProfileKey(studentToken), serialized);
-  return true;
+  try {
+    const serialized = JSON.stringify(profile);
+    window.localStorage.setItem(localProfileKey(studentToken), serialized);
+    window.localStorage.setItem(requestedLocalProfileKey(studentToken), serialized);
+    if (pendingSync) window.localStorage.setItem(pendingLocalProfileKey(studentToken), "true");
+    else window.localStorage.removeItem(pendingLocalProfileKey(studentToken));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function hasPendingLocalStudentProfile(studentToken: string) {
+  if (typeof window === "undefined" || !window.localStorage) return false;
+  try {
+    return window.localStorage.getItem(pendingLocalProfileKey(studentToken)) === "true";
+  } catch {
+    return false;
+  }
 }
 
 function getStudentProfileLocally(studentToken: string): Partial<StudentProfile> | null {
@@ -161,13 +234,14 @@ export async function saveStudentProfile(
 
     const targetLevel = normalizeStudentLevel(profile.targetLevel || profile.level);
     const canonicalProfileUpdate = {
-      full_name: profile.fullName,
+      full_name: profile.fullName || null,
       email: profile.email || null,
       target_level: targetLevel || null,
       level: targetLevel || null,
       enrolled_date: profile.enrolledDate || null,
       target_goal: profile.targetGoal || null,
-      focus_weaknesses: profile.weaknesses || [],
+      core_goal: profile.targetGoal || null,
+      focus_weaknesses: normalizeFocusWeaknesses(profile.weaknesses || (profile as Partial<StudentProfile> & Record<string, unknown>).focus_weaknesses),
       assigned_instructor: profile.assignedInstructor || null,
       instructor_note: instructorNotes || null,
       dashboard_note: instructorNotes || null,
@@ -175,13 +249,48 @@ export async function saveStudentProfile(
       banner_url: profile.bannerUrl || null,
       updated_at: new Date().toISOString(),
     };
-    let { error } = await supabase.from("profiles").update(canonicalProfileUpdate).eq("id", canonicalId);
-    if (error && isMissingCustomizationColumn(error)) {
-      const { avatar_url: _avatarUrl, banner_url: _bannerUrl, ...fallbackUpdate } = canonicalProfileUpdate;
-      const fallback = await supabase.from("profiles").update(fallbackUpdate).eq("id", canonicalId);
-      error = fallback.error;
+
+    const profileUpdateCandidates = [
+      { ...canonicalProfileUpdate },
+      { ...canonicalProfileUpdate, core_goal: undefined },
+      { ...canonicalProfileUpdate, target_goal: profile.targetGoal || null, core_goal: undefined },
+    ].map((candidate) => Object.fromEntries(Object.entries(candidate).filter(([, value]) => value !== undefined && value !== null))) as Record<string, unknown>[];
+
+    let lastError: { code?: string; message?: string; details?: string } | null = null;
+    let saved = false;
+    for (const candidate of profileUpdateCandidates) {
+      const { error } = await supabase.from("profiles").update(candidate).eq("id", canonicalId);
+      if (!error) {
+        saved = true;
+        break;
+      }
+      lastError = error;
+      if (error && isMissingCustomizationColumn(error)) {
+        const { avatar_url: _avatarUrl, banner_url: _bannerUrl, ...fallbackUpdate } = candidate;
+        const fallback = await supabase.from("profiles").update(fallbackUpdate).eq("id", canonicalId);
+        if (!fallback.error) {
+          saved = true;
+          break;
+        }
+        lastError = fallback.error;
+      }
+      const unsupportedColumns = ["core_goal", "dashboard_note", "focus_weaknesses", "assigned_instructor", "target_level"]
+        .filter((column) => new RegExp(`\\b${column}\\b`, "i").test((error.message || "") + " " + (error.details || "")));
+      if (unsupportedColumns.length > 0) {
+        const fallbackPayload = Object.fromEntries(Object.entries(candidate).filter(([key]) => !unsupportedColumns.includes(key)));
+        if (Object.keys(fallbackPayload).length > 0) {
+          const fallback = await supabase.from("profiles").update(fallbackPayload).eq("id", canonicalId);
+          if (!fallback.error) {
+            saved = true;
+            break;
+          }
+          lastError = fallback.error;
+        }
+      }
     }
-    if (error) throw error;
+    if (!saved && lastError) {
+      throw lastError;
+    }
 
     const { error: studentError } = await supabase.from("students").update({
       name: profile.fullName,
@@ -190,14 +299,20 @@ export async function saveStudentProfile(
     }).eq("id", canonicalId);
     if (studentError) throw studentError;
 
-    saveStudentProfileLocally(studentToken, { ...profile, id: canonicalId, level: targetLevel, targetLevel });
+    saveStudentProfileLocally(studentToken, { ...profile, id: canonicalId, level: targetLevel, targetLevel }, false);
     broadcastStudentProfileUpdate(studentToken);
     return "database";
   } catch (error) {
-    if (options.strict) throw error;
     const details = error && typeof error === "object"
       ? error as { message?: string; details?: string; hint?: string; code?: string }
       : {};
+    console.error("Supabase Profile Save Error:", details.message, details.details);
+    if (options.strict) {
+      if (saveStudentProfileLocally(studentToken, profile)) {
+        broadcastStudentProfileUpdate(studentToken);
+      }
+      throw error;
+    }
     if (details.message || details.details) {
       console.warn("Student profile database sync unavailable; using local storage:", details.message || details.details);
     }
@@ -221,14 +336,19 @@ export async function getStudentProfile(studentToken: string): Promise<Partial<S
   const { data: profile, error } = await supabase.from("profiles").select("*").eq("id", profileId).maybeSingle();
   if (error || !profile) return getStudentProfileLocally(student?.token || studentToken);
   const normalized = normalizeStudentProfile(profile as Record<string, unknown>, student?.token || studentToken) || {};
+  const resolvedToken = student?.token || studentToken;
+  const pendingLocalProfile = hasPendingLocalStudentProfile(resolvedToken)
+    ? getStudentProfileLocally(resolvedToken)
+    : null;
   return {
     ...normalized,
-    id: profileId,
     fullName: typeof profile.full_name === "string" && profile.full_name.trim() ? profile.full_name : student?.name || undefined,
     email: typeof profile.email === "string" && profile.email.trim() ? profile.email : student?.email || undefined,
     enrolledDate: typeof profile.enrolled_date === "string" ? profile.enrolled_date : student?.created_at || undefined,
     targetLevel: normalizeStudentLevel(profile.target_level || profile.level) || undefined,
     level: normalizeStudentLevel(profile.target_level || profile.level) || undefined,
+    ...pendingLocalProfile,
+    id: profileId,
   };
 }
 
@@ -259,10 +379,14 @@ export async function getStudentDirectory(): Promise<StudentDirectoryEntry[]> {
   return (students || []).map((student) => {
     const profile = profilesById.get(student.id);
     const saved = profile ? normalizeStudentProfile(profile, student.token) : null;
-    const targetLevel = normalizeStudentLevel(profile?.target_level || profile?.level || saved?.level);
-    const name = typeof profile?.full_name === "string" && profile.full_name.trim() ? profile.full_name : student.name;
-    const email = typeof profile?.email === "string" && profile.email.trim() ? profile.email : student.email;
-    const enrolledDate = typeof profile?.enrolled_date === "string" ? profile.enrolled_date : student.created_at || "";
+    const pendingLocalProfile = hasPendingLocalStudentProfile(student.token)
+      ? getStudentProfileLocally(student.token)
+      : null;
+    const effectiveSaved = { ...saved, ...pendingLocalProfile };
+    const targetLevel = normalizeStudentLevel(pendingLocalProfile?.targetLevel || profile?.target_level || profile?.level || saved?.level);
+    const name = pendingLocalProfile?.fullName || (typeof profile?.full_name === "string" && profile.full_name.trim() ? profile.full_name : student.name);
+    const email = pendingLocalProfile?.email || (typeof profile?.email === "string" && profile.email.trim() ? profile.email : student.email);
+    const enrolledDate = pendingLocalProfile?.enrolledDate || (typeof profile?.enrolled_date === "string" ? profile.enrolled_date : student.created_at || "");
     return {
       id: student.id,
       token: student.token,
@@ -276,10 +400,10 @@ export async function getStudentDirectory(): Promise<StudentDirectoryEntry[]> {
         enrolledDate,
         targetLevel,
         level: targetLevel,
-        targetGoal: saved?.targetGoal || (typeof profile?.target_goal === "string" ? profile.target_goal : ""),
-        weaknesses: saved?.weaknesses || [],
-        teacherNotes: saved?.teacherNotes || "",
-        assignedInstructor: saved?.assignedInstructor || "",
+        targetGoal: effectiveSaved.targetGoal || (typeof profile?.target_goal === "string" ? profile.target_goal : ""),
+        weaknesses: effectiveSaved.weaknesses || [],
+        teacherNotes: effectiveSaved.teacherNotes || "",
+        assignedInstructor: effectiveSaved.assignedInstructor || "",
         attendanceRate: 0,
         completedModulesCount: 0,
       },
@@ -307,10 +431,20 @@ export async function updateStudentTargetLevel(studentId: string, targetLevel: S
     assignedInstructor: existing.assignedInstructor,
   };
   if (isSupabaseConfigured()) {
-    const { error } = await supabase.from("profiles").update({ target_level: targetLevel, level: targetLevel, updated_at: new Date().toISOString() }).eq("id", studentId);
-    if (error) throw error;
+    const payload = buildSafeProfileUpdatePayload(localProfile);
+    const { error } = await supabase.from("profiles").update(payload).eq("id", studentId);
+    if (error) {
+      console.error("Supabase Profile Save Error:", error.message, error.details);
+      saveStudentProfileLocally(studentToken, localProfile);
+      saveStudentProfileLocally(studentId, localProfile);
+      broadcastStudentProfileUpdate(studentToken);
+      throw error;
+    }
+    saveStudentProfileLocally(studentToken, localProfile, false);
+    saveStudentProfileLocally(studentId, localProfile, false);
+  } else {
+    saveStudentProfileLocally(studentToken, localProfile);
+    saveStudentProfileLocally(studentId, localProfile);
   }
-  saveStudentProfileLocally(studentToken, localProfile);
-  saveStudentProfileLocally(studentId, localProfile);
   broadcastStudentProfileUpdate(studentToken);
 }
