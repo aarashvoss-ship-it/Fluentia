@@ -551,7 +551,7 @@ export function LessonTailorEditor({
               <button type="button" onClick={(event) => { event.stopPropagation(); toggleBlockCollapse(block.id); }} className="flex min-w-0 items-center gap-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400 hover:text-amber-300" aria-expanded={isExpanded} aria-controls={`block-content-${block.id}`}>
                 {isExpanded ? <ChevronUp className="h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
                 {block.icon && <DynamicLucideIcon name={block.icon} className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
-                <span className="truncate">{index + 1}. {block.type} block{!isActive ? " · Inactive" : ""}</span>
+                <span className="truncate">{index + 1}. {block.type} block{!isActive ? " · Inactive" : ""} - {block.title || "Untitled"}</span>
               </button>
               <div className="flex items-center gap-1" onClick={(event) => event.stopPropagation()}>
                 <button type="button" onClick={() => updateDynamicBlock(step, index, { is_active: !isActive, enabled: !isActive })} role="switch" aria-checked={isActive} className={`mr-1 inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] font-semibold transition ${isActive ? "border-emerald-500/50 text-emerald-300" : "border-[#394252] text-stone-500"}`}>
@@ -567,7 +567,7 @@ export function LessonTailorEditor({
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded border border-[#29303c] bg-[#0c1017]/60 px-3 py-2">
               <span className="text-xs font-medium text-stone-300">Block Icon</span>
               <div className="flex items-center gap-2">
-                <LucideIconPicker value={block.icon || ""} onChange={(icon) => updateDynamicBlock(step, index, { icon })} />
+                <LucideIconPicker value={block.icon || ""} triggerLabel="Select Icon" onChange={(icon) => updateDynamicBlock(step, index, { icon })} />
                 {block.icon && <button type="button" onClick={() => updateDynamicBlock(step, index, { icon: undefined })} className="text-[11px] text-stone-500 underline hover:text-stone-300">Clear</button>}
               </div>
             </div>
