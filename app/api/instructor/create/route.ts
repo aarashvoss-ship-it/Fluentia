@@ -4,6 +4,51 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 const instructorStatuses = new Set(["active", "on_leave"]);
 const instructorSelect = "id,name,email,slug,token,specialization,status,max_student_capacity,bio,created_at,updated_at";
+const requiredInstructorSelect = "id,name,email,slug,token,created_at,updated_at";
+const optionalInstructorColumns = ["specialization", "status", "max_student_capacity", "bio"] as const;
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") return error.message;
+  return "Unable to create instructor.";
+}
+
+function isMissingColumnError(error: unknown) {
+  return Boolean(error && typeof error === "object" && "code" in error
+    && (error.code === "42703" || error.code === "PGRST204"));
+}
+
+async function upsertInstructorWithSchemaFallback(
+  adminClient: SupabaseClient,
+  payload: Record<string, unknown>,
+): Promise<{ data: Record<string, unknown>; omittedColumns: string[] }> {
+  let currentPayload = { ...payload };
+  let selectedColumns = instructorSelect;
+  let lastError: unknown;
+
+  while (true) {
+    const { data, error } = await adminClient
+      .from("instructors")
+      .upsert(currentPayload, { onConflict: "id" })
+      .select(selectedColumns)
+      .single();
+    if (!error && data) return {
+      data: data as unknown as Record<string, unknown>,
+      omittedColumns: optionalInstructorColumns.filter((column) => !(column in currentPayload)),
+    };
+    lastError = error || new Error("Supabase did not create the instructor record.");
+    if (!isMissingColumnError(lastError)) throw lastError;
+
+    const message = getErrorMessage(lastError);
+    const missingColumns = optionalInstructorColumns.filter((column) =>
+      new RegExp(`\\b${column}\\b`, "i").test(message));
+    const columnsToOmit = missingColumns.length > 0 ? missingColumns : optionalInstructorColumns.filter((column) => column in currentPayload);
+    if (columnsToOmit.length === 0) throw lastError;
+
+    for (const column of columnsToOmit) delete currentPayload[column];
+    selectedColumns = [requiredInstructorSelect, ...optionalInstructorColumns.filter((column) => column in currentPayload)].join(",");
+  }
+}
 
 async function findAuthUserByEmail(adminClient: SupabaseClient, email: string) {
   for (let page = 1; page <= 100; page += 1) {
@@ -70,7 +115,7 @@ export async function POST(request: Request) {
 
     const [{ data: existingProfile, error: profileLookupError }, { data: existingInstructor, error: instructorLookupError }, { data: instructorWithEmail, error: emailLookupError }] = await Promise.all([
       context.adminClient.from("profiles").select("token").eq("id", createdAuthUserId).maybeSingle(),
-      context.adminClient.from("instructors").select("token,slug,max_student_capacity").eq("id", createdAuthUserId).maybeSingle(),
+      context.adminClient.from("instructors").select("*").eq("id", createdAuthUserId).maybeSingle(),
       context.adminClient.from("instructors").select("id").eq("email", email).maybeSingle(),
     ]);
     if (profileLookupError || instructorLookupError || emailLookupError) {
@@ -92,7 +137,7 @@ export async function POST(request: Request) {
     }, { onConflict: "id" });
     if (profileError) throw profileError;
 
-    const { data: instructor, error: instructorError } = await context.adminClient.from("instructors").upsert({
+    const { data: instructor, omittedColumns } = await upsertInstructorWithSchemaFallback(context.adminClient, {
       id: createdAuthUserId,
       name,
       email,
@@ -102,15 +147,24 @@ export async function POST(request: Request) {
       status,
       max_student_capacity: existingInstructor?.max_student_capacity || 20,
       bio,
-    }, { onConflict: "id" }).select(instructorSelect).single();
-    if (instructorError || !instructor) throw instructorError || new Error("Supabase did not create the instructor record.");
+    });
 
-    return NextResponse.json({ instructor, linkedExistingAuthUser: !createdAuthUser }, { status: createdAuthUser ? 201 : 200 });
+    return NextResponse.json({
+      instructor: {
+        ...instructor,
+        specialization: instructor.specialization ?? specialization,
+        status: instructor.status ?? status,
+        max_student_capacity: instructor.max_student_capacity ?? 20,
+        bio: instructor.bio ?? bio,
+      },
+      linkedExistingAuthUser: !createdAuthUser,
+      ...(omittedColumns.length > 0 ? { warning: `Instructor created, but these database columns are missing: ${omittedColumns.join(", ")}. Apply the instructor profile migration to persist them.` } : {}),
+    }, { status: createdAuthUser ? 201 : 200 });
   } catch (error) {
     if (addedAllowlistEmail) await context.adminClient.from("allowed_users").delete().eq("email", email);
     if (createdAuthUser && createdAuthUserId) await context.adminClient.auth.admin.deleteUser(createdAuthUserId);
-    const message = error instanceof Error ? error.message : "Unable to create instructor.";
-    console.error("Instructor creation failed:", message);
+    const message = getErrorMessage(error);
+    console.error("Create instructor error:", error);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

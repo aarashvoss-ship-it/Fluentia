@@ -7,7 +7,7 @@ export async function GET() {
 
   const { data, error } = await context.adminClient
     .from("instructors")
-    .select("id,name,email,slug,token,specialization,status,max_student_capacity,bio,created_at,updated_at")
+    .select("*")
     .order("name", { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ instructors: data || [] });
