@@ -3311,14 +3311,18 @@ export default function InstructorWorkstationPage({
 <label className="mt-3 block text-xs text-stone-400">Lesson-Specific Guidance<textarea value={newLesson.instructorGuidance} onChange={(e) => setNewLesson((previous) => ({ ...previous, instructorGuidance: e.target.value }))} placeholder="Guidance shown inside this lesson's Study Room" rows={3} className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
           </section>
           {isSplitPreviewOpen ? (
-            <main className="grid min-w-0 grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
+            <main className="grid min-w-0 grid-cols-1 items-stretch gap-3 lg:grid-cols-2">
               <div className="h-[calc(100dvh-20rem)] min-h-[480px] min-w-0 space-y-6 overflow-y-auto overscroll-contain pr-1">
-                {lessonEditorPanel}
-                {heroBannerPanel}
-                {sidebarEditorPanel}
+                <div className="min-w-0 space-y-5" style={{ zoom: 0.85 }}>
+                  {lessonEditorPanel}
+                  {heroBannerPanel}
+                  {sidebarEditorPanel}
+                </div>
               </div>
               <div className="h-[calc(100dvh-20rem)] min-h-[480px] min-w-0 overflow-y-auto overscroll-contain rounded-xl border border-[#202631]">
-                <StudentStudyRoomPreview {...livePreviewSnapshot} onStepChange={setPreviewStep} embedded />
+                <div className="min-w-0" style={{ zoom: 0.85 }}>
+                  <StudentStudyRoomPreview {...livePreviewSnapshot} onStepChange={setPreviewStep} embedded />
+                </div>
               </div>
             </main>
           ) : (
