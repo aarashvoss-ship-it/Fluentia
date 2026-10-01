@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, Grid3X3, List, MoreVertical, Pencil, Plus, Search, Trash2, X, Lightbulb, UploadCloud } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Grid3X3, List, MoreVertical, Pencil, Plus, Search, Trash2, X, Lightbulb, UploadCloud } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { StudentContextPanel } from "@/components/instructor/student-context-panel";
 import { LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
@@ -453,6 +453,7 @@ export default function InstructorWorkstationPage({
   const [quickTagError, setQuickTagError] = useState<string | null>(null);
   const [heroBannerOpen, setHeroBannerOpen] = useState(false);
   const [guidanceOpen, setGuidanceOpen] = useState(false);
+  const [isLessonGuidanceExpanded, setIsLessonGuidanceExpanded] = useState(true);
   const [activeStudentsOpen, setActiveStudentsOpen] = useState(false);
   const [sidebarStep, setSidebarStep] = useState<keyof SidebarBlocksByStep>("warm_up");
   const [sidebarBlocksByStep, setSidebarBlocksByStep] = useState<SidebarBlocksByStep>({});
@@ -3308,7 +3309,13 @@ export default function InstructorWorkstationPage({
               <label className="text-xs text-stone-400">Practice Type<input value={newLesson.tags.practice_type} onChange={(event) => updateBuilderTags({ ...newLesson.tags, practice_type: event.target.value }, newLesson.customTagsText)} placeholder="Role-play, reflection..." className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label>
               <label className="text-xs text-stone-400 md:col-span-3">Custom Tags<input value={newLesson.customTagsText} onChange={(event) => updateBuilderTags({ ...newLesson.tags, custom: parseCustomLessonTags(event.target.value) }, event.target.value)} placeholder="Comma-separated custom tags" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label>
             </div>
-<label className="mt-3 block text-xs text-stone-400">Lesson-Specific Guidance<textarea value={newLesson.instructorGuidance} onChange={(e) => setNewLesson((previous) => ({ ...previous, instructorGuidance: e.target.value }))} placeholder="Guidance shown inside this lesson's Study Room" rows={3} className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
+            <div className="mt-3 overflow-hidden rounded-md border border-[#29303c] bg-[#0c1017]/60">
+              <button type="button" aria-expanded={isLessonGuidanceExpanded} onClick={() => setIsLessonGuidanceExpanded((expanded) => !expanded)} className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-xs font-medium text-stone-300 transition hover:bg-amber-500/5 hover:text-stone-100">
+                <span>Lesson-Specific Guidance</span>
+                {isLessonGuidanceExpanded ? <ChevronDown className="h-4 w-4 text-amber-400" aria-hidden="true" /> : <ChevronRight className="h-4 w-4 text-amber-400" aria-hidden="true" />}
+              </button>
+              {isLessonGuidanceExpanded && <div className="border-t border-[#29303c] p-3"><TiptapEditor value={newLesson.instructorGuidance} onChange={(instructorGuidance) => setNewLesson((previous) => ({ ...previous, instructorGuidance }))} placeholder="Guidance shown inside this lesson's Study Room" ariaLabel="Lesson-specific guidance" compact /></div>}
+            </div>
           </section>
           {isSplitPreviewOpen ? (
             <main className="grid min-w-0 grid-cols-1 items-stretch gap-3 lg:grid-cols-2">

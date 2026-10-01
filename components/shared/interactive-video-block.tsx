@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { parseInteractiveTranscript } from "@/lib/transcripts";
 
@@ -10,7 +10,7 @@ interface InteractiveVideoBlockProps {
   transcript?: string;
   transcriptLocked?: boolean;
   editable?: boolean;
-  onTranscriptChange?: (value: string) => void;
+  showTranscript?: boolean;
 }
 
 function getVideoEmbedUrl(url: string) {
@@ -53,11 +53,12 @@ export function InteractiveVideoBlock({
   transcript,
   transcriptLocked = false,
   editable = false,
-  onTranscriptChange,
+  showTranscript = true,
 }: InteractiveVideoBlockProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const loadedIframeSrcRef = useRef("");
-  const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(false);
+  const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(true);
+  const transcriptId = useId();
   const transcriptLines = parseInteractiveTranscript(transcript || "");
   const embedUrl = getVideoEmbedUrl(videoUrl);
   const directVideoUrl = !embedUrl && /^https?:\/\//i.test(videoUrl.trim()) ? videoUrl.trim() : "";
@@ -102,34 +103,20 @@ export function InteractiveVideoBlock({
         <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Add a video URL to preview this block.</div>
       ) : null}
 
-      {editable && (
-        <textarea
-          value={transcript || ""}
-          onChange={(event) => onTranscriptChange?.(event.target.value)}
-          placeholder="Paste timestamped transcript here, for example: 0:15 Welcome..."
-          rows={4}
-          className="max-h-48 w-full resize-y overflow-auto rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500"
-          aria-label="Media Transcript (Optional)"
-        />
-      )}
-
-      {!transcriptLocked && transcriptLines.length > 0 && (
+      {showTranscript && !transcriptLocked && transcriptLines.length > 0 && (
         <div className="overflow-hidden rounded border border-[#202631] bg-[#0c1017]/50" aria-label="Interactive transcript">
           <button
             type="button"
             onClick={() => setIsTranscriptExpanded((expanded) => !expanded)}
             aria-expanded={isTranscriptExpanded}
-            aria-controls="interactive-video-transcript"
+            aria-controls={transcriptId}
             className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs font-semibold text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-200"
           >
             <span>Show / Hide Transcript</span>
             <ChevronDown className={`h-4 w-4 shrink-0 text-amber-400 transition-transform duration-200 ${isTranscriptExpanded ? "rotate-180" : ""}`} aria-hidden="true" />
           </button>
-          <div
-            id="interactive-video-transcript"
-            className={`grid transition-[grid-template-rows] duration-300 ease-out ${isTranscriptExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
-          >
-            <div className="min-h-0 overflow-y-auto border-t border-[#202631]">
+          <div className={`overflow-hidden transition-[max-height] duration-300 ease-out ${isTranscriptExpanded ? "max-h-80" : "max-h-0"}`}>
+            <div id={transcriptId} className="max-h-80 overflow-y-auto border-t border-[#202631]">
               <div className="space-y-1 p-2">
                 {transcriptLines.map((line) => (
                   <button

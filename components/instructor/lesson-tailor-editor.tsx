@@ -12,7 +12,7 @@ import { parseFillInBlanks } from "@/lib/fill-in-blanks";
 import { uploadLessonAsset, uploadLessonMedia } from "@/services/storage-service";
 import { DynamicLucideIcon, LucideIconPicker } from "@/components/shared/lucide-icon-picker";
 import { TiptapEditor } from "@/components/shared/tiptap-editor";
-import { Eye, FileText, Layers, LoaderCircle, MoveDown, MoveUp, Plus, Trash2, UploadCloud, X, ChevronDown, ChevronUp, Mic, Square } from "lucide-react";
+import { Eye, FileText, Layers, LoaderCircle, MoveDown, MoveUp, Plus, Trash2, UploadCloud, X, ChevronDown, ChevronRight, ChevronUp, Mic, Square } from "lucide-react";
 
 interface LessonTailorEditorProps {
   content: StrictStepContent;
@@ -127,11 +127,10 @@ export function LessonTailorEditor({
   const lastEmittedContentRef = useRef(JSON.stringify(content));
   const localUpdatePendingRef = useRef(false);
   const [openTranscript, setOpenTranscript] = useState<Record<string, boolean>>({});
-  const [openTranscriptPreview, setOpenTranscriptPreview] = useState<Record<string, boolean>>({});
+  const [openReflectionSettings, setOpenReflectionSettings] = useState<Record<string, boolean>>({});
   const [collapsedBlocks, setCollapsedBlocks] = useState<Record<string, boolean>>({});
   const [fillBlankModes, setFillBlankModes] = useState<Record<string, "edit" | "preview">>({});
   const [fillBlankPreviewValues, setFillBlankPreviewValues] = useState<Record<string, string>>({});
-  const transcriptWrapRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
   const [recordingByBlockId, setRecordingByBlockId] = useState<Record<string, { status: "recording" | "uploading" | "error"; error?: string; elapsed?: number; levels?: number[] }>>({});
   const recorderRef = useRef<Map<string, MediaRecorder>>(new Map());
   const streamRef = useRef<Map<string, MediaStream>>(new Map());
@@ -405,49 +404,28 @@ export function LessonTailorEditor({
     };
   }, []);
 
-  useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as Node | null;
-      if (!target) return;
-      for (const [blockId, element] of transcriptWrapRefs.current.entries()) {
-        if (!openTranscript[blockId] || !element) continue;
-        if (!element.contains(target)) {
-          setOpenTranscript((current) => ({ ...current, [blockId]: false }));
-        }
-      }
-    };
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [openTranscript]);
-
   const renderTranscriptField = (step: StudyStepId, index: number, block: ContentBlock & { transcript?: string }) => {
-    const isOpen = !!openTranscript[block.id];
+    const isOpen = openTranscript[block.id] ?? true;
     const preview = (block.transcript || "").trim();
     return (
-      <div
-        ref={(element) => {
-          if (element) transcriptWrapRefs.current.set(block.id, element);
-          else transcriptWrapRefs.current.delete(block.id);
-        }}
-        className="rounded border border-[#202631] bg-[#0c1017]/50"
-      >
+      <div className="overflow-hidden rounded border border-[#202631] bg-[#0c1017]/50">
         <button
           type="button"
           onClick={(event) => {
             event.stopPropagation();
-            setOpenTranscript((current) => ({ ...current, [block.id]: !current[block.id] }));
+            setOpenTranscript((current) => ({ ...current, [block.id]: !(current[block.id] ?? true) }));
           }}
           aria-expanded={isOpen}
           aria-controls={`transcript-${block.id}`}
           className="flex w-full items-center justify-between px-2 py-1.5 text-left text-xs text-stone-400 hover:text-amber-300"
         >
-          <span className="text-[11px] font-medium uppercase tracking-[0.08em]">Transcript{preview ? ` · ${preview.length} chars` : " (optional)"}</span>
-          <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${isOpen ? "rotate-180 text-amber-400" : ""}`} />
+          <span className="text-[11px] font-medium uppercase tracking-[0.08em]">{block.type === "video" ? "Video Transcript" : "Audio Transcript"}{preview ? ` · ${preview.length} chars` : " (optional)"}</span>
+          {isOpen ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-amber-400" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-amber-400" />}
         </button>
         {!isOpen && preview ? <MarkdownContent value={preview} className="line-clamp-2 px-2 pb-1.5 text-[11px] leading-relaxed text-stone-500" /> : null}
         {isOpen && (
-          <div id={`transcript-${block.id}`} className="border-t border-[#202631] p-2">
-            <TiptapEditor value={block.transcript || ""} onChange={(value) => updateDynamicBlock(step, index, { transcript: value })} placeholder="Paste script or audio/video transcript here..." ariaLabel="Media Transcript (Optional)" />
+          <div id={`transcript-${block.id}`} className="max-h-80 overflow-y-auto border-t border-[#202631] p-2">
+            <TiptapEditor value={block.transcript || ""} onChange={(value) => updateDynamicBlock(step, index, { transcript: value })} placeholder="Paste script or audio/video transcript here..." ariaLabel={`${block.type === "video" ? "Video" : "Audio"} transcript`} compact />
           </div>
         )}
       </div>
@@ -498,7 +476,6 @@ export function LessonTailorEditor({
       chunksRef.current.delete(blockId);
       recorderRef.current.delete(blockId);
       streamRef.current.delete(blockId);
-      transcriptWrapRefs.current.delete(blockId);
       setRecordingState(blockId, null);
       setOpenTranscript((current) => {
         if (!(blockId in current)) return current;
@@ -638,7 +615,32 @@ export function LessonTailorEditor({
             })()}
             {block.type === "question" && <QuestionSettings value={block.optionIndexingStyle} onChange={(value) => updateDynamicBlock(step, index, { optionIndexingStyle: value })} />}
             {block.type === "fill-in-the-blanks" && <div className="space-y-3"><div className="flex w-fit rounded border border-[#394252] p-0.5" role="tablist" aria-label="Fill in the blanks editor mode"><button type="button" role="tab" aria-selected={fillBlankModes[block.id] !== "preview"} onClick={() => setFillBlankModes((current) => ({ ...current, [block.id]: "edit" }))} className={`px-3 py-1 text-xs ${fillBlankModes[block.id] !== "preview" ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-200"}`}>Edit</button><button type="button" role="tab" aria-selected={fillBlankModes[block.id] === "preview"} onClick={() => setFillBlankModes((current) => ({ ...current, [block.id]: "preview" }))} className={`px-3 py-1 text-xs ${fillBlankModes[block.id] === "preview" ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-200"}`}>Preview</button></div>{fillBlankModes[block.id] === "preview" ? <FillInBlanksMarkdown blockId={block.id} text={block.textWithBlanks} acceptableAnswers={block.acceptableAnswers} wordBank={block.wordBank} caseSensitive={block.caseSensitive} values={fillBlankPreviewValues} readOnly onChange={(blankIndex, value) => setFillBlankPreviewValues((current) => ({ ...current, [`${block.id}-blank-${blankIndex}`]: value }))} className="rounded border border-[#202631] bg-[#0c1017]/50 p-3 text-sm leading-relaxed text-stone-300" /> : <><label className="block text-xs font-semibold text-stone-300">Exercise Content (use brackets like [answer] for fill-in-the-blanks):<textarea value={block.textWithBlanks} onChange={(event) => { const textWithBlanks = event.target.value; const acceptableAnswers = parseFillInBlanks(textWithBlanks).map((blank) => [blank.answer]); updateDynamicBlock(step, index, { textWithBlanks, acceptableAnswers }); }} placeholder="The capital of France is [Paris]." rows={5} className="mt-1 w-full resize-y rounded border border-[#202631] bg-[#0c1017] p-2 text-xs font-normal text-stone-200 outline-none focus:border-amber-500" aria-label="Fill in the blanks Markdown text" /></label><label className="block text-xs font-semibold text-stone-300">Word Bank Options (Optional - separate words with commas or new lines):<textarea value={(block.wordBank || []).join("\n")} onChange={(event) => updateDynamicBlock(step, index, { wordBank: event.target.value.split(/[\n,]/).map((word) => word.trim()).filter(Boolean) })} placeholder="Paris\nFrance\nLondon" rows={3} className="mt-1 w-full resize-y rounded border border-[#202631] bg-[#0c1017] p-2 text-xs font-normal text-stone-200 outline-none focus:border-amber-500" aria-label="Fill in the blanks word bank" /></label><p className="text-[11px] leading-relaxed text-stone-500">Add one draggable word per line, or separate words with commas.</p></>}<p className="text-[11px] leading-relaxed text-stone-500">Use Markdown for formatting and brackets for answers, such as **[Paris]** or a list item with [answer].</p><label className="flex cursor-pointer items-center gap-2 text-xs text-stone-300"><input type="checkbox" checked={block.caseSensitive === true} onChange={(event) => updateDynamicBlock(step, index, { caseSensitive: event.target.checked })} className="h-4 w-4 accent-amber-500" />Case-sensitive answers</label></div>}
-            {block.type === "video" && <div className="space-y-2"><MediaAssetInput kind="video" value={block.videoUrl} onChange={(value) => updateDynamicBlock(step, index, { videoUrl: value })} /><label className="flex cursor-pointer items-start gap-3 rounded border border-[#202631] bg-[#0c1017]/60 p-3"><input type="checkbox" checked={block.show_reflection_prompt !== false} onChange={(event) => updateDynamicBlock(step, index, { show_reflection_prompt: event.target.checked })} className="mt-0.5 h-4 w-4 shrink-0 accent-amber-500" /><span className="text-xs font-semibold text-stone-200">Include Reflection Question below video</span></label>{block.show_reflection_prompt !== false && <input value={block.reflection_prompt_text || ""} onChange={(event) => updateDynamicBlock(step, index, { reflection_prompt_text: event.target.value })} placeholder="Think of an everyday product or app you use that frustrates you..." className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Reflection question" /> }<InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} editable onTranscriptChange={(value) => updateDynamicBlock(step, index, { transcript: value })} /></div>}
+            {block.type === "video" && (() => {
+              const reflectionExpanded = openReflectionSettings[block.id] ?? true;
+              return (
+                <div className="space-y-3">
+                  <MediaAssetInput kind="video" value={block.videoUrl} onChange={(value) => updateDynamicBlock(step, index, { videoUrl: value })} />
+                  <InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} editable showTranscript={false} />
+                  {renderTranscriptField(step, index, block)}
+                  <div className="overflow-hidden rounded border border-[#202631] bg-[#0c1017]/50">
+                    <div className="flex items-center justify-between gap-3 px-3 py-2">
+                      <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-stone-300">
+                        <input type="checkbox" checked={block.show_reflection_prompt !== false} onChange={(event) => updateDynamicBlock(step, index, { show_reflection_prompt: event.target.checked })} className="h-4 w-4 accent-amber-500" />
+                        Include Reflection Question below video
+                      </label>
+                      <button type="button" onClick={() => setOpenReflectionSettings((current) => ({ ...current, [block.id]: !reflectionExpanded }))} aria-expanded={reflectionExpanded} aria-label={`${reflectionExpanded ? "Collapse" : "Expand"} reflection question settings`} className="rounded p-1 text-stone-400 hover:bg-[#202631] hover:text-amber-300">
+                        {reflectionExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    {block.show_reflection_prompt !== false && reflectionExpanded && (
+                      <div className="border-t border-[#29303c] p-3">
+                        <textarea value={block.reflection_prompt_text || ""} onChange={(event) => updateDynamicBlock(step, index, { reflection_prompt_text: event.target.value })} placeholder="Think of an everyday product or app you use that frustrates you..." rows={3} className="w-full resize-y rounded border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Reflection question" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
             {block.type === "writing" && <WritingBlockEditor block={block} onChange={(changes) => updateDynamicBlock(step, index, changes)} />}
             {block.type === "image" && <div className="space-y-2"><MediaAssetInput kind="image" value={block.imageUrl} onChange={(value) => updateDynamicBlock(step, index, { imageUrl: value })} /><input value={block.caption} onChange={(event) => updateDynamicBlock(step, index, { caption: event.target.value })} placeholder="Image caption" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Image block caption" /></div>}
             {block.type === "resource" && <div className="space-y-2"><MediaAssetInput kind="resource" value={block.resourceUrl} onChange={(value) => updateDynamicBlock(step, index, { resourceUrl: value })} /><input value={block.description || ""} onChange={(event) => updateDynamicBlock(step, index, { description: event.target.value })} placeholder="Document description" className="w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label="Document description" /></div>}

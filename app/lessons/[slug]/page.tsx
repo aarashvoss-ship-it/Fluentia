@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { ChatMessage, ContentBlock, SavedVocabularyWord, StudentNote, StudyStepId, STUDY_STEPS, LessonContent, StudentSubmission } from "@/types/lesson";
@@ -238,10 +238,11 @@ function AudioResponseBlock({ value, onChange, studentId }: { value?: string; on
 }
 
 function MediaTranscriptAccordion({ transcript, isUnlocked }: { transcript?: string; isUnlocked: boolean }) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
+  const contentId = useId();
 
   useEffect(() => {
-    if (!isUnlocked) setIsOpen(false);
+    setIsOpen(isUnlocked);
   }, [isUnlocked]);
 
   if (!isUnlocked) {
@@ -265,14 +266,16 @@ function MediaTranscriptAccordion({ transcript, isUnlocked }: { transcript?: str
 
   return (
     <div className="mt-4 rounded-md border border-amber-500/20 bg-[#0c1017]">
-      <button type="button" onClick={() => setIsOpen((open) => !open)} aria-expanded={isOpen} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold text-amber-300">
+      <button type="button" onClick={() => setIsOpen((open) => !open)} aria-expanded={isOpen} aria-controls={contentId} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold text-amber-300">
         <Unlock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         Transcript
         <ChevronDown className={`ml-auto h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} aria-hidden="true" />
       </button>
-      {isOpen && <div className="border-t border-[#293343] px-3 py-3">
-        {transcript?.trim() ? <MarkdownContent value={transcript} className="text-sm leading-relaxed text-stone-300" /> : <p className="text-xs text-stone-500">No transcript was provided for this media.</p>}
-      </div>}
+      <div className={`overflow-hidden transition-[max-height] duration-300 ease-out ${isOpen ? "max-h-80" : "max-h-0"}`}>
+        <div id={contentId} className="max-h-80 overflow-y-auto border-t border-[#293343] px-3 py-3">
+          {transcript?.trim() ? <MarkdownContent value={transcript} className="text-sm leading-relaxed text-stone-300" /> : <p className="text-xs text-stone-500">No transcript was provided for this media.</p>}
+        </div>
+      </div>
     </div>
   );
 }
