@@ -135,8 +135,8 @@ export function TiptapEditor({
 
   return (
     <div className="tiptap-editor space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-0.5 rounded border border-[#202631] bg-[#0c1017] p-1" role="toolbar" aria-label="Rich text formatting">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex w-full flex-wrap items-center justify-end gap-1.5 rounded border border-[#202631] bg-[#0c1017] p-1" role="toolbar" aria-label="Rich text formatting">
           <ToolbarButton label="Heading 1" active={!!editor?.isActive("heading", { level: 1 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}>H1</ToolbarButton>
           <ToolbarButton label="Heading 2" active={!!editor?.isActive("heading", { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>H2</ToolbarButton>
           <ToolbarButton label="Heading 3" active={!!editor?.isActive("heading", { level: 3 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}>H3</ToolbarButton>
