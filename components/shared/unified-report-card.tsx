@@ -8,6 +8,7 @@ export interface UnifiedReportTask {
   studentAnswer: string;
   modelAnswer?: string;
   isCorrect?: boolean;
+  autoCheck?: boolean;
   audioUrls?: string[];
   explanation?: string;
 }
@@ -58,6 +59,10 @@ function stripMarkdown(value: string) {
     .replace(/(^|[^_])_([^_\n]+)_(?!_)/g, "$1$2")
     .replace(/[*_~`]/g, "")
     .trim();
+}
+
+function normalizeAnswer(value: string) {
+  return value.trim().toLowerCase().replace(/^[a-z]\s*[).]\s*/, "").trim();
 }
 
 function FeedbackValue({ value, isEvaluated }: { value?: string; isEvaluated: boolean }) {
@@ -123,14 +128,22 @@ export function UnifiedReportCard({
             {!stage.referenceText && !stage.referenceAudioUrl && <p className="mt-3 text-sm text-stone-400">No lesson reference is available.</p>}
           </details>}
           {stage.tasks.length > 0 ? <div className="space-y-3">
-            {stage.tasks.map((task, index) => <article key={task.id} className="w-full min-w-0 rounded-lg border border-[#293343] bg-[#0c1017] p-4">
+            {stage.tasks.map((task, index) => {
+              const normalizedStudentAnswer = normalizeAnswer(task.studentAnswer);
+              const matchesModelAnswer = task.modelAnswer?.split(/[\/|]/).some(
+                (candidate) => normalizeAnswer(candidate) === normalizedStudentAnswer,
+              ) ?? false;
+              const isCorrect = task.isCorrect === true
+                || ((task.isCorrect !== undefined || task.autoCheck === true) && matchesModelAnswer);
+              const isIncorrect = !isCorrect && (task.isCorrect === false || task.autoCheck === true);
+              return <article key={task.id} className="w-full min-w-0 rounded-lg border border-[#293343] bg-[#0c1017] p-4">
               <div className="rounded-md border border-zinc-800 bg-zinc-900/90 p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Task Prompt</p>
                 <h4 className="mt-1 text-sm font-medium leading-relaxed text-stone-100">{index + 1}. {stripMarkdown(task.title)}</h4>
               </div>
-              <div className={`mt-3 rounded-md border p-3 ${task.isCorrect === false ? "border-amber-500/40 bg-amber-950/40 text-amber-200" : "border-blue-500/30 bg-slate-900/90 text-blue-100"}`}>
-                <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${task.isCorrect === false ? "text-amber-300" : "text-blue-300"}`}>Your Response</p>
-                <p className={`mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed ${task.isCorrect === false ? "text-amber-200" : "text-blue-100"}`}>{stripMarkdown(task.studentAnswer) || <span className={`italic ${task.isCorrect === false ? "text-amber-300" : "text-blue-300"}`}>No response submitted.</span>}</p>
+              <div className={`mt-3 rounded-md border p-3 ${isIncorrect ? "border-amber-500/40 bg-amber-950/40 text-amber-200" : "border-blue-500/30 bg-slate-900/90 text-blue-100"}`}>
+                <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${isIncorrect ? "text-amber-300" : "text-blue-300"}`}>Your Response</p>
+                <p className={`mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed ${isIncorrect ? "text-amber-200" : "text-blue-100"}`}>{stripMarkdown(task.studentAnswer) || <span className={`italic ${isIncorrect ? "text-amber-300" : "text-blue-300"}`}>No response submitted.</span>}</p>
                 {task.audioUrls?.map((url, mediaIndex) => <div key={`${url}-${mediaIndex}`} className="mt-2 min-w-0 max-w-full overflow-hidden"><CustomAudioPlayer src={url} label={`${stripMarkdown(task.title)} recording`} /></div>)}
               </div>
               {task.modelAnswer && <div className="mt-3 rounded-md border border-blue-500/30 bg-slate-900/90 p-3 text-blue-100">
@@ -141,7 +154,8 @@ export function UnifiedReportCard({
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Explanation</p>
                 <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-stone-400">{stripMarkdown(task.explanation)}</p>
               </div>}
-            </article>)}
+            </article>;
+            })}
           </div> : <div className="rounded-lg border border-dashed border-[#394252] bg-[#0c1017]/60 px-4 py-5 text-center">
             <p className="text-sm font-medium text-stone-300">{stage.id === "speaking" ? "No speaking recording submitted" : "Instructional Step Completed"}</p>
             {stage.id !== "speaking" && <p className="mt-1 text-xs leading-relaxed text-stone-500">This stage focused on learning content and required no interactive response.</p>}

@@ -2357,24 +2357,29 @@ export default function InstructorWorkstationPage({
       if (shouldAutoCheck) reviewAutoCheckKeys.add(key);
     }
   };
-  (reviewContent.listening?.questions || []).forEach((question: { id: string; question: string; correct_answer?: string }) => {
-    addReviewReference("listening", question.id, question.question, question.correct_answer || reviewContent.results?.answer_keys?.listening?.[question.id]);
+  (reviewContent.listening?.questions || []).forEach((question: { id: string; question?: string; prompt?: string; title?: string; correct_answer?: string }) => {
+    addReviewReference("listening", question.id, getReviewPrompt(question.prompt, question.title, question.question), question.correct_answer || reviewContent.results?.answer_keys?.listening?.[question.id]);
   });
-  (reviewContent.reading?.analytical_questions || []).forEach((question: { id: string; question: string; correct_answer?: string }) => {
-    addReviewReference("reading", question.id, question.question, question.correct_answer || reviewContent.results?.answer_keys?.reading?.[question.id]);
+  (reviewContent.reading?.analytical_questions || []).forEach((question: { id: string; question?: string; prompt?: string; title?: string; correct_answer?: string }) => {
+    addReviewReference("reading", question.id, getReviewPrompt(question.prompt, question.title, question.question), question.correct_answer || reviewContent.results?.answer_keys?.reading?.[question.id]);
   });
   (reviewStages.map((stage) => stage.id)).forEach((step) => {
     (reviewContent[step]?.blocks || []).forEach((block: ContentBlock) => {
       if (block.type === "question") {
-        addReviewReference(step, block.id, block.prompt || block.title, block.question_type === "open_ended" ? block.sample_answer : block.correct_answer, block.question_type !== "open_ended");
+        const taskDefinition = block as unknown as { prompt?: string; question?: string };
+        addReviewReference(step, block.id, getReviewPrompt(taskDefinition.prompt, taskDefinition.question, block.title), block.question_type === "open_ended" ? block.sample_answer : block.correct_answer, block.question_type !== "open_ended");
       } else if (block.type === "quiz") {
-        block.questions.forEach((question) => addReviewReference(step, question.id, question.prompt, question.correct_answer || question.correctAnswer || reviewContent.results?.answer_keys?.[step]?.[question.id]));
+        block.questions.forEach((question) => {
+          const taskDefinition = question as typeof question & { title?: string; question?: string };
+          addReviewReference(step, question.id, getReviewPrompt(taskDefinition.prompt, taskDefinition.title, taskDefinition.question), question.correct_answer || question.correctAnswer || reviewContent.results?.answer_keys?.[step]?.[question.id]);
+        });
       } else if (block.type === "fill-in-the-blanks") {
         block.acceptableAnswers.forEach((answers, index) => addReviewReference(step, `${block.id}-blank-${index}`, `${block.textWithBlanks.replace(/\[[^\]]+\]/g, "_____ ")} (Blank ${index + 1})`, answers.join(" / ")));
       } else if (block.type === "video" && block.reflection_prompt_text) {
         addReviewReference(step, `${block.id}-reflection`, block.reflection_prompt_text);
       } else if (block.type === "writing") {
-        addReviewReference(step, block.id, block.prompt || block.title);
+        const taskDefinition = block as unknown as { prompt?: string; question?: string };
+        addReviewReference(step, block.id, getReviewPrompt(taskDefinition.prompt, taskDefinition.question, block.title));
       } else if (block.type === "text" && (block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true)) {
         const taskDefinition = block as ContentBlock & { prompt?: string; question?: string };
         addReviewReference(step, block.id, getReviewPrompt(taskDefinition.prompt, taskDefinition.question, block.title, reviewStages.find((stage) => stage.id === step)?.prompt));
@@ -2407,6 +2412,7 @@ export default function InstructorWorkstationPage({
       studentAnswer: audioUrl || isUrl ? "Audio response submitted" : answer,
       modelAnswer,
       isCorrect,
+      autoCheck: reviewAutoCheckKeys.has(key),
       audioUrls: audioUrl || isUrl ? [audioUrl || answer] : undefined,
     });
   };
