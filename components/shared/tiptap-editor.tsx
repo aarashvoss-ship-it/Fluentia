@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
@@ -22,9 +22,8 @@ import {
   Quote,
   Strikethrough,
 } from "lucide-react";
-import { useState } from "react";
 import { Tooltip } from "@/components/shared/tooltip";
-import { LucideIconPicker } from "@/components/shared/lucide-icon-picker";
+import { DynamicLucideIcon, LUCIDE_ICON_NAMES } from "@/components/shared/lucide-icon-picker";
 import { InlineLucideIcon } from "@/components/shared/inline-lucide-icon";
 
 const MarkdownTextStyle = TextStyle.extend({
@@ -92,6 +91,9 @@ export function TiptapEditor({
   onChangeRef.current = onChange;
   const [isColorPaletteOpen, setIsColorPaletteOpen] = useState(false);
   const colorPaletteRef = useRef<HTMLDivElement | null>(null);
+  const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
+  const [iconSearch, setIconSearch] = useState("");
+  const iconSelectionRef = useRef<{ from: number; to: number } | null>(null);
   const normalizedValue = normalizeEscapedBoldMarkdown(value);
 
   const extensions = useMemo(() => [
@@ -150,6 +152,11 @@ export function TiptapEditor({
   };
 
   const textColors = ["#f3f4f6", "#fbbf24", "#ef4444", "#10b981", "#06b6d4", "#a78bfa", "#f472b6", "#9ca3af"];
+  const popularIcons = ["BookOpen", "Check", "Star", "Play", "Lightbulb", "Target", "Sparkles", "Heart", "Clock", "Award", "Bookmark"];
+  const normalizedIconSearch = iconSearch.trim().toLowerCase();
+  const visibleIcons = (normalizedIconSearch
+    ? LUCIDE_ICON_NAMES.filter((name) => name.toLowerCase().includes(normalizedIconSearch))
+    : popularIcons).slice(0, 60);
 
   return (
     <div className="tiptap-editor w-full min-w-0 space-y-2">
@@ -204,18 +211,66 @@ export function TiptapEditor({
               </div>
             )}
           </div>
-          <Tooltip content="Insert Icon">
-            <LucideIconPicker
-              value=""
-              triggerLabel="Insert Icon"
-              triggerIcon={PlusCircle}
-              compact
-              onChange={(name) => editor?.chain().focus().insertContent({
-                type: "inlineLucideIcon",
-                attrs: { name },
-              }).run()}
-            />
-          </Tooltip>
+          <div className="relative shrink-0">
+            <Tooltip content="Insert Icon">
+              <button
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  if (!editor) return;
+                  iconSelectionRef.current = { from: editor.state.selection.from, to: editor.state.selection.to };
+                  setIconSearch("");
+                  setIsIconPickerOpen((open) => !open);
+                }}
+                aria-label="Insert Icon"
+                aria-expanded={isIconPickerOpen}
+                aria-haspopup="dialog"
+                className={`flex items-center justify-center rounded transition ${compact ? "h-6 min-w-6 px-1" : "h-7 min-w-7 px-1.5"} text-stone-300 hover:bg-[#293343] hover:text-white`}
+              >
+                <PlusCircle className="h-3.5 w-3.5" />
+              </button>
+            </Tooltip>
+            {isIconPickerOpen && (
+              <div role="dialog" aria-label="Choose an icon to insert" className="absolute right-0 top-full z-[10000] mt-2 w-72 rounded-md border border-[#394252] bg-[#171d28] p-3 shadow-2xl">
+                <input
+                  autoFocus
+                  type="search"
+                  value={iconSearch}
+                  onChange={(event) => setIconSearch(event.target.value)}
+                  placeholder="Search icons"
+                  aria-label="Search icons by name"
+                  className="h-9 w-full rounded border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                />
+                <div className="mt-2 grid max-h-48 grid-cols-6 gap-1 overflow-y-auto" aria-label="Available icons">
+                  {visibleIcons.map((name) => (
+                    <button
+                      key={name}
+                      type="button"
+                      aria-label={name}
+                      title={name}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        if (!editor) return;
+                        const selection = iconSelectionRef.current || editor.state.selection;
+                        const maxPosition = editor.state.doc.content.size;
+                        const from = Math.min(selection.from, maxPosition);
+                        const to = Math.min(selection.to, maxPosition);
+                        editor.chain().insertContentAt({ from, to }, {
+                          type: "inlineLucideIcon",
+                          attrs: { name },
+                        }).focus().run();
+                        setIsIconPickerOpen(false);
+                      }}
+                      className="flex h-8 items-center justify-center rounded border border-transparent text-stone-300 hover:border-amber-500/40 hover:bg-amber-500/20 hover:text-amber-400"
+                    >
+                      <DynamicLucideIcon name={name} className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  ))}
+                  {visibleIcons.length === 0 && <p className="col-span-full py-4 text-center text-xs text-stone-500">No icons found.</p>}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
       <div className="rounded border border-[#202631] bg-[#0c1017] px-3 py-2 text-xs text-stone-200 outline-none transition focus-within:border-amber-500/40 [&_.ProseMirror]:min-h-[100px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:leading-relaxed [&_.ProseMirror_h1]:my-3 [&_.ProseMirror_h1]:text-xl [&_.ProseMirror_h1]:font-semibold [&_.ProseMirror_h2]:my-2 [&_.ProseMirror_h2]:text-lg [&_.ProseMirror_h2]:font-semibold [&_.ProseMirror_h3]:my-2 [&_.ProseMirror_h3]:text-base [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_blockquote]:my-2 [&_.ProseMirror_blockquote]:border-l-2 [&_.ProseMirror_blockquote]:border-amber-500/40 [&_.ProseMirror_blockquote]:pl-3 [&_.ProseMirror_pre]:my-2 [&_.ProseMirror_pre]:overflow-x-auto [&_.ProseMirror_pre]:rounded [&_.ProseMirror_pre]:bg-[#171d28] [&_.ProseMirror_pre]:p-3 [&_.ProseMirror_code]:rounded [&_.ProseMirror_code]:bg-[#171d28] [&_.ProseMirror_code]:px-1 [&_.ProseMirror_ul]:my-2 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5 [&_.ProseMirror_ol]:my-2 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-5 [&_.ProseMirror_hr]:my-3 [&_.ProseMirror_a]:text-amber-400 [&_.ProseMirror_a]:underline">

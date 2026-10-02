@@ -44,6 +44,7 @@ function isRenderableIcon(value: unknown): value is LucideIcon {
 const ALL_ICON_NAMES = Object.keys(ICON_COMPONENTS)
   .filter((name) => /^[A-Z]/.test(name) && isRenderableIcon(ICON_COMPONENTS[name]))
   .sort((first, second) => first.localeCompare(second));
+export const LUCIDE_ICON_NAMES = ALL_ICON_NAMES;
 
 export function DynamicLucideIcon({
   name,
