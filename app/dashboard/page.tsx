@@ -159,6 +159,26 @@ function getLessonStatus(state?: PublishedLessonState | null): LessonStatus {
   return "not-started";
 }
 
+function getLessonStatusCopy(status: LessonStatus) {
+  return status === "completed"
+    ? "COMPLETED"
+    : status === "pending-review"
+      ? "PENDING EVALUATION"
+      : status === "in-progress"
+        ? "IN PROGRESS"
+        : "NOT STARTED";
+}
+
+function getLessonModuleNumber(lesson: LessonWithVersion) {
+  const contentModuleNumber = lesson.content?.moduleNumber;
+  if (typeof contentModuleNumber === "number" && Number.isFinite(contentModuleNumber)) {
+    return contentModuleNumber;
+  }
+  return typeof lesson.module_number === "number" && Number.isFinite(lesson.module_number)
+    ? lesson.module_number
+    : Number.POSITIVE_INFINITY;
+}
+
 function isValidImageUrl(value: string) {
   try {
     const url = new URL(value);
@@ -724,7 +744,19 @@ function DashboardContent() {
   }
 
   const token = activeStudent.token;
-  const displayLessons = lessons;
+  const displayLessons = [...lessons].sort((left, right) => {
+    const moduleOrder = getLessonModuleNumber(left) - getLessonModuleNumber(right);
+    if (moduleOrder !== 0) return moduleOrder;
+    const createdOrder = Date.parse(left.created_at) - Date.parse(right.created_at);
+    return Number.isFinite(createdOrder) ? createdOrder : 0;
+  });
+  const nextLesson = displayLessons.find((lesson) => {
+    const status = getLessonStatus(lessonStates[lesson.id]);
+    return status !== "completed" && status !== "pending-review";
+  });
+  const nextLessonStatus = nextLesson
+    ? getLessonStatus(lessonStates[nextLesson.id])
+    : null;
   const completedLessons = new Set(
     displayLessons
       .filter((lesson) => {
@@ -762,7 +794,6 @@ function DashboardContent() {
   const progressPercent = displayLessons.length
     ? Math.round((completedLessons / displayLessons.length) * 100)
     : 0;
-  const nextLesson = displayLessons[0];
   const displayName = activeStudent.name;
   const profileInstructorName =
     activeStudent.profile?.assignedInstructor?.trim();
@@ -1798,27 +1829,32 @@ function DashboardContent() {
 
           {nextLesson && (
             <section className="mt-6" aria-label="Continue learning">
-              <Tooltip content={`Continue to ${nextLesson.title}.`}>
-              <Link
-                href={getLessonHref(
-                  nextLesson,
-                  getLessonStatus(lessonStates[nextLesson.id]),
-                )}
-                onClick={() => rememberLesson(nextLesson.id)}
-                style={
-                  instructorLessonBanner
-                    ? { backgroundImage: `url(${instructorLessonBanner})` }
-                    : undefined
-                }
-                className="group relative block h-64 w-full overflow-hidden rounded-xl border border-[#202631] bg-cover bg-center bg-no-repeat transition-colors hover:border-amber-500/40"
-              >
+              <article className="group relative h-64 w-full overflow-hidden rounded-xl border border-[#202631] bg-[#121721] transition-colors duration-300 hover:border-amber-500/40">
+                <img
+                  src={instructorLessonBanner || BANNER_PRESETS[0].image}
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                />
                 <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,11,17,.95),rgba(7,11,17,.6)_52%,rgba(7,11,17,.82)),linear-gradient(0deg,rgba(7,11,17,.92),transparent_65%)]" />
                 <div className="relative flex h-full flex-col justify-between p-5 md:p-7">
                   <div>
                     <div className="flex items-center gap-2 text-amber-400">
                       <Flame className="h-4 w-4" />
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.16em]">
-                        Continue Learning / Next Up
+                      <span className="text-[10px] font-semibold tracking-[0.16em]">
+                        Seven stages. One connected journey
+                      </span>
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <span className="rounded-md border border-amber-500/40 bg-amber-500/20 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-amber-400">
+                        Module {activeModuleNumber ?? 1}
+                      </span>
+                      {nextLessonStatus && (
+                        <span className={`rounded-md border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ${nextLessonStatus === "in-progress" ? "border-sky-500/30 bg-sky-500/10 text-sky-300" : "border-[#394252] bg-[#171d28] text-stone-300"}`}>
+                          {getLessonStatusCopy(nextLessonStatus)}
+                        </span>
+                      )}
+                      <span className="text-[11px] text-stone-300">
+                        Guided by {nextLesson.content?.instructor?.fullName || assignedInstructorName}
                       </span>
                     </div>
                     <h2 className="mt-2 font-sans text-2xl font-semibold text-stone-100 md:text-3xl">
@@ -1830,16 +1866,19 @@ function DashboardContent() {
                     </p>
                   </div>
                   <div className="flex items-end justify-end">
-                    <span className="inline-flex w-fit items-center rounded-md bg-amber-500/20 px-3 py-2 text-xs font-normal text-amber-400 transition group-hover:bg-amber-500/20">
-                      Start Lesson{" "}
-                      <span className="ml-2" aria-hidden="true">
-                        -&gt;
-                      </span>
-                    </span>
+                    <Tooltip content={`Continue to ${nextLesson.title}.`}>
+                      <Link
+                        href={getLessonHref(nextLesson, nextLessonStatus || "not-started")}
+                        onClick={() => rememberLesson(nextLesson.id)}
+                        className="inline-flex w-fit items-center rounded-md bg-amber-500/20 px-3 py-2 text-xs font-normal text-amber-400 transition-colors hover:bg-amber-500/20"
+                      >
+                        {nextLessonStatus === "in-progress" ? "Continue Lesson" : "Start Lesson"}
+                        <span className="ml-2" aria-hidden="true">-&gt;</span>
+                      </Link>
+                    </Tooltip>
                   </div>
                 </div>
-              </Link>
-              </Tooltip>
+              </article>
             </section>
           )}
 
@@ -1935,14 +1974,7 @@ function DashboardContent() {
               ) : (
                 availableLessons.map((lesson) => {
                   const status = getLessonStatus(lessonStates[lesson.id]);
-                  const statusCopy =
-                    status === "completed"
-                      ? "COMPLETED"
-                      : status === "pending-review"
-                        ? "PENDING EVALUATION"
-                        : status === "in-progress"
-                          ? "IN PROGRESS"
-                          : "NOT STARTED";
+                  const statusCopy = getLessonStatusCopy(status);
                   const ctaCopy =
                     status === "completed"
                       ? "View Results & Feedback"
@@ -1954,7 +1986,7 @@ function DashboardContent() {
                   return (
                     <article
                       key={lesson.id}
-                      className="group overflow-hidden rounded-xl border border-[#202631] bg-[#121721] transition-colors hover:border-amber-500/40"
+                      className="group flex flex-col overflow-hidden rounded-xl border border-[#202631] bg-[#121721] transition-colors duration-300 hover:border-amber-500/40"
                     >
                       <div className="relative h-44 overflow-hidden border-b border-[#202631]">
                         <img
@@ -1966,14 +1998,14 @@ function DashboardContent() {
                                 : undefined) || BANNER_PRESETS[0].image
                           }
                           alt=""
-                          className="h-full w-full object-cover opacity-70 transition duration-500 group-hover:scale-105 group-hover:opacity-85"
+                          className="h-full w-full object-cover opacity-70 transition-transform duration-500 group-hover:scale-105"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-[#121721] via-transparent to-transparent" />
                         <span className="absolute bottom-4 left-5 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 bg-amber-500/20 border border-amber-500/40 rounded-md">
                           Module {lesson.content?.moduleNumber || 1}
                         </span>
                       </div>
-                      <div className="p-5">
+                      <div className="flex flex-1 flex-col p-5">
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex items-center gap-2 text-amber-400">
                             <BookOpen className="h-4 w-4" />
@@ -2015,19 +2047,6 @@ function DashboardContent() {
                               assignedInstructorName}
                           </p>
                         </div>
-                        <Tooltip content={`${ctaCopy}: ${lesson.title}`}>
-                        <Link
-                          href={getLessonHref(lesson, status)}
-                          onClick={() => rememberLesson(lesson.id)}
-                          className={`mt-5 inline-flex rounded-md px-3 py-2 text-xs  transition-colors ${
-                            status === "completed"
-                              ? "bg-emerald-500 text-amber-400"
-                              : "bg-amber-500/20 text-amber-400 group-hover:bg-amber-500/20"
-                          }`}
-                        >
-                          {ctaCopy}
-                        </Link>
-                        </Tooltip>
                         {status === "completed" &&
                           lessonStates[lesson.id]?.evaluation?.published && (
                             <details className="mt-5 border-t border-[#202631] pt-4">
@@ -2085,6 +2104,21 @@ function DashboardContent() {
                               </div>
                             </details>
                           )}
+                        <div className="mt-auto flex justify-end pt-5">
+                          <Tooltip content={`${ctaCopy}: ${lesson.title}`}>
+                            <Link
+                              href={getLessonHref(lesson, status)}
+                              onClick={() => rememberLesson(lesson.id)}
+                              className={`inline-flex rounded-md px-3 py-2 text-xs transition-colors ${
+                                status === "completed"
+                                  ? "bg-emerald-500 text-amber-400"
+                                  : "bg-amber-500/20 text-amber-400 group-hover:bg-amber-500/20"
+                              }`}
+                            >
+                              {ctaCopy}
+                            </Link>
+                          </Tooltip>
+                        </div>
                       </div>
                     </article>
                   );
