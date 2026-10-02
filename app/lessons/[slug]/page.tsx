@@ -103,7 +103,7 @@ function FileResponseBlock({ value, onChange, studentId }: { value?: string; onC
       setIsUploading(false);
     }
   };
-  return <div className="mt-4 rounded-lg border border-[#202631] bg-[#0c1017] p-3"><label className="inline-flex cursor-pointer items-center rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 hover:border-amber-500 hover:text-amber-300">{isUploading ? "Uploading..." : "Upload File"}<input type="file" onChange={(event) => void upload(event.target.files?.[0])} disabled={isUploading} className="sr-only" /></label>{value && <p className="mt-2 truncate text-xs text-emerald-300">File uploaded</p>}{error && <p className="mt-2 text-xs text-red-300">{error}</p>}</div>;
+  return <div className="mt-4 rounded-lg border border-[#202631] bg-[#0c1017] p-3"><label className="inline-flex cursor-pointer items-center rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 hover:border-amber-500/40 hover:text-amber-400">{isUploading ? "Uploading..." : "Upload File"}<input type="file" onChange={(event) => void upload(event.target.files?.[0])} disabled={isUploading} className="sr-only" /></label>{value && <p className="mt-2 truncate text-xs text-emerald-300">File uploaded</p>}{error && <p className="mt-2 text-xs text-red-300">{error}</p>}</div>;
 }
 
 function AudioResponseBlock({ value, onChange, studentId }: { value?: string; onChange: (value: string) => void; studentId?: string }) {
@@ -193,14 +193,14 @@ function AudioResponseBlock({ value, onChange, studentId }: { value?: string; on
             onClick={() => (isRecording ? stopRecording() : void startRecording())}
             disabled={isUploading}
             aria-label={isRecording ? "Stop recording" : "Start recording"}
-            className={`relative flex h-11 w-11 items-center justify-center rounded-full shadow-sm transition active:scale-95 disabled:opacity-40 ${isRecording ? "bg-red-500 text-white hover:bg-red-400" : "bg-amber-500 text-[#0c1017] hover:bg-amber-400"}`}
+            className={`relative flex h-11 w-11 items-center justify-center rounded-full shadow-sm transition active:scale-95 disabled:opacity-40 ${isRecording ? "bg-red-500 text-white hover:bg-red-400" : "bg-amber-500/20 text-amber-400 hover:bg-amber-500/20"}`}
           >
             {isRecording ? <Square className="h-3.5 w-3.5 fill-current" /> : <Mic className="h-4 w-4" />}
           </button>
         </div>
         <div className="mx-4 flex h-8 min-w-0 flex-1 items-center gap-px overflow-hidden rounded-full bg-slate-700/50 px-2" aria-hidden>
           {isRecording ? (
-            levels.map((h, i) => <span key={i} className="min-w-0 flex-1 rounded-full bg-amber-400/85 shadow-[0_0_8px_rgba(251,191,36,0.22)] transition-[height] duration-100 ease-linear" style={{ height: Math.max(4, h) }} />)
+            levels.map((h, i) => <span key={i} className="min-w-0 flex-1 rounded-full bg-amber-500/20 shadow-[0_0_8px_rgba(251,191,36,0.22)] transition-[height] duration-100 ease-linear" style={{ height: Math.max(4, h) }} />)
           ) : (
             <span className="h-1.5 w-full rounded-full bg-slate-800/80" />
           )}
@@ -208,7 +208,7 @@ function AudioResponseBlock({ value, onChange, studentId }: { value?: string; on
         <span className={`shrink-0 font-mono text-xs tabular-nums ${isRecording ? "text-stone-300" : "text-stone-500"}`}>{isRecording ? fmt(elapsed) : fmtInt(0)}</span>
       </div>
       <div className="flex items-center gap-2">
-        <label className={`inline-flex cursor-pointer items-center rounded-md border px-3 py-1.5 text-xs font-medium transition ${isUploading||isRecording?"pointer-events-none border-[#202631] text-stone-500 opacity-50":"border-[#394252] text-stone-300 hover:border-amber-500 hover:text-amber-300"}`}>
+        <label className={`inline-flex cursor-pointer items-center rounded-md border px-3 py-1.5 text-xs font-medium transition ${isUploading||isRecording?"pointer-events-none border-[#202631] text-stone-500 opacity-50":"border-[#394252] text-stone-300 hover:border-amber-500/40 hover:text-amber-400"}`}>
           Upload Audio File
           <input type="file" accept="audio/*,audio/mpeg,audio/wav,audio/webm,audio/mp4,audio/ogg" onChange={e=>void uploadFile(e.target.files?.[0] as File, (e.target.files?.[0] as File)?.name)} disabled={isUploading||isRecording} className="sr-only" />
         </label>
@@ -265,8 +265,8 @@ function MediaTranscriptAccordion({ transcript, isUnlocked }: { transcript?: str
   }
 
   return (
-    <div className="mt-4 rounded-md border border-amber-500/20 bg-[#0c1017]">
-      <button type="button" onClick={() => setIsOpen((open) => !open)} aria-expanded={isOpen} aria-controls={contentId} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold text-amber-300">
+    <div className="mt-4 rounded-md border border-amber-500/40 bg-[#0c1017]">
+      <button type="button" onClick={() => setIsOpen((open) => !open)} aria-expanded={isOpen} aria-controls={contentId} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs  text-amber-400">
         <Unlock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         Transcript
         <ChevronDown className={`ml-auto h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} aria-hidden="true" />
@@ -939,7 +939,7 @@ export default function LessonPage() {
       <div className="fluentia-study-room flex min-h-screen flex-col items-center justify-center bg-[#0c1017] px-5 py-16 text-center text-[#e8e7e4]">
         <h1 className="font-sans text-2xl text-[#f1eee8]">Lesson not found or still in draft</h1>
         <p className="mt-3 max-w-md text-sm text-[#8f98a8]">This lesson does not have a published version yet. Please return to your dashboard and try again later.</p>
-        <Link href="/dashboard" className="mt-6 inline-flex rounded-md bg-amber-500 px-4 py-2 text-xs font-semibold text-slate-950">Return to Dashboard</Link>
+        <Link href="/dashboard" className="mt-6 inline-flex rounded-md bg-amber-500/20 px-4 py-2 text-xs  text-amber-400">Return to Dashboard</Link>
       </div>
     );
   }
@@ -986,15 +986,15 @@ export default function LessonPage() {
         const article = (
         <article key={block.id} className="rounded-xl border border-[#202631] bg-[#121721] p-5">
           {block.title && <h3 className="mb-3 flex items-center gap-2 font-sans text-xl font-semibold text-stone-100">{block.icon && <DynamicLucideIcon name={block.icon} className="h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />}{block.title}</h3>}
-          {block.type === "text" && <><MarkdownContent value={block.body} className="text-sm leading-relaxed text-stone-300" />{hasStudentResponse(block) && (() => { const responseType = getStudentResponseType(block); if (responseType === "voice" || responseType === "audio") return <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />; if (responseType === "file") return <FileResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value } })} />; return <textarea value={submission.blockResponses?.[block.id] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [block.id]: event.target.value } })} rows={8} placeholder="Write your response here..." className="mt-4 w-full min-h-[200px] resize-y rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500" aria-label={`${block.title || "Text"} response`} />; })()}</>}
+          {block.type === "text" && <><MarkdownContent value={block.body} className="text-sm leading-relaxed text-stone-300" />{hasStudentResponse(block) && (() => { const responseType = getStudentResponseType(block); if (responseType === "voice" || responseType === "audio") return <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />; if (responseType === "file") return <FileResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value } })} />; return <textarea value={submission.blockResponses?.[block.id] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [block.id]: event.target.value } })} rows={8} placeholder="Write your response here..." className="mt-4 w-full min-h-[200px] resize-y rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" aria-label={`${block.title || "Text"} response`} />; })()}</>}
           {block.type === "audio" && <>{block.audioUrl && <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio assignment"} />}{block.allowStudentVoiceResponse === true && <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />}<MediaTranscriptAccordion transcript={block.transcript} isUnlocked={areTranscriptsUnlocked} /></>}
-          {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} transcriptLocked={!areTranscriptsUnlocked} />{!areTranscriptsUnlocked && <MediaTranscriptAccordion transcript={block.transcript} isUnlocked={false} />}{block.show_reflection_prompt !== false && block.reflection_prompt_text?.trim() && <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-4"><p className="text-sm font-semibold text-amber-200">Reflection Question</p><p className="mt-2 text-sm leading-relaxed text-stone-300">{block.reflection_prompt_text.trim()}</p><textarea value={submission.blockResponses?.[`${block.id}-reflection`] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [`${block.id}-reflection`]: event.target.value } })} rows={5} placeholder="Write your reflection here..." className="mt-3 w-full resize-y rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500" aria-label="Reflection question response" /></div>}</>}
+          {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} transcriptLocked={!areTranscriptsUnlocked} />{!areTranscriptsUnlocked && <MediaTranscriptAccordion transcript={block.transcript} isUnlocked={false} />}{block.show_reflection_prompt !== false && block.reflection_prompt_text?.trim() && <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/20 p-4"><p className="text-sm font-semibold text-amber-400">Reflection Question</p><p className="mt-2 text-sm leading-relaxed text-stone-300">{block.reflection_prompt_text.trim()}</p><textarea value={submission.blockResponses?.[`${block.id}-reflection`] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [`${block.id}-reflection`]: event.target.value } })} rows={5} placeholder="Write your reflection here..." className="mt-3 w-full resize-y rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" aria-label="Reflection question response" /></div>}</>}
           {block.type === "fill-in-the-blanks" && renderFillInTheBlanks(block)}
           {block.type === "writing" && <WritingBlockRenderer block={block} value={submission.writing_responses?.[block.id] || ""} onChange={(value) => void persistSubmission({ ...submission, writingText: value, writing_responses: { ...(submission.writing_responses || {}), [block.id]: value } })} />}
           {block.type === "image" && block.imageUrl && <figure><img src={block.imageUrl} alt={block.caption || block.title || "Lesson image"} className="max-h-[420px] w-full rounded-lg object-cover" onError={(e)=>{ (e.target as HTMLImageElement).style.display="none"; (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden"); }} /><div className="hidden rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Image unavailable — {block.caption || block.title || "Lesson image"}</div>{block.caption && <figcaption className="mt-2 text-xs text-stone-500">{block.caption}</figcaption>}</figure>}
-          {block.type === "resource" && block.resourceUrl && <a href={block.resourceUrl} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm text-amber-200 hover:border-amber-400">{block.description || "Open document"}<span aria-hidden="true">PDF</span></a>}
-          {block.type === "question" && <div className="space-y-5">{questionBlocks.map((questionBlock) => <div key={questionBlock.id} className="space-y-2">{questionBlock.id !== block.id && questionBlock.title && <h4 className="text-sm font-semibold text-stone-100">{questionBlock.title}</h4>}<MarkdownContent value={questionBlock.prompt} className="text-sm text-stone-300" />{(questionBlock.question_type || "multiple_choice") === "open_ended" ? <><textarea value={submission.blockResponses?.[questionBlock.id] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [questionBlock.id]: event.target.value } })} rows={7} placeholder="Write your response here..." className="min-h-[160px] w-full resize-y rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500" aria-label={`${questionBlock.title || "Question"} response`} />{questionBlock.sample_answer?.trim() && <><button type="button" onClick={() => setVisibleSampleAnswers((current) => ({ ...current, [questionBlock.id]: !current[questionBlock.id] }))} className="text-xs text-amber-300 hover:text-amber-200">{visibleSampleAnswers[questionBlock.id] ? "Hide sample answer" : "Show sample answer"}</button>{visibleSampleAnswers[questionBlock.id] && <MarkdownContent value={questionBlock.sample_answer} className="rounded border border-amber-500/20 bg-amber-500/5 p-3 text-sm text-stone-300" />}</>}</> : <div className="grid gap-2 sm:grid-cols-2">{questionBlock.options.filter(Boolean).map((option, optionIndex) => <button key={option} type="button" onClick={() => void persistSubmission({ ...submission, quizSelections: { ...(submission.quizSelections || {}), [questionBlock.id]: option } })} className={`rounded-md border px-3 py-2 text-left text-xs transition ${submission.quizSelections?.[questionBlock.id] === option ? "border-amber-500 bg-amber-500/10 text-amber-300" : "border-[#202631] bg-[#0c1017] text-stone-400 hover:border-amber-500/50 hover:text-amber-300"}`}>{formatQuestionOption(option, optionIndex, questionBlock.optionIndexingStyle)}</button>)}</div>}</div>)}</div>}
-          {block.type === "quiz" && <div className="space-y-4">{block.questions.map((question, questionIndex) => <div key={`${question.id || "question"}-${questionIndex}`}><MarkdownContent value={question.prompt} className="text-sm text-stone-300" /><div className="mt-2 grid gap-2 sm:grid-cols-2">{question.options.map((option, optionIndex) => <button key={`${question.id || "question"}-${questionIndex}-${optionIndex}`} type="button" onClick={() => void persistSubmission({ ...submission, quizSelections: { ...(submission.quizSelections || {}), [question.id]: option } })} className={`rounded-md border px-3 py-2 text-left text-xs transition ${submission.quizSelections?.[question.id] === option ? "border-amber-500 bg-amber-500/10 text-amber-300" : "border-[#202631] bg-[#0c1017] text-stone-400 hover:border-amber-500/50 hover:text-amber-300"}`}>{option}</button>)}</div></div>)}</div>}
+          {block.type === "resource" && block.resourceUrl && <a href={block.resourceUrl} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-lg border border-amber-500/40 bg-amber-500/20 p-4 text-sm text-amber-400 hover:border-amber-500/40">{block.description || "Open document"}<span aria-hidden="true">PDF</span></a>}
+          {block.type === "question" && <div className="space-y-5">{questionBlocks.map((questionBlock) => <div key={questionBlock.id} className="space-y-2">{questionBlock.id !== block.id && questionBlock.title && <h4 className="text-sm font-semibold text-stone-100">{questionBlock.title}</h4>}<MarkdownContent value={questionBlock.prompt} className="text-sm text-stone-300" />{(questionBlock.question_type || "multiple_choice") === "open_ended" ? <><textarea value={submission.blockResponses?.[questionBlock.id] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [questionBlock.id]: event.target.value } })} rows={7} placeholder="Write your response here..." className="min-h-[160px] w-full resize-y rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" aria-label={`${questionBlock.title || "Question"} response`} />{questionBlock.sample_answer?.trim() && <><button type="button" onClick={() => setVisibleSampleAnswers((current) => ({ ...current, [questionBlock.id]: !current[questionBlock.id] }))} className="text-xs text-amber-400 hover:text-amber-400">{visibleSampleAnswers[questionBlock.id] ? "Hide sample answer" : "Show sample answer"}</button>{visibleSampleAnswers[questionBlock.id] && <MarkdownContent value={questionBlock.sample_answer} className="rounded border border-amber-500/40 bg-amber-500/20 p-3 text-sm text-stone-300" />}</>}</> : <div className="grid gap-2 sm:grid-cols-2">{questionBlock.options.filter(Boolean).map((option, optionIndex) => <button key={option} type="button" onClick={() => void persistSubmission({ ...submission, quizSelections: { ...(submission.quizSelections || {}), [questionBlock.id]: option } })} className={`rounded-md border px-3 py-2 text-left text-xs transition ${submission.quizSelections?.[questionBlock.id] === option ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-[#202631] bg-[#0c1017] text-stone-400 hover:border-amber-500/40 hover:text-amber-400"}`}>{formatQuestionOption(option, optionIndex, questionBlock.optionIndexingStyle)}</button>)}</div>}</div>)}</div>}
+          {block.type === "quiz" && <div className="space-y-4">{block.questions.map((question, questionIndex) => <div key={`${question.id || "question"}-${questionIndex}`}><MarkdownContent value={question.prompt} className="text-sm text-stone-300" /><div className="mt-2 grid gap-2 sm:grid-cols-2">{question.options.map((option, optionIndex) => <button key={`${question.id || "question"}-${questionIndex}-${optionIndex}`} type="button" onClick={() => void persistSubmission({ ...submission, quizSelections: { ...(submission.quizSelections || {}), [question.id]: option } })} className={`rounded-md border px-3 py-2 text-left text-xs transition ${submission.quizSelections?.[question.id] === option ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-[#202631] bg-[#0c1017] text-stone-400 hover:border-amber-500/40 hover:text-amber-400"}`}>{option}</button>)}</div></div>)}</div>}
         </article>
         );
         const sidebarContent = (
@@ -1029,13 +1029,13 @@ export default function LessonPage() {
           )}
           <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/60 to-transparent" aria-hidden="true" />
           <div className="relative z-10 flex w-full flex-col items-start gap-3 px-4 pb-8 pt-6 text-left md:px-6">
-            <span className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/40 rounded-md">{lessonLevel} - MODULE {lessonModuleNumber ?? 1}</span>
+            <span className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 bg-amber-500/20 border border-amber-500/40 rounded-md">{lessonLevel} - MODULE {lessonModuleNumber ?? 1}</span>
             <h1 className="font-sans text-2xl font-bold text-[#f1eee8] md:text-3xl">
               {displayLessonTitle || lesson.title}
             </h1>
             {lessonSubtitle && <p className="text-xs text-[#b5bac2]">{lessonSubtitle}</p>}
-            <div className="mt-7 flex items-center gap-2 text-[11px] text-[#9ba1aa]"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#283344] text-[9px] font-semibold text-[#d9a63b]">{instructor.initials}</span>Guided by {instructor.fullName}</div>
-            <div className="w-12 h-12 rounded-full border-2 border-[#F59E0B] bg-transparent flex items-center justify-center p-1.5 mt-3"><img src="/logo.png" alt="Fluentia" className="w-full h-full object-contain" /></div>
+            <div className="mt-7 flex items-center gap-2 text-[11px] text-[#9ba1aa]"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#283344] text-[9px] font-semibold text-amber-400">{instructor.initials}</span>Guided by {instructor.fullName}</div>
+            <div className="w-12 h-12 rounded-full border-2 border-amber-500/40 bg-transparent flex items-center justify-center p-1.5 mt-3"><img src="/logo.png" alt="Fluentia" className="w-full h-full object-contain" /></div>
           </div>
         </section>
       )}
@@ -1047,8 +1047,8 @@ export default function LessonPage() {
           <div className="flex flex-wrap items-center gap-2">
             <AmbientMusicPlayer src={lessonContent.ambientMusicUrl} studentScope={activeStudent?.id || activeStudent?.token || lesson?.student_id || lesson?.student_token || "student"} />
             <StudyRoomTimer />
-            {((typeof lesson.instructor_note === "string" && lesson.instructor_note.trim()) || (typeof rawLessonContent.instructorGuidance === "string" && rawLessonContent.instructorGuidance.trim())) && <Tooltip content="Open lesson guidance"><button type="button" onClick={() => setGuidanceOpen((open) => !open)} aria-expanded={guidanceOpen} aria-label="Open lesson guidance" className={`flex h-8 w-8 items-center justify-center rounded-md border bg-transparent transition-colors ${guidanceOpen ? "border-amber-500 text-amber-400" : "border-slate-700/50 text-slate-400 hover:border-slate-600 hover:text-slate-200"}`}><Lightbulb className="h-4 w-4" /></button></Tooltip>}
-            <Tooltip content="Open your notes, resources, and study tools"><button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex h-8 items-center gap-1.5 rounded-md border bg-transparent px-3 text-xs transition-colors ${sidebarOpen ? "border-amber-500 text-amber-400" : "border-slate-700/50 text-slate-400 hover:border-slate-600 hover:text-slate-200"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button></Tooltip>
+            {((typeof lesson.instructor_note === "string" && lesson.instructor_note.trim()) || (typeof rawLessonContent.instructorGuidance === "string" && rawLessonContent.instructorGuidance.trim())) && <Tooltip content="Open lesson guidance"><button type="button" onClick={() => setGuidanceOpen((open) => !open)} aria-expanded={guidanceOpen} aria-label="Open lesson guidance" className={`flex h-8 w-8 items-center justify-center rounded-md border bg-transparent transition-colors ${guidanceOpen ? "border-amber-500/40 text-amber-400" : "border-slate-700/50 text-slate-400 hover:border-slate-600 hover:text-slate-200"}`}><Lightbulb className="h-4 w-4" /></button></Tooltip>}
+            <Tooltip content="Open your notes, resources, and study tools"><button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex h-8 items-center gap-1.5 rounded-md border bg-transparent px-3 text-xs transition-colors ${sidebarOpen ? "border-amber-500/40 text-amber-400" : "border-slate-700/50 text-slate-400 hover:border-slate-600 hover:text-slate-200"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button></Tooltip>
             <Tooltip content="Look up a word"><button type="button" onClick={() => setDictionaryWord("")} aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-700/50 bg-transparent text-slate-400 transition-colors hover:border-slate-600 hover:text-slate-200"><BookOpen className="w-4 h-4" /></button></Tooltip>
             <Tooltip content="Display and appearance"><DisplaySettingsControl /></Tooltip>
             <Tooltip content="Return to your course overview"><Link href="/dashboard" className="flex h-8 items-center gap-1 rounded-md border border-slate-700/50 bg-transparent px-3 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-slate-200"><ChevronRight className="h-3 w-3 rotate-180" />Course overview</Link></Tooltip>
@@ -1077,7 +1077,7 @@ export default function LessonPage() {
           {currentStep === "warm_up" && (
             <section className="space-y-5">
               {lessonContent.warm_up?.blocks?.length ? renderDynamicBlocks(lessonContent.warm_up.blocks) : <>
-              {(lessonContent.warm_up?.intro_narrative?.text || lessonContent.warm_up?.quote?.text || lessonContent.warm_up?.quick_prompts?.length) && <div id="lesson-content" className="flex items-center gap-2 text-[#d99d22]">
+              {(lessonContent.warm_up?.intro_narrative?.text || lessonContent.warm_up?.quote?.text || lessonContent.warm_up?.quick_prompts?.length) && <div id="lesson-content" className="flex items-center gap-2 text-amber-400">
                 <Sparkles className="h-3.5 w-3.5 fill-current" />
                 <span className="text-[11px] font-semibold uppercase tracking-[0.14em]">Warm-up</span>
               </div>}
@@ -1091,7 +1091,7 @@ export default function LessonPage() {
               <textarea
                 value={submission.blockResponses?.warm_up || ""}
                 onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), warm_up: event.target.value } })}
-                className="mt-2 w-full min-h-[200px] resize-y rounded-[10px] border border-[#29303c] bg-[#171d28] px-5 py-5 text-[15px] leading-relaxed text-[#d9dce0] placeholder-[#7b8290] shadow-[0_8px_24px_rgba(0,0,0,.12)] transition-colors placeholder:text-[13px] focus:border-[#8d702f] focus:outline-none focus:ring-1 focus:ring-[#8d702f]/30"
+                className="mt-2 w-full min-h-[200px] resize-y rounded-[10px] border border-[#29303c] bg-[#171d28] px-5 py-5 text-[15px] leading-relaxed text-[#d9dce0] placeholder-[#7b8290] shadow-[0_8px_24px_rgba(0,0,0,.12)] transition-colors placeholder:text-[13px] focus:border-amber-500/40 focus:outline-none focus:ring-1 focus:ring-amber-500/40"
                 rows={8}
                 placeholder=""
               />
@@ -1154,7 +1154,7 @@ export default function LessonPage() {
                           key={option}
                           type="button"
                           onClick={() => persistSubmission({ ...submission, listeningAnswers: { ...submission.listeningAnswers, [question.id]: option } })}
-                          className={`rounded-md border px-3 py-2 text-left text-xs transition ${submission.listeningAnswers[question.id] === option ? "border-amber-500 bg-amber-500/10 text-amber-300" : "border-[#202631] bg-[#0c1017] text-stone-400 hover:border-amber-500/50"}`}
+                          className={`rounded-md border px-3 py-2 text-left text-xs transition ${submission.listeningAnswers[question.id] === option ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-[#202631] bg-[#0c1017] text-stone-400 hover:border-amber-500/40"}`}
                         >
                           {option}
                         </button>
@@ -1186,7 +1186,7 @@ export default function LessonPage() {
               )}
               <div className="flex flex-wrap gap-2">
                 {(lessonContent.reading?.vocabulary_drawer || []).map((item: { word: string; definition: string }) => (
-                  <span key={item.word} className="rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-xs text-amber-300">
+                  <span key={item.word} className="rounded-md border border-amber-500/40 bg-amber-500/20 px-2 py-1 text-xs text-amber-400">
                     {item.word}: {item.definition}
                   </span>
                 ))}
@@ -1261,7 +1261,7 @@ export default function LessonPage() {
           {/* Results */}
           {currentStep === "results" && (
             <section className="mx-auto max-w-6xl space-y-6 py-8">
-              <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto">
+              <div className="w-16 h-16 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center mx-auto">
                 <Award className="w-8 h-8 text-amber-400" />
               </div>
               <div className="space-y-2 text-center">
@@ -1298,7 +1298,7 @@ export default function LessonPage() {
               {(lessonContent.warm_up?.lexicon_notes?.text || lessonContent.lesson || lessonContent.reading || lessonContent.writing || lessonContent.speaking) && <div className="rounded-xl border border-[#202631] bg-[#121721] p-5 text-left">
                 <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">Recommended review</p>
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={() => setSidebarOpen(true)} className="rounded-md border border-amber-500/20 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-300 hover:bg-amber-500/20">Review lexicon notes</button>
+                  <button type="button" onClick={() => setSidebarOpen(true)} className="rounded-md border border-amber-500/40 bg-amber-500/20 px-2.5 py-1.5 text-xs text-amber-400 hover:bg-amber-500/20">Review lexicon notes</button>
                   <button type="button" onClick={() => setCurrentStep("warm_up")} className="rounded-md border border-[#394252] bg-[#171d28] px-2.5 py-1.5 text-xs text-stone-300 hover:border-amber-500/40">Revisit lesson content</button>
                 </div>
               </div>}
@@ -1330,7 +1330,7 @@ export default function LessonPage() {
             </button></Tooltip>
             <Tooltip content={currentIndex === STUDY_STEPS.length - 2 ? "Finish the lesson and view your results" : "Continue to the next lesson step"}><button
               onClick={handleNext}
-              className="flex items-center gap-2 rounded-lg bg-amber-500 px-6 py-2.5 text-[12px] font-bold text-slate-950 shadow-md transition-all hover:bg-amber-400"
+              className="flex items-center gap-2 rounded-lg bg-amber-500/20 px-6 py-2.5 text-[12px]  text-amber-400 shadow-md transition-all hover:bg-amber-500/20"
             >
               {currentIndex === STUDY_STEPS.length - 2 ? (
                 <>
@@ -1387,8 +1387,8 @@ export default function LessonPage() {
         }}
       />
       <div className={`fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm transition-opacity duration-300 ease-in-out ${guidanceOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`} role="presentation" onClick={() => setGuidanceOpen(false)} aria-hidden={!guidanceOpen}>
-        <aside className={`absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-amber-500/20 bg-[#0c1017]/95 p-5 text-stone-200 shadow-2xl backdrop-blur-md transition-transform duration-300 ease-in-out ${guidanceOpen ? "translate-x-0" : "translate-x-full"}`} role="dialog" aria-modal={guidanceOpen} aria-labelledby="lesson-guidance-title" onClick={(event) => event.stopPropagation()}>
-          <div className="flex items-center justify-between border-b border-[#293343] pb-4"><h2 id="lesson-guidance-title" className="flex items-center gap-2 text-sm font-semibold text-amber-300"><Lightbulb className="h-4 w-4" />Lesson Guidance</h2><button type="button" onClick={() => setGuidanceOpen(false)} aria-label="Close lesson guidance" className="rounded-md p-2 text-stone-400 transition hover:bg-white/10 hover:text-stone-100"><X className="h-4 w-4" /></button></div>
+        <aside className={`absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-amber-500/40 bg-[#0c1017]/95 p-5 text-stone-200 shadow-2xl backdrop-blur-md transition-transform duration-300 ease-in-out ${guidanceOpen ? "translate-x-0" : "translate-x-full"}`} role="dialog" aria-modal={guidanceOpen} aria-labelledby="lesson-guidance-title" onClick={(event) => event.stopPropagation()}>
+          <div className="flex items-center justify-between border-b border-[#293343] pb-4"><h2 id="lesson-guidance-title" className="flex items-center gap-2 text-sm font-semibold text-amber-400"><Lightbulb className="h-4 w-4" />Lesson Guidance</h2><button type="button" onClick={() => setGuidanceOpen(false)} aria-label="Close lesson guidance" className="rounded-md p-2 text-stone-400 transition hover:bg-white/10 hover:text-stone-100"><X className="h-4 w-4" /></button></div>
           <div className="min-h-0 flex-1 overflow-y-auto py-5"><MarkdownContent value={(lesson.instructor_note || rawLessonContent.instructorGuidance) as string} className="text-sm leading-relaxed text-stone-300" /></div>
         </aside>
       </div>

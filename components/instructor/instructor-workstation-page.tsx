@@ -65,7 +65,7 @@ function StepSidebarEditorPanel({
             ...current,
             [sidebarStep]: [...(current[sidebarStep] || []), { id: `sidebar-${Date.now()}`, title: "Sidebar note", body: "" }],
           }))}
-          className="inline-flex min-h-9 items-center gap-1.5 rounded border border-amber-500/40 bg-[#0c1017] px-3 text-xs font-normal text-stone-200 transition hover:border-amber-500/80"
+          className="inline-flex min-h-9 items-center gap-1.5 rounded border border-amber-500/40 bg-[#0c1017] px-3 text-xs font-normal text-stone-200 transition hover:border-amber-500/40"
         >
           <Plus className="h-3.5 w-3.5" /> Add Block
         </button>
@@ -91,7 +91,7 @@ function StepSidebarEditorPanel({
                   ...current,
                   [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, title: event.target.value } : item),
                 }))}
-                className="h-9 min-w-0 flex-1 rounded border border-[#394252] bg-[#0c1017] px-2.5 text-xs font-semibold text-stone-200 outline-none focus:border-amber-500"
+                className="h-9 min-w-0 flex-1 rounded border border-[#394252] bg-[#0c1017] px-2.5 text-xs font-semibold text-stone-200 outline-none focus:border-amber-500/40"
                 aria-label="Sidebar block title"
               />
               <button
@@ -126,7 +126,7 @@ function StepSidebarEditorPanel({
                   ...current,
                   [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, parentMainBlockId: event.target.value || undefined } : item),
                 }))}
-                className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark] focus:border-amber-500"
+                className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark] focus:border-amber-500/40"
                 aria-label={`Align ${block.title || "sidebar block"} next to main block`}
               >
                 <option value="">Top of Sidebar (Default Unlinked)</option>
@@ -374,7 +374,7 @@ function AudioTranscriptAccordion({ resourceId, transcript }: { resourceId: stri
         aria-expanded={isExpanded}
         aria-controls={contentId}
         onClick={() => setIsExpanded((expanded) => !expanded)}
-        className="flex w-full items-center justify-between gap-3 border-b border-[#293343] px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-400 transition hover:bg-amber-500/5 hover:text-amber-300"
+        className="flex w-full items-center justify-between gap-3 border-b border-[#293343] px-3 py-2 text-left text-[10px]  uppercase tracking-[0.14em] text-stone-400 transition hover:bg-amber-500/20 hover:text-amber-400"
       >
         <span>Transcript</span>
         <ChevronDown className={`h-4 w-4 shrink-0 text-amber-400 transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`} aria-hidden="true" />
@@ -383,7 +383,7 @@ function AudioTranscriptAccordion({ resourceId, transcript }: { resourceId: stri
         <div className="min-h-0 overflow-hidden">
           {transcriptLines.length > 0 ? <div className="divide-y divide-[#202631]">
             {transcriptLines.map((line, index) => <div key={`${line.seconds}-${index}`} className="flex items-start gap-3 px-3 py-2.5">
-              <span className="shrink-0 rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-amber-300">{line.timestamp}</span>
+              <span className="shrink-0 rounded border border-amber-500/40 bg-amber-500/20 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-amber-400">{line.timestamp}</span>
               <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-stone-300">{line.text}</p>
             </div>)}
           </div> : <p className="whitespace-pre-wrap break-words p-3 text-xs leading-relaxed text-stone-300">{transcript}</p>}
@@ -2294,9 +2294,9 @@ export default function InstructorWorkstationPage({
         ? "In Progress"
         : "Not Started";
   const submissionStateClass = submissionState === "Evaluated"
-    ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
+    ? "border-amber-500/40 bg-amber-500/20 text-amber-400"
     : submissionState === "Pending Evaluation"
-      ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
+      ? "border-amber-500/40 bg-amber-500/20 text-amber-400"
       : "border-[#394252] bg-[#171d28] text-stone-400";
   const submittedAnswers = workstationState.submission;
   const reviewContent = workstationState.content as Record<string, any>;
@@ -2406,8 +2406,8 @@ export default function InstructorWorkstationPage({
       }
       return (
         <div className="space-y-4">
-          <div className="rounded-lg border border-amber-500/20 bg-[#0c1017] p-4 text-sm text-stone-400">Results — correct answers as the student will see after submission.</div>
-          {Object.keys(answerKeys).length? Object.entries(answerKeys).map(([id,ans])=><div key={id} className="rounded-lg border border-[#293343] bg-[#0c1017] p-3"><p className="text-xs text-stone-500">{id}</p><p className="text-sm text-amber-200">{ans}</p></div>) : <p className="text-xs text-stone-500">No answer keys configured.</p>}
+          <div className="rounded-lg border border-amber-500/40 bg-[#0c1017] p-4 text-sm text-stone-400">Results — correct answers as the student will see after submission.</div>
+          {Object.keys(answerKeys).length? Object.entries(answerKeys).map(([id,ans])=><div key={id} className="rounded-lg border border-[#293343] bg-[#0c1017] p-3"><p className="text-xs text-stone-500">{id}</p><p className="text-sm text-amber-400">{ans}</p></div>) : <p className="text-xs text-stone-500">No answer keys configured.</p>}
         </div>
       );
     }
@@ -2433,9 +2433,9 @@ export default function InstructorWorkstationPage({
           {block.type === "text" && <>{<MarkdownContent value={block.body || ""} className="text-sm leading-relaxed text-stone-300" />}{block.hasStudentResponseInput === true && <textarea rows={6} placeholder="Write your response here..." readOnly className="mt-4 min-h-[140px] w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" aria-label="Student response field preview" />}</>}
           {block.type === "image" && <>{block.imageUrl && <img src={block.imageUrl} alt={block.caption || block.title || "Lesson image"} className="max-h-72 w-full rounded-md object-cover" onError={(e)=>{(e.target as HTMLImageElement).style.display="none";}} />}{block.caption && <p className="mt-2 text-xs text-stone-500">{block.caption}</p>}</>}
           {block.type === "audio" && block.audioUrl && <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio lesson"} />}
-          {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} />{block.show_reflection_prompt !== false && block.reflection_prompt_text?.trim() && <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-4"><p className="text-sm font-semibold text-amber-200">Reflection Question</p><p className="mt-2 text-sm leading-relaxed text-stone-300">{block.reflection_prompt_text.trim()}</p><textarea rows={4} placeholder="Write your reflection here..." readOnly className="mt-3 w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" aria-label="Reflection question response preview" /></div>}</>}
-          {block.type === "resource" && block.resourceUrl && <a href={block.resourceUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-200 hover:border-amber-400">Open document{block.description ? `: ${block.description}` : ""}</a>}
-          {block.type === "question" && <div className="space-y-2"><MarkdownContent value={block.prompt || ""} className="text-sm text-stone-300" />{(block.question_type || "multiple_choice") === "open_ended" ? <><textarea rows={6} placeholder="Student response" readOnly className="min-h-[140px] w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" />{block.sample_answer && <MarkdownContent value={block.sample_answer} className="rounded border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-stone-300" />}</> : <div className="flex flex-wrap gap-2">{block.options.filter(Boolean).map((option) => <span key={option} className="rounded border border-[#394252] px-2 py-1 text-xs text-stone-400">{option}</span>)}</div>}</div>}
+          {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} />{block.show_reflection_prompt !== false && block.reflection_prompt_text?.trim() && <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/20 p-4"><p className="text-sm font-semibold text-amber-400">Reflection Question</p><p className="mt-2 text-sm leading-relaxed text-stone-300">{block.reflection_prompt_text.trim()}</p><textarea rows={4} placeholder="Write your reflection here..." readOnly className="mt-3 w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" aria-label="Reflection question response preview" /></div>}</>}
+          {block.type === "resource" && block.resourceUrl && <a href={block.resourceUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded border border-amber-500/40 bg-amber-500/20 p-3 text-sm text-amber-400 hover:border-amber-500/40">Open document{block.description ? `: ${block.description}` : ""}</a>}
+          {block.type === "question" && <div className="space-y-2"><MarkdownContent value={block.prompt || ""} className="text-sm text-stone-300" />{(block.question_type || "multiple_choice") === "open_ended" ? <><textarea rows={6} placeholder="Student response" readOnly className="min-h-[140px] w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" />{block.sample_answer && <MarkdownContent value={block.sample_answer} className="rounded border border-amber-500/40 bg-amber-500/20 p-3 text-xs text-stone-300" />}</> : <div className="flex flex-wrap gap-2">{block.options.filter(Boolean).map((option) => <span key={option} className="rounded border border-[#394252] px-2 py-1 text-xs text-stone-400">{option}</span>)}</div>}</div>}
           {block.type === "quiz" && <div className="space-y-3">{(block.questions || []).map((question, index) => <div key={`${block.id}-${index}`}><MarkdownContent value={question.prompt || ""} className="text-sm text-stone-300" /><div className="mt-2 flex flex-wrap gap-2">{question.options.filter(Boolean).map((option) => <span key={option} className="rounded border border-[#394252] px-2 py-1 text-xs text-stone-400">{option}</span>)}</div></div>)}</div>}
           {block.type === "writing" && <WritingBlockRenderer block={block} isPreview />}
         </article>
@@ -2562,14 +2562,14 @@ export default function InstructorWorkstationPage({
 </div>
           {activeTab === "builder" && <div className="flex min-w-0 flex-col items-stretch gap-2 md:items-end">
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold ${lessonStatus === "published" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/30 bg-amber-500/10 text-amber-300"}`}><span className={`h-1.5 w-1.5 rounded-full ${lessonStatus === "published" ? "bg-emerald-400" : "bg-amber-400"}`} />{lessonStatus === "published" ? "Published" : "Draft"}</span>
-              <button type="button" aria-pressed={isSplitPreviewOpen} onClick={() => setIsSplitPreviewOpen((open) => !open)} className={`rounded border px-2.5 py-1.5 text-[11px] font-medium transition ${isSplitPreviewOpen ? "border-amber-500/60 bg-amber-500/10 text-amber-300" : "border-[#394252] bg-[#0c1017] text-stone-300 hover:border-amber-500/50 hover:text-stone-100"}`}>Split Preview</button>
-              <button type="button" onClick={() => { window.open("/instructor/preview", "fluentia-student-live-preview"); }} className="rounded border border-[#394252] bg-[#0c1017] px-2.5 py-1.5 text-[11px] font-medium text-stone-300 transition hover:border-amber-500/50 hover:text-stone-100">Pop-out Preview</button>
-              <Tooltip content="Save the current lesson draft"><button type="button" onClick={handleSaveDraft} className="rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-amber-400">Save Changes</button></Tooltip>
-              {lessonStatus === "published" ? <Tooltip content="Remove this lesson from student access"><button type="button" onClick={handleUnpublish} disabled={isPublishing || !databaseLessonId} className="rounded-md border border-[#394252] px-3 py-2 text-xs font-semibold text-stone-300 transition hover:border-red-400 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50">Unpublish</button></Tooltip> : <Tooltip content="Publish this lesson for students"><button type="button" onClick={handleConfirmPublish} disabled={isPublishing} className="rounded-md border border-[#394252] px-3 py-2 text-xs font-semibold text-stone-300 transition hover:border-amber-500/60 hover:text-amber-300 disabled:cursor-wait disabled:opacity-60">Publish</button></Tooltip>}
+              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold ${lessonStatus === "published" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/40 bg-amber-500/20 text-amber-400"}`}><span className={`h-1.5 w-1.5 rounded-full ${lessonStatus === "published" ? "bg-emerald-400" : "bg-amber-500/20"}`} />{lessonStatus === "published" ? "Published" : "Draft"}</span>
+              <button type="button" aria-pressed={isSplitPreviewOpen} onClick={() => setIsSplitPreviewOpen((open) => !open)} className={`rounded border px-2.5 py-1.5 text-[11px]  transition ${isSplitPreviewOpen ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-[#394252] bg-[#0c1017] text-stone-300 hover:border-amber-500/40 hover:text-stone-100"}`}>Split Preview</button>
+              <button type="button" onClick={() => { window.open("/instructor/preview", "fluentia-student-live-preview"); }} className="rounded border border-[#394252] bg-[#0c1017] px-2.5 py-1.5 text-[11px]  text-stone-300 transition hover:border-amber-500/40 hover:text-stone-100">Pop-out Preview</button>
+              <Tooltip content="Save the current lesson draft"><button type="button" onClick={handleSaveDraft} className="rounded-md bg-amber-500/20 px-3 py-2 text-xs  text-amber-400 transition hover:bg-amber-500/20">Save Changes</button></Tooltip>
+              {lessonStatus === "published" ? <Tooltip content="Remove this lesson from student access"><button type="button" onClick={handleUnpublish} disabled={isPublishing || !databaseLessonId} className="rounded-md border border-[#394252] px-3 py-2 text-xs  text-stone-300 transition hover:border-red-400 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50">Unpublish</button></Tooltip> : <Tooltip content="Publish this lesson for students"><button type="button" onClick={handleConfirmPublish} disabled={isPublishing} className="rounded-md border border-[#394252] px-3 py-2 text-xs  text-stone-300 transition hover:border-amber-500/40 hover:text-amber-400 disabled:cursor-wait disabled:opacity-60">Publish</button></Tooltip>}
             </div>
             <div className="flex min-h-5 w-full max-w-xl justify-end gap-3 text-xs" aria-live="polite">
-              {publishStatus && <span className="truncate text-amber-300">{publishStatus}</span>}
+              {publishStatus && <span className="truncate text-amber-400">{publishStatus}</span>}
               {databaseLessonId && <span className={saveIndicator === "error" ? "text-red-300" : "text-stone-500"}>{saveIndicator === "saving" ? "Saving" : saveIndicator === "saved" ? "Saved" : saveIndicator === "error" ? "Save failed" : "Ready"}</span>}
             </div>
           </div>}
@@ -2578,7 +2578,7 @@ export default function InstructorWorkstationPage({
         <nav className="sticky top-0 z-20 mb-8 border-b border-[#202631] bg-[#0c1017]/95 backdrop-blur" aria-label="Instructor workstation views">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-0 flex-wrap gap-x-1">
-              {([["dashboard", "Dashboard"], ["students", "Students Directory"], ["instructors", "Instructors Directory"], ["library", "Lesson Library"], ["builder", "Lesson Builder"], ["evaluation", "Student Evaluation"], ["music", "Music Library"]] as const).map(([tab, label]) => <Tooltip key={tab} content={`Open ${label}`}><button type="button" onClick={() => handleWorkspaceTabChange(tab)} className={`whitespace-nowrap border-b-2 px-3 py-3 text-xs font-semibold transition sm:px-4 ${activeTab === tab ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}>{label}</button></Tooltip>)}
+              {([["dashboard", "Dashboard"], ["students", "Students Directory"], ["instructors", "Instructors Directory"], ["library", "Lesson Library"], ["builder", "Lesson Builder"], ["evaluation", "Student Evaluation"], ["music", "Music Library"]] as const).map(([tab, label]) => <Tooltip key={tab} content={`Open ${label}`}><button type="button" onClick={() => handleWorkspaceTabChange(tab)} className={`whitespace-nowrap border-b-2 px-3 py-3 text-xs  transition sm:px-4 ${activeTab === tab ? "border-amber-500/40 text-amber-400" : "border-transparent text-stone-500 hover:text-stone-200"}`}>{label}</button></Tooltip>)}
             </div>
             <Tooltip content="Display and appearance"><DisplaySettingsControl /></Tooltip>
           </div>
@@ -2586,22 +2586,22 @@ export default function InstructorWorkstationPage({
 
         {activeTab === "dashboard" && <section className="space-y-6" aria-label="Instructor dashboard overview">
           <div className="grid items-start gap-4 md:grid-cols-4">
-            <button type="button" onClick={() => setActiveTab("evaluation")} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-left transition hover:border-amber-500/60">
+            <button type="button" onClick={() => setActiveTab("evaluation")} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-left transition hover:border-amber-500/40">
 <p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Pending Evaluations</p>
-<p className="mt-2 text-2xl font-semibold text-stone-100">{pendingSubmissionCount}</p>
+<p className="mt-2 text-2xl  text-stone-100">{pendingSubmissionCount}</p>
 <p className="mt-1 text-xs text-stone-500">Student submissions awaiting review</p>
 </button>
-            <button type="button" onClick={() => handleWorkspaceTabChange("builder")} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-left transition hover:border-amber-500/60">
+            <button type="button" onClick={() => handleWorkspaceTabChange("builder")} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-left transition hover:border-amber-500/40">
 <p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Drafts</p>
-<p className="mt-2 text-2xl font-semibold text-stone-100">{draftLessonCount}</p>
+<p className="mt-2 text-2xl  text-stone-100">{draftLessonCount}</p>
 <p className="mt-1 text-xs text-stone-500">Open the lesson builder</p>
 </button>
-            <button type="button" onClick={() => handleWorkspaceTabChange("builder")} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-left transition hover:border-amber-500/60">
+            <button type="button" onClick={() => handleWorkspaceTabChange("builder")} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-left transition hover:border-amber-500/40">
 <p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Published Lessons</p>
-<p className="mt-2 text-2xl font-semibold text-stone-100">{publishedLessonCount}</p>
+<p className="mt-2 text-2xl  text-stone-100">{publishedLessonCount}</p>
 <p className="mt-1 text-xs text-stone-500">Open the lesson builder</p>
 </button>
-            <details open={activeStudentsOpen} onToggle={(event) => setActiveStudentsOpen(event.currentTarget.open)} className="relative self-start rounded-xl border border-[#202631] bg-[#171d28]/60 text-left transition hover:border-amber-500/60">
+            <details open={activeStudentsOpen} onToggle={(event) => setActiveStudentsOpen(event.currentTarget.open)} className="relative self-start rounded-xl border border-[#202631] bg-[#171d28]/60 text-left transition hover:border-amber-500/40">
               <summary className="flex cursor-pointer list-none items-start justify-between p-5 [&::-webkit-details-marker]:hidden">
                 <span>
                   <span className="block text-[10px] uppercase tracking-[0.14em] text-amber-400">Active Students</span>
@@ -2634,7 +2634,7 @@ export default function InstructorWorkstationPage({
         <p className="truncate text-xs text-stone-500">{lessonTitle}</p>
         {pendingSubmission.submittedAt && <p className="mt-1 text-[10px] text-stone-600">{new Date(pendingSubmission.submittedAt).toLocaleString()}</p>}
       </div>
-      <button type="button" onClick={() => reviewPendingSubmission(pendingSubmission)} className="shrink-0 rounded-md border border-amber-500/40 px-3 py-2 text-xs font-semibold text-amber-300 hover:border-amber-400 hover:bg-amber-500/10">Review</button>
+      <button type="button" onClick={() => reviewPendingSubmission(pendingSubmission)} className="shrink-0 rounded-md border border-amber-500/40 px-3 py-2 text-xs  text-amber-400 hover:border-amber-500/40 hover:bg-amber-500/20">Review</button>
     </li>;
   })}
 </ul>}
@@ -2642,7 +2642,7 @@ export default function InstructorWorkstationPage({
 <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
 <h2 className="font-sans text-xl font-semibold text-stone-100">Recent Activity</h2>
 <p className="mt-3 text-sm text-stone-400">{selectedStudent ? `${selectedStudent.name} is the active student workspace.` : "Choose a student to open a workspace."}</p>
-<button type="button" onClick={() => setActiveTab("evaluation")} className="mt-4 text-xs font-semibold text-amber-300 hover:text-amber-200">Review student work</button>
+<button type="button" onClick={() => setActiveTab("evaluation")} className="mt-4 text-xs  text-amber-400 hover:text-amber-400">Review student work</button>
 </div>
 </div>
           {false && <section className="overflow-visible rounded-xl border border-[#202631] bg-[#171d28]/60" aria-labelledby="lesson-management-title">
@@ -2653,7 +2653,7 @@ export default function InstructorWorkstationPage({
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-xs text-stone-500">{createdLessons.length} lessons</span>
-                <button type="button" onClick={startNewLesson} className="rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-amber-400">Create New Lesson</button>
+                <button type="button" onClick={startNewLesson} className="rounded-md bg-amber-500/20 px-3 py-2 text-xs  text-amber-400 transition hover:bg-amber-500/20">Create New Lesson</button>
               </div>
             </div>
             <div className="overflow-visible">
@@ -2670,14 +2670,14 @@ export default function InstructorWorkstationPage({
                 </thead>
                 <tbody className="divide-y divide-[#202631]">
                   {createdLessons.map((lesson) => <tr key={lesson.id} onClick={() => handleEditLesson(lesson)} className="cursor-pointer text-stone-300 transition hover:bg-[#202631]/30">
-                    <td className="min-w-0 px-5 py-4"><button type="button" onClick={() => handleEditLesson(lesson)} className="block min-w-0 max-w-full text-left"><p className="truncate font-semibold text-stone-100" title={lesson.title}>{lesson.title}</p><p className="mt-1 truncate text-[11px] text-stone-400" title={lesson.content?.subtitle || lesson.subtitle || "No subtitle"}>{lesson.content?.subtitle || lesson.subtitle || "No subtitle"}</p><p className="mt-1 truncate text-[10px] text-stone-600" title={lesson.content?.slug || lesson.id}>{lesson.content?.slug || lesson.id}</p></button></td>
+                    <td className="min-w-0 px-5 py-4"><button type="button" onClick={() => handleEditLesson(lesson)} className="block min-w-0 max-w-full text-left"><p className="truncate  text-stone-100" title={lesson.title}>{lesson.title}</p><p className="mt-1 truncate text-[11px] text-stone-400" title={lesson.content?.subtitle || lesson.subtitle || "No subtitle"}>{lesson.content?.subtitle || lesson.subtitle || "No subtitle"}</p><p className="mt-1 truncate text-[10px] text-stone-600" title={lesson.content?.slug || lesson.id}>{lesson.content?.slug || lesson.id}</p></button></td>
                     <td className="min-w-0 px-4 py-4 text-stone-300" onClick={(event) => event.stopPropagation()}><div className="flex min-w-0 items-center gap-2">{renderAssignedStudents(lesson)}<select defaultValue="" onChange={(event) => void handleAssignmentChange(lesson, event.target.value)} aria-label={`Assign ${lesson.title} to a student`} className="w-[4.5rem] shrink-0 rounded-md border border-amber-500/40 bg-[#0c1017] px-2 py-1.5 text-[11px] text-white outline-none [color-scheme:dark]" title="Assign lesson"><option value="" className="bg-[#0c1017] text-white">Assign</option><option value="__all_active__" className="bg-[#0c1017] text-white">All active</option>{getAssignedStudentNames(lesson).length > 0 && <option value="__unassign__" className="bg-[#0c1017] text-white">Unassign</option>}{students.map((student) => <option key={student.id} value={student.id} className="bg-[#0c1017] text-white">{student.name}</option>)}</select></div></td>
-                    <td className="px-4 py-4"><span className={`rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${lesson.status === "published" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/30 bg-amber-500/10 text-amber-300"}`}>{lesson.status === "published" ? "Published" : "Draft"}</span></td>
+                    <td className="px-4 py-4"><span className={`rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${lesson.status === "published" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/40 bg-amber-500/20 text-amber-400"}`}>{lesson.status === "published" ? "Published" : "Draft"}</span></td>
                     <td className="px-4 py-4 text-stone-300">Module {lesson.content?.moduleNumber || lesson.module_number || 1}</td>
                     <td className="px-4 py-4"><div className="flex items-center justify-end gap-2" onClick={(event) => event.stopPropagation()}>
-                      <button type="button" onClick={() => handleEditLesson(lesson)} className="whitespace-nowrap rounded-md border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500 hover:text-black">Edit / Continue</button>
+                      <button type="button" onClick={() => handleEditLesson(lesson)} className="whitespace-nowrap rounded-md border border-amber-500/40 px-3 py-2 text-xs  text-amber-400 hover:bg-amber-500/20 hover:text-amber-400">Edit / Continue</button>
                       <div className="relative">
-                        <button type="button" onClick={() => setOpenLessonMenuId((current) => current === lesson.id ? null : lesson.id)} aria-label={`More actions for ${lesson.title}`} title="More actions" aria-expanded={openLessonMenuId === lesson.id} className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] text-stone-300 hover:border-amber-500/60 hover:text-amber-300"><MoreVertical className="h-4 w-4" /></button>
+                        <button type="button" onClick={() => setOpenLessonMenuId((current) => current === lesson.id ? null : lesson.id)} aria-label={`More actions for ${lesson.title}`} title="More actions" aria-expanded={openLessonMenuId === lesson.id} className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] text-stone-300 hover:border-amber-500/40 hover:text-amber-400"><MoreVertical className="h-4 w-4" /></button>
                         {openLessonMenuId === lesson.id && <div className="absolute right-0 top-full z-50 mt-2 w-36 rounded-md border border-[#394252] bg-[#171d28] p-1 shadow-xl">
                           <button type="button" onClick={() => { duplicateLesson(lesson); setOpenLessonMenuId(null); }} className="block w-full rounded px-3 py-2 text-left text-xs text-stone-300 hover:bg-[#202631] hover:text-stone-100">Duplicate</button>
                           <button type="button" onClick={() => { setLessonPendingDelete(lesson); setOpenLessonMenuId(null); }} className="block w-full rounded px-3 py-2 text-left text-xs text-red-300 hover:bg-red-500/10">Delete</button>
@@ -2696,19 +2696,19 @@ export default function InstructorWorkstationPage({
           <div className="flex flex-col gap-4 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Lesson Management</p><h2 id="lesson-library-title" className="mt-1 font-sans text-2xl font-semibold text-stone-100">Lesson Library</h2><p className="mt-1 text-sm text-stone-500">{filteredLibraryLessons.length} of {createdLessons.length} lessons</p></div>
-              <Tooltip content="Start a new lesson draft"><button type="button" onClick={startNewLesson} className="rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-amber-400">Create New Lesson</button></Tooltip>
+              <Tooltip content="Start a new lesson draft"><button type="button" onClick={startNewLesson} className="rounded-md bg-amber-500/20 px-3 py-2 text-xs  text-amber-400 transition hover:bg-amber-500/20">Create New Lesson</button></Tooltip>
             </div>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-              <label className="relative min-w-0 flex-1"><span className="sr-only">Search lessons</span><Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-stone-500" /><input value={librarySearch} onChange={(event) => setLibrarySearch(event.target.value)} placeholder="Search by title or subtitle" className="w-full rounded-md border border-[#394252] bg-[#0c1017] py-2.5 pl-9 pr-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
+              <label className="relative min-w-0 flex-1"><span className="sr-only">Search lessons</span><Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-stone-500" /><input value={librarySearch} onChange={(event) => setLibrarySearch(event.target.value)} placeholder="Search by title or subtitle" className="w-full rounded-md border border-[#394252] bg-[#0c1017] py-2.5 pl-9 pr-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
               <Tooltip content="Filter lessons by CEFR level"><select value={libraryLevel} onChange={(event) => setLibraryLevel(event.target.value)} aria-label="Filter by level" className="rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2.5 text-xs text-white [color-scheme:dark]"><option value="all">All levels</option>{CEFR_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select></Tooltip>
               <Tooltip content="Filter lessons by subject domain"><select value={libraryDomain} onChange={(event) => setLibraryDomain(event.target.value)} aria-label="Filter by domain" className="rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2.5 text-xs text-white [color-scheme:dark]"><option value="all">All domains</option>{libraryDomains.map((domain) => <option key={domain} value={domain}>{domain}</option>)}</select></Tooltip>
               <Tooltip content="Choose how matching lessons are sorted"><label><span className="sr-only">Sort lessons</span><select value={librarySortBy} onChange={(event) => setLibrarySortBy(event.target.value as typeof librarySortBy)} aria-label="Sort lessons by tag" className="rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2.5 text-xs text-white [color-scheme:dark]"><option value="title">Sort: Title</option><option value="domain">Sort: Domain</option><option value="practiceType">Sort: Practice Type</option><option value="skillFocus">Sort: Skill Focus</option></select></label></Tooltip>
-              <div className="flex rounded-md border border-[#394252] bg-[#0c1017] p-1" role="group" aria-label="Lesson view mode"><Tooltip content="Show lessons as cards"><button type="button" onClick={() => setLibraryView("grid")} aria-label="Grid view" className={`rounded p-1.5 ${libraryView === "grid" ? "bg-amber-500 text-slate-950" : "text-stone-500 hover:text-stone-200"}`}><Grid3X3 className="h-4 w-4" /></button></Tooltip><Tooltip content="Show lessons in a table"><button type="button" onClick={() => setLibraryView("table")} aria-label="Table view" className={`rounded p-1.5 ${libraryView === "table" ? "bg-amber-500 text-slate-950" : "text-stone-500 hover:text-stone-200"}`}><List className="h-4 w-4" /></button></Tooltip></div>
+              <div className="flex rounded-md border border-[#394252] bg-[#0c1017] p-1" role="group" aria-label="Lesson view mode"><Tooltip content="Show lessons as cards"><button type="button" onClick={() => setLibraryView("grid")} aria-label="Grid view" className={`rounded p-1.5 ${libraryView === "grid" ? "bg-amber-500/20 text-amber-400" : "text-stone-500 hover:text-stone-200"}`}><Grid3X3 className="h-4 w-4" /></button></Tooltip><Tooltip content="Show lessons in a table"><button type="button" onClick={() => setLibraryView("table")} aria-label="Table view" className={`rounded p-1.5 ${libraryView === "table" ? "bg-amber-500/20 text-amber-400" : "text-stone-500 hover:text-stone-200"}`}><List className="h-4 w-4" /></button></Tooltip></div>
             </div>
           </div>
-          {libraryView === "grid" ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{filteredLibraryLessons.map((lesson) => { const metadata = getLessonMetadata(lesson); const assignedIds = getAssignedStudentIds(lesson); return <article key={lesson.id} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 transition hover:border-amber-500/50"><div className="flex items-start justify-between gap-3"><button type="button" onClick={() => handleEditLesson(lesson)} className="min-w-0 text-left"><h3 className="truncate font-semibold text-stone-100">{lesson.title}</h3><p className="mt-1 line-clamp-2 text-xs leading-relaxed text-stone-500">{metadata.subtitle}</p></button><span className={`shrink-0 rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase ${lesson.status === "published" ? "border-emerald-500/30 text-emerald-300" : "border-amber-500/30 text-amber-300"}`}>{lesson.status}</span></div><div className="mt-4 flex flex-wrap gap-1.5"><span className="rounded-full bg-amber-500/15 px-2 py-1 text-[10px] text-amber-300">{metadata.level}</span><span className="rounded-full bg-sky-500/15 px-2 py-1 text-[10px] text-sky-300">{metadata.domain}</span><span className="rounded-full bg-stone-500/15 px-2 py-1 text-[10px] text-stone-300">{metadata.theme}</span><span className="rounded-full bg-emerald-500/15 px-2 py-1 text-[10px] text-emerald-300">{metadata.skillFocus}</span>{metadata.practiceType && <span className="rounded-full bg-rose-500/15 px-2 py-1 text-[10px] text-rose-300">{metadata.practiceType}</span>}{metadata.customTags.map((tag) => <span key={tag} className="rounded-full bg-stone-500/15 px-2 py-1 text-[10px] text-stone-300">{tag}</span>)}</div><div className="mt-2"><button type="button" onClick={() => openQuickTagEditor(lesson)} aria-label={`Edit tags for ${lesson.title}`} className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-300 hover:text-amber-200"><Pencil className="h-3 w-3" />Edit level & tags</button></div><div className="relative mt-5 border-t border-[#202631] pt-4" onClick={(event) => event.stopPropagation()}><div className="flex items-center justify-between gap-2"><div className="flex min-w-0 flex-wrap gap-1">{assignedIds.length === 0 ? <span className="text-xs text-stone-500">No students assigned</span> : assignedIds.map((id) => { const student = students.find((item) => item.id === id); return <span key={id} title={student?.name || id} className="flex h-7 w-7 items-center justify-center rounded-full border border-amber-500/40 bg-amber-500/10 text-[10px] font-semibold text-amber-200">{(student?.name || id).slice(0, 2).toUpperCase()}</span>; })}</div><button type="button" onClick={() => setAssignmentEditorLessonId((current) => current === lesson.id ? null : lesson.id)} className="rounded-md border border-amber-500/40 px-2.5 py-1.5 text-[11px] font-semibold text-amber-300">Assign</button></div>{assignmentEditorLessonId === lesson.id && <div className="absolute left-0 right-0 top-full z-30 mt-2 rounded-lg border border-[#394252] bg-[#171d28] p-3 shadow-xl"><p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Assign students</p>{students.map((student) => <label key={student.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs text-stone-300 hover:bg-[#202631]"><input type="checkbox" checked={assignedIds.includes(student.id)} onChange={() => void handleAssignmentToggle(lesson, student.id)} className="accent-amber-500" /><span className="min-w-0 flex-1 truncate">{student.name}</span>{assignedIds.includes(student.id) && <Check className="h-3.5 w-3.5 text-amber-400" />}</label>)}<button type="button" onClick={() => setAssignmentEditorLessonId(null)} className="mt-2 w-full rounded border border-[#394252] px-2 py-1.5 text-[11px] text-stone-400">Done</button></div>}</div><div className="mt-4 flex items-center justify-between"><span className="text-[11px] text-stone-500">Module {lesson.content?.moduleNumber || lesson.module_number || 1}</span><div className="flex items-center gap-2"><button type="button" onClick={() => handleEditLesson(lesson)} className="text-xs font-semibold text-amber-300 hover:text-amber-200">Edit / Continue</button><button type="button" onClick={() => setLessonPendingDelete(lesson)} aria-label={`Delete ${lesson.title}`} title="Delete lesson" className="flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 transition hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button></div></div></article>; })}</div> : <div className="overflow-x-auto rounded-xl border border-[#202631] bg-[#171d28]/60"><table className="min-w-[900px] w-full text-left text-xs"><thead className="border-b border-[#202631] bg-[#0c1017] text-[10px] uppercase tracking-[0.12em] text-stone-500"><tr><th className="px-5 py-3">Lesson</th><th className="px-4 py-3">Metadata</th><th className="px-4 py-3">Assigned students</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Action</th></tr></thead><tbody className="divide-y divide-[#202631]">{filteredLibraryLessons.map((lesson) => { const metadata = getLessonMetadata(lesson); return <tr key={lesson.id} className="text-stone-300 hover:bg-[#202631]/30"><td className="px-5 py-4"><button type="button" onClick={() => handleEditLesson(lesson)} className="text-left"><p className="font-semibold text-stone-100">{lesson.title}</p><p className="mt-1 text-[11px] text-stone-500">{metadata.subtitle}</p></button></td><td className="px-4 py-4"><div className="flex max-w-xs flex-wrap gap-1"><span className="rounded bg-amber-500/15 px-1.5 py-1 text-[10px] text-amber-300">{metadata.level}</span><span className="rounded bg-sky-500/15 px-1.5 py-1 text-[10px] text-sky-300">{metadata.domain}</span><span className="rounded bg-stone-500/15 px-1.5 py-1 text-[10px] text-stone-300">{metadata.theme}</span><span className="rounded bg-emerald-500/15 px-1.5 py-1 text-[10px] text-emerald-300">{metadata.skillFocus}</span>{metadata.practiceType && <span className="rounded bg-rose-500/15 px-1.5 py-1 text-[10px] text-rose-300">{metadata.practiceType}</span>}{metadata.customTags.map((tag) => <span key={tag} className="rounded bg-stone-500/15 px-1.5 py-1 text-[10px] text-stone-300">{tag}</span>)}</div></td><td className="px-4 py-4">{renderAssignedStudents(lesson)}</td><td className="px-4 py-4 capitalize">{lesson.status}</td><td className="px-4 py-4 text-right"><button type="button" onClick={() => openQuickTagEditor(lesson)} className="text-xs font-semibold text-amber-300">Edit tags</button><button type="button" onClick={() => handleEditLesson(lesson)} className="ml-3 text-xs font-semibold text-amber-300">Edit</button><button type="button" onClick={() => setLessonPendingDelete(lesson)} aria-label={`Delete ${lesson.title}`} title="Delete lesson" className="ml-3 inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button></td></tr>; })}</tbody></table></div>}
+          {libraryView === "grid" ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{filteredLibraryLessons.map((lesson) => { const metadata = getLessonMetadata(lesson); const assignedIds = getAssignedStudentIds(lesson); return <article key={lesson.id} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 transition hover:border-amber-500/40"><div className="flex items-start justify-between gap-3"><button type="button" onClick={() => handleEditLesson(lesson)} className="min-w-0 text-left"><h3 className="truncate  text-stone-100">{lesson.title}</h3><p className="mt-1 line-clamp-2 text-xs leading-relaxed text-stone-500">{metadata.subtitle}</p></button><span className={`shrink-0 rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase ${lesson.status === "published" ? "border-emerald-500/30 text-emerald-300" : "border-amber-500/40 text-amber-400"}`}>{lesson.status}</span></div><div className="mt-4 flex flex-wrap gap-1.5"><span className="rounded-full bg-amber-500/20 px-2 py-1 text-[10px] text-amber-400">{metadata.level}</span><span className="rounded-full bg-sky-500/15 px-2 py-1 text-[10px] text-sky-300">{metadata.domain}</span><span className="rounded-full bg-stone-500/15 px-2 py-1 text-[10px] text-stone-300">{metadata.theme}</span><span className="rounded-full bg-emerald-500/15 px-2 py-1 text-[10px] text-emerald-300">{metadata.skillFocus}</span>{metadata.practiceType && <span className="rounded-full bg-rose-500/15 px-2 py-1 text-[10px] text-rose-300">{metadata.practiceType}</span>}{metadata.customTags.map((tag) => <span key={tag} className="rounded-full bg-stone-500/15 px-2 py-1 text-[10px] text-stone-300">{tag}</span>)}</div><div className="mt-2"><button type="button" onClick={() => openQuickTagEditor(lesson)} aria-label={`Edit tags for ${lesson.title}`} className="inline-flex items-center gap-1 text-[11px]  text-amber-400 hover:text-amber-400"><Pencil className="h-3 w-3" />Edit level & tags</button></div><div className="relative mt-5 border-t border-[#202631] pt-4" onClick={(event) => event.stopPropagation()}><div className="flex items-center justify-between gap-2"><div className="flex min-w-0 flex-wrap gap-1">{assignedIds.length === 0 ? <span className="text-xs text-stone-500">No students assigned</span> : assignedIds.map((id) => { const student = students.find((item) => item.id === id); return <span key={id} title={student?.name || id} className="flex h-7 w-7 items-center justify-center rounded-full border border-amber-500/40 bg-amber-500/20 text-[10px] font-semibold text-amber-400">{(student?.name || id).slice(0, 2).toUpperCase()}</span>; })}</div><button type="button" onClick={() => setAssignmentEditorLessonId((current) => current === lesson.id ? null : lesson.id)} className="rounded-md border border-amber-500/40 px-2.5 py-1.5 text-[11px]  text-amber-400">Assign</button></div>{assignmentEditorLessonId === lesson.id && <div className="absolute left-0 right-0 top-full z-30 mt-2 rounded-lg border border-[#394252] bg-[#171d28] p-3 shadow-xl"><p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Assign students</p>{students.map((student) => <label key={student.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs text-stone-300 hover:bg-[#202631]"><input type="checkbox" checked={assignedIds.includes(student.id)} onChange={() => void handleAssignmentToggle(lesson, student.id)} className="accent-amber-500" /><span className="min-w-0 flex-1 truncate">{student.name}</span>{assignedIds.includes(student.id) && <Check className="h-3.5 w-3.5 text-amber-400" />}</label>)}<button type="button" onClick={() => setAssignmentEditorLessonId(null)} className="mt-2 w-full rounded border border-[#394252] px-2 py-1.5 text-[11px] text-stone-400">Done</button></div>}</div><div className="mt-4 flex items-center justify-between"><span className="text-[11px] text-stone-500">Module {lesson.content?.moduleNumber || lesson.module_number || 1}</span><div className="flex items-center gap-2"><button type="button" onClick={() => handleEditLesson(lesson)} className="text-xs  text-amber-400 hover:text-amber-400">Edit / Continue</button><button type="button" onClick={() => setLessonPendingDelete(lesson)} aria-label={`Delete ${lesson.title}`} title="Delete lesson" className="flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 transition hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button></div></div></article>; })}</div> : <div className="overflow-x-auto rounded-xl border border-[#202631] bg-[#171d28]/60"><table className="min-w-[900px] w-full text-left text-xs"><thead className="border-b border-[#202631] bg-[#0c1017] text-[10px] uppercase tracking-[0.12em] text-stone-500"><tr><th className="px-5 py-3">Lesson</th><th className="px-4 py-3">Metadata</th><th className="px-4 py-3">Assigned students</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Action</th></tr></thead><tbody className="divide-y divide-[#202631]">{filteredLibraryLessons.map((lesson) => { const metadata = getLessonMetadata(lesson); return <tr key={lesson.id} className="text-stone-300 hover:bg-[#202631]/30"><td className="px-5 py-4"><button type="button" onClick={() => handleEditLesson(lesson)} className="text-left"><p className=" text-stone-100">{lesson.title}</p><p className="mt-1 text-[11px] text-stone-500">{metadata.subtitle}</p></button></td><td className="px-4 py-4"><div className="flex max-w-xs flex-wrap gap-1"><span className="rounded bg-amber-500/20 px-1.5 py-1 text-[10px] text-amber-400">{metadata.level}</span><span className="rounded bg-sky-500/15 px-1.5 py-1 text-[10px] text-sky-300">{metadata.domain}</span><span className="rounded bg-stone-500/15 px-1.5 py-1 text-[10px] text-stone-300">{metadata.theme}</span><span className="rounded bg-emerald-500/15 px-1.5 py-1 text-[10px] text-emerald-300">{metadata.skillFocus}</span>{metadata.practiceType && <span className="rounded bg-rose-500/15 px-1.5 py-1 text-[10px] text-rose-300">{metadata.practiceType}</span>}{metadata.customTags.map((tag) => <span key={tag} className="rounded bg-stone-500/15 px-1.5 py-1 text-[10px] text-stone-300">{tag}</span>)}</div></td><td className="px-4 py-4">{renderAssignedStudents(lesson)}</td><td className="px-4 py-4 capitalize">{lesson.status}</td><td className="px-4 py-4 text-right"><button type="button" onClick={() => openQuickTagEditor(lesson)} className="text-xs  text-amber-400">Edit tags</button><button type="button" onClick={() => handleEditLesson(lesson)} className="ml-3 text-xs  text-amber-400">Edit</button><button type="button" onClick={() => setLessonPendingDelete(lesson)} aria-label={`Delete ${lesson.title}`} title="Delete lesson" className="ml-3 inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button></td></tr>; })}</tbody></table></div>}
           {filteredLibraryLessons.length === 0 && <div className="rounded-xl border border-dashed border-[#394252] p-10 text-center text-sm text-stone-500">No lessons match these filters.</div>}
-          {quickTagEditor && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !quickTagSaving) setQuickTagEditor(null); }}><section role="dialog" aria-modal="true" aria-labelledby="quick-tag-editor-title" className="w-full max-w-lg rounded-lg border border-[#394252] bg-[#171d28] p-5 shadow-2xl"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Lesson metadata</p><h3 id="quick-tag-editor-title" className="mt-1 text-lg font-semibold text-stone-100">Edit level & tags</h3></div><button type="button" aria-label="Close tag editor" disabled={quickTagSaving} onClick={() => setQuickTagEditor(null)} className="rounded border border-[#394252] p-1.5 text-stone-400 hover:text-stone-100 disabled:opacity-50"><X className="h-4 w-4" /></button></div><div className="mt-5 grid gap-3 sm:grid-cols-2"><label className="text-xs text-stone-400">CEFR Level<select value={quickTagEditor.level} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, level: event.target.value } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-white [color-scheme:dark]">{CEFR_LEVELS.map((level) => <option key={level}>{level}</option>)}</select></label><label className="text-xs text-stone-400">Domain<input value={quickTagEditor.tags.domain} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, domain: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Skill Focus<input value={quickTagEditor.tags.skill_focus} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, skill_focus: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Practice Type<input value={quickTagEditor.tags.practice_type} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, practice_type: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400 sm:col-span-2">Custom Tags<input value={quickTagEditor.customTagsText} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, customTagsText: event.target.value } : current)} placeholder="Comma-separated custom tags" className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label></div>{quickTagError && <p role="alert" className="mt-3 text-xs text-red-300">{quickTagError}</p>}<div className="mt-5 flex justify-end gap-2"><button type="button" disabled={quickTagSaving} onClick={() => setQuickTagEditor(null)} className="rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 disabled:opacity-50">Cancel</button><button type="button" disabled={quickTagSaving} onClick={() => void saveQuickTagEditor()} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 disabled:opacity-50">{quickTagSaving ? "Saving..." : <><Check className="h-3.5 w-3.5" />Save tags</>}</button></div></section></div>}
+          {quickTagEditor && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !quickTagSaving) setQuickTagEditor(null); }}><section role="dialog" aria-modal="true" aria-labelledby="quick-tag-editor-title" className="w-full max-w-lg rounded-lg border border-[#394252] bg-[#171d28] p-5 shadow-2xl"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Lesson metadata</p><h3 id="quick-tag-editor-title" className="mt-1 text-lg font-semibold text-stone-100">Edit level & tags</h3></div><button type="button" aria-label="Close tag editor" disabled={quickTagSaving} onClick={() => setQuickTagEditor(null)} className="rounded border border-[#394252] p-1.5 text-stone-400 hover:text-stone-100 disabled:opacity-50"><X className="h-4 w-4" /></button></div><div className="mt-5 grid gap-3 sm:grid-cols-2"><label className="text-xs text-stone-400">CEFR Level<select value={quickTagEditor.level} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, level: event.target.value } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-white [color-scheme:dark]">{CEFR_LEVELS.map((level) => <option key={level}>{level}</option>)}</select></label><label className="text-xs text-stone-400">Domain<input value={quickTagEditor.tags.domain} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, domain: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Skill Focus<input value={quickTagEditor.tags.skill_focus} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, skill_focus: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Practice Type<input value={quickTagEditor.tags.practice_type} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, practice_type: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400 sm:col-span-2">Custom Tags<input value={quickTagEditor.customTagsText} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, customTagsText: event.target.value } : current)} placeholder="Comma-separated custom tags" className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label></div>{quickTagError && <p role="alert" className="mt-3 text-xs text-red-300">{quickTagError}</p>}<div className="mt-5 flex justify-end gap-2"><button type="button" disabled={quickTagSaving} onClick={() => setQuickTagEditor(null)} className="rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 disabled:opacity-50">Cancel</button><button type="button" disabled={quickTagSaving} onClick={() => void saveQuickTagEditor()} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/20 px-3 py-2 text-xs  text-amber-400 disabled:opacity-50">{quickTagSaving ? "Saving..." : <><Check className="h-3.5 w-3.5" />Save tags</>}</button></div></section></div>}
         </section>}
 
         {activeTab === "students" && <section className="w-full min-w-0 space-y-5" aria-labelledby="students-profile-title">
@@ -2734,7 +2734,7 @@ export default function InstructorWorkstationPage({
                   {studentInstructorOptions.map((instructor) => <option key={instructor}>{instructor}</option>)}
                 </select>
               </label>
-              <button type="button" onClick={() => { setAddStudentError(null); setIsAddStudentOpen(true); }} className="inline-flex h-10 items-center gap-2 rounded-md bg-amber-500 px-4 text-xs font-semibold text-slate-950 transition hover:bg-amber-400">
+              <button type="button" onClick={() => { setAddStudentError(null); setIsAddStudentOpen(true); }} className="inline-flex h-10 items-center gap-2 rounded-md bg-amber-500/20 px-4 text-xs  text-amber-400 transition hover:bg-amber-500/20">
                 <Plus className="h-4 w-4" aria-hidden="true" />Add Student
               </button>
             </div>
@@ -2747,18 +2747,18 @@ export default function InstructorWorkstationPage({
               </div>
               <form onSubmit={(event) => void handleCreateStudent(event)} className="mt-5 space-y-5">
                 <div className="grid gap-4 md:grid-cols-2">
-                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Full Name<input required maxLength={120} value={addStudentDraft.fullName} onChange={(event) => setAddStudentDraft((current) => ({ ...current, fullName: event.target.value }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none focus:border-amber-500" /></label>
-                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Email<input required type="email" maxLength={254} value={addStudentDraft.email} onChange={(event) => setAddStudentDraft((current) => ({ ...current, email: event.target.value }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none focus:border-amber-500" /></label>
-                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Current Level<select required value={addStudentDraft.currentLevel} onChange={(event) => setAddStudentDraft((current) => ({ ...current, currentLevel: event.target.value as StudentCefrLevel | "" }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-amber-300 outline-none [color-scheme:dark] focus:border-amber-500"><option value="" disabled>Select a level</option>{STUDENT_CEFR_LEVELS.map((level) => <option key={level}>{level}</option>)}</select></label>
-                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Assigned Instructor<input value={addStudentDraft.assignedInstructor} onChange={(event) => setAddStudentDraft((current) => ({ ...current, assignedInstructor: event.target.value }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none focus:border-amber-500" /></label>
-                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Focus Weaknesses<textarea value={addStudentDraft.focusWeaknesses} onChange={(event) => setAddStudentDraft((current) => ({ ...current, focusWeaknesses: event.target.value }))} placeholder="Separate with commas" className="min-h-20 w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500" /></label>
-                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Core Goal<textarea value={addStudentDraft.coreGoal} onChange={(event) => setAddStudentDraft((current) => ({ ...current, coreGoal: event.target.value }))} className="min-h-20 w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500" /></label>
-                  <label className="space-y-1.5 text-xs font-medium text-stone-400 md:col-span-2">Dashboard Note<textarea value={addStudentDraft.dashboardNote} onChange={(event) => setAddStudentDraft((current) => ({ ...current, dashboardNote: event.target.value }))} className="min-h-24 w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500" /></label>
+                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Full Name<input required maxLength={120} value={addStudentDraft.fullName} onChange={(event) => setAddStudentDraft((current) => ({ ...current, fullName: event.target.value }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Email<input required type="email" maxLength={254} value={addStudentDraft.email} onChange={(event) => setAddStudentDraft((current) => ({ ...current, email: event.target.value }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Current Level<select required value={addStudentDraft.currentLevel} onChange={(event) => setAddStudentDraft((current) => ({ ...current, currentLevel: event.target.value as StudentCefrLevel | "" }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-amber-400 outline-none [color-scheme:dark] focus:border-amber-500/40"><option value="" disabled>Select a level</option>{STUDENT_CEFR_LEVELS.map((level) => <option key={level}>{level}</option>)}</select></label>
+                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Assigned Instructor<input value={addStudentDraft.assignedInstructor} onChange={(event) => setAddStudentDraft((current) => ({ ...current, assignedInstructor: event.target.value }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Focus Weaknesses<textarea value={addStudentDraft.focusWeaknesses} onChange={(event) => setAddStudentDraft((current) => ({ ...current, focusWeaknesses: event.target.value }))} placeholder="Separate with commas" className="min-h-20 w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Core Goal<textarea value={addStudentDraft.coreGoal} onChange={(event) => setAddStudentDraft((current) => ({ ...current, coreGoal: event.target.value }))} className="min-h-20 w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                  <label className="space-y-1.5 text-xs font-medium text-stone-400 md:col-span-2">Dashboard Note<textarea value={addStudentDraft.dashboardNote} onChange={(event) => setAddStudentDraft((current) => ({ ...current, dashboardNote: event.target.value }))} className="min-h-24 w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
                 </div>
                 {addStudentError && <p role="alert" className="rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{addStudentError}</p>}
                 <div className="flex flex-col-reverse gap-3 border-t border-[#293343] pt-4 sm:flex-row sm:justify-end">
-                  <button type="button" onClick={() => setIsAddStudentOpen(false)} disabled={isAddingStudent} className="h-10 rounded-md border border-[#394252] px-4 text-xs font-semibold text-stone-300 transition hover:bg-white/5 disabled:opacity-50">Cancel</button>
-                  <button type="submit" disabled={isAddingStudent} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-amber-500 px-4 text-xs font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60">{isAddingStudent ? "Adding..." : "Add Student"}</button>
+                  <button type="button" onClick={() => setIsAddStudentOpen(false)} disabled={isAddingStudent} className="h-10 rounded-md border border-[#394252] px-4 text-xs  text-stone-300 transition hover:bg-white/5 disabled:opacity-50">Cancel</button>
+                  <button type="submit" disabled={isAddingStudent} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-amber-500/20 px-4 text-xs  text-amber-400 transition hover:bg-amber-500/20 disabled:cursor-wait disabled:opacity-60">{isAddingStudent ? "Adding..." : "Add Student"}</button>
                 </div>
               </form>
             </section>
@@ -2776,14 +2776,14 @@ export default function InstructorWorkstationPage({
                 <button type="button" onClick={() => toggleStudentProfile(student.id)} aria-expanded={isExpanded} aria-controls={`student-profile-${student.id}`} className="flex w-full flex-col gap-3 px-4 py-4 text-left transition-colors hover:bg-white/[0.025] sm:flex-row sm:items-center sm:justify-between sm:px-5">
                   <span className="flex w-full min-w-0 flex-col gap-1.5 sm:flex-1">
                     <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span className="break-words text-sm font-semibold text-stone-100">{student.name}</span>
-                      <span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${level ? "border-amber-500/30 bg-amber-500/10 text-amber-300" : "border-[#394252] text-stone-500"}`}>{level || "Not set"}</span>
+                      <span className="break-words text-sm  text-stone-100">{student.name}</span>
+                      <span className={`rounded border px-2 py-0.5 text-[10px]  ${level ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-[#394252] text-stone-500"}`}>{level || "Not set"}</span>
                     </span>
                     <span className="break-all text-xs text-stone-400">{student.email || "No email"}</span>
                   </span>
                   <span className="flex w-full shrink-0 items-center justify-between gap-3 sm:w-auto sm:justify-end sm:gap-5">
                     <span className="inline-flex items-center gap-2 text-xs text-stone-400">
-                      <span className={`h-2 w-2 rounded-full ${isSaving ? "animate-pulse bg-amber-400" : isSaved ? "bg-emerald-400" : hasSaveError ? "bg-rose-400" : "bg-stone-600"}`} />
+                      <span className={`h-2 w-2 rounded-full ${isSaving ? "animate-pulse bg-amber-500/20" : isSaved ? "bg-emerald-400" : hasSaveError ? "bg-rose-400" : "bg-stone-600"}`} />
                       {isSaving ? "Saving" : isSaved ? "Saved" : hasSaveError ? "Needs attention" : "Profile"}
                     </span>
                     <span className="text-right text-[11px] text-stone-500 sm:text-xs">{student.enrolledDate ? `Enrolled ${new Date(student.enrolledDate).toLocaleDateString()}` : "Date unavailable"}</span>
@@ -2795,24 +2795,24 @@ export default function InstructorWorkstationPage({
                     <div className="border-t border-[#293343] px-4 py-5 sm:px-5">
                       <div className="grid min-w-0 gap-5 md:grid-cols-2 2xl:grid-cols-3">
                         <section className="min-w-0 space-y-4" aria-label={`${student.name} identity and assignment`}>
-                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Email address<input type="email" value={student.email ?? ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { email: event.target.value })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
-                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Current Level<select value={level} onChange={(event) => void handleStudentLevelChange(student, event.target.value as StudentCefrLevel)} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-amber-300 [color-scheme:dark]">{!level && <option value="" disabled>Not set</option>}{STUDENT_CEFR_LEVELS.map((optionLevel) => <option key={optionLevel} value={optionLevel}>{optionLevel}</option>)}</select></label>
-                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Assigned Instructor<input value={student.profile.assignedInstructor || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { assignedInstructor: event.target.value })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Email address<input type="email" value={student.email ?? ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { email: event.target.value })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Current Level<select value={level} onChange={(event) => void handleStudentLevelChange(student, event.target.value as StudentCefrLevel)} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-amber-400 [color-scheme:dark]">{!level && <option value="" disabled>Not set</option>}{STUDENT_CEFR_LEVELS.map((optionLevel) => <option key={optionLevel} value={optionLevel}>{optionLevel}</option>)}</select></label>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Assigned Instructor<input value={student.profile.assignedInstructor || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { assignedInstructor: event.target.value })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
                         </section>
                         <section className="min-w-0 space-y-4" aria-label={`${student.name} goals and focus`}>
-                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Focus Weaknesses<input value={(student.profile.weaknesses || []).join(", ")} onChange={(event) => updateDirectoryStudentProfile(student.id, { weaknesses: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} placeholder="Separate with commas" className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
-                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Core Goal<textarea value={student.profile.targetGoal || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { targetGoal: event.target.value })} rows={3} className="min-h-20 w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Focus Weaknesses<input value={(student.profile.weaknesses || []).join(", ")} onChange={(event) => updateDirectoryStudentProfile(student.id, { weaknesses: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} placeholder="Separate with commas" className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Core Goal<textarea value={student.profile.targetGoal || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { targetGoal: event.target.value })} rows={3} className="min-h-20 w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
                         </section>
                         <section className="min-w-0 space-y-1.5 md:col-span-2 2xl:col-span-1" aria-label={`${student.name} dashboard note`}>
                           <label className="block text-xs font-medium text-stone-400">Dashboard Note</label>
-                          <textarea value={student.profile.teacherNotes || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { teacherNotes: event.target.value })} rows={4} className="student-profile-note h-24 w-full resize-y overflow-x-hidden overflow-y-auto rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs leading-relaxed text-stone-200 outline-none focus:border-amber-500" />
+                          <textarea value={student.profile.teacherNotes || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { teacherNotes: event.target.value })} rows={4} className="student-profile-note h-24 w-full resize-y overflow-x-hidden overflow-y-auto rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs leading-relaxed text-stone-200 outline-none focus:border-amber-500/40" />
                         </section>
                       </div>
                       <div className="mt-5 flex flex-col-reverse gap-3 border-t border-[#293343] pt-4 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-h-5 text-xs" role="status" aria-live="polite">
                           {saveMessage && <span className={isSaved ? "text-emerald-300" : "text-rose-300"}>{saveMessage}</span>}
                         </div>
-                        <button type="button" onClick={(event) => void handleSaveDirectoryStudent(event, student)} disabled={isSaving} className="inline-flex h-10 items-center justify-center gap-2 self-end rounded-md bg-amber-500 px-4 text-xs font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60">
+                        <button type="button" onClick={(event) => void handleSaveDirectoryStudent(event, student)} disabled={isSaving} className="inline-flex h-10 items-center justify-center gap-2 self-end rounded-md bg-amber-500/20 px-4 text-xs  text-amber-400 transition hover:bg-amber-500/20 disabled:cursor-wait disabled:opacity-60">
                           {isSaving && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-950/30 border-t-slate-950" aria-hidden="true" />}
                           {isSaving ? "Saving..." : "Save Changes"}
                         </button>
@@ -2832,7 +2832,7 @@ export default function InstructorWorkstationPage({
               <h2 id="instructors-profile-title" className="mt-1 font-sans text-2xl font-semibold text-stone-100">Instructors Profile</h2>
               <p className="mt-1 text-sm text-stone-500">{instructors.length} instructor{instructors.length === 1 ? "" : "s"}</p>
             </div>
-            <button type="button" onClick={() => { setAddInstructorError(null); setIsAddInstructorOpen(true); }} className="inline-flex h-10 items-center gap-2 rounded-md bg-amber-500 px-4 text-xs font-semibold text-slate-950 transition hover:bg-amber-400"><Plus className="h-4 w-4" aria-hidden="true" />Add Instructor</button>
+            <button type="button" onClick={() => { setAddInstructorError(null); setIsAddInstructorOpen(true); }} className="inline-flex h-10 items-center gap-2 rounded-md bg-amber-500/20 px-4 text-xs  text-amber-400 transition hover:bg-amber-500/20"><Plus className="h-4 w-4" aria-hidden="true" />Add Instructor</button>
           </div>
           {instructorsError && <p role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-300">{instructorsError}</p>}
           {instructorsLoading ? <p className="py-10 text-center text-sm text-stone-500">Loading instructor profiles...</p> : instructors.length > 0 ? <div className="w-full space-y-3">
@@ -2846,13 +2846,13 @@ export default function InstructorWorkstationPage({
                 <button type="button" onClick={() => toggleInstructorProfile(instructor.id)} aria-expanded={isExpanded} aria-controls={`instructor-profile-${instructor.id}`} className="flex w-full flex-col gap-3 px-4 py-4 text-left transition-colors hover:bg-white/[0.025] sm:flex-row sm:items-center sm:justify-between sm:px-5">
                   <span className="flex w-full min-w-0 flex-col gap-1.5 sm:flex-1">
                     <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span className="break-words text-sm font-semibold text-stone-100">{instructor.name}</span>
-                      <span className="max-w-full truncate rounded border border-sky-400/25 bg-sky-400/10 px-2 py-0.5 text-[10px] font-semibold text-sky-200">{instructor.specialization || "Specialization not set"}</span>
+                      <span className="break-words text-sm  text-stone-100">{instructor.name}</span>
+                      <span className="max-w-full truncate rounded border border-sky-400/25 bg-sky-400/10 px-2 py-0.5 text-[10px]  text-sky-200">{instructor.specialization || "Specialization not set"}</span>
                     </span>
                     <span className="break-all text-xs text-stone-400">{instructor.email}</span>
                   </span>
                   <span className="flex w-full shrink-0 items-center justify-between gap-3 sm:w-auto sm:justify-end sm:gap-5">
-                    <span className={`rounded border px-2 py-1 text-[10px] font-semibold uppercase ${instructor.status === "active" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/30 bg-amber-500/10 text-amber-300"}`}>{instructor.status === "active" ? "Active" : "On Leave"}</span>
+                    <span className={`rounded border px-2 py-1 text-[10px]  uppercase ${instructor.status === "active" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/40 bg-amber-500/20 text-amber-400"}`}>{instructor.status === "active" ? "Active" : "On Leave"}</span>
                     <span className="text-right text-[11px] text-stone-500 sm:text-xs">{updatedLabel}</span>
                     <ChevronDown className={`h-4 w-4 text-stone-400 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} aria-hidden="true" />
                   </span>
@@ -2862,23 +2862,23 @@ export default function InstructorWorkstationPage({
                     <div className="border-t border-[#293343] px-4 py-5 sm:px-5">
                       <div className="grid min-w-0 gap-5 md:grid-cols-2 2xl:grid-cols-3">
                         <section className="min-w-0 space-y-4" aria-label={`${instructor.name} contact and availability`}>
-                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Email<input type="email" value={instructor.email} onChange={(event) => updateInstructorProfile(instructor.id, { email: event.target.value })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
-                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Specialization / Area of Expertise<input value={instructor.specialization} onChange={(event) => updateInstructorProfile(instructor.id, { specialization: event.target.value })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
-                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Status / Availability<select value={instructor.status} onChange={(event) => updateInstructorProfile(instructor.id, { status: event.target.value as InstructorStatus })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none [color-scheme:dark] focus:border-amber-500"><option value="active">Active</option><option value="on_leave">On Leave</option></select></label>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Email<input type="email" value={instructor.email} onChange={(event) => updateInstructorProfile(instructor.id, { email: event.target.value })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Specialization / Area of Expertise<input value={instructor.specialization} onChange={(event) => updateInstructorProfile(instructor.id, { specialization: event.target.value })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Status / Availability<select value={instructor.status} onChange={(event) => updateInstructorProfile(instructor.id, { status: event.target.value as InstructorStatus })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none [color-scheme:dark] focus:border-amber-500/40"><option value="active">Active</option><option value="on_leave">On Leave</option></select></label>
                         </section>
                         <section className="min-w-0 space-y-4 md:col-span-1 2xl:col-span-2" aria-label={`${instructor.name} capacity and bio`}>
                           <div className="grid gap-4 sm:grid-cols-2">
-                            <label className="block space-y-1.5 text-xs font-medium text-stone-400">Max Student Capacity<input type="number" min={1} max={1000} value={instructor.maxStudentCapacity} onChange={(event) => updateInstructorProfile(instructor.id, { maxStudentCapacity: Number(event.target.value) })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500" /></label>
+                            <label className="block space-y-1.5 text-xs font-medium text-stone-400">Max Student Capacity<input type="number" min={1} max={1000} value={instructor.maxStudentCapacity} onChange={(event) => updateInstructorProfile(instructor.id, { maxStudentCapacity: Number(event.target.value) })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
                             <div className="flex items-end pb-2 text-xs text-stone-400">Assigned Students <span className="ml-2 font-semibold text-stone-200">{instructor.assignedCount}</span></div>
                           </div>
-                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Bio / Instructor Note<textarea value={instructor.bio} onChange={(event) => updateInstructorProfile(instructor.id, { bio: event.target.value })} rows={4} className="h-24 w-full resize-y overflow-y-auto rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs leading-relaxed text-stone-200 outline-none focus:border-amber-500" /></label>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Bio / Instructor Note<textarea value={instructor.bio} onChange={(event) => updateInstructorProfile(instructor.id, { bio: event.target.value })} rows={4} className="h-24 w-full resize-y overflow-y-auto rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs leading-relaxed text-stone-200 outline-none focus:border-amber-500/40" /></label>
                         </section>
                       </div>
                       <div className="mt-5 flex flex-col-reverse gap-3 border-t border-[#293343] pt-4 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-h-5 text-xs" role="status" aria-live="polite">{saveMessage && <span className={isSaved ? "text-emerald-300" : "text-rose-300"}>{saveMessage}</span>}</div>
                         <div className="flex flex-wrap items-center justify-end gap-2">
-                          {instructor.status === "active" && <button type="button" onClick={(event) => void handleDeactivateInstructor(event, instructor)} disabled={isSaving} className="h-10 rounded-md border border-rose-400/30 px-3 text-xs font-semibold text-rose-300 transition hover:bg-rose-400/10 disabled:opacity-50">Deactivate</button>}
-                          <button type="button" onClick={(event) => void handleSaveInstructor(event, instructor)} disabled={isSaving} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-amber-500 px-4 text-xs font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60">{isSaving && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-950/30 border-t-slate-950" aria-hidden="true" />}{isSaving ? "Saving..." : "Save Changes"}</button>
+                          {instructor.status === "active" && <button type="button" onClick={(event) => void handleDeactivateInstructor(event, instructor)} disabled={isSaving} className="h-10 rounded-md border border-rose-400/30 px-3 text-xs  text-rose-300 transition hover:bg-rose-400/10 disabled:opacity-50">Deactivate</button>}
+                          <button type="button" onClick={(event) => void handleSaveInstructor(event, instructor)} disabled={isSaving} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-amber-500/20 px-4 text-xs  text-amber-400 transition hover:bg-amber-500/20 disabled:cursor-wait disabled:opacity-60">{isSaving && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-950/30 border-t-slate-950" aria-hidden="true" />}{isSaving ? "Saving..." : "Save Changes"}</button>
                         </div>
                       </div>
                     </div>
@@ -2893,14 +2893,14 @@ export default function InstructorWorkstationPage({
               <div className="flex items-start justify-between gap-4 border-b border-[#293343] pb-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Instructor Directory</p><h3 id="add-instructor-title" className="mt-1 text-xl font-semibold text-stone-100">Add Instructor</h3></div><button type="button" onClick={() => setIsAddInstructorOpen(false)} disabled={isAddingInstructor} aria-label="Close add instructor dialog" className="rounded-md p-2 text-stone-400 transition hover:bg-white/5 hover:text-stone-100 disabled:opacity-50"><X className="h-4 w-4" /></button></div>
               <form onSubmit={(event) => void handleCreateInstructor(event)} className="mt-5 space-y-5">
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="block space-y-1.5 text-xs font-medium text-stone-400">Full Name<input required maxLength={120} value={addInstructorDraft.fullName} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, fullName: event.target.value }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none focus:border-amber-500" /></label>
-                  <label className="block space-y-1.5 text-xs font-medium text-stone-400">Email<input required type="email" maxLength={254} value={addInstructorDraft.email} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, email: event.target.value }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none focus:border-amber-500" /></label>
-                  <label className="block space-y-1.5 text-xs font-medium text-stone-400">Specialization<input value={addInstructorDraft.specialization} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, specialization: event.target.value }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none focus:border-amber-500" /></label>
-                  <label className="block space-y-1.5 text-xs font-medium text-stone-400">Status<select value={addInstructorDraft.status} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, status: event.target.value as InstructorStatus }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none [color-scheme:dark] focus:border-amber-500"><option value="active">Active</option><option value="on_leave">On Leave</option></select></label>
-                  <label className="block space-y-1.5 text-xs font-medium text-stone-400 sm:col-span-2">Bio<textarea value={addInstructorDraft.bio} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, bio: event.target.value }))} rows={4} className="h-24 w-full resize-y overflow-y-auto rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500" /></label>
+                  <label className="block space-y-1.5 text-xs font-medium text-stone-400">Full Name<input required maxLength={120} value={addInstructorDraft.fullName} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, fullName: event.target.value }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                  <label className="block space-y-1.5 text-xs font-medium text-stone-400">Email<input required type="email" maxLength={254} value={addInstructorDraft.email} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, email: event.target.value }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                  <label className="block space-y-1.5 text-xs font-medium text-stone-400">Specialization<input value={addInstructorDraft.specialization} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, specialization: event.target.value }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                  <label className="block space-y-1.5 text-xs font-medium text-stone-400">Status<select value={addInstructorDraft.status} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, status: event.target.value as InstructorStatus }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none [color-scheme:dark] focus:border-amber-500/40"><option value="active">Active</option><option value="on_leave">On Leave</option></select></label>
+                  <label className="block space-y-1.5 text-xs font-medium text-stone-400 sm:col-span-2">Bio<textarea value={addInstructorDraft.bio} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, bio: event.target.value }))} rows={4} className="h-24 w-full resize-y overflow-y-auto rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
                 </div>
                 {addInstructorError && <p role="alert" className="rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{addInstructorError}</p>}
-                <div className="flex flex-col-reverse gap-3 border-t border-[#293343] pt-4 sm:flex-row sm:justify-end"><button type="button" onClick={() => setIsAddInstructorOpen(false)} disabled={isAddingInstructor} className="h-10 rounded-md border border-[#394252] px-4 text-xs font-semibold text-stone-300 transition hover:bg-white/5 disabled:opacity-50">Cancel</button><button type="submit" disabled={isAddingInstructor} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-amber-500 px-4 text-xs font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60">{isAddingInstructor ? "Adding..." : "Add Instructor"}</button></div>
+                <div className="flex flex-col-reverse gap-3 border-t border-[#293343] pt-4 sm:flex-row sm:justify-end"><button type="button" onClick={() => setIsAddInstructorOpen(false)} disabled={isAddingInstructor} className="h-10 rounded-md border border-[#394252] px-4 text-xs  text-stone-300 transition hover:bg-white/5 disabled:opacity-50">Cancel</button><button type="submit" disabled={isAddingInstructor} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-amber-500/20 px-4 text-xs  text-amber-400 transition hover:bg-amber-500/20 disabled:cursor-wait disabled:opacity-60">{isAddingInstructor ? "Adding..." : "Add Instructor"}</button></div>
               </form>
             </section>
           </div>}
@@ -2957,7 +2957,7 @@ export default function InstructorWorkstationPage({
                         key={type}
                         type="button"
                         onClick={() => setResourceDraft((previous) => ({ ...previous, type }))}
-                        className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold transition ${resourceDraft.type === type ? 'border-amber-500 bg-amber-500/10 text-amber-300' : 'border-[#394252] text-stone-400 hover:text-stone-200'}`}
+                        className={`rounded-full border px-3 py-1.5 text-[11px]  transition ${resourceDraft.type === type ? 'border-amber-500/40 bg-amber-500/20 text-amber-400' : 'border-[#394252] text-stone-400 hover:text-stone-200'}`}
                       >
                         {label}
                       </button>
@@ -2971,7 +2971,7 @@ export default function InstructorWorkstationPage({
                         value={resourceDraft.title}
                         onChange={(event) => setResourceDraft((previous) => ({ ...previous, title: event.target.value }))}
                         placeholder={resourceDraft.type === "audio" ? "Podcast / Deep Dive Audio" : resourceDraft.type === "data_table" ? "Lesson 3: Core Summary Matrix" : "Vocabulary set / reading summary / quiz idea"}
-                        className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                        className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                       />
                     </label>
 
@@ -2983,7 +2983,7 @@ export default function InstructorWorkstationPage({
                             value={resourceDraft.linkUrl}
                             onChange={(event) => setResourceDraft((previous) => ({ ...previous, linkUrl: event.target.value }))}
                             placeholder="https://… or PDF file name"
-                            className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                            className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                           />
                         </label>
                         <label className="block text-xs text-stone-400">
@@ -2993,7 +2993,7 @@ export default function InstructorWorkstationPage({
                             onChange={(event) => setResourceDraft((previous) => ({ ...previous, body: event.target.value }))}
                             rows={8}
                             placeholder="Add a short introduction or reading notes. Markdown is supported."
-                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                           />
                         </label>
                       </>
@@ -3008,7 +3008,7 @@ export default function InstructorWorkstationPage({
                             value={resourceDraft.linkUrl}
                             onChange={(event) => setResourceDraft((previous) => ({ ...previous, linkUrl: event.target.value }))}
                             placeholder="https://…"
-                            className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                            className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                           />
                         </label>
                         <label className="block text-xs text-stone-400">
@@ -3017,7 +3017,7 @@ export default function InstructorWorkstationPage({
                             type="file"
                             accept="audio/*"
                             onChange={(event) => setAudioFile(event.target.files?.[0] || null)}
-                            className="mt-1 block w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-300 file:mr-3 file:rounded file:border-0 file:bg-amber-500 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-950"
+                            className="mt-1 block w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-300 file:mr-3 file:rounded file:border-0 file:bg-amber-500/20 file:px-3 file:py-1.5 file:text-xs file: file:text-amber-400"
                           />
                         </label>
                         <label className="block text-xs text-stone-400">
@@ -3027,7 +3027,7 @@ export default function InstructorWorkstationPage({
                             onChange={(event) => setResourceDraft((previous) => ({ ...previous, body: event.target.value }))}
                             rows={4}
                             placeholder="Add context or transcript notes for the student."
-                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                           />
                         </label>
                       </>
@@ -3041,7 +3041,7 @@ export default function InstructorWorkstationPage({
                           onChange={(event) => setResourceDraft((previous) => ({ ...previous, body: event.target.value }))}
                           rows={12}
                           placeholder="Paste Markdown Table here..."
-                          className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 font-mono text-xs text-stone-200 outline-none focus:border-amber-500"
+                          className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 font-mono text-xs text-stone-200 outline-none focus:border-amber-500/40"
                         />
                       </label>
                     )}
@@ -3054,7 +3054,7 @@ export default function InstructorWorkstationPage({
                           onChange={(event) => setResourceDraft((previous) => ({ ...previous, body: event.target.value }))}
                           rows={5}
                           placeholder={resourceDraft.type === "quiz" ? "Write a practice exercise or prompt for the student." : "Add the material notes the student should review."}
-                          className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                          className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                         />
                       </label>
                     )}
@@ -3068,7 +3068,7 @@ export default function InstructorWorkstationPage({
                             onChange={(event) => setResourceDraft((previous) => ({ ...previous, question: event.target.value }))}
                             rows={3}
                             placeholder="What is the term for … ?"
-                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                           />
                         </label>
                         <label className="block text-xs text-stone-400">
@@ -3078,7 +3078,7 @@ export default function InstructorWorkstationPage({
                             onChange={(event) => setResourceDraft((previous) => ({ ...previous, answer: event.target.value }))}
                             rows={3}
                             placeholder="A clear, student-friendly definition or explanation."
-                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                           />
                         </label>
                         <label className="block text-xs text-stone-400">
@@ -3088,16 +3088,16 @@ export default function InstructorWorkstationPage({
                             onChange={(event) => setResourceDraft((previous) => ({ ...previous, explanation: event.target.value }))}
                             rows={3}
                             placeholder="Optional AI-friendly nuance or extra context."
-                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                           />
                         </label>
                       </>
                     )}
 
-                    <button type="button" onClick={() => void saveStudentResource()} className="w-full rounded-md bg-amber-500 px-4 py-2.5 text-xs font-semibold text-slate-950 transition hover:bg-amber-400">
+                    <button type="button" onClick={() => void saveStudentResource()} className="w-full rounded-md bg-amber-500/20 px-4 py-2.5 text-xs  text-amber-400 transition hover:bg-amber-500/20">
                       {resourceDraft.type === "data_table" ? "Save Data Table" : "Save resource"}
                     </button>
-                    {resourceStatus && <p role="status" className="text-xs leading-relaxed text-amber-300">{resourceStatus}</p>}
+                    {resourceStatus && <p role="status" className="text-xs leading-relaxed text-amber-400">{resourceStatus}</p>}
                   </div>
                 </div>
 
@@ -3128,24 +3128,24 @@ export default function InstructorWorkstationPage({
                         >
                           <div className="absolute inset-0 flex flex-col justify-between rounded-2xl p-5 [backface-visibility:hidden]">
                             <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-300">{flashcardIndex + 1} / {flashcards.length}</span>
-                              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-200">Term</span>
+                              <span className="text-[10px]  uppercase tracking-[0.18em] text-amber-400">{flashcardIndex + 1} / {flashcards.length}</span>
+                              <span className="rounded-full border border-amber-500/40 bg-amber-500/20 px-2 py-1 text-[10px]  uppercase tracking-[0.12em] text-amber-400">Term</span>
                             </div>
                             <div className="flex-1 pt-8">
-                              <p className="text-2xl font-semibold leading-snug text-stone-100">{currentFlashcard.question || currentFlashcard.title}</p>
+                              <p className="text-2xl  leading-snug text-stone-100">{currentFlashcard.question || currentFlashcard.title}</p>
                             </div>
                             <div className="flex justify-center">
-                              <span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px] font-semibold text-stone-300">See answer</span>
+                              <span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px]  text-stone-300">See answer</span>
                             </div>
                           </div>
 
                           <div className="absolute inset-0 flex flex-col justify-between rounded-2xl p-5 [backface-visibility:hidden] [transform:rotateY(180deg)]">
                             <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300">Answer</span>
-                              <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-200">Key idea</span>
+                              <span className="text-[10px]  uppercase tracking-[0.18em] text-emerald-300">Answer</span>
+                              <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px]  uppercase tracking-[0.12em] text-emerald-200">Key idea</span>
                             </div>
                             <div className="flex-1 pt-8">
-                              <p className="text-xl font-medium leading-relaxed text-stone-100">{currentFlashcard.answer || "No answer yet."}</p>
+                              <p className="text-xl  leading-relaxed text-stone-100">{currentFlashcard.answer || "No answer yet."}</p>
                               {currentFlashcard.explanation && (
                                 <div className="mt-5">
                                   <button
@@ -3154,7 +3154,7 @@ export default function InstructorWorkstationPage({
                                       event.stopPropagation();
                                       setShowFlashcardExplanation((value) => !value);
                                     }}
-                                    className="rounded-full border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-200"
+                                    className="rounded-full border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-[10px]  uppercase tracking-[0.14em] text-sky-200"
                                   >
                                     {showFlashcardExplanation ? "Hide explain" : "Explain"}
                                   </button>
@@ -3176,7 +3176,7 @@ export default function InstructorWorkstationPage({
                             setShowFlashcardExplanation(false);
                           }}
                           disabled={flashcardIndex === 0}
-                          className="rounded-md border border-[#394252] px-3 py-2 text-xs font-semibold text-stone-200 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="rounded-md border border-[#394252] px-3 py-2 text-xs  text-stone-200 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           ←
                         </button>
@@ -3190,7 +3190,7 @@ export default function InstructorWorkstationPage({
                               setFlashcardFlipped(false);
                               setShowFlashcardExplanation(false);
                             }}
-                            className="flex items-center gap-2 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-200"
+                            className="flex items-center gap-2 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs  text-red-200"
                           >
                             <span>✕</span>
                             <span>{wrongCount}</span>
@@ -3203,7 +3203,7 @@ export default function InstructorWorkstationPage({
                               setFlashcardFlipped(false);
                               setShowFlashcardExplanation(false);
                             }}
-                            className="flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-200"
+                            className="flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs  text-emerald-200"
                           >
                             <span>✓</span>
                             <span>{rightCount}</span>
@@ -3218,7 +3218,7 @@ export default function InstructorWorkstationPage({
                             setShowFlashcardExplanation(false);
                           }}
                           disabled={flashcardIndex >= flashcards.length - 1}
-                          className="rounded-md border border-[#394252] px-3 py-2 text-xs font-semibold text-stone-200 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="rounded-md border border-[#394252] px-3 py-2 text-xs  text-stone-200 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           →
                         </button>
@@ -3243,7 +3243,7 @@ export default function InstructorWorkstationPage({
                         <div key={resource.id} className="rounded-xl border border-[#202631] bg-[#10181f] p-3">
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">{isDataTable ? "data_table" : resource.resource_type}</p>
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400">{isDataTable ? "data_table" : resource.resource_type}</p>
                               {!isDataTable && <h4 className="mt-1 font-semibold text-stone-100">{resourceTitle}</h4>}
                             </div>
                             <button type="button" onClick={() => void deleteStudentResource(resource)} className="text-stone-500 hover:text-red-300" aria-label={`Delete ${resource.title}`}>
@@ -3311,7 +3311,7 @@ export default function InstructorWorkstationPage({
               <label className="text-xs text-stone-400 md:col-span-3">Custom Tags<input value={newLesson.customTagsText} onChange={(event) => updateBuilderTags({ ...newLesson.tags, custom: parseCustomLessonTags(event.target.value) }, event.target.value)} placeholder="Comma-separated custom tags" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label>
             </div>
             <div className="mt-3 overflow-hidden rounded-md border border-[#29303c] bg-[#0c1017]/60">
-              <button type="button" aria-expanded={isLessonGuidanceExpanded} onClick={() => setIsLessonGuidanceExpanded((expanded) => !expanded)} className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-xs font-medium text-stone-300 transition hover:bg-amber-500/5 hover:text-stone-100">
+              <button type="button" aria-expanded={isLessonGuidanceExpanded} onClick={() => setIsLessonGuidanceExpanded((expanded) => !expanded)} className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-xs  text-stone-300 transition hover:bg-amber-500/20 hover:text-stone-100">
                 <span>Lesson-Specific Guidance</span>
                 {isLessonGuidanceExpanded ? <ChevronDown className="h-4 w-4 text-amber-400" aria-hidden="true" /> : <ChevronRight className="h-4 w-4 text-amber-400" aria-hidden="true" />}
               </button>
@@ -3361,7 +3361,7 @@ export default function InstructorWorkstationPage({
                     type="button"
                     aria-pressed={activeResourceType === type}
                     onClick={() => setResourceDraft((previous) => ({ ...previous, type }))}
-                    className={`rounded-md border px-3 py-2 text-xs font-semibold transition ${activeResourceType === type ? 'border-amber-400 bg-amber-500 text-slate-950 shadow-sm' : 'border-[#394252] bg-[#0c1017] text-stone-400 hover:border-amber-500/60 hover:text-stone-100'}`}
+                    className={`rounded-md border px-3 py-2 text-xs  transition ${activeResourceType === type ? 'border-amber-500/40 bg-amber-500/20 text-amber-400 shadow-sm' : 'border-[#394252] bg-[#0c1017] text-stone-400 hover:border-amber-500/40 hover:text-stone-100'}`}
                   >
                     {label}
                   </button>
@@ -3391,14 +3391,14 @@ export default function InstructorWorkstationPage({
                           value={resourceDraft.title}
                           onChange={(event) => setResourceDraft((previous) => ({ ...previous, title: event.target.value }))}
                           placeholder={resourceDraft.type === "audio" ? "Podcast / Deep Dive Audio" : resourceDraft.type === "data_table" ? "Lesson 3: Core Summary Matrix" : resourceDraft.type === "file" ? "Resource title" : "Vocabulary set / reading summary / quiz idea"}
-                          className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                          className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                         />
                       </label>
 
                       {(["reading", "audio", "file", "image", "video"] as StudentResourceType[]).includes(resourceDraft.type) && (
                         <div className="grid grid-cols-2 rounded-md border border-[#394252] bg-[#0c1017] p-1" role="tablist" aria-label="Media input method">
-                          <button type="button" role="tab" aria-selected={resourceInputMode === "upload"} onClick={() => setResourceInputMode("upload")} className={`rounded px-3 py-2 text-xs font-semibold transition ${resourceInputMode === "upload" ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-200"}`}>Upload File</button>
-                          <button type="button" role="tab" aria-selected={resourceInputMode === "url"} onClick={() => setResourceInputMode("url")} className={`rounded px-3 py-2 text-xs font-semibold transition ${resourceInputMode === "url" ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:text-stone-200"}`}>Paste URL</button>
+                          <button type="button" role="tab" aria-selected={resourceInputMode === "upload"} onClick={() => setResourceInputMode("upload")} className={`rounded px-3 py-2 text-xs  transition ${resourceInputMode === "upload" ? "bg-amber-500/20 text-amber-400" : "text-stone-400 hover:text-stone-200"}`}>Upload File</button>
+                          <button type="button" role="tab" aria-selected={resourceInputMode === "url"} onClick={() => setResourceInputMode("url")} className={`rounded px-3 py-2 text-xs  transition ${resourceInputMode === "url" ? "bg-amber-500/20 text-amber-400" : "text-stone-400 hover:text-stone-200"}`}>Paste URL</button>
                         </div>
                       )}
 
@@ -3411,7 +3411,7 @@ export default function InstructorWorkstationPage({
                             setIsResourceFileDragging(false);
                             handleResourceFileSelection(event.dataTransfer.files[0]);
                           }}
-                          className={`rounded-lg border border-dashed p-5 text-center transition ${isResourceFileDragging ? "border-amber-400 bg-amber-500/10" : "border-[#394252] bg-[#0c1017]"}`}
+                          className={`rounded-lg border border-dashed p-5 text-center transition ${isResourceFileDragging ? "border-amber-500/40 bg-amber-500/20" : "border-[#394252] bg-[#0c1017]"}`}
                         >
                           <input
                             id="student-resource-file-input"
@@ -3423,7 +3423,7 @@ export default function InstructorWorkstationPage({
                           <UploadCloud className="mx-auto h-7 w-7 text-amber-400" aria-hidden="true" />
                           <p className="mt-2 text-sm font-medium text-stone-200">{isResourceFileDragging ? "Drop file to attach" : "Drag a file here or choose a file"}</p>
                           <p className="mt-1 text-[11px] leading-relaxed text-stone-500">{resourceDraft.type === "image" ? "Image files" : resourceDraft.type === "video" ? "Video files" : resourceDraft.type === "reading" ? "PDF or document attachments" : "Images, text documents, PDFs, audio, and video"} · up to 50 MB</p>
-                          <label htmlFor="student-resource-file-input" className="mt-3 inline-flex cursor-pointer items-center rounded-md border border-amber-500/40 px-3 py-2 text-xs font-semibold text-amber-300 hover:border-amber-400">
+                          <label htmlFor="student-resource-file-input" className="mt-3 inline-flex cursor-pointer items-center rounded-md border border-amber-500/40 px-3 py-2 text-xs font-semibold text-amber-400 hover:border-amber-500/40">
                             Choose file
                           </label>
                           {resourceFile && <div className="mt-3 flex items-center justify-center gap-2 text-xs text-stone-300"><span className="max-w-[220px] truncate">{resourceFile.name}</span><button type="button" onClick={() => setResourceFile(null)} className="text-red-300 hover:text-red-200">Remove</button></div>}
@@ -3437,7 +3437,7 @@ export default function InstructorWorkstationPage({
                             value={resourceDraft.linkUrl}
                             onChange={(event) => setResourceDraft((previous) => ({ ...previous, linkUrl: event.target.value }))}
                             placeholder="https://..."
-                            className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                            className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                           />
                         </label>
                       )}
@@ -3451,7 +3451,7 @@ export default function InstructorWorkstationPage({
                               value={resourceDraft.linkUrl}
                               onChange={(event) => setResourceDraft((previous) => ({ ...previous, linkUrl: event.target.value }))}
                               placeholder="https://…"
-                              className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                              className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                             />
                           </label>
                           <label className="block text-xs text-stone-400">
@@ -3461,7 +3461,7 @@ export default function InstructorWorkstationPage({
                               onChange={(event) => setResourceDraft((previous) => ({ ...previous, body: event.target.value }))}
                               rows={4}
                               placeholder="Add context or transcript notes for the student."
-                              className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                              className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                             />
                           </label>
                         </>
@@ -3469,14 +3469,14 @@ export default function InstructorWorkstationPage({
 
                       {resourceDraft.type === "audio" && resourceInputMode === "upload" && (
                         <label className="block text-xs text-stone-400">Upload audio file
-                          <input type="file" accept="audio/*" onChange={(event) => setAudioFile(event.target.files?.[0] || null)} className="mt-1 block w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-300 file:mr-3 file:rounded file:border-0 file:bg-amber-500 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-950" />
+                          <input type="file" accept="audio/*" onChange={(event) => setAudioFile(event.target.files?.[0] || null)} className="mt-1 block w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-300 file:mr-3 file:rounded file:border-0 file:bg-amber-500/20 file:px-3 file:py-1.5 file:text-xs file: file:text-amber-400" />
                           {audioFile && <span className="mt-2 block truncate text-stone-300">{audioFile.name}</span>}
                         </label>
                       )}
 
                       {(["file", "image", "video"] as StudentResourceType[]).includes(resourceDraft.type) && resourceInputMode === "url" && (
                         <label className="block text-xs text-stone-400">{resourceDraft.type === "image" ? "Image URL" : resourceDraft.type === "video" ? "Video URL (direct, YouTube, or Vimeo)" : "File URL"}
-                          <input type="url" value={resourceDraft.linkUrl} onChange={(event) => setResourceDraft((previous) => ({ ...previous, linkUrl: event.target.value }))} placeholder="https://..." className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500" />
+                          <input type="url" value={resourceDraft.linkUrl} onChange={(event) => setResourceDraft((previous) => ({ ...previous, linkUrl: event.target.value }))} placeholder="https://..." className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40" />
                         </label>
                       )}
 
@@ -3488,7 +3488,7 @@ export default function InstructorWorkstationPage({
                             onChange={(event) => setResourceDraft((previous) => ({ ...previous, body: event.target.value }))}
                             rows={12}
                             placeholder="Paste Markdown Table here..."
-                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 font-mono text-xs text-stone-200 outline-none focus:border-amber-500"
+                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 font-mono text-xs text-stone-200 outline-none focus:border-amber-500/40"
                           />
                         </label>
                       )}
@@ -3501,7 +3501,7 @@ export default function InstructorWorkstationPage({
                             onChange={(event) => setResourceDraft((previous) => ({ ...previous, body: event.target.value }))}
                             rows={5}
                             placeholder={resourceDraft.type === "quiz" ? "Write a practice exercise or prompt for the student." : "Add the material notes the student should review."}
-                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                           />
                         </label>
                       )}
@@ -3515,7 +3515,7 @@ export default function InstructorWorkstationPage({
                               onChange={(event) => setResourceDraft((previous) => ({ ...previous, question: event.target.value }))}
                               rows={3}
                               placeholder="What is the term for … ?"
-                              className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                              className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                             />
                           </label>
                           <label className="block text-xs text-stone-400">
@@ -3525,7 +3525,7 @@ export default function InstructorWorkstationPage({
                               onChange={(event) => setResourceDraft((previous) => ({ ...previous, answer: event.target.value }))}
                               rows={3}
                               placeholder="A clear, student-friendly definition or explanation."
-                              className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                              className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                             />
                           </label>
                           <label className="block text-xs text-stone-400">
@@ -3535,16 +3535,16 @@ export default function InstructorWorkstationPage({
                               onChange={(event) => setResourceDraft((previous) => ({ ...previous, explanation: event.target.value }))}
                               rows={3}
                               placeholder="Optional AI-friendly nuance or extra context."
-                              className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500"
+                              className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                             />
                           </label>
                         </>
                       )}
 
-                      <button type="button" onClick={() => void saveStudentResource()} className="w-full rounded-md bg-amber-500 px-4 py-2.5 text-xs font-semibold text-slate-950 transition hover:bg-amber-400">
+                      <button type="button" onClick={() => void saveStudentResource()} className="w-full rounded-md bg-amber-500/20 px-4 py-2.5 text-xs  text-amber-400 transition hover:bg-amber-500/20">
                         {resourceDraft.type === "data_table" ? "Save Data Table" : "Save resource"}
                       </button>
-                      {resourceStatus && <p role="status" className="text-xs leading-relaxed text-amber-300">{resourceStatus}</p>}
+                      {resourceStatus && <p role="status" className="text-xs leading-relaxed text-amber-400">{resourceStatus}</p>}
                     </div>
                   </div>
 
@@ -3575,14 +3575,14 @@ export default function InstructorWorkstationPage({
                         className={`relative h-full w-full cursor-pointer rounded-2xl border border-[#2b3342] bg-[#10181f] p-5 text-left shadow-[0_24px_60px_rgba(0,0,0,0.4)] transition-transform duration-700 [transform-style:preserve-3d] ${draftFlashcardFlipped ? "[transform:rotateY(180deg)]" : ""}`}
                       >
                         <div className="absolute inset-0 flex flex-col justify-between rounded-2xl p-5 [backface-visibility:hidden]">
-                          <div className="flex items-center justify-between gap-2"><span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-300">Draft question</span><span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold uppercase text-amber-200">Question</span></div>
-                          <p className="max-h-[170px] overflow-y-auto break-words text-xl font-semibold leading-snug text-stone-100">{resourceDraft.question.trim() || "Your question will appear here as you type."}</p>
-                          <div className="flex justify-center"><span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px] font-semibold text-stone-300">See answer</span></div>
+                          <div className="flex items-center justify-between gap-2"><span className="text-[10px]  uppercase tracking-[0.16em] text-amber-400">Draft question</span><span className="rounded-full border border-amber-500/40 bg-amber-500/20 px-2 py-1 text-[10px]  uppercase text-amber-400">Question</span></div>
+                          <p className="max-h-[170px] overflow-y-auto break-words text-xl  leading-snug text-stone-100">{resourceDraft.question.trim() || "Your question will appear here as you type."}</p>
+                          <div className="flex justify-center"><span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px]  text-stone-300">See answer</span></div>
                         </div>
                         <div className="absolute inset-0 flex flex-col justify-between rounded-2xl p-5 [backface-visibility:hidden] [transform:rotateY(180deg)]">
-                          <div className="flex items-center justify-between gap-2"><span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-300">Draft answer</span><span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase text-emerald-200">Key idea</span></div>
-                          <div className="max-h-[170px] overflow-y-auto"><p className="break-words text-lg font-medium leading-relaxed text-stone-100">{resourceDraft.answer.trim() || "Your answer will appear here as you type."}</p>{resourceDraft.explanation.trim() && <p className="mt-3 text-xs leading-relaxed text-stone-400">{resourceDraft.explanation}</p>}</div>
-                          <div className="flex justify-center"><span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px] font-semibold text-stone-300">Flip back</span></div>
+                          <div className="flex items-center justify-between gap-2"><span className="text-[10px]  uppercase tracking-[0.16em] text-emerald-300">Draft answer</span><span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px]  uppercase text-emerald-200">Key idea</span></div>
+                          <div className="max-h-[170px] overflow-y-auto"><p className="break-words text-lg  leading-relaxed text-stone-100">{resourceDraft.answer.trim() || "Your answer will appear here as you type."}</p>{resourceDraft.explanation.trim() && <p className="mt-3 text-xs leading-relaxed text-stone-400">{resourceDraft.explanation}</p>}</div>
+                          <div className="flex justify-center"><span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px]  text-stone-300">Flip back</span></div>
                         </div>
                       </div>
                     </div>
@@ -3608,24 +3608,24 @@ export default function InstructorWorkstationPage({
                             >
                               <div className="absolute inset-0 flex flex-col justify-between rounded-2xl p-5 [backface-visibility:hidden]">
                                 <div className="flex items-center justify-between">
-                                  <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-300">{flashcardIndex + 1} / {flashcards.length}</span>
-                                  <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-200">Term</span>
+                                  <span className="text-[10px]  uppercase tracking-[0.18em] text-amber-400">{flashcardIndex + 1} / {flashcards.length}</span>
+                                  <span className="rounded-full border border-amber-500/40 bg-amber-500/20 px-2 py-1 text-[10px]  uppercase tracking-[0.12em] text-amber-400">Term</span>
                                 </div>
                                 <div className="flex-1 pt-8">
-                                  <p className="text-2xl font-semibold leading-snug text-stone-100">{currentFlashcard.question || currentFlashcard.title}</p>
+                                  <p className="text-2xl  leading-snug text-stone-100">{currentFlashcard.question || currentFlashcard.title}</p>
                                 </div>
                                 <div className="flex justify-center">
-                                  <span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px] font-semibold text-stone-300">See answer</span>
+                                  <span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px]  text-stone-300">See answer</span>
                                 </div>
                               </div>
 
                               <div className="absolute inset-0 flex flex-col justify-between rounded-2xl p-5 [backface-visibility:hidden] [transform:rotateY(180deg)]">
                                 <div className="flex items-center justify-between">
-                                  <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300">Answer</span>
-                                  <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-200">Key idea</span>
+                                  <span className="text-[10px]  uppercase tracking-[0.18em] text-emerald-300">Answer</span>
+                                  <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px]  uppercase tracking-[0.12em] text-emerald-200">Key idea</span>
                                 </div>
                                 <div className="flex-1 pt-8">
-                                  <p className="text-xl font-medium leading-relaxed text-stone-100">{currentFlashcard.answer || "No answer yet."}</p>
+                                  <p className="text-xl  leading-relaxed text-stone-100">{currentFlashcard.answer || "No answer yet."}</p>
                                   {currentFlashcard.explanation && (
                                     <div className="mt-5">
                                       <button
@@ -3634,7 +3634,7 @@ export default function InstructorWorkstationPage({
                                           event.stopPropagation();
                                           setShowFlashcardExplanation((value) => !value);
                                         }}
-                                        className="rounded-full border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-200"
+                                        className="rounded-full border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-[10px]  uppercase tracking-[0.14em] text-sky-200"
                                       >
                                         {showFlashcardExplanation ? "Hide note" : "Show note"}
                                       </button>
@@ -3643,14 +3643,14 @@ export default function InstructorWorkstationPage({
                                   )}
                                 </div>
                                 <div className="flex justify-center">
-                                  <span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px] font-semibold text-stone-300">Flip back</span>
+                                  <span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px]  text-stone-300">Flip back</span>
                                 </div>
                               </div>
                             </div>
                           </div>
 
                           <div className="mt-5 flex items-center justify-between gap-3">
-                            <button type="button" onClick={() => setFlashcardIndex((index) => (index === 0 ? flashcards.length - 1 : index - 1))} className="rounded-md border border-[#394252] bg-[#171d28] px-3 py-2 text-xs font-medium text-stone-300 hover:text-stone-100">
+                            <button type="button" onClick={() => setFlashcardIndex((index) => (index === 0 ? flashcards.length - 1 : index - 1))} className="rounded-md border border-[#394252] bg-[#171d28] px-3 py-2 text-xs  text-stone-300 hover:text-stone-100">
                               Previous
                             </button>
                             <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-stone-500">
@@ -3661,7 +3661,7 @@ export default function InstructorWorkstationPage({
                                 Wrong
                               </button>
                             </div>
-                            <button type="button" onClick={() => setFlashcardIndex((index) => (index + 1) % flashcards.length)} className="rounded-md border border-[#394252] bg-[#171d28] px-3 py-2 text-xs font-medium text-stone-300 hover:text-stone-100">
+                            <button type="button" onClick={() => setFlashcardIndex((index) => (index + 1) % flashcards.length)} className="rounded-md border border-[#394252] bg-[#171d28] px-3 py-2 text-xs  text-stone-300 hover:text-stone-100">
                               Next
                             </button>
                           </div>
@@ -3690,12 +3690,12 @@ export default function InstructorWorkstationPage({
                       {activeResourceType === "reading" && (
                         <div className="space-y-3">
                           {resourceDraft.body.trim() ? <MarkdownContent value={resourceDraft.body} className="text-sm leading-relaxed text-stone-300" dataTables /> : <p className="text-sm text-stone-500">Add reading notes to preview the Markdown here.</p>}
-                          {resourceInputMode === "upload" && resourceFilePreviewUrl ? <a href={resourceFilePreviewUrl} target="_blank" rel="noreferrer" className="inline-flex rounded-md border border-amber-500/30 px-3 py-2 text-xs font-semibold text-amber-300 hover:border-amber-400">Open uploaded attachment: {resourceFile?.name}</a> : resourceInputMode === "url" && getResourcePreviewHref(resourceDraft.linkUrl) ? <a href={getResourcePreviewHref(resourceDraft.linkUrl) || undefined} target="_blank" rel="noreferrer" className="inline-flex rounded-md border border-amber-500/30 px-3 py-2 text-xs font-semibold text-amber-300 hover:border-amber-400">Open or download</a> : resourceDraft.linkUrl.trim() ? <p className="break-all text-xs text-stone-500">{resourceDraft.linkUrl}</p> : <p className="text-xs text-stone-500">Add a reading link or file to preview it here.</p>}
+                          {resourceInputMode === "upload" && resourceFilePreviewUrl ? <a href={resourceFilePreviewUrl} target="_blank" rel="noreferrer" className="inline-flex rounded-md border border-amber-500/40 px-3 py-2 text-xs  text-amber-400 hover:border-amber-500/40">Open uploaded attachment: {resourceFile?.name}</a> : resourceInputMode === "url" && getResourcePreviewHref(resourceDraft.linkUrl) ? <a href={getResourcePreviewHref(resourceDraft.linkUrl) || undefined} target="_blank" rel="noreferrer" className="inline-flex rounded-md border border-amber-500/40 px-3 py-2 text-xs  text-amber-400 hover:border-amber-500/40">Open or download</a> : resourceDraft.linkUrl.trim() ? <p className="break-all text-xs text-stone-500">{resourceDraft.linkUrl}</p> : <p className="text-xs text-stone-500">Add a reading link or file to preview it here.</p>}
                         </div>
                       )}
                       {activeResourceType === "quiz" && (
                         <div className="rounded-lg border border-[#293343] bg-[#10181f] p-4">
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-300">Practice prompt</p>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Practice prompt</p>
                           <MarkdownContent value={resourceDraft.body.trim() || "Your practice prompt will appear here as you type."} className="mt-3 text-sm leading-relaxed text-stone-200" dataTables />
                         </div>
                       )}
@@ -3726,8 +3726,8 @@ export default function InstructorWorkstationPage({
                           if (mediaType === "application/pdf" || mediaType?.startsWith("text/")) return <iframe src={resourceFilePreviewUrl} title={`Preview of ${resourceFile.name}`} className="h-[560px] w-full rounded-lg border border-[#293343] bg-white" />;
                           if (mediaType?.startsWith("audio/")) return <CustomAudioPlayer src="" blob={resourceFile} label={resourceFile.name} />;
                           if (mediaType?.startsWith("video/")) return <video src={resourceFilePreviewUrl} controls preload="metadata" className="max-h-[560px] w-full rounded-lg bg-black" aria-label={`Preview of ${resourceFile.name}`} />;
-                          return <div className="space-y-3"><p className="text-sm text-stone-400">This document format opens or downloads instead of displaying inline.</p><a href={resourceFilePreviewUrl} download={resourceFile.name} className="inline-flex rounded-md border border-amber-500/30 px-3 py-2 text-xs font-semibold text-amber-300 hover:border-amber-400">Open or download {resourceFile.name}</a></div>;
-                        })() : resourceInputMode === "url" && getResourcePreviewHref(resourceDraft.linkUrl) ? <a href={getResourcePreviewHref(resourceDraft.linkUrl) || undefined} target="_blank" rel="noreferrer" className="inline-flex rounded-md border border-amber-500/30 px-3 py-2 text-xs font-semibold text-amber-300 hover:border-amber-400">Open external file</a> : <p className="rounded-lg border border-dashed border-[#394252] p-6 text-center text-sm text-stone-500">Add a file using the selected input method to preview it here.</p>
+                          return <div className="space-y-3"><p className="text-sm text-stone-400">This document format opens or downloads instead of displaying inline.</p><a href={resourceFilePreviewUrl} download={resourceFile.name} className="inline-flex rounded-md border border-amber-500/40 px-3 py-2 text-xs  text-amber-400 hover:border-amber-500/40">Open or download {resourceFile.name}</a></div>;
+                        })() : resourceInputMode === "url" && getResourcePreviewHref(resourceDraft.linkUrl) ? <a href={getResourcePreviewHref(resourceDraft.linkUrl) || undefined} target="_blank" rel="noreferrer" className="inline-flex rounded-md border border-amber-500/40 px-3 py-2 text-xs  text-amber-400 hover:border-amber-500/40">Open external file</a> : <p className="rounded-lg border border-dashed border-[#394252] p-6 text-center text-sm text-stone-500">Add a file using the selected input method to preview it here.</p>
                       )}
                     </div>
                   )}
@@ -3821,7 +3821,7 @@ export default function InstructorWorkstationPage({
 <div>
 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Submission Review Workspace</p>
 <h2 className="mt-1 font-sans text-xl font-semibold text-stone-100">{selectedStudent?.name || "Selected Student"}&apos;s answers</h2>
-<p className="mt-1 text-xs text-amber-300">{selectedStudent?.profile.targetLevel || selectedStudent?.profile.level || "Level not set"}</p>
+<p className="mt-1 text-xs text-amber-400">{selectedStudent?.profile.targetLevel || selectedStudent?.profile.level || "Level not set"}</p>
 </div>
 <span className={`w-fit rounded-sm border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${submissionStateClass}`}>{submissionState}</span>
 </div>
@@ -3850,8 +3850,8 @@ export default function InstructorWorkstationPage({
 </>}
       </div>
       <div className={`fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm transition-opacity duration-300 ease-in-out ${guidanceOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`} role="presentation" onClick={() => setGuidanceOpen(false)} aria-hidden={!guidanceOpen}>
-        <aside className={`absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-amber-500/20 bg-[#0c1017]/95 p-5 text-stone-200 shadow-2xl backdrop-blur-md transition-transform duration-300 ease-in-out ${guidanceOpen ? "translate-x-0" : "translate-x-full"}`} role="dialog" aria-modal={guidanceOpen} aria-labelledby="workstation-guidance-title" onClick={(event) => event.stopPropagation()}>
-          <div className="flex items-center justify-between border-b border-[#293343] pb-4"><h2 id="workstation-guidance-title" className="flex items-center gap-2 text-sm font-semibold text-amber-300"><Lightbulb className="h-4 w-4" />Lesson Guidance</h2><button type="button" onClick={() => setGuidanceOpen(false)} aria-label="Close lesson guidance" className="rounded-md p-2 text-stone-400 transition hover:bg-white/10 hover:text-stone-100"><X className="h-4 w-4" /></button></div>
+        <aside className={`absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-amber-500/40 bg-[#0c1017]/95 p-5 text-stone-200 shadow-2xl backdrop-blur-md transition-transform duration-300 ease-in-out ${guidanceOpen ? "translate-x-0" : "translate-x-full"}`} role="dialog" aria-modal={guidanceOpen} aria-labelledby="workstation-guidance-title" onClick={(event) => event.stopPropagation()}>
+          <div className="flex items-center justify-between border-b border-[#293343] pb-4"><h2 id="workstation-guidance-title" className="flex items-center gap-2 text-sm font-semibold text-amber-400"><Lightbulb className="h-4 w-4" />Lesson Guidance</h2><button type="button" onClick={() => setGuidanceOpen(false)} aria-label="Close lesson guidance" className="rounded-md p-2 text-stone-400 transition hover:bg-white/10 hover:text-stone-100"><X className="h-4 w-4" /></button></div>
           <div className="min-h-0 flex-1 overflow-y-auto py-5"><MarkdownContent value={newLesson.instructorGuidance} className="text-sm leading-relaxed text-stone-300" /></div>
         </aside>
       </div>
@@ -3861,7 +3861,7 @@ export default function InstructorWorkstationPage({
         instructorId={instructorId}
     lessonContext={newLesson.title || newLesson.slug || lessonId}
   />
-      {lessonPendingDelete && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-lesson-title" aria-describedby="delete-lesson-warning"><div className="w-full max-w-md rounded-xl border border-red-500/30 bg-[#171d28] p-6 shadow-2xl"><h2 id="delete-lesson-title" className="font-sans text-xl font-semibold text-stone-100">Delete lesson permanently?</h2><p id="delete-lesson-warning" className="mt-3 text-sm leading-relaxed text-stone-300">This permanently deletes the lesson, its versions, assignments, submissions, feedback, and lesson-linked student resources. This action cannot be undone.</p><p className="mt-2 truncate text-xs text-amber-300">{lessonPendingDelete.title}</p><div className="mt-6 flex justify-end gap-3"><button type="button" disabled={isDeletingLesson} onClick={() => setLessonPendingDelete(null)} className="rounded-md border border-[#394252] px-4 py-2 text-xs font-semibold text-stone-300 hover:border-stone-300 disabled:cursor-not-allowed disabled:opacity-50">Cancel</button><button type="button" disabled={isDeletingLesson} onClick={() => void handleDeleteLesson()} className="rounded-md bg-red-500 px-4 py-2 text-xs font-semibold text-white hover:bg-red-400 disabled:cursor-wait disabled:opacity-60">{isDeletingLesson ? "Deleting..." : "Delete lesson"}</button></div></div></div>}
+      {lessonPendingDelete && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-lesson-title" aria-describedby="delete-lesson-warning"><div className="w-full max-w-md rounded-xl border border-red-500/30 bg-[#171d28] p-6 shadow-2xl"><h2 id="delete-lesson-title" className="font-sans text-xl font-semibold text-stone-100">Delete lesson permanently?</h2><p id="delete-lesson-warning" className="mt-3 text-sm leading-relaxed text-stone-300">This permanently deletes the lesson, its versions, assignments, submissions, feedback, and lesson-linked student resources. This action cannot be undone.</p><p className="mt-2 truncate text-xs text-amber-400">{lessonPendingDelete.title}</p><div className="mt-6 flex justify-end gap-3"><button type="button" disabled={isDeletingLesson} onClick={() => setLessonPendingDelete(null)} className="rounded-md border border-[#394252] px-4 py-2 text-xs  text-stone-300 hover:border-stone-300 disabled:cursor-not-allowed disabled:opacity-50">Cancel</button><button type="button" disabled={isDeletingLesson} onClick={() => void handleDeleteLesson()} className="rounded-md bg-red-500 px-4 py-2 text-xs  text-white hover:bg-red-400 disabled:cursor-wait disabled:opacity-60">{isDeletingLesson ? "Deleting..." : "Delete lesson"}</button></div></div></div>}
     </div>
   );
 }

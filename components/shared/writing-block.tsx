@@ -18,7 +18,7 @@ export function WritingBlockEditor({ block, onChange }: WritingBlockEditorProps)
           value={block.title}
           onChange={(event) => onChange({ title: event.target.value })}
           placeholder="Writing prompt title"
-          className="mt-1 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500"
+          className="mt-1 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
         />
       </label>
       <label className="block text-xs text-stone-500">
@@ -28,7 +28,7 @@ export function WritingBlockEditor({ block, onChange }: WritingBlockEditorProps)
           onChange={(event) => onChange({ prompt: event.target.value })}
           placeholder="Describe the writing task and any requirements..."
           rows={6}
-          className="mt-1 w-full resize-y rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500"
+          className="mt-1 w-full resize-y rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
           aria-label="Writing prompt instructions"
         />
       </label>
@@ -40,7 +40,7 @@ export function WritingBlockEditor({ block, onChange }: WritingBlockEditorProps)
             min={0}
             value={block.minWordCount}
             onChange={(event) => onChange({ minWordCount: Math.max(0, Number(event.target.value) || 0) })}
-            className="mt-1 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500"
+            className="mt-1 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
           />
         </label>
         <label className="block text-xs text-stone-500">
@@ -50,7 +50,7 @@ export function WritingBlockEditor({ block, onChange }: WritingBlockEditorProps)
             min={0}
             value={block.maxWordCount}
             onChange={(event) => onChange({ maxWordCount: Math.max(0, Number(event.target.value) || 0) })}
-            className="mt-1 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500"
+            className="mt-1 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
           />
         </label>
       </div>
@@ -61,7 +61,7 @@ export function WritingBlockEditor({ block, onChange }: WritingBlockEditorProps)
           onChange={(event) => onChange({ guidance: event.target.value })}
           placeholder="Private guidance for evaluation or a model answer..."
           rows={4}
-          className="mt-1 w-full resize-y rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500"
+          className="mt-1 w-full resize-y rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
           aria-label="Writing guidance or model answer notes"
         />
       </label>
@@ -111,11 +111,11 @@ export function WritingBlockRenderer({ block, value = "", onChange, isPreview = 
           readOnly={isPreview}
           onChange={(event) => onChange?.(event.target.value)}
           placeholder={isPreview ? "Student essay response" : "Start writing your response..."}
-          className="min-h-[180px] w-full resize-none overflow-hidden rounded-lg border border-[#202631] bg-[#0c1017] p-4 pb-12 text-sm leading-7 text-stone-200 outline-none transition focus:border-amber-500 read-only:cursor-default read-only:opacity-80"
+          className="min-h-[180px] w-full resize-none overflow-hidden rounded-lg border border-[#202631] bg-[#0c1017] p-4 pb-12 text-sm leading-7 text-stone-200 outline-none transition focus:border-amber-500/40 read-only:cursor-default read-only:opacity-80"
           aria-label="Writing response"
         />
         <div className="pointer-events-none absolute bottom-3 right-3 flex flex-wrap justify-end gap-x-3 gap-y-1 text-[11px] tabular-nums text-stone-500">
-          <span className={minimumReached ? "text-amber-300" : ""}>{wordCount} / {block.minWordCount} words</span>
+          <span className={minimumReached ? "text-amber-400" : ""}>{wordCount} / {block.minWordCount} words</span>
           <span>{characterCount} characters</span>
           {overMaximum && <span className="text-red-300">Maximum exceeded</span>}
         </div>

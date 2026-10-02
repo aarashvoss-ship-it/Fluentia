@@ -152,7 +152,7 @@ export function AudioRecorder({
         onClick={start}
         disabled={disabled}
         aria-label={label}
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-500 text-[#0c1017] shadow-sm transition hover:bg-amber-400 active:scale-95 disabled:opacity-40"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-amber-400 shadow-sm transition hover:bg-amber-500/20 active:scale-95 disabled:opacity-40"
       >
         <Mic className="h-4 w-4" />
       </button>

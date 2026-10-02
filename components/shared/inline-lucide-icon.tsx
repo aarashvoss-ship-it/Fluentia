@@ -7,7 +7,7 @@ import { DynamicLucideIcon } from "@/components/shared/lucide-icon-picker";
 function InlineLucideIconView({ node }: NodeViewProps) {
   const name = typeof node.attrs.name === "string" ? node.attrs.name : "CircleHelp";
   return (
-    <NodeViewWrapper as="span" className="inline-flex align-middle text-amber-300" title={name}>
+    <NodeViewWrapper as="span" className="inline-flex align-middle text-amber-400" title={name}>
       <DynamicLucideIcon name={name} className="h-4 w-4" aria-label={name} />
     </NodeViewWrapper>
   );

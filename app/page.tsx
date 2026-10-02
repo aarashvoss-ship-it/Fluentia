@@ -69,11 +69,11 @@ export default function RootPage() {
       <p className="mt-1 text-xs leading-relaxed text-slate-500">Leave your email and we will let you know when new invitations open.</p>
       <form onSubmit={(event) => void requestAccess(event)} className="mt-4 flex flex-col gap-2 sm:flex-row">
         <label className="sr-only" htmlFor="waitlist-email">Email address</label>
-        <input id="waitlist-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" required autoComplete="email" className="min-w-0 flex-1 rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2.5 text-sm text-stone-100 outline-none placeholder:text-slate-600 focus:border-amber-500" />
-        <button type="submit" disabled={isSubmitting} className="rounded-md bg-amber-500 px-4 py-2.5 text-sm font-semibold text-[#0c1017] transition hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60">{isSubmitting ? "Requesting..." : "Request Access"}</button>
+        <input id="waitlist-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" required autoComplete="email" className="min-w-0 flex-1 rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2.5 text-sm text-stone-100 outline-none placeholder:text-slate-600 focus:border-amber-500/40" />
+        <button type="submit" disabled={isSubmitting} className="rounded-md bg-amber-500/20 px-4 py-2.5 text-sm  text-amber-400 transition hover:bg-amber-500/20 disabled:cursor-wait disabled:opacity-60">{isSubmitting ? "Requesting..." : "Request Access"}</button>
       </form>
-      {status && <p className="mt-3 text-xs leading-relaxed text-amber-300" role="status">{status}</p>}
+      {status && <p className="mt-3 text-xs leading-relaxed text-amber-400" role="status">{status}</p>}
     </div>
-    <Link href="/login" className="mt-6 flex items-center justify-center rounded-md border border-amber-500/60 px-4 py-2.5 text-sm font-semibold text-amber-300 transition hover:bg-amber-500 hover:text-[#0c1017]">Already have access? Sign In</Link>
+    <Link href="/login" className="mt-6 flex items-center justify-center rounded-md border border-amber-500/40 px-4 py-2.5 text-sm font-normal text-amber-400 transition hover:bg-amber-500/20 hover:text-amber-400">Already have access? Sign In</Link>
   </AccessCard>;
 }

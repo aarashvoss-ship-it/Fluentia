@@ -103,7 +103,7 @@ export function StudentContextPanel({
     <div className="bg-[#171d28]/60 border border-[#202631] rounded-xl p-5 text-[#d9dce0]">
       <div className="flex items-start justify-between pb-4 border-b border-[#202631]">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-[#0c1017] border border-amber-500 flex items-center justify-center font-bold text-lg text-amber-400">
+          <div className="w-12 h-12 rounded-full bg-[#0c1017] border border-amber-500/40 flex items-center justify-center font-bold text-lg text-amber-400">
             {displayProfile.fullName.charAt(0)}
           </div>
           <div>
@@ -116,7 +116,7 @@ export function StudentContextPanel({
             <select
               value={(displayProfile.targetLevel || displayProfile.level).match(/^(A1|A2|B1|B2|C1|C2)/)?.[1] || ""}
               onChange={(event) => onUpdateProfile?.({ ...displayProfile, level: event.target.value, targetLevel: event.target.value })}
-              className="mt-1 w-full max-w-[220px] rounded-md border border-[#394252] bg-[#111827] px-2 py-1 text-xs text-white outline-none focus:border-amber-500 [color-scheme:dark]"
+              className="mt-1 w-full max-w-[220px] rounded-md border border-[#394252] bg-[#111827] px-2 py-1 text-xs text-white outline-none focus:border-amber-500/40 [color-scheme:dark]"
               aria-label="Student level"
             >
               <option value="">Not set</option>
@@ -145,7 +145,7 @@ export function StudentContextPanel({
             <input
               value={displayProfile.targetGoal}
               onChange={(e) => updateProfile("targetGoal", e.target.value)}
-              className="w-full bg-[#0c1017] p-2.5 rounded-lg border border-[#202631] text-stone-200 focus:outline-none focus:border-amber-500"
+              className="w-full bg-[#0c1017] p-2.5 rounded-lg border border-[#202631] text-stone-200 focus:outline-none focus:border-amber-500/40"
               aria-label="Student core goal"
             />
         </div>
@@ -158,7 +158,7 @@ export function StudentContextPanel({
             {displayProfile.weaknesses.map((item, idx) => (
               <span
                 key={idx}
-                className="bg-amber-950/40 text-amber-300 border border-amber-800/40 px-2 py-1 rounded-md text-[11px]"
+                className="bg-amber-500/20 text-amber-400 border border-amber-500/40 px-2 py-1 rounded-md text-[11px]"
               >
                 {item}
               </span>
@@ -173,7 +173,7 @@ export function StudentContextPanel({
           <input
             value={displayProfile.assignedInstructor || ""}
             onChange={(e) => updateProfile("assignedInstructor", e.target.value)}
-            className="w-full bg-[#0c1017] p-2.5 rounded-lg border border-[#202631] text-stone-200 focus:outline-none focus:border-amber-500"
+            className="w-full bg-[#0c1017] p-2.5 rounded-lg border border-[#202631] text-stone-200 focus:outline-none focus:border-amber-500/40"
             aria-label="Assigned instructor"
             placeholder="Instructor name"
           />
@@ -186,7 +186,7 @@ export function StudentContextPanel({
             <textarea
               value={displayProfile.teacherNotes}
               onChange={(e) => updateProfile("teacherNotes", e.target.value)}
-              className="w-full bg-[#0c1017] p-2.5 rounded-lg border border-[#202631] text-stone-300 italic focus:outline-none focus:border-amber-500"
+              className="w-full bg-[#0c1017] p-2.5 rounded-lg border border-[#202631] text-stone-300 italic focus:outline-none focus:border-amber-500/40"
               aria-label="Instructor notes"
               rows={3}
             />
@@ -201,7 +201,7 @@ export function StudentContextPanel({
 
         <div className="flex items-center justify-between gap-3 border-t border-[#202631] pt-3">
           <span className={profileSaveMessage?.startsWith("Profile save failed") ? "text-red-300" : profileSaveMessage === "Profile saved successfully" ? "text-emerald-300" : "text-stone-500"}>{profileSaveMessage || "Instructor profile settings"}</span>
-          <button type="button" onClick={() => void saveProfile()} disabled={isSavingProfile || !onSaveProfile} className="rounded-md bg-amber-500 px-3 py-2 text-[11px] font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50">
+          <button type="button" onClick={() => void saveProfile()} disabled={isSavingProfile || !onSaveProfile} className="rounded-md bg-amber-500/20 px-3 py-2 text-[11px]  text-amber-400 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50">
             {isSavingProfile ? "Saving..." : "Save profile"}
           </button>
         </div>
@@ -238,7 +238,7 @@ export function StudentContextPanel({
                         ? "bg-green-900/40 text-green-300"
                         : submissionData.status === "submitted" || submissionData.status === "pending_evaluation"
                         ? "bg-blue-900/40 text-blue-300"
-                        : "bg-yellow-900/40 text-yellow-300"
+                        : "bg-amber-500/20 text-amber-400"
                     }`}
                   >
                     {submissionData.status === "pending_evaluation" || submissionData.status === "submitted" ? "Pending Evaluation" : submissionData.status === "evaluated" ? "Evaluated" : submissionData.status}

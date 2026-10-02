@@ -99,7 +99,7 @@ export function InstructorBannerManager({
           <Image aria-hidden="true" focusable="false" className="h-5 w-5 shrink-0 text-amber-400" />
           Hero Banner
         </h3>
-        <span className="shrink-0 whitespace-nowrap rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-400">
+        <span className="shrink-0 whitespace-nowrap rounded-full border border-amber-500/40 bg-amber-500/20 px-2.5 py-1 text-xs text-amber-400">
           Dynamic Storage
         </span>
       </div>
@@ -131,7 +131,7 @@ export function InstructorBannerManager({
                 key={index}
                 onClick={() => handleSelect(preset)}
                 className={`relative h-16 rounded-md overflow-hidden border transition ${
-                  isSelected ? "border-amber-500 ring-1 ring-amber-500" : "border-[#202631] opacity-70 hover:opacity-100"
+                  isSelected ? "border-amber-500/40 ring-1 ring-amber-500/40" : "border-[#202631] opacity-70 hover:opacity-100"
                 }`}
               >
                 <img src={preset} alt={`Preset banner ${index + 1}`} className="w-full h-full object-cover" />
@@ -160,13 +160,13 @@ export function InstructorBannerManager({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#394252] bg-[#0c1017] px-3 py-2.5 text-xs font-medium text-stone-200 transition hover:border-amber-500/60 hover:text-amber-300 disabled:cursor-wait disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#394252] bg-[#0c1017] px-3 py-2.5 text-xs  text-stone-200 transition hover:border-amber-500/40 hover:text-amber-400 disabled:cursor-wait disabled:opacity-60"
           >
             {isUploading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
             {isUploading ? "Uploading..." : "Choose image to upload"}
           </button>
           <p className="mt-1.5 text-[10px] text-stone-500">PNG, JPG, or WebP. Maximum 5 MB.</p>
-          {uploadMessage && <p className={`mt-2 text-xs ${uploadMessageIsError ? "text-red-300" : "text-amber-300"}`} role={uploadMessageIsError ? "alert" : "status"}>{uploadMessage}</p>}
+          {uploadMessage && <p className={`mt-2 text-xs ${uploadMessageIsError ? "text-red-300" : "text-amber-400"}`} role={uploadMessageIsError ? "alert" : "status"}>{uploadMessage}</p>}
         </div>
 
         <div className="pt-2">
@@ -177,11 +177,11 @@ export function InstructorBannerManager({
               placeholder="Paste image URL or Supabase link..."
               value={customInput}
               onChange={(e) => onUpdateCustomInput?.(e.target.value)}
-              className="flex-1 bg-[#0c1017] border border-[#202631] rounded-lg px-3 py-2 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500"
+              className="flex-1 bg-[#0c1017] border border-[#202631] rounded-lg px-3 py-2 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500/40"
             />
             <button
               onClick={handleCustomApply}
-              className="bg-[#202631] hover:bg-[#29303c] text-xs px-3 py-2 rounded-lg font-medium transition flex items-center gap-1.5"
+              className="bg-[#202631] hover:bg-[#29303c] text-xs px-3 py-2 rounded-lg  transition flex items-center gap-1.5"
             >
               <Upload className="w-3.5 h-3.5" /> Apply
             </button>

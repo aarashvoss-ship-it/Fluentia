@@ -35,7 +35,7 @@ export default function SubmissionReviewPage() {
             <p className="text-xs text-slate-400">Selected student • Module 03 Submission (Speaking & Writing)</p>
           </div>
         </div>
-        <span className="text-xs bg-[#ffc66b]/10 text-[#ffc66b] border border-[#ffc66b]/20 px-3 py-1 rounded-full font-mono">
+        <span className="text-xs bg-amber-500/20 text-amber-400 border border-amber-500/40 px-3 py-1 rounded-full font-mono">
           Wizard-of-Oz Review Mode
         </span>
       </div>
@@ -49,11 +49,11 @@ export default function SubmissionReviewPage() {
             <h3 className="text-sm font-bold text-white mb-2">Audio Submission: Eliminating Morning Choice Fatigue</h3>
             <p className="text-xs text-slate-400 mb-4 font-mono">Duration: 01:18 • Studio Mic Clarity (92%)</p>
             <div className="bg-[#09131e] p-4 rounded-lg border border-[#273647] flex items-center gap-4">
-              <button className="w-10 h-10 rounded-full bg-[#ffc66b] text-[#432c00] flex items-center justify-center font-bold shadow">
+              <button className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center  shadow">
                 ▶
               </button>
               <div className="flex-1 h-3 bg-[#273647] rounded-full overflow-hidden">
-                <div className="w-2/3 h-full bg-[#ffc66b]"></div>
+                <div className="w-2/3 h-full bg-amber-500/20"></div>
               </div>
               <span className="text-xs text-[#7ed8ab] font-mono font-bold">1.0x</span>
             </div>
@@ -73,10 +73,10 @@ export default function SubmissionReviewPage() {
           {/* Score Header */}
           <div className="flex items-center justify-between border-b border-[#273647] pb-4">
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Award className="w-5 h-5 text-[#ffc66b]" /> Evaluation Rubric
+              <Award className="w-5 h-5 text-amber-400" /> Evaluation Rubric
             </h3>
             <div className="text-right">
-              <span className="text-2xl font-black text-[#ffc66b]">{calculateOverallScore()}</span>
+              <span className="text-2xl font-black text-amber-400">{calculateOverallScore()}</span>
               <span className="text-xs text-slate-400"> / 5.0</span>
             </div>
           </div>
@@ -86,7 +86,7 @@ export default function SubmissionReviewPage() {
             <div>
               <div className="flex justify-between text-xs mb-1">
                 <span className="text-slate-300">Pronunciation & Cadence</span>
-                <span className="text-[#ffc66b] font-bold">{rubricScores.cadence}</span>
+                <span className="text-amber-400 font-bold">{rubricScores.cadence}</span>
               </div>
               <input
                 type="range"
@@ -95,13 +95,13 @@ export default function SubmissionReviewPage() {
                 step="0.5"
                 value={rubricScores.cadence}
                 onChange={(e) => setRubricScores({ ...rubricScores, cadence: parseFloat(e.target.value) })}
-                className="w-full accent-[#ffc66b]"
+                className="w-full accent-amber-500"
               />
             </div>
             <div>
               <div className="flex justify-between text-xs mb-1">
                 <span className="text-slate-300">Grammar & Structure</span>
-                <span className="text-[#ffc66b] font-bold">{rubricScores.grammar}</span>
+                <span className="text-amber-400 font-bold">{rubricScores.grammar}</span>
               </div>
               <input
                 type="range"
@@ -110,7 +110,7 @@ export default function SubmissionReviewPage() {
                 step="0.5"
                 value={rubricScores.grammar}
                 onChange={(e) => setRubricScores({ ...rubricScores, grammar: parseFloat(e.target.value) })}
-                className="w-full accent-[#ffc66b]"
+                className="w-full accent-amber-500"
               />
             </div>
           </div>
@@ -122,14 +122,14 @@ export default function SubmissionReviewPage() {
               rows={5}
               value={feedbackText}
               onChange={(e) => setFeedbackText(e.target.value)}
-              className="w-full bg-[#09131e] border border-[#273647] rounded-lg p-3 text-xs text-white focus:outline-none focus:border-[#ffc66b] leading-relaxed"
+              className="w-full bg-[#09131e] border border-[#273647] rounded-lg p-3 text-xs text-white focus:outline-none focus:border-amber-500/40 leading-relaxed"
             />
           </div>
 
           {/* Submit Action */}
           <button
             type="button"
-            className="w-full py-3 bg-[#ffc66b] hover:bg-[#e8a838] text-[#432c00] font-bold rounded-lg text-sm transition shadow-lg flex items-center justify-center gap-2"
+            className="w-full py-3 bg-amber-500/20 hover:bg-amber-500/20 text-amber-400  rounded-lg text-sm transition shadow-lg flex items-center justify-center gap-2"
           >
             <Send className="w-4 h-4" /> Publish Evaluation to Student
           </button>

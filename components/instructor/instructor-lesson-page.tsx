@@ -82,7 +82,7 @@ export function InstructorLessonPage({ lessonId }: InstructorLessonPageProps) {
             </h1>
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28] text-stone-400 transition hover:border-amber-500 hover:text-amber-300">
+            <button type="button" aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28] text-stone-400 transition hover:border-amber-500/40 hover:text-amber-400">
               <BookOpen className="h-4 w-4" />
             </button>
             <AmbientMusicPlayer src={content.ambientMusicUrl || undefined} />
@@ -100,7 +100,7 @@ export function InstructorLessonPage({ lessonId }: InstructorLessonPageProps) {
             <button
               onClick={handlePublish}
               disabled={isPublishing || isSaving}
-              className="px-5 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black text-sm font-medium rounded-lg transition-colors"
+              className="px-5 py-2 bg-amber-500/20 hover:bg-amber-500/20 disabled:opacity-50 text-amber-400 text-sm  rounded-lg transition-colors"
             >
               {isPublishing ? "Publishing…" : "Publish Lesson"}
             </button>

@@ -62,7 +62,7 @@ const AVATAR_PRESETS = [
   {
     id: "amber",
     label: "Amber Gold",
-    backgroundColor: "#f59e0b",
+    backgroundColor: "#fbbf24",
     className: "text-slate-950",
   },
   {
@@ -793,7 +793,7 @@ function DashboardContent() {
   const selectedAvatar =
     AVATAR_PRESETS.find((preset) => preset.id === avatarPreset) ||
     AVATAR_PRESETS[0];
-  const badgeColor = activeStudent.profile?.avatarBgColor || avatarColor || "#f59e0b";
+  const badgeColor = activeStudent.profile?.avatarBgColor || avatarColor || "#fbbf24";
   const selectedBanner =
     BANNER_PRESETS.find((preset) => preset.id === bannerPreset) ||
     BANNER_PRESETS[0];
@@ -1120,7 +1120,7 @@ function DashboardContent() {
               {displayLessons.length} lessons available{" "}
               <span className="text-[#394252]">|</span> {studentLevel}
             </div>
-            <div className="mt-4 w-12 h-12 rounded-full border-2 border-[#F59E0B] bg-transparent flex items-center justify-center p-1.5">
+            <div className="mt-4 w-12 h-12 rounded-full border-2 border-amber-500/40 bg-transparent flex items-center justify-center p-1.5">
               <img
                 src="/logo.png"
                 alt="Fluentia"
@@ -1138,7 +1138,7 @@ function DashboardContent() {
                     ? { backgroundColor: badgeColor }
                     : undefined
                 }
-                className={`flex h-8 w-8 items-center justify-center overflow-hidden rounded-full text-xs font-bold transition hover:ring-2 hover:ring-amber-400/60 ${avatarImage ? "bg-[#283344]" : selectedAvatar.className}`}
+                className={`flex h-8 w-8 items-center justify-center overflow-hidden rounded-full text-xs  transition hover:ring-2 hover:ring-amber-500/40 ${avatarImage ? "bg-[#283344]" : selectedAvatar.className}`}
               >
                 {avatarImage ? (
                   <img
@@ -1166,7 +1166,7 @@ function DashboardContent() {
                 }}
                 aria-label="Profile settings"
                 title="Profile settings"
-                className="text-stone-500 transition hover:text-amber-300"
+                className="text-stone-500 transition hover:text-amber-400"
               >
                 <Settings2 className="h-4 w-4" />
               </button>
@@ -1197,14 +1197,14 @@ function DashboardContent() {
                     <button
                       type="button"
                       onClick={() => setProfileTab("profile")}
-                      className={`border-b-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] ${profileTab === "profile" ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-300"}`}
+                      className={`border-b-2 pb-2 text-[10px]  uppercase tracking-[0.12em] ${profileTab === "profile" ? "border-amber-500/40 text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
                     >
                       Profile &amp; Preferences
                     </button>
                     <button
                       type="button"
                       onClick={() => setProfileTab("customization")}
-                      className={`border-b-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] ${profileTab === "customization" ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-300"}`}
+                      className={`border-b-2 pb-2 text-[10px]  uppercase tracking-[0.12em] ${profileTab === "customization" ? "border-amber-500/40 text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
                     >
                       Customization
                     </button>
@@ -1263,13 +1263,13 @@ function DashboardContent() {
                                   setCustomAvatarUrl("");
                                 }}
                                 aria-label={`Use ${preset.label} avatar`}
-                                className={`flex flex-col items-center gap-1 rounded-md border p-2 text-[10px] text-stone-400 transition ${avatarPreset === preset.id && !avatarImage ? "border-amber-500 bg-amber-500/10 text-amber-300" : "border-[#394252] hover:border-amber-500/50"}`}
+                                className={`flex flex-col items-center gap-1 rounded-md border p-2 text-[10px] text-stone-400 transition ${avatarPreset === preset.id && !avatarImage ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-[#394252] hover:border-amber-500/40"}`}
                               >
                                 <span
                                   style={{
                                     backgroundColor: preset.backgroundColor,
                                   }}
-                                  className={`flex h-8 w-8 items-center justify-center rounded-full text-[10px] font-bold ${preset.className}`}
+                                  className={`flex h-8 w-8 items-center justify-center rounded-full text-[10px]  ${preset.className}`}
                                 >
                                   {profileInitials}
                                 </span>
@@ -1327,7 +1327,7 @@ function DashboardContent() {
                                   setBannerPreset(preset.id);
                                   setCustomBannerUrl("");
                                 }}
-                                className={`overflow-hidden rounded-md border text-left transition ${bannerPreset === preset.id && !customBannerUrl ? "border-amber-500" : "border-[#394252] hover:border-amber-500/50"}`}
+                                className={`overflow-hidden rounded-md border text-left transition ${bannerPreset === preset.id && !customBannerUrl ? "border-amber-500/40" : "border-[#394252] hover:border-amber-500/40"}`}
                               >
                                 <img
                                   src={preset.image}
@@ -1359,7 +1359,7 @@ function DashboardContent() {
                     <button
                       type="button"
                       onClick={() => void saveProfileCustomization()}
-                      className="w-full rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-amber-400"
+                      className="w-full rounded-md bg-amber-500/20 px-3 py-2 text-xs  text-amber-400 hover:bg-amber-500/20"
                     >
                       Save settings
                     </button>
@@ -1380,7 +1380,7 @@ function DashboardContent() {
               onClick={() => setSidebarOpen((open) => !open)}
               aria-expanded={sidebarOpen}
               aria-controls="learning-sidebar"
-              className={`group h-8 px-3 flex items-center gap-2 rounded-lg bg-slate-800/80 border text-xs font-medium transition-all cursor-pointer ${sidebarOpen ? "border-amber-500/60 text-amber-400" : "border-slate-700/60 text-slate-300 hover:border-amber-500/60 hover:text-amber-400 hover:bg-slate-800"}`}
+              className={`group h-8 px-3 flex items-center gap-2 rounded-lg bg-slate-800/80 border text-xs  transition-all cursor-pointer ${sidebarOpen ? "border-amber-500/40 text-amber-400" : "border-slate-700/60 text-slate-300 hover:border-amber-500/40 hover:text-amber-400 hover:bg-slate-800"}`}
             >
               <PanelRight
                 className={`w-4 h-4 shrink-0 ${sidebarOpen ? "text-amber-400" : "text-slate-400 group-hover:text-amber-400"}`}
@@ -1393,7 +1393,7 @@ function DashboardContent() {
                 type="button"
                 onClick={() => setDictionaryOpen(true)}
                 aria-label="Open dictionary"
-                className={`group flex h-8 w-8 items-center justify-center rounded-lg border bg-slate-800/80 transition-all cursor-pointer ${dictionaryOpen ? "border-amber-500/60 text-amber-400" : "border-slate-700/60 text-slate-300 hover:border-amber-500/60 hover:text-amber-400 hover:bg-slate-800"}`}
+                className={`group flex h-8 w-8 items-center justify-center rounded-lg border bg-slate-800/80 transition-all cursor-pointer ${dictionaryOpen ? "border-amber-500/40 text-amber-400" : "border-slate-700/60 text-slate-300 hover:border-amber-500/40 hover:text-amber-400 hover:bg-slate-800"}`}
               >
                 <BookOpen className={`h-4 w-4 shrink-0 ${dictionaryOpen ? "text-amber-400" : "text-slate-400 group-hover:text-amber-400"}`} />
               </button>
@@ -1426,7 +1426,7 @@ function DashboardContent() {
                       ? { backgroundColor: badgeColor }
                       : undefined
                   }
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-bold transition hover:ring-2 hover:ring-amber-400/60 ${avatarImage ? "bg-[#283344]" : selectedAvatar.className}`}
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs  transition hover:ring-2 hover:ring-amber-500/40 ${avatarImage ? "bg-[#283344]" : selectedAvatar.className}`}
                 >
                   {avatarImage ? (
                     <img
@@ -1456,7 +1456,7 @@ function DashboardContent() {
                   }}
                   aria-label="Profile settings"
                   title="Profile settings"
-                  className="text-stone-500 transition hover:text-amber-300"
+                  className="text-stone-500 transition hover:text-amber-400"
                 >
                   <Settings2 className="h-4 w-4" />
                 </button>
@@ -1492,7 +1492,7 @@ function DashboardContent() {
                     <button
                       type="button"
                       onClick={() => setProfileTab("profile")}
-                      className={`border-b-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] ${profileTab === "profile" ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-300"}`}
+                      className={`border-b-2 pb-2 text-[10px]  uppercase tracking-[0.12em] ${profileTab === "profile" ? "border-amber-500/40 text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
                     >
                       Profile &amp; Preferences
                     </button>
@@ -1501,7 +1501,7 @@ function DashboardContent() {
                     <button
                       type="button"
                       onClick={() => setProfileTab("customization")}
-                      className={`border-b-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] ${profileTab === "customization" ? "border-amber-500 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-300"}`}
+                      className={`border-b-2 pb-2 text-[10px]  uppercase tracking-[0.12em] ${profileTab === "customization" ? "border-amber-500/40 text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
                     >
                       Customization
                     </button>
@@ -1562,7 +1562,7 @@ function DashboardContent() {
                                 }}
                                 aria-label={`Use ${preset.label} badge color`}
                                 aria-pressed={avatarPreset === preset.id}
-                                className={`flex items-center gap-2 rounded-md border px-2 py-2 text-left text-[10px] text-stone-300 ${avatarPreset === preset.id ? "border-amber-500" : "border-[#394252] hover:border-amber-500/50"}`}
+                                className={`flex items-center gap-2 rounded-md border px-2 py-2 text-left text-[10px] text-stone-300 ${avatarPreset === preset.id ? "border-amber-500/40" : "border-[#394252] hover:border-amber-500/40"}`}
                               >
                                 <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: preset.backgroundColor }} />
                                 <span className="truncate">{preset.label}</span>
@@ -1589,7 +1589,7 @@ function DashboardContent() {
                         </div>
                         <div className="space-y-2">
                           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Custom avatar image</p>
-                          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 hover:border-amber-500/50">
+                          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 hover:border-amber-500/40">
                             <Upload className="h-4 w-4" />{isUploadingAvatar ? "Uploading avatar..." : "Upload avatar image"}
                             <input ref={avatarFileRef} type="file" accept="image/jpeg,image/png,image/webp" disabled={isUploadingAvatar} onChange={(event) => void uploadProfileImage(event.target.files?.[0], "avatar")} className="sr-only" />
                           </label>
@@ -1615,7 +1615,7 @@ function DashboardContent() {
                                   }}
                                   aria-label={`Use ${preset.label} banner`}
                                   aria-pressed={isSelected}
-                                  className={`overflow-hidden rounded-md border transition ${isSelected ? "border-amber-500 ring-1 ring-amber-500/50" : "border-[#394252] hover:border-amber-500/50"}`}
+                                  className={`overflow-hidden rounded-md border transition ${isSelected ? "border-amber-500/40 ring-1 ring-amber-500/40" : "border-[#394252] hover:border-amber-500/40"}`}
                                 >
                                   <img src={preset.image} alt="" className="h-12 w-full object-cover" />
                                   <span className="block truncate px-1.5 py-1 text-left text-[9px] text-stone-300">
@@ -1645,7 +1645,7 @@ function DashboardContent() {
                               className="mt-1 w-full accent-amber-500"
                             />
                           </label>
-                          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 hover:border-amber-500/50">
+                          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 hover:border-amber-500/40">
                             <Upload className="h-4 w-4" />{isUploadingBanner ? "Uploading banner..." : "Upload banner image"}
                             <input ref={bannerFileRef} type="file" accept="image/jpeg,image/png,image/webp" disabled={isUploadingBanner} onChange={(event) => void uploadProfileImage(event.target.files?.[0], "banner")} className="sr-only" />
                           </label>
@@ -1654,7 +1654,7 @@ function DashboardContent() {
                             <input value={customBannerUrl} onChange={(event) => setCustomBannerUrl(event.target.value)} placeholder="https://..." className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2 text-xs text-stone-200" />
                           </label>
                         </div>
-                        {profileImageStatus && <p role="status" className="rounded-md border border-amber-500/20 bg-amber-500/5 p-2 text-[10px] text-amber-300">{profileImageStatus}</p>}
+                        {profileImageStatus && <p role="status" className="rounded-md border border-amber-500/40 bg-amber-500/20 p-2 text-[10px] text-amber-400">{profileImageStatus}</p>}
                       </>
                     )}
                   </div>
@@ -1664,7 +1664,7 @@ function DashboardContent() {
                       type="button"
                       onClick={() => void saveProfileCustomization()}
                       disabled={isSavingProfileCustomization || isUploadingAvatar || isUploadingBanner}
-                      className="w-full rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60"
+                      className="w-full rounded-md bg-amber-500/20 px-3 py-2 text-xs  text-amber-400 hover:bg-amber-500/20 disabled:cursor-wait disabled:opacity-60"
                     >
                       {isSavingProfileCustomization ? "Saving..." : "Save settings"}
                     </button>
@@ -1710,7 +1710,7 @@ function DashboardContent() {
           </section>
 
           <section
-            className="mt-6 rounded-xl border border-amber-500/20 bg-[#121721] p-5"
+            className="mt-6 rounded-xl border border-amber-500/40 bg-[#121721] p-5"
             aria-label="Instructor note"
           >
             <div className="flex items-start gap-3">
@@ -1750,7 +1750,7 @@ function DashboardContent() {
                     getLessonStatus(lessonStates[displayLessons[0].id]),
                   )}
                   onClick={() => rememberLesson(displayLessons[0].id)}
-                  className="text-xs font-semibold text-amber-300 hover:text-amber-200"
+                  className="text-xs font-semibold text-amber-400 hover:text-amber-400"
                 >
                   Open Study Room
                 </Link>
@@ -1763,7 +1763,7 @@ function DashboardContent() {
                 <button
                   type="button"
                   onClick={() => setShowDefinition((shown) => !shown)}
-                  className="flex min-h-24 flex-1 items-center justify-center rounded-lg border border-amber-500/30 bg-[#0c1017] p-4 text-center transition hover:border-amber-400"
+                  className="flex min-h-24 flex-1 items-center justify-center rounded-lg border border-amber-500/40 bg-[#0c1017] p-4 text-center transition hover:border-amber-500/40"
                 >
                   <span className="font-sans text-2xl text-stone-100">
                     {showDefinition ? currentCard.definition : currentCard.word}
@@ -1781,7 +1781,7 @@ function DashboardContent() {
                       setCardIndex((index) => (index + 1) % savedWords.length);
                       setShowDefinition(false);
                     }}
-                    className="text-xs font-semibold text-amber-300 hover:text-amber-200"
+                    className="text-xs  text-amber-400 hover:text-amber-400"
                   >
                     Next card
                   </button>
@@ -1810,7 +1810,7 @@ function DashboardContent() {
                     ? { backgroundImage: `url(${instructorLessonBanner})` }
                     : undefined
                 }
-                className="group relative block h-64 w-full overflow-hidden rounded-xl border border-[#202631] bg-cover bg-center bg-no-repeat transition-colors hover:border-amber-400/70"
+                className="group relative block h-64 w-full overflow-hidden rounded-xl border border-[#202631] bg-cover bg-center bg-no-repeat transition-colors hover:border-amber-500/40"
               >
                 <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,11,17,.95),rgba(7,11,17,.6)_52%,rgba(7,11,17,.82)),linear-gradient(0deg,rgba(7,11,17,.92),transparent_65%)]" />
                 <div className="relative flex h-full flex-col justify-between p-5 md:p-7">
@@ -1847,13 +1847,13 @@ function DashboardContent() {
                         aria-valuenow={progressPercent}
                       >
                         <div
-                          className="h-full rounded-full bg-amber-500 transition-all"
+                          className="h-full rounded-full bg-amber-500/20 transition-all"
                           style={{ width: `${progressPercent}%` }}
                         />
                       </div>
                       </Tooltip>
                     </div>
-                    <span className="inline-flex w-fit items-center rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 transition group-hover:bg-amber-400">
+                    <span className="inline-flex w-fit items-center rounded-md bg-amber-500/20 px-3 py-2 text-xs font-normal text-amber-400 transition group-hover:bg-amber-500/20">
                       Start Lesson{" "}
                       <span className="ml-2" aria-hidden="true">
                         -&gt;
@@ -1915,7 +1915,7 @@ function DashboardContent() {
                   <p className="text-xs font-semibold text-stone-300">
                     Study Hub Prescription
                   </p>
-                  <p className="mt-1 whitespace-pre-wrap text-sm text-amber-300">
+                  <p className="mt-1 whitespace-pre-wrap text-sm text-amber-400">
                     {latestReport.studyHubPrescription ||
                       "No prescription recorded yet."}
                   </p>
@@ -1928,7 +1928,7 @@ function DashboardContent() {
                     <Tooltip content="Open your instructor's voice feedback">
                     <a
                       href={latestReport.voiceFeedbackUrl}
-                      className="mt-1 block w-full truncate text-sm text-amber-300 hover:text-amber-200"
+                      className="mt-1 block w-full truncate text-sm text-amber-400 hover:text-amber-400"
                     >
                       {latestReport.voiceFeedbackUrl}
                     </a>
@@ -1977,7 +1977,7 @@ function DashboardContent() {
                   return (
                     <article
                       key={lesson.id}
-                      className="group overflow-hidden rounded-xl border border-[#202631] bg-[#121721] transition-colors hover:border-amber-500/50"
+                      className="group overflow-hidden rounded-xl border border-[#202631] bg-[#121721] transition-colors hover:border-amber-500/40"
                     >
                       <div className="relative h-44 overflow-hidden border-b border-[#202631]">
                         <img
@@ -1992,7 +1992,7 @@ function DashboardContent() {
                           className="h-full w-full object-cover opacity-70 transition duration-500 group-hover:scale-105 group-hover:opacity-85"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-[#121721] via-transparent to-transparent" />
-                        <span className="absolute bottom-4 left-5 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/40 rounded-md">
+                        <span className="absolute bottom-4 left-5 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 bg-amber-500/20 border border-amber-500/40 rounded-md">
                           Module {lesson.content?.moduleNumber || 1}
                         </span>
                       </div>
@@ -2010,7 +2010,7 @@ function DashboardContent() {
                               status === "completed"
                                 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
                                 : status === "pending-review"
-                                  ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
+                                  ? "border-amber-500/40 bg-amber-500/20 text-amber-400"
                                   : status === "in-progress"
                                     ? "border-sky-500/30 bg-sky-500/10 text-sky-300"
                                     : "border-[#394252] bg-[#171d28] text-stone-400"
@@ -2029,7 +2029,7 @@ function DashboardContent() {
                               "Continue your personalized language practice."}
                           </p>
                           <p className="mt-3 flex items-center gap-2 text-[11px] text-stone-500">
-                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#283344] text-[8px] font-semibold text-[#d9a63b]">
+                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#283344] text-[8px] font-semibold text-amber-400">
                               {lesson.content?.instructor?.initials ||
                                 assignedInstructorInitials}
                             </span>{" "}
@@ -2042,10 +2042,10 @@ function DashboardContent() {
                         <Link
                           href={getLessonHref(lesson, status)}
                           onClick={() => rememberLesson(lesson.id)}
-                          className={`mt-5 inline-flex rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
+                          className={`mt-5 inline-flex rounded-md px-3 py-2 text-xs  transition-colors ${
                             status === "completed"
-                              ? "bg-emerald-500 text-[#0c1017]"
-                              : "bg-amber-500 text-[#0c1017] group-hover:bg-amber-400"
+                              ? "bg-emerald-500 text-amber-400"
+                              : "bg-amber-500/20 text-amber-400 group-hover:bg-amber-500/20"
                           }`}
                         >
                           {ctaCopy}
@@ -2055,7 +2055,7 @@ function DashboardContent() {
                           lessonStates[lesson.id]?.evaluation?.published && (
                             <details className="mt-5 border-t border-[#202631] pt-4">
                               <Tooltip content="Expand the evaluation scores and instructor feedback">
-                              <summary className="cursor-pointer text-xs font-semibold text-amber-300 hover:text-amber-200">
+                              <summary className="cursor-pointer text-xs font-semibold text-amber-400 hover:text-amber-400">
                                 View analytical report
                               </summary>
                               </Tooltip>
@@ -2064,7 +2064,7 @@ function DashboardContent() {
                                   <p className="text-xs font-semibold text-stone-300">
                                     Rubrics
                                   </p>
-                                  <p className="mt-1 text-amber-300">
+                                  <p className="mt-1 text-amber-400">
                                     {Object.entries(
                                       lessonStates[lesson.id]?.evaluation
                                         ?.scores || {},

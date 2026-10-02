@@ -140,9 +140,9 @@ export function LucideIconPicker({
         title={triggerLabel || (selectedName ? `Selected icon: ${selectedName}` : "Choose icon")}
         className={compact
           ? "flex h-6 min-w-6 items-center justify-center rounded p-1 text-stone-300 transition hover:bg-[#293343] hover:text-white"
-          : "inline-flex min-h-9 min-w-28 items-center justify-center gap-2 rounded border border-amber-500/40 bg-[#0c1017] px-3 text-xs font-medium text-stone-200 hover:border-amber-500/80"}
+          : "inline-flex min-h-9 min-w-28 items-center justify-center gap-2 rounded border border-amber-500/40 bg-[#0c1017] px-3 text-xs  text-stone-200 hover:border-amber-500/40"}
       >
-        <TriggerIcon className={`${compact ? "h-4 w-4" : "h-4 w-4 text-amber-300"} shrink-0`} aria-hidden="true" />
+        <TriggerIcon className={`${compact ? "h-4 w-4" : "h-4 w-4 text-amber-400"} shrink-0`} aria-hidden="true" />
         {!compact && (triggerLabel || selectedName || "Choose icon")}
       </button>
       {isOpen && typeof document !== "undefined" && createPortal(
@@ -162,7 +162,7 @@ export function LucideIconPicker({
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search icons"
               aria-label="Search icons by name"
-              className="h-9 w-full rounded border border-[#394252] bg-[#0c1017] pl-8 pr-3 text-xs text-stone-200 outline-none focus:border-amber-500"
+              className="h-9 w-full rounded border border-[#394252] bg-[#0c1017] pl-8 pr-3 text-xs text-stone-200 outline-none focus:border-amber-500/40"
             />
           </label>
           <div className="mt-3 flex gap-1 overflow-x-auto pb-1" role="tablist" aria-label="Icon categories">
@@ -173,7 +173,7 @@ export function LucideIconPicker({
                 role="tab"
                 aria-selected={activeCategory === category.id}
                 onClick={() => setActiveCategory(category.id)}
-                className={`shrink-0 rounded px-2 py-1.5 text-[10px] font-medium ${activeCategory === category.id ? "bg-amber-500 text-slate-950" : "text-stone-400 hover:bg-[#202631] hover:text-stone-200"}`}
+                className={`shrink-0 rounded px-2 py-1.5 text-[10px]  ${activeCategory === category.id ? "bg-amber-500/20 text-amber-400" : "text-stone-400 hover:bg-[#202631] hover:text-stone-200"}`}
               >
                 {category.label}
               </button>
@@ -192,7 +192,7 @@ export function LucideIconPicker({
                   onChange(iconName);
                   setIsOpen(false);
                 }}
-                className={`flex aspect-square items-center justify-center rounded border transition hover:border-amber-500/70 hover:bg-amber-500/10 ${selectedName === iconName ? "border-amber-500 bg-amber-500/10 text-amber-300" : "border-transparent text-stone-300"}`}
+                className={`flex aspect-square items-center justify-center rounded border transition hover:border-amber-500/40 hover:bg-amber-500/20 ${selectedName === iconName ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-transparent text-stone-300"}`}
               >
                 <DynamicLucideIcon name={iconName} className="h-4 w-4" aria-hidden="true" />
               </button>

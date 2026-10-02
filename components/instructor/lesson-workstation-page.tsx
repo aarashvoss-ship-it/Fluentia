@@ -39,7 +39,7 @@ export function LessonWorkstationPage({ lessonId }: { lessonId: string }) {
     <div className="min-h-screen bg-[#0d1520] text-[#d4e4fa] p-4 md:p-8 font-sans">
       <header className="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#273647] pb-4">
         <div>
-          <span className="text-xs font-mono text-[#ffc66b] uppercase tracking-wider">
+          <span className="text-xs font-mono text-amber-400 uppercase tracking-wider">
             Fluentia Instructor Studio
           </span>
           <h1 className="text-2xl font-bold text-white mt-1">
@@ -55,7 +55,7 @@ export function LessonWorkstationPage({ lessonId }: { lessonId: string }) {
           <button
             onClick={handlePublish}
             disabled={isPublishing}
-            className="bg-[#ffc66b] hover:bg-[#e5b25f] text-[#122131] font-semibold text-xs px-5 py-2.5 rounded-lg transition shadow disabled:opacity-50"
+            className="bg-amber-500/20 hover:bg-amber-500/20 text-amber-400  text-xs px-5 py-2.5 rounded-lg transition shadow disabled:opacity-50"
           >
             {isPublishing ? "Publishing..." : "Publish Lesson Updates"}
           </button>

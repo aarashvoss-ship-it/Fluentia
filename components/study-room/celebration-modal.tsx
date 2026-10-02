@@ -58,7 +58,7 @@ export function CelebrationModal({
         <div className="sticky top-0 z-10 shrink-0 space-y-6 border-b border-stone-800 bg-[#141413] p-8">
           {/* Checkmark Icon centered at top */}
           <div className="flex justify-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-500 shadow-inner">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full border border-amber-500/40 bg-amber-500/20 text-amber-400 shadow-inner">
               <CheckCircle2 className="h-8 w-8" />
             </div>
           </div>
@@ -91,8 +91,8 @@ export function CelebrationModal({
                       <p className="mt-2 text-[10px] uppercase tracking-[0.1em] text-stone-500">Your Response</p>
                       <p className="mt-1 whitespace-pre-wrap text-stone-200">{response.answer || "No response submitted"}</p>
                       {response.correctAnswer && <div className="mt-2">
-                        <p className="text-[10px] uppercase tracking-[0.1em] text-amber-500/80">Correct Answer</p>
-                        <p className="mt-1 whitespace-pre-wrap text-amber-200">{response.correctAnswer}</p>
+                        <p className="text-[10px] uppercase tracking-[0.1em] text-amber-400">Correct Answer</p>
+                        <p className="mt-1 whitespace-pre-wrap text-amber-400">{response.correctAnswer}</p>
                       </div>}
                       {(response.explanation || response.isCorrect === false) && <div className="mt-2">
                         <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">Explanation</p>
@@ -117,7 +117,7 @@ export function CelebrationModal({
           <button
             onClick={onSubmit}
             disabled={isSubmitting}
-            className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-medium text-sm transition-all duration-150 shadow-lg shadow-amber-500/10 active:scale-[0.99] disabled:cursor-wait disabled:opacity-60"
+            className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl bg-amber-500/20 hover:bg-amber-500/20 text-stone-950  text-sm transition-all duration-150 shadow-lg shadow-amber-500/20 active:scale-[0.99] disabled:cursor-wait disabled:opacity-60"
           >
             <span>{isSubmitting ? "Saving Submission..." : "Submit & View Results"}</span>
             <ArrowRight className="w-4 h-4" />

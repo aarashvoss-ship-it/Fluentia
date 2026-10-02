@@ -53,7 +53,7 @@ export function FillInBlanksMarkdown({
     const response = values[responseKey] || "";
     const shouldShowFeedback = showResults && showFeedback && !readOnly;
     const isCorrect = shouldShowFeedback && response.trim().length > 0 && isFillInBlankAnswerCorrect(response, acceptable, caseSensitive);
-    return <React.Fragment key={responseKey}><input type="text" value={response} onChange={(event) => onChange?.(blankIndex, event.target.value)} onDragOver={(event) => { if (!readOnly) event.preventDefault(); }} onDrop={(event) => { if (readOnly) return; event.preventDefault(); const droppedWord = event.dataTransfer.getData("text/plain").trim(); if (droppedWord) onChange?.(blankIndex, droppedWord); }} readOnly={readOnly} disabled={readOnly} placeholder={readOnly ? answer || "answer" : "Drop or type"} aria-label={`Blank ${blankIndex + 1}`} className={`mx-1 inline-block min-w-24 max-w-full border-b-2 bg-transparent px-2 py-0.5 text-center align-baseline text-inherit text-stone-100 outline-none focus:border-amber-300 ${shouldShowFeedback ? (isCorrect ? "border-emerald-400" : "border-red-400") : "border-amber-500"}`} data-acceptable-answer-count={acceptable.length} />{shouldShowFeedback && <span className={`text-xs ${isCorrect ? "text-emerald-300" : "text-red-300"}`}>{isCorrect ? "Correct" : "Incorrect"}</span>}</React.Fragment>;
+    return <React.Fragment key={responseKey}><input type="text" value={response} onChange={(event) => onChange?.(blankIndex, event.target.value)} onDragOver={(event) => { if (!readOnly) event.preventDefault(); }} onDrop={(event) => { if (readOnly) return; event.preventDefault(); const droppedWord = event.dataTransfer.getData("text/plain").trim(); if (droppedWord) onChange?.(blankIndex, droppedWord); }} readOnly={readOnly} disabled={readOnly} placeholder={readOnly ? answer || "answer" : "Drop or type"} aria-label={`Blank ${blankIndex + 1}`} className={`mx-1 inline-block min-w-24 max-w-full border-b-2 bg-transparent px-2 py-0.5 text-center align-baseline text-inherit text-stone-100 outline-none focus:border-amber-500/40 ${shouldShowFeedback ? (isCorrect ? "border-emerald-400" : "border-red-400") : "border-amber-500/40"}`} data-acceptable-answer-count={acceptable.length} />{shouldShowFeedback && <span className={`text-xs ${isCorrect ? "text-emerald-300" : "text-red-300"}`}>{isCorrect ? "Correct" : "Incorrect"}</span>}</React.Fragment>;
   };
 
   const components: Components = {
@@ -66,8 +66,8 @@ export function FillInBlanksMarkdown({
     li: ({ children }) => <li className="pl-1 text-slate-300">{children}</li>,
     strong: ({ children }) => <strong className="font-semibold text-amber-400">{children}</strong>,
     em: ({ children }) => <em className="italic text-stone-200">{children}</em>,
-    code: ({ children }) => <code className="rounded border border-[#394252] bg-[#0c1017] px-1.5 py-0.5 font-mono text-xs text-amber-200">{children}</code>,
-    a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="text-amber-300 underline decoration-amber-500/40 underline-offset-2 hover:text-amber-200">{children}</a>,
+    code: ({ children }) => <code className="rounded border border-[#394252] bg-[#0c1017] px-1.5 py-0.5 font-mono text-xs text-amber-400">{children}</code>,
+    a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="text-amber-400 underline decoration-amber-400 underline-offset-2 hover:text-amber-400">{children}</a>,
     input: ({ node }) => {
       const properties = (node as unknown as { properties?: { dataFillBlankIndex?: number | string } }).properties;
       const blankIndex = Number(properties?.dataFillBlankIndex ?? globalBlankIndex++);
@@ -80,7 +80,7 @@ export function FillInBlanksMarkdown({
       {text
         ? <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={components}>{markdownWithInputs}</ReactMarkdown>
         : null}
-      {wordBank.length > 0 && <div className="mt-4 border-t border-[#394252] pt-3"><p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-amber-400">Word Bank</p><div className="flex flex-wrap gap-2" aria-label="Fill in the blanks word bank">{wordBank.map((word, wordIndex) => <button key={`${word}-${wordIndex}`} type="button" draggable={!readOnly} onDragStart={(event) => { if (!readOnly) event.dataTransfer.setData("text/plain", word); }} disabled={readOnly} className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-200 transition hover:border-amber-400 hover:bg-amber-500/20 disabled:cursor-default disabled:opacity-70">{word}</button>)}</div><p className="mt-2 text-[11px] text-stone-500">Drag a word onto a blank, or type your answer.</p></div>}
+      {wordBank.length > 0 && <div className="mt-4 border-t border-[#394252] pt-3"><p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-amber-400">Word Bank</p><div className="flex flex-wrap gap-2" aria-label="Fill in the blanks word bank">{wordBank.map((word, wordIndex) => <button key={`${word}-${wordIndex}`} type="button" draggable={!readOnly} onDragStart={(event) => { if (!readOnly) event.dataTransfer.setData("text/plain", word); }} disabled={readOnly} className="rounded-md border border-amber-500/40 bg-amber-500/20 px-3 py-1.5 text-xs text-amber-400 transition hover:border-amber-500/40 hover:bg-amber-500/20 disabled:cursor-default disabled:opacity-70">{word}</button>)}</div><p className="mt-2 text-[11px] text-stone-500">Drag a word onto a blank, or type your answer.</p></div>}
     </div>
   );
 }

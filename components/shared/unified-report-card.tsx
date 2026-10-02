@@ -95,7 +95,7 @@ export function UnifiedReportCard({
       onChange={(event) => onGeneralFeedbackChange?.(field, event.target.value)}
       placeholder={placeholder}
       rows={4}
-      className="mt-2 w-full resize-y rounded-md border border-[#394252] bg-[#171d28] p-3 text-sm leading-relaxed text-stone-200 outline-none focus:border-amber-500"
+      className="mt-2 w-full resize-y rounded-md border border-[#394252] bg-[#171d28] p-3 text-sm leading-relaxed text-stone-200 outline-none focus:border-amber-500/40"
     /> : <FeedbackValue value={value} isEvaluated={isEvaluated} />}
   </div>;
 
@@ -122,8 +122,8 @@ export function UnifiedReportCard({
                 {task.audioUrls?.map((url, mediaIndex) => <div key={`${url}-${mediaIndex}`} className="mt-2 min-w-0 max-w-full overflow-hidden"><CustomAudioPlayer src={url} label={`${stripMarkdown(task.title)} recording`} /></div>)}
               </div>
               {task.modelAnswer && <div className="mt-3 border-t border-[#293343] pt-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-500/80">Correct / Model Answer</p>
-                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-amber-200">{stripMarkdown(task.modelAnswer)}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400">Correct / Model Answer</p>
+                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-amber-400">{stripMarkdown(task.modelAnswer)}</p>
               </div>}
               {task.explanation && <div className="mt-3 border-t border-[#293343] pt-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Explanation</p>
@@ -141,7 +141,7 @@ export function UnifiedReportCard({
               onChange={(event) => onStageFeedbackChange?.(stage.id, event.target.value)}
               placeholder="Add feedback for this section (optional)..."
               rows={3}
-              className="mt-2 w-full resize-y rounded-md border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-200 outline-none focus:border-amber-500"
+              className="mt-2 w-full resize-y rounded-md border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40"
             /> : stageFeedback[stage.id]?.trim() ? <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-300">{stageFeedback[stage.id]}</p> : <p className="mt-1 text-sm text-stone-500">{isEvaluated ? "No comment provided." : "Pending Instructor Review"}</p>}
           </div>
         </section>)}
@@ -161,8 +161,8 @@ export function UnifiedReportCard({
           </div>
           {isInstructorView ? <>
             <input type="range" min="1" max="5" step="1" value={scores[criterion.id] || 0} onChange={(event) => onScoreChange?.(criterion.id, Number(event.target.value))} className="w-full accent-amber-500" aria-label={`${criterion.label} score`} />
-            <div className="flex items-center gap-1">{[1, 2, 3, 4, 5].map((score) => <button key={score} type="button" onClick={() => onScoreChange?.(criterion.id, score)} className={`h-7 flex-1 rounded text-xs font-medium ${scores[criterion.id] === score ? "bg-amber-500 text-[#0c1017]" : "bg-[#171d28] text-stone-400 hover:text-white"}`}>{score}</button>)}</div>
-            <textarea value={criterionFeedback[criterion.id] || ""} onChange={(event) => onCriterionFeedbackChange?.(criterion.id, event.target.value)} placeholder={`Written feedback for ${criterion.label.toLowerCase()}...`} rows={2} className="w-full resize-y rounded-md border border-[#394252] bg-[#171d28] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500" aria-label={`${criterion.label} feedback`} />
+            <div className="flex items-center gap-1">{[1, 2, 3, 4, 5].map((score) => <button key={score} type="button" onClick={() => onScoreChange?.(criterion.id, score)} className={`h-7 flex-1 rounded text-xs  ${scores[criterion.id] === score ? "bg-amber-500/20 text-amber-400" : "bg-[#171d28] text-stone-400 hover:text-white"}`}>{score}</button>)}</div>
+            <textarea value={criterionFeedback[criterion.id] || ""} onChange={(event) => onCriterionFeedbackChange?.(criterion.id, event.target.value)} placeholder={`Written feedback for ${criterion.label.toLowerCase()}...`} rows={2} className="w-full resize-y rounded-md border border-[#394252] bg-[#171d28] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40" aria-label={`${criterion.label} feedback`} />
           </> : <FeedbackValue value={criterionFeedback[criterion.id]} isEvaluated={isEvaluated} />}
         </div>)}
       </div>
@@ -179,7 +179,7 @@ export function UnifiedReportCard({
     </section>
 
     {submitError && <p role="alert" className="rounded-lg border border-red-700 bg-red-900/30 p-3 text-xs text-red-200">{submitError}</p>}
-    {isInstructorView && <button type="button" onClick={onPublish} disabled={isSubmitting || isSubmitted} className="w-full rounded-lg bg-amber-500 px-6 py-3 text-sm font-semibold text-[#0c1017] transition hover:bg-amber-400 disabled:cursor-wait disabled:opacity-50">
+    {isInstructorView && <button type="button" onClick={onPublish} disabled={isSubmitting || isSubmitted} className="w-full rounded-lg bg-amber-500/20 px-6 py-3 text-sm  text-amber-400 transition hover:bg-amber-500/20 disabled:cursor-wait disabled:opacity-50">
       {isSubmitting ? "Saving..." : isSubmitted ? "Evaluation Published" : "Publish Evaluation & Send to Student"}
     </button>}
   </div>;

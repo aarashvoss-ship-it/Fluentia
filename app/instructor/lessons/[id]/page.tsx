@@ -36,7 +36,7 @@ export default function LessonDetailPage() {
         <div className="text-center">
           <div className="inline-block">
             <div
-              className="h-12 w-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"
+              className="h-12 w-12 border-4 border-amber-500/40 border-t-transparent rounded-full animate-spin"
             />
           </div>
           <p className="mt-4 text-stone-400 text-sm">Loading lesson...</p>

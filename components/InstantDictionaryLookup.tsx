@@ -93,9 +93,9 @@ export default function InstantDictionaryLookup({
           value={searchTerm}
           onChange={(event) => setSearchTerm(event.target.value)}
           placeholder="Search a word"
-          className="min-w-0 flex-1 rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-sm outline-none focus:border-amber-500"
+          className="min-w-0 flex-1 rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-sm outline-none focus:border-amber-500/40"
         />
-        <button type="submit" disabled={loading} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-4 py-2 text-xs font-semibold text-[#0c1017] disabled:cursor-wait disabled:opacity-70">
+        <button type="submit" disabled={loading} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/20 px-4 py-2 text-xs  text-amber-400 disabled:cursor-wait disabled:opacity-70">
           {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
           Search
         </button>
@@ -103,7 +103,7 @@ export default function InstantDictionaryLookup({
 
       <p className="mt-2 text-right text-xs text-slate-500">Powered by Merriam-Webster</p>
 
-      {error && <p className="mt-5 text-center text-sm text-amber-300">{error}</p>}
+      {error && <p className="mt-5 text-center text-sm text-amber-400">{error}</p>}
       {loading && <p className="mt-5 text-center text-sm text-stone-400">Looking up {searchTerm}...</p>}
 
       {result && !loading && (
@@ -116,13 +116,13 @@ export default function InstantDictionaryLookup({
             {result.phonetic && <p className="mt-1 text-xs text-stone-500">{result.phonetic}</p>}
             <p className="mt-2 text-sm leading-relaxed text-stone-300">{result.definition}</p>
           </div>
-          {result.example && <p className="border-l-2 border-amber-500/50 pl-3 text-sm italic leading-relaxed text-stone-400">&quot;{result.example}&quot;</p>}
+          {result.example && <p className="border-l-2 border-amber-500/40 pl-3 text-sm italic leading-relaxed text-stone-400">&quot;{result.example}&quot;</p>}
           <div className="flex flex-wrap items-center gap-2 border-t border-[#29303c] pt-4">
-            <button type="button" onClick={playPronunciation} className="inline-flex items-center gap-1.5 rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 hover:border-amber-500 hover:text-amber-300">
+            <button type="button" onClick={playPronunciation} className="inline-flex items-center gap-1.5 rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 hover:border-amber-500/40 hover:text-amber-400">
               <Volume2 className="h-3.5 w-3.5" />
               Pronounce
             </button>
-            {onSaveWord && <button type="button" disabled={isSaved} onClick={saveWord} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-[#0c1017] disabled:bg-emerald-500/20 disabled:text-emerald-300">
+            {onSaveWord && <button type="button" disabled={isSaved} onClick={saveWord} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/20 px-3 py-2 text-xs  text-amber-400 disabled:bg-emerald-500/20 disabled:text-emerald-300">
               {isSaved ? <Check className="h-3.5 w-3.5" /> : <Bookmark className="h-3.5 w-3.5" />}
               {isSaved ? "Saved" : "Save to Vocab"}
             </button>}

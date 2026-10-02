@@ -20,9 +20,9 @@ module.exports = {
           strong: "#3B4352",
         },
         accent: {
-          DEFAULT: "#E8A838",
-          hover: "#D4962C",
-          subtle: "rgba(232, 168, 56, 0.12)",
+          DEFAULT: "#FBBF24",
+          hover: "#FCD34D",
+          subtle: "rgba(245, 158, 11, 0.2)",
         },
         text: {
           primary: "#F3F4F6",
@@ -30,7 +30,7 @@ module.exports = {
           muted: "#6B7280",
         },
         success: "#10B981",
-        warning: "#F59E0B",
+        warning: "#FBBF24",
       },
       fontFamily: {
         sans: ["var(--font-inter, system-ui)", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],

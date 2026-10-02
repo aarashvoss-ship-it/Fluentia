@@ -11,7 +11,7 @@ const parseBracketsToBadges = (content: string) => {
   if (!content) return "";
   return content.replace(
     /\[([^\]]+)\]/g,
-    '<span class="inline-flex items-center px-2 py-0.5 rounded text-sm font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono my-0.5">$1</span>'
+    '<span class="inline-flex items-center px-2 py-0.5 rounded text-sm font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/40 font-mono my-0.5">$1</span>'
   );
 };
 
@@ -23,7 +23,7 @@ function renderTextTokens(value: string): ReactNode {
   let tokenIndex = 0;
   while ((match = tokenPattern.exec(value)) !== null) {
     if (match.index > lastIndex) nodes.push(<React.Fragment key={`text-${tokenIndex++}`}>{value.slice(lastIndex, match.index)}</React.Fragment>);
-    nodes.push(<span key={`token-${tokenIndex++}`} className="mx-0.5 inline-block rounded border border-amber-500/30 bg-amber-400/20 px-1.5 py-0.5 font-semibold text-amber-300">{match[1]}</span>);
+    nodes.push(<span key={`token-${tokenIndex++}`} className="mx-0.5 inline-block rounded border border-amber-500/40 bg-amber-500/20 px-1.5 py-0.5 font-semibold text-amber-400">{match[1]}</span>);
     lastIndex = match.index + match[0].length;
   }
   if (lastIndex < value.length) nodes.push(<React.Fragment key={`text-${tokenIndex}`}>{value.slice(lastIndex)}</React.Fragment>);
@@ -80,7 +80,7 @@ export function MarkdownContent({ value, className = "", plainCode = false, data
         components={{
           span: ({ children, ...props }) => {
             const iconName = (props as { "data-lucide-icon"?: string })["data-lucide-icon"];
-            if (iconName) return <DynamicLucideIcon name={iconName} className="mx-1 inline-block h-4 w-4 align-middle text-amber-300" aria-label={iconName} />;
+            if (iconName) return <DynamicLucideIcon name={iconName} className="mx-1 inline-block h-4 w-4 align-middle text-amber-400" aria-label={iconName} />;
             return <span {...props}>{children}</span>;
           },
           h1: ({ children }) => <h1 className="mb-4 mt-6 text-2xl font-semibold leading-tight text-stone-100">{children}</h1>,
@@ -106,17 +106,17 @@ export function MarkdownContent({ value, className = "", plainCode = false, data
             const Icon = isSuccess ? CheckCircle2 : XCircle;
             return <li className="flex items-start gap-2"><Icon className={`mt-1 h-4 w-4 shrink-0 ${isSuccess ? "text-emerald-400" : "text-red-400"}`} aria-hidden="true" /><span className="min-w-0">{markedChildren.children}</span></li>;
           },
-          blockquote: ({ children }) => <blockquote className="my-4 border-l-4 border-amber-500/70 bg-amber-500/10 px-4 py-2 leading-7 italic text-amber-100/90">{children}</blockquote>,
+          blockquote: ({ children }) => <blockquote className="my-4 border-l-4 border-amber-500/40 bg-amber-500/20 px-4 py-2 leading-7 italic text-amber-400">{children}</blockquote>,
           hr: () => <hr className="my-5 border-[#394252]" />,
           table: ({ children }) => dataTables ? (
             <div className="my-4 max-w-full overflow-x-auto rounded-lg border border-[#394252]">
               <table className="w-full min-w-max border-collapse text-left text-xs text-stone-300">{children}</table>
             </div>
           ) : <table>{children}</table>,
-          thead: ({ children }) => <thead className={dataTables ? "bg-[#f59e0b]/15 text-[#f59e0b]" : undefined}>{children}</thead>,
-          th: ({ children }) => <th className={dataTables ? "border-b border-[#394252] px-3 py-2.5 text-left text-[11px] font-semibold text-[#f59e0b]" : undefined}>{children}</th>,
+          thead: ({ children }) => <thead className={dataTables ? "bg-amber-500/20 text-amber-400" : undefined}>{children}</thead>,
+          th: ({ children }) => <th className={dataTables ? "border-b border-[#394252] px-3 py-2.5 text-left text-[11px] font-semibold text-amber-400" : undefined}>{children}</th>,
           tbody: ({ children }) => <tbody>{children}</tbody>,
-          tr: ({ children }) => <tr className={dataTables ? "odd:bg-[#10151d] even:bg-[#171d28] hover:bg-amber-500/10" : undefined}>{children}</tr>,
+          tr: ({ children }) => <tr className={dataTables ? "odd:bg-[#10151d] even:bg-[#171d28] hover:bg-amber-500/20" : undefined}>{children}</tr>,
           td: ({ children }) => <td className={dataTables ? "border-t border-[#29303c] px-3 py-2.5 align-top leading-relaxed" : undefined}>{children}</td>,
           pre: ({ children }) => renderPlainCode
             ? <p className="mb-4 whitespace-pre-wrap leading-7 last:mb-0">{children}</p>
@@ -127,7 +127,7 @@ export function MarkdownContent({ value, className = "", plainCode = false, data
             return isBlock ? (
               <code className="block whitespace-pre-wrap break-words font-mono text-sm text-cyan-100" {...props}>{children}</code>
             ) : (
-              <code className="break-words rounded bg-black/30 px-1.5 py-0.5 font-mono text-[0.9em] text-amber-200" {...props}>{children}</code>
+              <code className="break-words rounded bg-black/30 px-1.5 py-0.5 font-mono text-[0.9em] text-amber-400" {...props}>{children}</code>
             );
           },
         }}
