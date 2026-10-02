@@ -45,6 +45,7 @@ type TiptapEditorProps = {
   placeholder?: string;
   ariaLabel: string;
   compact?: boolean;
+  wrapToolbar?: boolean;
 };
 
 function ToolbarButton({
@@ -85,6 +86,7 @@ export function TiptapEditor({
   placeholder = "Start typing lesson content or use formatting options...",
   ariaLabel,
   compact = false,
+  wrapToolbar = false,
 }: TiptapEditorProps) {
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -152,7 +154,7 @@ export function TiptapEditor({
   return (
     <div className="tiptap-editor w-full min-w-0 space-y-2">
       <div className="w-full min-w-0">
-        <div className={`box-border flex w-full min-w-0 items-center justify-start rounded border border-[#202631] bg-[#0c1017] p-1 ${compact ? "gap-1" : "gap-1.5"}`} role="toolbar" aria-label="Rich text formatting">
+        <div className={`box-border flex w-full min-w-0 items-center justify-start rounded border border-[#202631] bg-[#0c1017] p-1 ${wrapToolbar ? "flex-wrap" : ""} ${compact ? "gap-1" : "gap-1.5"}`} role="toolbar" aria-label="Rich text formatting">
           <ToolbarButton compact={compact} label="Normal paragraph" active={!!editor?.isActive("paragraph")} onClick={() => editor?.chain().focus().setParagraph().run()}>P</ToolbarButton>
           <ToolbarButton compact={compact} label="Heading 1" active={!!editor?.isActive("heading", { level: 1 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}>H1</ToolbarButton>
           <ToolbarButton compact={compact} label="Heading 2" active={!!editor?.isActive("heading", { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>H2</ToolbarButton>

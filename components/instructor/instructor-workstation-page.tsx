@@ -142,6 +142,7 @@ function StepSidebarEditorPanel({
               placeholder="Start typing sidebar content or use formatting options..."
               ariaLabel={`Sidebar content for ${block.title || "sidebar block"}`}
               compact
+              wrapToolbar
             />
           </div>
         ))}
