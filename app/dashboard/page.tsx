@@ -1824,11 +1824,17 @@ function DashboardContent() {
                   className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,11,17,.95),rgba(7,11,17,.6)_52%,rgba(7,11,17,.82)),linear-gradient(0deg,rgba(7,11,17,.92),transparent_65%)]" />
-                <span className="absolute bottom-4 left-5 z-10 rounded-md border border-amber-500/40 bg-amber-500/20 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400">
+                <span className="absolute left-5 top-4 z-10 rounded-md px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 bg-amber-500/20 border border-amber-500/40">
                   Module {activeModuleNumber ?? 1}
                 </span>
-                <div className="relative flex h-full flex-col justify-between p-5 md:p-7">
-                  <div className="max-w-3xl">
+                <div className="relative flex h-full flex-col justify-end p-5 md:p-7">
+                  <div className="max-w-3xl pr-28 md:pr-36">
+                    <div className="flex items-center gap-2 text-amber-400">
+                      <BookOpen className="h-4 w-4" />
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.14em]">
+                        Lesson
+                      </span>
+                    </div>
                     <h2 className="mt-2 font-sans text-2xl font-semibold text-stone-100 md:text-3xl">
                       {nextLesson.title}
                     </h2>
@@ -1841,17 +1847,23 @@ function DashboardContent() {
                         <span className={`rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${
                           nextLessonStatus === "in-progress"
                             ? "border-sky-500/30 bg-sky-500/10 text-sky-300"
-                            : "border-[#394252] bg-[#171d28]/80 text-stone-300"
+                            : "border-[#394252] bg-[#171d28]/80 text-stone-400"
                         }`}>
                           {getLessonStatusCopy(nextLessonStatus)}
                         </span>
                       )}
-                      <span className="text-[11px] text-stone-300">
-                        Guided by {nextLesson.content?.instructor?.fullName || assignedInstructorName}
-                      </span>
+                      <p className="flex items-center gap-2 text-[11px] text-stone-500">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#283344] text-[8px] font-semibold text-amber-400">
+                          {nextLesson.content?.instructor?.initials ||
+                            assignedInstructorInitials}
+                        </span>{" "}
+                        Guided by{" "}
+                        {nextLesson.content?.instructor?.fullName ||
+                          assignedInstructorName}
+                      </p>
                     </div>
                   </div>
-                  <div className="flex items-end justify-end">
+                  <div className="absolute bottom-5 right-5 flex items-end justify-end md:bottom-7 md:right-7">
                     <Tooltip content={`Continue to ${nextLesson.title}.`}>
                       <Link
                         href={getLessonHref(nextLesson, nextLessonStatus || "not-started")}
