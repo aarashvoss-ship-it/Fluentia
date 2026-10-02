@@ -46,7 +46,7 @@ import {
 } from "@/lib/student-profiles";
 import { createBrowserClient } from "@supabase/ssr";
 import { getBannerPositionStyles, normalizeBannerPosition } from "@/lib/banner-position";
-import { HeroBanner, HeroBannerContent } from "@/components/shared/hero-banner";
+import { HeroBanner, HeroBannerContent, HeroBannerLogo } from "@/components/shared/hero-banner";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -1118,6 +1118,7 @@ function DashboardContent() {
               />
             )}
             <HeroBannerContent
+              logo={<HeroBannerLogo />}
               badge={
                 <span className="inline-flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 md:text-sm">
                   <UserRound className="h-3.5 w-3.5" />
@@ -1134,15 +1135,6 @@ function DashboardContent() {
                 <p className="text-sm text-[#b5bac2] opacity-90 md:text-base">
                   Seven stages. One connected journey.
                 </p>
-              }
-              footer={
-                <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-amber-500/40 bg-transparent p-1.5 md:h-10 md:w-10">
-                  <img
-                    src="/logo.png"
-                    alt="Fluentia"
-                    className="w-full h-full object-contain"
-                  />
-                </div>
               }
             />
             <div className="hidden" aria-label="Student profile">

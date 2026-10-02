@@ -10,13 +10,23 @@ interface HeroBannerProps {
 }
 
 interface HeroBannerContentProps {
+  logo: ReactNode;
   badge: ReactNode;
   title: ReactNode;
   subtitle: ReactNode;
-  footer: ReactNode;
+  footer?: ReactNode;
+}
+
+export function HeroBannerLogo() {
+  return (
+    <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-amber-500/40 bg-transparent p-1.5 md:h-14 md:w-14">
+      <img src="/logo.png" alt="Fluentia" className="h-full w-full object-contain" />
+    </div>
+  );
 }
 
 export function HeroBannerContent({
+  logo,
   badge,
   title,
   subtitle,
@@ -24,10 +34,11 @@ export function HeroBannerContent({
 }: HeroBannerContentProps) {
   return (
     <div className="flex flex-col items-start gap-2.5">
+      <div>{logo}</div>
       <div>{badge}</div>
       <div>{title}</div>
       <div>{subtitle}</div>
-      <div className="mt-1 flex items-center gap-2">{footer}</div>
+      {footer && <div className="mt-1 flex items-center gap-2">{footer}</div>}
     </div>
   );
 }
@@ -57,7 +68,7 @@ export function HeroBanner({
         className="absolute inset-0 bg-[linear-gradient(90deg,rgba(12,16,23,.72),rgba(12,16,23,.24)),linear-gradient(0deg,rgba(12,16,23,.92),transparent_65%)]"
         aria-hidden="true"
       />
-      <div className="absolute inset-0 z-10 flex flex-col items-start justify-end p-6 text-left md:p-8">
+      <div className="absolute inset-0 z-10 flex flex-col items-start justify-start p-6 text-left md:p-8">
         {children}
       </div>
     </section>

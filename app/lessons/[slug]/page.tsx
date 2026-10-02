@@ -23,7 +23,7 @@ import { UnifiedReportCard, type UnifiedReportStage } from "@/components/shared/
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { FillInBlanksMarkdown } from "@/components/study-room/fill-in-blanks-markdown";
 import { normalizeBannerPosition } from "@/lib/banner-position";
-import { HeroBanner, HeroBannerContent } from "@/components/shared/hero-banner";
+import { HeroBanner, HeroBannerContent, HeroBannerLogo } from "@/components/shared/hero-banner";
 import { ExerciseQuestions } from "@/components/study-room/exercise-questions";
 import { WritingBlockRenderer } from "@/components/shared/writing-block";
 import { StudyRoomBlockRow } from "@/components/study-room/study-room-block-row";
@@ -1108,6 +1108,7 @@ export default function LessonPage() {
       {!isResultsStep && (
         <HeroBanner imageUrl={heroBanner} position={bannerPosition} onImageError={() => setBannerLoadFailed(true)}>
           <HeroBannerContent
+            logo={<HeroBannerLogo />}
             badge={
               <span className="inline-flex rounded-md border border-amber-500/40 bg-amber-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 md:text-sm">
                 {lessonLevel} - MODULE {lessonModuleNumber ?? 1}
@@ -1127,9 +1128,6 @@ export default function LessonPage() {
               <>
                 <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#283344] text-[10px] font-semibold text-amber-400">{instructor.initials}</span>
                 <span className="text-xs text-[#9ba1aa] md:text-sm">Guided by {instructor.fullName}</span>
-                <div className="ml-1 flex h-9 w-9 items-center justify-center rounded-full border-2 border-amber-500/40 bg-transparent p-1.5 md:h-10 md:w-10">
-                  <img src="/logo.png" alt="Fluentia" className="h-full w-full object-contain" />
-                </div>
               </>
             }
           />
