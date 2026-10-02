@@ -22,6 +22,7 @@ import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { UnifiedReportCard, type UnifiedReportStage } from "@/components/shared/unified-report-card";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { FillInBlanksMarkdown } from "@/components/study-room/fill-in-blanks-markdown";
+import { ExerciseQuestions } from "@/components/study-room/exercise-questions";
 import { WritingBlockRenderer } from "@/components/shared/writing-block";
 import { StudyRoomBlockRow } from "@/components/study-room/study-room-block-row";
 import { Tooltip } from "@/components/shared/tooltip";
@@ -29,7 +30,6 @@ import { DisplaySettingsControl } from "@/components/shared/display-settings";
 import { DynamicLucideIcon } from "@/components/shared/lucide-icon-picker";
 import { parseFillInBlanks } from "@/lib/fill-in-blanks";
 import { uploadStudentAudio } from "@/services/storage-service";
-import type { OptionIndexingStyle } from "@/types/lesson";
 import {
   ArrowRight,
   ChevronDown,
@@ -71,12 +71,6 @@ function getRequestedStep(value: string | null): StudyStepId | null {
   return Number.isInteger(stepNumber) && stepNumber >= 1 && stepNumber <= STUDY_STEPS.length
     ? STUDY_STEPS[stepNumber - 1].id
     : null;
-}
-
-function formatQuestionOption(option: string, index: number, style?: OptionIndexingStyle) {
-  if (style === "alphabetical") return `${String.fromCharCode(65 + index)}. ${option}`;
-  if (style === "numeric") return `${index + 1}. ${option}`;
-  return option;
 }
 
 function getStudentResponseType(block: ContentBlock): "text" | "voice" | "audio" | "file" {
@@ -693,7 +687,17 @@ export default function LessonPage() {
 
   const getStepResponses = (step: Exclude<StudyStepId, "results">) => {
     const responses: StepResult["responses"] = [];
-    const addResponse = (question: string, value?: string, correctAnswer?: string, explanation?: string, mediaUrls?: string[], responseId?: string) => {
+    const addResponse = (
+      question: string,
+      value?: string,
+      correctAnswer?: string,
+      explanation?: string,
+      mediaUrls?: string[],
+      responseId?: string,
+      acceptedAnswers?: string[],
+      caseSensitive = false,
+      autoCheck = true,
+    ) => {
       const cleanedQuestion = stripMarkdown(question);
       const cleanedMediaUrls = (mediaUrls || []).filter(Boolean);
       const cleanedAnswer = value && /^(https?:|blob:)/i.test(value.trim())
@@ -702,8 +706,14 @@ export default function LessonPage() {
       const cleanedCorrectAnswer = correctAnswer ? stripMarkdown(correctAnswer) : undefined;
       const cleanedExplanation = explanation ? stripMarkdown(explanation) : undefined;
       if (responses.some((response) => response.question === cleanedQuestion && response.answer === cleanedAnswer && response.mediaUrls?.join() === cleanedMediaUrls.join())) return;
-      const isCorrect = cleanedAnswer && cleanedCorrectAnswer
-        ? cleanedAnswer.localeCompare(cleanedCorrectAnswer, undefined, { sensitivity: "accent" }) === 0
+      const normalizedAnswer = caseSensitive ? cleanedAnswer : cleanedAnswer.toLocaleLowerCase();
+      const isCorrect = autoCheck && cleanedAnswer && cleanedCorrectAnswer
+        ? (acceptedAnswers?.length ? acceptedAnswers : [cleanedCorrectAnswer]).some((answer) => {
+          const normalizedExpected = stripMarkdown(answer);
+          return caseSensitive
+            ? cleanedAnswer === normalizedExpected
+            : normalizedAnswer === normalizedExpected.toLocaleLowerCase();
+        })
         : undefined;
       responses.push({
         id: responseId || question,
@@ -780,24 +790,69 @@ export default function LessonPage() {
           block.id,
         );
       } else if (block.type === "quiz") {
-        block.questions.filter((question) => question.options.some(Boolean)).forEach((question) => addResponse(
-          question.prompt,
-          submission.quizSelections?.[question.id],
-          question.correct_answer || question.correctAnswer || lessonContent.results?.answer_keys?.[step]?.[question.id] || lessonContent.results?.quiz_breakdown?.find((item: { questionId: string; correctResponse: string }) => item.questionId === question.id)?.correctResponse,
-          question.explanation || lessonContent.results?.quiz_breakdown?.find((item: { questionId: string; explanation?: string }) => item.questionId === question.id)?.explanation,
-          undefined,
-          question.id,
-        ));
+        block.questions.filter((question) => question.prompt.trim()).forEach((question) => {
+          const answerKey = question.correct_answer
+            || question.correctAnswer
+            || lessonContent.results?.answer_keys?.[step]?.[question.id]
+            || lessonContent.results?.quiz_breakdown?.find((item: { questionId: string; correctResponse: string }) => item.questionId === question.id)?.correctResponse;
+          if (question.type === "fill_in_the_blanks") {
+            const parsedBlanks = parseFillInBlanks(question.prompt);
+            const acceptableAnswers = question.acceptableAnswers?.length
+              ? question.acceptableAnswers
+              : parsedBlanks.map((blank) => [blank.answer]);
+            const plainPrompt = question.prompt.replace(/\[([^\]]+)\]/g, "_____");
+            parsedBlanks.forEach((blank, index) => {
+              const accepted = acceptableAnswers[index]?.length ? acceptableAnswers[index] : [blank.answer];
+              addResponse(
+                `${plainPrompt} (Blank ${index + 1})`,
+                submission.blockResponses?.[`${question.id}-blank-${index}`],
+                accepted.join(" / "),
+                question.explanation,
+                undefined,
+                `${question.id}-blank-${index}`,
+                accepted,
+                question.caseSensitive,
+              );
+            });
+            return;
+          }
+          const isShortAnswer = question.type === "short_answer";
+          const correctOptionIndex = question.type === "multiple_choice"
+            ? (question.options || []).findIndex((option, index) => {
+              const key = (answerKey || "").trim();
+              return Boolean(key) && (option.trim() === key
+                || String.fromCharCode(65 + index).toLowerCase() === key.toLowerCase()
+                || String(index + 1) === key);
+            })
+            : -1;
+          const correctOption = correctOptionIndex >= 0 ? question.options?.[correctOptionIndex] : undefined;
+          addResponse(
+            question.prompt,
+            isShortAnswer ? submission.blockResponses?.[question.id] : submission.quizSelections?.[question.id],
+            correctOption || answerKey || question.sample_answer,
+            question.explanation,
+            undefined,
+            question.id,
+            correctOption ? [correctOption] : undefined,
+            false,
+            !isShortAnswer,
+          );
+        });
       } else if (block.type === "fill-in-the-blanks") {
         const blankQuestion = block.textWithBlanks.replace(/\[[^\]]+\]/g, "_____");
-        parseFillInBlanks(block.textWithBlanks).forEach((blank, index) => addResponse(
-          `${blankQuestion} (Blank ${index + 1})`,
-          submission.blockResponses?.[`${block.id}-blank-${index}`],
-          block.acceptableAnswers[index]?.join(" / ") || blank.answer,
-          block.explanation,
-          undefined,
-          `${block.id}-blank-${index}`,
-        ));
+        parseFillInBlanks(block.textWithBlanks).forEach((blank, index) => {
+          const accepted = block.acceptableAnswers[index]?.length ? block.acceptableAnswers[index] : [blank.answer];
+          addResponse(
+            `${blankQuestion} (Blank ${index + 1})`,
+            submission.blockResponses?.[`${block.id}-blank-${index}`],
+            accepted.join(" / "),
+            block.explanation,
+            undefined,
+            `${block.id}-blank-${index}`,
+            accepted,
+            block.caseSensitive,
+          );
+        });
       } else if (block.type === "writing") {
         addResponse(block.prompt || block.title || "Writing response", submission.writing_responses?.[block.id] || submission.blockResponses?.[block.id], undefined, block.explanation, undefined, block.id);
       }
@@ -997,8 +1052,30 @@ export default function LessonPage() {
           {block.type === "writing" && <WritingBlockRenderer block={block} value={submission.writing_responses?.[block.id] || ""} onChange={(value) => void persistSubmission({ ...submission, writingText: value, writing_responses: { ...(submission.writing_responses || {}), [block.id]: value } })} />}
           {block.type === "image" && block.imageUrl && <figure><img src={block.imageUrl} alt={block.caption || block.title || "Lesson image"} className="max-h-[420px] w-full rounded-lg object-cover" onError={(e)=>{ (e.target as HTMLImageElement).style.display="none"; (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden"); }} /><div className="hidden rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Image unavailable — {block.caption || block.title || "Lesson image"}</div>{block.caption && <figcaption className="mt-2 text-xs text-stone-500">{block.caption}</figcaption>}</figure>}
           {block.type === "resource" && block.resourceUrl && <a href={block.resourceUrl} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-lg border border-amber-500/40 bg-amber-500/20 p-4 text-sm text-amber-400 hover:border-amber-500/40">{block.description || "Open document"}<span aria-hidden="true">PDF</span></a>}
-          {block.type === "question" && <div className="space-y-5">{questionBlocks.map((questionBlock) => <div key={questionBlock.id} className="space-y-2">{questionBlock.id !== block.id && questionBlock.title && <h4 className="text-sm font-semibold text-stone-100">{questionBlock.title}</h4>}<MarkdownContent value={questionBlock.prompt} className="text-sm text-stone-300" />{(questionBlock.question_type || "multiple_choice") === "open_ended" ? <><textarea value={submission.blockResponses?.[questionBlock.id] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [questionBlock.id]: event.target.value } })} rows={7} placeholder="Write your response here..." className="min-h-[160px] w-full resize-y rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" aria-label={`${questionBlock.title || "Question"} response`} />{questionBlock.sample_answer?.trim() && <><button type="button" onClick={() => setVisibleSampleAnswers((current) => ({ ...current, [questionBlock.id]: !current[questionBlock.id] }))} className="text-xs text-amber-400 hover:text-amber-400">{visibleSampleAnswers[questionBlock.id] ? "Hide sample answer" : "Show sample answer"}</button>{visibleSampleAnswers[questionBlock.id] && <MarkdownContent value={questionBlock.sample_answer} className="rounded border border-amber-500/40 bg-amber-500/20 p-3 text-sm text-stone-300" />}</>}</> : <div className="grid gap-2 sm:grid-cols-2">{questionBlock.options.filter(Boolean).map((option, optionIndex) => <button key={option} type="button" onClick={() => void persistSubmission({ ...submission, quizSelections: { ...(submission.quizSelections || {}), [questionBlock.id]: option } })} className={`rounded-md border px-3 py-2 text-left text-xs transition ${submission.quizSelections?.[questionBlock.id] === option ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-[#202631] bg-[#0c1017] text-stone-400 hover:border-amber-500/40 hover:text-amber-400"}`}>{formatQuestionOption(option, optionIndex, questionBlock.optionIndexingStyle)}</button>)}</div>}</div>)}</div>}
-          {block.type === "quiz" && <div className="space-y-4">{block.questions.map((question, questionIndex) => <div key={`${question.id || "question"}-${questionIndex}`}><MarkdownContent value={question.prompt} className="text-sm text-stone-300" /><div className="mt-2 grid gap-2 sm:grid-cols-2">{question.options.map((option, optionIndex) => <button key={`${question.id || "question"}-${questionIndex}-${optionIndex}`} type="button" onClick={() => void persistSubmission({ ...submission, quizSelections: { ...(submission.quizSelections || {}), [question.id]: option } })} className={`rounded-md border px-3 py-2 text-left text-xs transition ${submission.quizSelections?.[question.id] === option ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-[#202631] bg-[#0c1017] text-stone-400 hover:border-amber-500/40 hover:text-amber-400"}`}>{option}</button>)}</div></div>)}</div>}
+          {block.type === "question" && <ExerciseQuestions
+            questions={questionBlocks.map((questionBlock) => ({
+              id: questionBlock.id,
+              type: questionBlock.question_type === "open_ended" ? "short_answer" : "multiple_choice",
+              prompt: questionBlock.prompt,
+              options: questionBlock.options,
+              optionIndexingStyle: questionBlock.optionIndexingStyle,
+              correct_answer: questionBlock.correct_answer,
+              sample_answer: questionBlock.sample_answer,
+              explanation: questionBlock.explanation,
+            }))}
+            choiceAnswers={submission.quizSelections}
+            textAnswers={submission.blockResponses}
+            onChoiceAnswer={(questionId, answer) => void persistSubmission({ ...submission, quizSelections: { ...(submission.quizSelections || {}), [questionId]: answer } })}
+            onTextAnswer={(questionId, answer) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [questionId]: answer } })}
+          />}
+          {block.type === "quiz" && <ExerciseQuestions
+            questions={block.questions}
+            choiceAnswers={submission.quizSelections}
+            textAnswers={submission.blockResponses}
+            onChoiceAnswer={(questionId, answer) => void persistSubmission({ ...submission, quizSelections: { ...(submission.quizSelections || {}), [questionId]: answer } })}
+            onTextAnswer={(questionId, answer) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [questionId]: answer } })}
+            onBlankAnswer={(questionId, blankIndex, answer) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [`${questionId}-blank-${blankIndex}`]: answer } })}
+          />}
         </article>
         );
         const sidebarContent = (

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { ContentBlock, ContentBlockType, OptionIndexingStyle, STUDY_STEPS, StudyStepId, StrictStepContent } from "@/types/lesson";
+import { ContentBlock, ContentBlockType, ExerciseQuestionType, OptionIndexingStyle, QuizQuestion, STUDY_STEPS, StudyStepId, StrictStepContent } from "@/types/lesson";
 import { useLessonEditorStore } from "@/lib/lesson-editor-store";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
@@ -215,7 +215,7 @@ export function LessonTailorEditor({
     if (type === "question") return { ...base, type: "question", title: "Question", prompt: "", options: ["", "", ""], correct_answer: "", question_type: "multiple_choice", optionIndexingStyle: "none", sample_answer: "" };
     if (type === "fill-in-the-blanks") return { ...base, type: "fill-in-the-blanks", title: "Fill in the Blanks", textWithBlanks: "", acceptableAnswers: [], wordBank: [], caseSensitive: false };
     if (type === "writing") return { ...base, type: "writing", title: "Writing prompt", prompt: "", minWordCount: 150, maxWordCount: 250, guidance: "" };
-    return { ...base, type: "quiz", title: "Task / Quiz", questions: [{ id: `${id}-q1`, prompt: "", options: ["", "", ""], correct_answer: "" }] };
+    return { ...base, type: "quiz", block_id: id, block_type: "quiz", title: "Quiz / Exercise", questions: [{ id: `${id}-q1`, type: "multiple_choice", prompt: "", options: ["", "", ""], correct_answer: "" }] };
   };
 
   const updateDynamicBlock = (step: StudyStepId, index: number, patch: Partial<ContentBlock>) => {
@@ -519,9 +519,7 @@ export function LessonTailorEditor({
             <option value="video" className="bg-slate-900 text-slate-100">Video Block</option>
             <option value="image" className="bg-slate-900 text-slate-100">Image Block</option>
             <option value="resource" className="bg-slate-900 text-slate-100">Resource / Document Block</option>
-            <option value="question" className="bg-slate-900 text-slate-100">Question Block</option>
-            <option value="quiz" className="bg-slate-900 text-slate-100">Quiz Block</option>
-            <option value="fill-in-the-blanks" className="bg-slate-900 text-slate-100">Fill in the Blanks Block</option>
+            <option value="quiz" className="bg-slate-900 text-slate-100">Quiz / Exercise Block</option>
             <option value="writing" className="bg-slate-900 text-slate-100">Writing Block</option>
           </select>
         </div>
@@ -677,7 +675,147 @@ export function LessonTailorEditor({
                 )}
               </div>
             )}
-            {block.type === "quiz" && <div className="space-y-2"><div className="flex items-center justify-between text-xs text-stone-400"><span>Questions</span><button type="button" onClick={() => updateDynamicBlock(step, index, { questions: [...block.questions, { id: `${block.id}-q${block.questions.length + 1}`, prompt: "", options: ["", "", ""], correct_answer: "" }] })} className="flex items-center gap-1 text-amber-400 hover:text-amber-400"><Plus className="h-3 w-3" /> Add question</button></div>{block.questions.map((question, questionIndex) => <div key={`${question.id || "question"}-${questionIndex}`} className="space-y-2 rounded border border-[#202631] bg-[#0c1017] p-2"><input value={question.prompt} onChange={(event) => updateDynamicBlock(step, index, { questions: block.questions.map((item, itemIndex) => itemIndex === questionIndex ? { ...item, prompt: event.target.value } : item) })} placeholder={`Question ${questionIndex + 1}`} className="w-full rounded border border-[#202631] bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40" aria-label={`Quiz question ${questionIndex + 1}`} />{question.prompt.trim() ? <MarkdownContent value={question.prompt} className="text-xs text-stone-300" /> : <p className="text-xs text-stone-500">Add a question prompt to preview it.</p>}<button type="button" onClick={() => updateDynamicBlock(step, index, { questions: block.questions.map((item, itemIndex) => itemIndex === questionIndex ? { ...item, options: [...item.options, ""] } : item) })} className="flex items-center gap-1 text-amber-400 hover:text-amber-400"><Plus className="h-3 w-3" /> Add option</button>{question.options.map((option, optionIndex) => <input key={`${question.id || "question"}-${questionIndex}-${optionIndex}`} value={option} onChange={(event) => updateDynamicBlock(step, index, { questions: block.questions.map((item, itemIndex) => itemIndex === questionIndex ? { ...item, options: item.options.map((value, valueIndex) => valueIndex === optionIndex ? event.target.value : value) } : item) })} placeholder={`Option ${optionIndex + 1}`} className="w-full rounded border border-[#202631] bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40" aria-label={`Quiz question ${questionIndex + 1} option ${optionIndex + 1}`} />)}<input value={question.correct_answer || question.correctAnswer || ""} onChange={(event) => updateDynamicBlock(step, index, { questions: block.questions.map((item, itemIndex) => itemIndex === questionIndex ? { ...item, correct_answer: event.target.value } : item) })} placeholder="Correct Answer / Key" className="w-full rounded border border-amber-500/40 bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40" aria-label={`Quiz question ${questionIndex + 1} Correct Answer / Key`} /></div>)}</div>}
+            {block.type === "quiz" && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-xs text-stone-400">
+                  <span>Questions</span>
+                  <button
+                    type="button"
+                    onClick={() => updateDynamicBlock(step, index, {
+                      questions: [...block.questions, {
+                        id: `${block.id}-q-${typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Date.now()}`,
+                        type: "multiple_choice",
+                        prompt: "",
+                        options: ["", "", ""],
+                        correct_answer: "",
+                      }],
+                    })}
+                    className="flex items-center gap-1 text-amber-400 hover:text-amber-300"
+                  >
+                    <Plus className="h-3 w-3" /> Add Question
+                  </button>
+                </div>
+                {block.questions.map((question, questionIndex) => {
+                  const questionType: ExerciseQuestionType = question.type || "multiple_choice";
+                  const updateQuestion = (patch: Partial<QuizQuestion>) => updateDynamicBlock(step, index, {
+                    questions: block.questions.map((item, itemIndex) => itemIndex === questionIndex ? { ...item, ...patch } : item),
+                  });
+                  return (
+                    <section key={`${question.id || "question"}-${questionIndex}`} className="space-y-3 rounded border border-[#202631] bg-[#0c1017] p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 className="text-xs font-semibold text-stone-200">Question {questionIndex + 1}</h4>
+                        <button
+                          type="button"
+                          onClick={() => updateDynamicBlock(step, index, { questions: block.questions.filter((_, itemIndex) => itemIndex !== questionIndex) })}
+                          disabled={block.questions.length <= 1}
+                          aria-label={`Remove question ${questionIndex + 1}`}
+                          className="rounded p-1 text-stone-500 hover:bg-[#171d28] hover:text-red-300 disabled:opacity-30"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <label className="block text-xs text-stone-500">
+                        Question type
+                        <select
+                          value={questionType}
+                          onChange={(event) => {
+                            const type = event.target.value as ExerciseQuestionType;
+                            updateQuestion({
+                              type,
+                              options: type === "true_false_not_given" ? ["True", "False", "Not Given"] : type === "multiple_choice" ? (question.options?.length ? question.options : ["", "", ""]) : [],
+                              correct_answer: "",
+                              sample_answer: undefined,
+                              acceptableAnswers: undefined,
+                            });
+                          }}
+                          className="mt-1 w-full rounded border border-[#394252] bg-[#171d28] p-2 text-xs text-stone-200 [color-scheme:dark]"
+                          aria-label={`Question ${questionIndex + 1} type`}
+                        >
+                          <option value="multiple_choice">Multiple Choice</option>
+                          <option value="true_false_not_given">True / False / Not Given</option>
+                          <option value="fill_in_the_blanks">Fill in the Blanks (Cloze / Drag & Drop)</option>
+                          <option value="short_answer">Short Answer / Open Question</option>
+                        </select>
+                      </label>
+                      <textarea
+                        value={question.prompt}
+                        onChange={(event) => {
+                          const prompt = event.target.value;
+                          const patch: Partial<QuizQuestion> = { prompt };
+                          if (questionType === "fill_in_the_blanks") {
+                            patch.acceptableAnswers = parseFillInBlanks(prompt).map((blank) => [blank.answer]);
+                          }
+                          updateQuestion(patch);
+                        }}
+                        placeholder={questionType === "fill_in_the_blanks" ? "The capital of France is [Paris]. Use [answer] for each blank." : `Write question ${questionIndex + 1}`}
+                        rows={3}
+                        className="w-full resize-y rounded border border-[#394252] bg-[#171d28] p-2 text-sm text-stone-200 outline-none focus:border-amber-500/40"
+                        aria-label={`Question ${questionIndex + 1} prompt`}
+                      />
+                      {questionType === "multiple_choice" && (
+                        <div className="space-y-2">
+                          {question.options?.map((option, optionIndex) => (
+                            <div key={`${question.id}-${optionIndex}`} className="flex gap-2">
+                              <input
+                                value={option}
+                                onChange={(event) => updateQuestion({ options: (question.options || []).map((value, valueIndex) => valueIndex === optionIndex ? event.target.value : value) })}
+                                placeholder={`Option ${optionIndex + 1}`}
+                                className="min-w-0 flex-1 rounded border border-[#394252] bg-[#171d28] p-2 text-xs text-stone-200"
+                                aria-label={`Question ${questionIndex + 1} option ${optionIndex + 1}`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => updateQuestion({ options: (question.options || []).filter((_, valueIndex) => valueIndex !== optionIndex) })}
+                                disabled={(question.options || []).length <= 2}
+                                aria-label={`Remove question ${questionIndex + 1} option ${optionIndex + 1}`}
+                                className="rounded border border-[#394252] px-2 text-stone-500 hover:text-red-300 disabled:opacity-30"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                          <button type="button" onClick={() => updateQuestion({ options: [...(question.options || []), ""] })} className="flex items-center gap-1 text-xs text-amber-400">
+                            <Plus className="h-3 w-3" /> Add option
+                          </button>
+                        </div>
+                      )}
+                      {questionType === "fill_in_the_blanks" && (
+                        <div className="space-y-2">
+                          <textarea
+                            value={(question.wordBank || []).join("\n")}
+                            onChange={(event) => updateQuestion({ wordBank: event.target.value.split(/[\n,]/).map((word) => word.trim()).filter(Boolean) })}
+                            placeholder="Optional word bank (one item per line)"
+                            rows={2}
+                            className="w-full resize-y rounded border border-[#394252] bg-[#171d28] p-2 text-xs text-stone-200"
+                            aria-label={`Question ${questionIndex + 1} word bank`}
+                          />
+                          <label className="flex items-center gap-2 text-xs text-stone-400">
+                            <input type="checkbox" checked={question.caseSensitive === true} onChange={(event) => updateQuestion({ caseSensitive: event.target.checked })} className="h-4 w-4 accent-amber-500" />
+                            Case-sensitive answers
+                          </label>
+                        </div>
+                      )}
+                      {questionType === "true_false_not_given" ? (
+                        <label className="block text-xs text-stone-500">Correct answer
+                          <select value={question.correct_answer || ""} onChange={(event) => updateQuestion({ correct_answer: event.target.value })} className="mt-1 w-full rounded border border-amber-500/40 bg-[#171d28] p-2 text-xs text-stone-200 [color-scheme:dark]">
+                            <option value="">Select correct answer</option>
+                            <option value="True">True</option>
+                            <option value="False">False</option>
+                            <option value="Not Given">Not Given</option>
+                          </select>
+                        </label>
+                      ) : questionType === "multiple_choice" ? (
+                        <input value={question.correct_answer || question.correctAnswer || ""} onChange={(event) => updateQuestion({ correct_answer: event.target.value })} placeholder="Correct answer (match an option)" className="w-full rounded border border-amber-500/40 bg-[#171d28] p-2 text-xs text-stone-200" aria-label={`Question ${questionIndex + 1} correct answer`} />
+                      ) : questionType === "short_answer" ? (
+                        <textarea value={question.sample_answer || question.correct_answer || ""} onChange={(event) => updateQuestion({ sample_answer: event.target.value, correct_answer: event.target.value })} placeholder="Optional sample answer / evaluation key" rows={2} className="w-full resize-y rounded border border-amber-500/40 bg-[#171d28] p-2 text-xs text-stone-200" aria-label={`Question ${questionIndex + 1} sample answer`} />
+                      ) : (
+                        <input value={question.correct_answer || ""} onChange={(event) => updateQuestion({ correct_answer: event.target.value })} placeholder="Optional answer key (defaults to bracketed answers)" className="w-full rounded border border-amber-500/40 bg-[#171d28] p-2 text-xs text-stone-200" aria-label={`Question ${questionIndex + 1} answer key`} />
+                      )}
+                    </section>
+                  );
+                })}
+              </div>
+            )}
             </div>
           </div>
           );

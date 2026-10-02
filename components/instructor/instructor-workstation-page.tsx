@@ -15,6 +15,7 @@ import { deduplicateStudents, StudentUser } from "@/lib/users";
 import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/storage-service";
 import { AccessCard } from "@/components/access/access-card";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
+import { ExerciseQuestions } from "@/components/study-room/exercise-questions";
 import { WritingBlockRenderer } from "@/components/shared/writing-block";
 import { DataTableResource, getDataTableResourceTitle, isDataTableResourceTitle } from "@/components/shared/data-table-resource";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
@@ -22,6 +23,7 @@ import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { Stepper } from "@/components/study-room/stepper";
 import { StudyRoomBlockRow } from "@/components/study-room/study-room-block-row";
 import { parseInteractiveTranscript } from "@/lib/transcripts";
+import { parseFillInBlanks } from "@/lib/fill-in-blanks";
 import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player";
 import { getStudentDirectory, getStudentProfile, normalizeStudentLevel, saveStudentProfile, STUDENT_CEFR_LEVELS, updateStudentTargetLevel, type StudentCefrLevel } from "@/lib/student-profiles";
 import { getInstructorDirectory, type InstructorDirectoryEntry, type InstructorStatus } from "@/lib/instructors";
@@ -2371,7 +2373,42 @@ export default function InstructorWorkstationPage({
       } else if (block.type === "quiz") {
         block.questions.forEach((question) => {
           const taskDefinition = question as typeof question & { title?: string; question?: string };
-          addReviewReference(step, question.id, getReviewPrompt(taskDefinition.prompt, taskDefinition.title, taskDefinition.question), question.correct_answer || question.correctAnswer || reviewContent.results?.answer_keys?.[step]?.[question.id]);
+          const prompt = getReviewPrompt(taskDefinition.prompt, taskDefinition.title, taskDefinition.question);
+          if (question.type === "fill_in_the_blanks") {
+            const parsedBlanks = parseFillInBlanks(question.prompt);
+            const acceptableAnswers = question.acceptableAnswers?.length
+              ? question.acceptableAnswers
+              : parsedBlanks.map((blank) => [blank.answer]);
+            const plainPrompt = question.prompt.replace(/\[([^\]]+)\]/g, "_____ ");
+            parsedBlanks.forEach((blank, index) => addReviewReference(
+              step,
+              `${question.id}-blank-${index}`,
+              `${plainPrompt} (Blank ${index + 1})`,
+              acceptableAnswers[index]?.join(" / ") || blank.answer,
+            ));
+          } else {
+            const answerKey = question.correct_answer
+              || question.correctAnswer
+              || question.sample_answer
+              || reviewContent.results?.answer_keys?.[step]?.[question.id];
+            const correctOptionIndex = question.type === "multiple_choice"
+              ? (question.options || []).findIndex((option, index) => {
+                const key = (answerKey || "").trim();
+                return Boolean(key) && (option.trim() === key
+                  || String.fromCharCode(65 + index).toLowerCase() === key.toLowerCase()
+                  || String(index + 1) === key);
+              })
+              : -1;
+            addReviewReference(
+              step,
+              question.id,
+              prompt,
+              correctOptionIndex >= 0
+                ? question.options?.[correctOptionIndex]
+                : answerKey,
+              question.type !== "short_answer",
+            );
+          }
         });
       } else if (block.type === "fill-in-the-blanks") {
         block.acceptableAnswers.forEach((answers, index) => addReviewReference(step, `${block.id}-blank-${index}`, `${block.textWithBlanks.replace(/\[[^\]]+\]/g, "_____ ")} (Blank ${index + 1})`, answers.join(" / ")));
@@ -2491,8 +2528,8 @@ export default function InstructorWorkstationPage({
           {block.type === "audio" && block.audioUrl && <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio lesson"} />}
           {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} />{block.show_reflection_prompt !== false && block.reflection_prompt_text?.trim() && <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/20 p-4"><p className="text-sm font-semibold text-amber-400">Reflection Question</p><p className="mt-2 text-sm leading-relaxed text-stone-300">{block.reflection_prompt_text.trim()}</p><textarea rows={4} placeholder="Write your reflection here..." readOnly className="mt-3 w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" aria-label="Reflection question response preview" /></div>}</>}
           {block.type === "resource" && block.resourceUrl && <a href={block.resourceUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded border border-amber-500/40 bg-amber-500/20 p-3 text-sm text-amber-400 hover:border-amber-500/40">Open document{block.description ? `: ${block.description}` : ""}</a>}
-          {block.type === "question" && <div className="space-y-2"><MarkdownContent value={block.prompt || ""} className="text-sm text-stone-300" />{(block.question_type || "multiple_choice") === "open_ended" ? <><textarea rows={6} placeholder="Student response" readOnly className="min-h-[140px] w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" />{block.sample_answer && <MarkdownContent value={block.sample_answer} className="rounded border border-amber-500/40 bg-amber-500/20 p-3 text-xs text-stone-300" />}</> : <div className="flex flex-wrap gap-2">{block.options.filter(Boolean).map((option) => <span key={option} className="rounded border border-[#394252] px-2 py-1 text-xs text-stone-400">{option}</span>)}</div>}</div>}
-          {block.type === "quiz" && <div className="space-y-3">{(block.questions || []).map((question, index) => <div key={`${block.id}-${index}`}><MarkdownContent value={question.prompt || ""} className="text-sm text-stone-300" /><div className="mt-2 flex flex-wrap gap-2">{question.options.filter(Boolean).map((option) => <span key={option} className="rounded border border-[#394252] px-2 py-1 text-xs text-stone-400">{option}</span>)}</div></div>)}</div>}
+          {block.type === "question" && <ExerciseQuestions questions={[{ id: block.id, type: block.question_type === "open_ended" ? "short_answer" : "multiple_choice", prompt: block.prompt || "", options: block.options, correct_answer: block.correct_answer, sample_answer: block.sample_answer }]} readOnly />}
+          {block.type === "quiz" && <ExerciseQuestions questions={block.questions || []} readOnly />}
           {block.type === "writing" && <WritingBlockRenderer block={block} isPreview />}
         </article>
         );

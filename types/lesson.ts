@@ -32,13 +32,25 @@ export interface BlockItem {
 
 export type ContentBlockType = "text" | "audio" | "video" | "image" | "resource" | "question" | "quiz" | "fill-in-the-blanks" | "writing";
 
+export type ExerciseQuestionType =
+  | "multiple_choice"
+  | "true_false_not_given"
+  | "fill_in_the_blanks"
+  | "short_answer";
+
 export interface QuizQuestion {
   id: string;
   prompt: string;
-  options: string[];
+  type?: ExerciseQuestionType;
+  options?: string[];
+  optionIndexingStyle?: OptionIndexingStyle;
   correctAnswer?: string;
   correct_answer?: string;
   explanation?: string;
+  sample_answer?: string;
+  acceptableAnswers?: string[][];
+  wordBank?: string[];
+  caseSensitive?: boolean;
 }
 
 export interface FillInTheBlanksContentBlock extends ContentBlockBase {
@@ -120,6 +132,8 @@ export interface ResourceContentBlock extends ContentBlockBase {
 
 export interface QuizContentBlock extends ContentBlockBase {
   type: "quiz";
+  block_id?: string;
+  block_type?: "quiz";
   questions: QuizQuestion[];
 }
 
