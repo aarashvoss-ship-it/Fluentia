@@ -22,7 +22,8 @@ import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { UnifiedReportCard, type UnifiedReportStage } from "@/components/shared/unified-report-card";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { FillInBlanksMarkdown } from "@/components/study-room/fill-in-blanks-markdown";
-import { getBannerPositionStyles, normalizeBannerPosition } from "@/lib/banner-position";
+import { normalizeBannerPosition } from "@/lib/banner-position";
+import { HeroBanner } from "@/components/shared/hero-banner";
 import { ExerciseQuestions } from "@/components/study-room/exercise-questions";
 import { WritingBlockRenderer } from "@/components/shared/writing-block";
 import { StudyRoomBlockRow } from "@/components/study-room/study-room-block-row";
@@ -1105,14 +1106,8 @@ export default function LessonPage() {
         </p>
       )}
       {!isResultsStep && (
-        <section className="relative flex h-[280px] w-full items-start overflow-hidden rounded-2xl bg-slate-950 md:h-[320px]">
-          {heroBanner ? (
-            <img src={heroBanner} alt="" onError={() => setBannerLoadFailed(true)} style={getBannerPositionStyles(bannerPosition)} className="absolute inset-0 h-full w-full object-cover" />
-          ) : (
-            <div className="absolute inset-0 bg-slate-950" aria-hidden="true" />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/60 to-transparent" aria-hidden="true" />
-          <div className="relative z-10 flex w-full flex-col items-start gap-2 px-4 py-4 text-left md:px-6">
+        <HeroBanner imageUrl={heroBanner} position={bannerPosition} onImageError={() => setBannerLoadFailed(true)}>
+          <div className="flex flex-col items-start gap-2.5">
             <span className="rounded-md border border-amber-500/40 bg-amber-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 md:text-sm">{lessonLevel} - MODULE {lessonModuleNumber ?? 1}</span>
             <h1 className="font-sans text-3xl font-bold tracking-tight text-[#f1eee8] md:text-4xl lg:text-[36px]">
               {displayLessonTitle || lesson.title}
@@ -1121,7 +1116,7 @@ export default function LessonPage() {
             <div className="mt-1 flex items-center gap-2 text-xs text-[#9ba1aa] md:text-sm"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#283344] text-[10px] font-semibold text-amber-400">{instructor.initials}</span>Guided by {instructor.fullName}</div>
             <div className="mt-1 flex h-9 w-9 items-center justify-center rounded-full border-2 border-amber-500/40 bg-transparent p-1.5 md:h-10 md:w-10"><img src="/logo.png" alt="Fluentia" className="h-full w-full object-contain" /></div>
           </div>
-        </section>
+        </HeroBanner>
       )}
 
             <div className="py-8">

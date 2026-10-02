@@ -46,6 +46,7 @@ import {
 } from "@/lib/student-profiles";
 import { createBrowserClient } from "@supabase/ssr";
 import { getBannerPositionStyles, normalizeBannerPosition } from "@/lib/banner-position";
+import { HeroBanner } from "@/components/shared/hero-banner";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -1103,27 +1104,11 @@ function DashboardContent() {
       {profileSaveNotice && <div role="status" className="fixed bottom-5 right-5 z-[100] flex items-center gap-3 rounded-md border border-emerald-500/30 bg-[#171d28] px-4 py-3 text-xs text-emerald-300 shadow-xl"><span>{profileSaveNotice}</span><button type="button" onClick={() => setProfileSaveNotice(null)} aria-label="Dismiss profile save notification" className="text-emerald-200/70 hover:text-emerald-100"><X className="h-4 w-4" /></button></div>}
       {profileSaveError && <div role="alert" className="fixed bottom-5 right-5 z-[100] flex items-center gap-3 rounded-md border border-red-500/40 bg-[#241719] px-4 py-3 text-xs text-red-200 shadow-xl"><span>{profileSaveError}</span><button type="button" onClick={() => setProfileSaveError(null)} aria-label="Dismiss profile save error" className="text-red-200/70 hover:text-red-100"><X className="h-4 w-4" /></button></div>}
       <div className="mx-auto max-w-7xl px-4 pt-6 md:px-6">
-        <header
-          style={{
-            backgroundColor: "#0c1017",
-          }}
-          className="relative flex h-[280px] w-full items-start overflow-hidden rounded-2xl bg-slate-950 md:h-[320px]"
+        <HeroBanner
+          imageUrl={dashboardHeaderBanner}
+          position={normalizeBannerPosition({ x: 50, y: bannerPosition })}
+          onImageError={() => setBannerLoadFailed(true)}
         >
-          <img
-            src={dashboardHeaderBanner}
-            alt=""
-            onError={() => setBannerLoadFailed(true)}
-            style={getBannerPositionStyles(normalizeBannerPosition({ x: 50, y: bannerPosition }))}
-            className="absolute inset-0 h-full w-full object-cover"
-            aria-hidden="true"
-          />
-          {!hasCustomBanner && (
-            <div
-              className="absolute inset-0 bg-[linear-gradient(90deg,rgba(12,16,23,.72),rgba(12,16,23,.24)),linear-gradient(0deg,rgba(12,16,23,.92),transparent_65%)]"
-              aria-hidden="true"
-            />
-          )}
-          <div className="relative z-10 flex w-full flex-col items-start px-4 pt-6 pb-8 md:px-6 text-left">
             {profileOpen && (
               <button
                 type="button"
@@ -1132,23 +1117,25 @@ function DashboardContent() {
                 className="fixed inset-0 z-0 cursor-default bg-black/55"
               />
             )}
-            <h1 className="mt-3 font-sans text-3xl font-semibold text-[#f1eee8]">
-              Welcome back, {displayName}.
-            </h1>
-            <p className="mt-2 text-sm text-[#b5bac2]">
-              Seven stages. One connected journey.
-            </p>
-            <div className="mt-3 flex items-center gap-2 text-xs text-[#667084]">
-              <UserRound className="h-3.5 w-3.5" />
-              {displayLessons.length} lessons available{" "}
-              <span className="text-[#394252]">|</span> {studentLevel}
-            </div>
-            <div className="mt-4 w-12 h-12 rounded-full border-2 border-amber-500/40 bg-transparent flex items-center justify-center p-1.5">
-              <img
-                src="/logo.png"
-                alt="Fluentia"
-                className="w-full h-full object-contain"
-              />
+            <div className="flex flex-col items-start gap-2.5">
+              <h1 className="font-sans text-3xl font-bold tracking-tight text-[#f1eee8] md:text-4xl lg:text-[36px]">
+                Welcome back, {displayName}.
+              </h1>
+              <p className="text-sm text-[#b5bac2] opacity-90 md:text-base">
+                Seven stages. One connected journey.
+              </p>
+              <div className="flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 md:text-sm">
+                <UserRound className="h-3.5 w-3.5" />
+                {displayLessons.length} lessons available{" "}
+                <span aria-hidden="true">|</span> {studentLevel}
+              </div>
+              <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-amber-500/40 bg-transparent p-1.5 md:h-10 md:w-10">
+                <img
+                  src="/logo.png"
+                  alt="Fluentia"
+                  className="w-full h-full object-contain"
+                />
+              </div>
             </div>
             <div className="hidden" aria-label="Student profile">
               <button
@@ -1390,8 +1377,7 @@ function DashboardContent() {
                 </div>
               )}
             </div>
-          </div>
-        </header>
+        </HeroBanner>
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between py-4">
           <p className="text-[12px] text-[#aeb2b9]">
             Welcome back, <span className="text-[#e6e4e0]">{displayName}</span>.
