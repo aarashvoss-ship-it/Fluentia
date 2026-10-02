@@ -308,6 +308,14 @@ function stripReviewMarkdown(value: string) {
     .trim();
 }
 
+function normalizeReviewAnswer(value: string) {
+  return stripReviewMarkdown(value)
+    .normalize("NFKC")
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
 const EMPTY_RESOURCE_DRAFT = {
   type: "note" as StudentResourceType,
   title: "",
@@ -2313,7 +2321,10 @@ export default function InstructorWorkstationPage({
     {
       id: "reading",
       title: "Reading",
-      referenceText: reviewContent.reading?.article_markdown?.text?.trim() || reviewContent.reading?.mainArticle?.text?.trim() || undefined,
+      referenceText: reviewContent.reading?.article_markdown?.text?.trim()
+        || reviewContent.reading?.mainArticle?.text?.trim()
+        || reviewContent.mainArticle?.text?.trim()
+        || undefined,
       tasks: [],
     },
     { id: "writing", title: "Writing", prompt: reviewContent.writing?.prompt?.text, tasks: [] },
@@ -2358,15 +2369,23 @@ export default function InstructorWorkstationPage({
     if (blankMatch) return `Fill in the blank #${Number(blankMatch[1]) + 1}`;
     return stripReviewMarkdown(/^[0-9a-f-]{32,}$/i.test(key) ? `${reviewStages.find((stage) => stage.id === fallbackStage)?.title || "Lesson"} response` : key.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()));
   };
-  const addReviewAnswer = (stageId: InstructorReviewStageId, key: string, answer: string, audioUrl?: string) => {
+  const addReviewAnswer = (stageId: InstructorReviewStageId, key: string, answer: string, audioUrl?: string, markedIsCorrect?: boolean) => {
     const stage = reviewStages.find((item) => item.id === stageId);
     if (!stage) return;
     const isUrl = /^(?:https?:|blob:|data:audio\/)/i.test(answer.trim());
+    const modelAnswer = reviewModelAnswers[key];
+    const normalizedStudentAnswer = normalizeReviewAnswer(answer);
+    const isCorrect = typeof markedIsCorrect === "boolean"
+      ? markedIsCorrect
+      : modelAnswer
+        ? modelAnswer.split(/[\/|]/).some((candidate) => normalizeReviewAnswer(candidate) === normalizedStudentAnswer)
+        : undefined;
     stage.tasks.push({
       id: key,
       title: getDisplayQuestion(key, stageId),
       studentAnswer: audioUrl || isUrl ? "Audio response submitted" : answer,
-      modelAnswer: reviewModelAnswers[key],
+      modelAnswer,
+      isCorrect,
       audioUrls: audioUrl || isUrl ? [audioUrl || answer] : undefined,
     });
   };

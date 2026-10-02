@@ -7,6 +7,7 @@ export interface UnifiedReportTask {
   title: string;
   studentAnswer: string;
   modelAnswer?: string;
+  isCorrect?: boolean;
   audioUrls?: string[];
   explanation?: string;
 }
@@ -127,9 +128,9 @@ export function UnifiedReportCard({
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Task Prompt</p>
                 <h4 className="mt-1 text-sm font-medium leading-relaxed text-stone-100">{index + 1}. {stripMarkdown(task.title)}</h4>
               </div>
-              <div className="mt-3 rounded-md border border-blue-500/30 bg-slate-900/90 p-3 text-blue-100">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-blue-300">Your Response</p>
-                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-blue-100">{stripMarkdown(task.studentAnswer) || <span className="italic text-blue-300">No response submitted.</span>}</p>
+              <div className={`mt-3 rounded-md border p-3 ${task.isCorrect === false ? "border-amber-500/40 bg-amber-950/40 text-amber-200" : "border-blue-500/30 bg-slate-900/90 text-blue-100"}`}>
+                <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${task.isCorrect === false ? "text-amber-300" : "text-blue-300"}`}>Your Response</p>
+                <p className={`mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed ${task.isCorrect === false ? "text-amber-200" : "text-blue-100"}`}>{stripMarkdown(task.studentAnswer) || <span className={`italic ${task.isCorrect === false ? "text-amber-300" : "text-blue-300"}`}>No response submitted.</span>}</p>
                 {task.audioUrls?.map((url, mediaIndex) => <div key={`${url}-${mediaIndex}`} className="mt-2 min-w-0 max-w-full overflow-hidden"><CustomAudioPlayer src={url} label={`${stripMarkdown(task.title)} recording`} /></div>)}
               </div>
               {task.modelAnswer && <div className="mt-3 rounded-md border border-amber-500/40 bg-amber-950/40 p-3 text-amber-200">
