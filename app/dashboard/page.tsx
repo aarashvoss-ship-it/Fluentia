@@ -1425,11 +1425,11 @@ function DashboardContent() {
 
         <div className="py-8">
           <section
-            className="grid gap-3 border-b border-[#202631] py-6 sm:grid-cols-3"
+            className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch border-b border-[#202631] py-6"
             aria-label="Student progress overview"
           >
             <div
-              className="relative order-last rounded-xl border border-[#202631] bg-[#121721] p-4"
+              className="relative order-last flex h-full min-h-[104px] flex-col justify-center rounded-xl border border-[#202631] bg-[#121721] p-4"
               aria-label="Student profile"
             >
               <div className="flex items-center gap-3">
@@ -1474,7 +1474,6 @@ function DashboardContent() {
                     setProfileTab("profile");
                   }}
                   aria-label="Profile settings"
-                  title="Profile settings"
                   className="text-stone-500 transition hover:text-amber-400"
                 >
                   <Settings2 className="h-4 w-4" />
@@ -1693,7 +1692,7 @@ function DashboardContent() {
               )}
             </div>
             <Tooltip content={`${completedLessons} of ${displayLessons.length} available lessons are complete`}>
-            <div className="w-full rounded-xl border border-[#202631] bg-[#121721] p-4">
+            <div className="flex h-full min-h-[104px] w-full flex-col justify-center rounded-xl border border-[#202631] bg-[#121721] p-4">
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#667084]">
                 Lessons Completed
               </p>
@@ -1706,7 +1705,7 @@ function DashboardContent() {
             </div>
             </Tooltip>
             <Tooltip content={hasFeedback ? "Your latest evaluation feedback is available" : "Your instructor has not published evaluation feedback yet"}>
-            <div className="w-full rounded-xl border border-[#202631] bg-[#121721] p-4">
+            <div className="flex h-full min-h-[104px] w-full flex-col justify-center rounded-xl border border-[#202631] bg-[#121721] p-4">
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#667084]">
                 Overall Evaluation Status
               </p>

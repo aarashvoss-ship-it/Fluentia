@@ -225,7 +225,6 @@ export function DisplaySettingsControl() {
       <button
         type="button"
         className={`display-customizer-trigger${open ? " is-open" : ""}`}
-        title="Display and appearance"
         aria-label={open ? "Close display settings" : "Open display settings"}
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}

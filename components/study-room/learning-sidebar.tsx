@@ -359,10 +359,10 @@ export function LearningSidebar({
         aria-hidden={!open}
         tabIndex={open ? 0 : -1}
         onClick={onClose}
-        className={`fixed inset-0 z-20 bg-black/55 transition-opacity duration-200 ${open ? "opacity-100" : "pointer-events-none opacity-0"}`}
+        className={`fixed inset-0 z-[1090] bg-black/55 transition-opacity duration-200 ${open ? "opacity-100" : "pointer-events-none opacity-0"}`}
       />
       <aside
-        className={`fixed bottom-0 right-0 top-0 z-30 flex w-full max-w-xl flex-col border-l border-[#29303c] bg-[#121721] shadow-2xl transition-transform duration-200 ${open ? "translate-x-0" : "translate-x-full"}`}
+        className={`fixed bottom-0 right-0 top-0 z-[1100] flex w-full max-w-xl flex-col border-l border-[#29303c] bg-[#121721] shadow-2xl transition-transform duration-200 ${open ? "translate-x-0" : "translate-x-full"}`}
         id="learning-sidebar"
         aria-hidden={!open}
       >
