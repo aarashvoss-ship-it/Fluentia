@@ -1107,21 +1107,21 @@ export default function LessonPage() {
         </p>
       )}
       {!isResultsStep && (
-        <section className="relative flex aspect-video w-full items-start overflow-hidden rounded-xl bg-slate-950">
+        <section className="relative flex h-[220px] w-full items-start overflow-hidden rounded-xl bg-slate-950 sm:h-[240px] md:h-[260px]">
           {heroBanner ? (
             <img src={heroBanner} alt="" onError={() => setBannerLoadFailed(true)} style={{ objectPosition: bannerObjectPosition }} className="absolute inset-0 h-full w-full object-cover" />
           ) : (
             <div className="absolute inset-0 bg-slate-950" aria-hidden="true" />
           )}
           <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/60 to-transparent" aria-hidden="true" />
-          <div className="relative z-10 flex w-full flex-col items-start gap-3 px-4 pb-8 pt-6 text-left md:px-6">
+          <div className="relative z-10 flex w-full flex-col items-start gap-2 px-4 py-4 text-left md:px-6">
             <span className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 bg-amber-500/20 border border-amber-500/40 rounded-md">{lessonLevel} - MODULE {lessonModuleNumber ?? 1}</span>
             <h1 className="font-sans text-2xl font-bold text-[#f1eee8] md:text-3xl">
               {displayLessonTitle || lesson.title}
             </h1>
             {lessonSubtitle && <p className="text-xs text-[#b5bac2]">{lessonSubtitle}</p>}
-            <div className="mt-7 flex items-center gap-2 text-[11px] text-[#9ba1aa]"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#283344] text-[9px] font-semibold text-amber-400">{instructor.initials}</span>Guided by {instructor.fullName}</div>
-            <div className="w-12 h-12 rounded-full border-2 border-amber-500/40 bg-transparent flex items-center justify-center p-1.5 mt-3"><img src="/logo.png" alt="Fluentia" className="w-full h-full object-contain" /></div>
+            <div className="mt-1 flex items-center gap-2 text-[11px] text-[#9ba1aa]"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#283344] text-[9px] font-semibold text-amber-400">{instructor.initials}</span>Guided by {instructor.fullName}</div>
+            <div className="mt-1 flex h-10 w-10 items-center justify-center rounded-full border-2 border-amber-500/40 bg-transparent p-1.5"><img src="/logo.png" alt="Fluentia" className="h-full w-full object-contain" /></div>
           </div>
         </section>
       )}

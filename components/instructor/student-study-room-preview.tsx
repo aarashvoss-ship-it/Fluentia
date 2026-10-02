@@ -162,7 +162,7 @@ export function StudentStudyRoomPreview({
     <div className={`fluentia-study-room bg-[#0c1017] text-[#e8e7e4] ${embedded ? "h-full min-h-full" : "min-h-screen"}`}>
       <div className="mx-auto max-w-7xl px-4 py-5 md:px-6">
         <header className="overflow-hidden rounded-xl border border-[#202631] bg-[#121721]">
-          <div className="relative flex aspect-video w-full items-center overflow-hidden bg-slate-950">
+          <div className="relative flex h-[220px] w-full items-center overflow-hidden bg-slate-950 sm:h-[240px] md:h-[260px]">
             {bannerUrl ? <img src={bannerUrl} alt="" style={{ objectPosition: `${bannerPosition.x}% ${bannerPosition.y}%` }} className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-0 bg-slate-950" aria-hidden="true" />}
             <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/60 to-transparent" aria-hidden="true" />
             <div className="relative z-10 p-5">

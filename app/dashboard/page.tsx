@@ -1103,7 +1103,7 @@ function DashboardContent() {
           style={{
             backgroundColor: "#0c1017",
           }}
-          className="relative flex aspect-video w-full items-start overflow-hidden rounded-xl bg-slate-950"
+          className="relative flex h-[220px] w-full items-start overflow-hidden rounded-xl bg-slate-950 sm:h-[240px] md:h-[260px]"
         >
           <img
             src={dashboardHeaderBanner}
