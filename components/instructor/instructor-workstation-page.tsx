@@ -753,6 +753,7 @@ export default function InstructorWorkstationPage({
       subtitle: subtitle.trim() || "A new Fluentia learning journey.",
       moduleNumber: Number(moduleNumber) || 1,
       bannerUrl: workstationState.bannerUrl,
+      bannerPosition: workstationState.bannerPosition,
       sidebarBlocksByStep,
       instructorGuidance: newLesson.instructorGuidance,
       lessonResources,
@@ -1833,7 +1834,7 @@ export default function InstructorWorkstationPage({
     };
     const timer = window.setTimeout(saveAfterInactivity, 5000);
     return () => window.clearTimeout(timer);
-  }, [workstationState.content, workstationState.bannerUrl, newLesson.title, newLesson.subtitle, newLesson.moduleNumber, sidebarBlocksByStep, databaseLessonId]);
+  }, [workstationState.content, workstationState.bannerUrl, workstationState.bannerPosition, newLesson.title, newLesson.subtitle, newLesson.moduleNumber, sidebarBlocksByStep, databaseLessonId]);
 
   useEffect(() => {
     const handleInput = () => {

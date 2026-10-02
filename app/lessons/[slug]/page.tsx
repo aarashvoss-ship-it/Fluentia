@@ -22,6 +22,7 @@ import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { UnifiedReportCard, type UnifiedReportStage } from "@/components/shared/unified-report-card";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { FillInBlanksMarkdown } from "@/components/study-room/fill-in-blanks-markdown";
+import { getBannerPositionStyles, normalizeBannerPosition } from "@/lib/banner-position";
 import { ExerciseQuestions } from "@/components/study-room/exercise-questions";
 import { WritingBlockRenderer } from "@/components/shared/writing-block";
 import { StudyRoomBlockRow } from "@/components/study-room/study-room-block-row";
@@ -665,10 +666,7 @@ export default function LessonPage() {
         : undefined;
   const heroBanner = bannerLoadFailed ? undefined : lessonBanner;
   const rawBannerPosition = rawLessonContent.bannerPosition ?? rawLessonContent.banner_position;
-  const bannerPosition = rawBannerPosition && typeof rawBannerPosition === "object"
-    ? rawBannerPosition as { x?: number; y?: number }
-    : typeof rawBannerPosition === "number" ? { x: 50, y: rawBannerPosition } : { x: 50, y: 50 };
-  const bannerObjectPosition = `${Math.max(0, Math.min(100, bannerPosition.x ?? 50))}% ${Math.max(0, Math.min(100, bannerPosition.y ?? 50))}%`;
+  const bannerPosition = normalizeBannerPosition(rawBannerPosition);
   const evaluation = publishedLesson?.evaluation;
   const isEvaluationPublished = evaluation?.published === true;
   const totalScore = evaluation?.totalScore ?? (evaluation
@@ -1109,19 +1107,19 @@ export default function LessonPage() {
       {!isResultsStep && (
         <section className="relative flex h-[320px] w-full items-start overflow-hidden rounded-xl bg-slate-950 sm:h-[360px] md:h-[400px]">
           {heroBanner ? (
-            <img src={heroBanner} alt="" onError={() => setBannerLoadFailed(true)} style={{ objectPosition: bannerObjectPosition }} className="absolute inset-0 h-full w-full object-cover object-center" />
+            <img src={heroBanner} alt="" onError={() => setBannerLoadFailed(true)} style={getBannerPositionStyles(bannerPosition)} className="absolute inset-0 h-full w-full object-cover" />
           ) : (
             <div className="absolute inset-0 bg-slate-950" aria-hidden="true" />
           )}
           <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/60 to-transparent" aria-hidden="true" />
           <div className="relative z-10 flex w-full flex-col items-start gap-2 px-4 py-4 text-left md:px-6">
-            <span className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 bg-amber-500/20 border border-amber-500/40 rounded-md">{lessonLevel} - MODULE {lessonModuleNumber ?? 1}</span>
-            <h1 className="font-sans text-2xl font-bold text-[#f1eee8] md:text-3xl">
+            <span className="rounded-md border border-amber-500/40 bg-amber-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 md:text-sm">{lessonLevel} - MODULE {lessonModuleNumber ?? 1}</span>
+            <h1 className="font-sans text-3xl font-bold tracking-tight text-[#f1eee8] md:text-4xl lg:text-[36px]">
               {displayLessonTitle || lesson.title}
             </h1>
-            {lessonSubtitle && <p className="text-xs text-[#b5bac2]">{lessonSubtitle}</p>}
-            <div className="mt-1 flex items-center gap-2 text-[11px] text-[#9ba1aa]"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#283344] text-[9px] font-semibold text-amber-400">{instructor.initials}</span>Guided by {instructor.fullName}</div>
-            <div className="mt-1 flex h-10 w-10 items-center justify-center rounded-full border-2 border-amber-500/40 bg-transparent p-1.5"><img src="/logo.png" alt="Fluentia" className="h-full w-full object-contain" /></div>
+            {lessonSubtitle && <p className="text-sm text-[#b5bac2] opacity-90 md:text-base">{lessonSubtitle}</p>}
+            <div className="mt-1 flex items-center gap-2 text-xs text-[#9ba1aa] md:text-sm"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#283344] text-[10px] font-semibold text-amber-400">{instructor.initials}</span>Guided by {instructor.fullName}</div>
+            <div className="mt-1 flex h-9 w-9 items-center justify-center rounded-full border-2 border-amber-500/40 bg-transparent p-1.5 md:h-10 md:w-10"><img src="/logo.png" alt="Fluentia" className="h-full w-full object-contain" /></div>
           </div>
         </section>
       )}

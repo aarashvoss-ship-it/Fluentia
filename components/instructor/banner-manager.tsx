@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Image, Upload, Check, LoaderCircle, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import { getBannerPositionStyles } from "@/lib/banner-position";
 
 export interface BannerPosition {
   x: number;
@@ -181,8 +182,8 @@ export function InstructorBannerManager({
           <img
             src={selectedUrl}
             alt="Current live hero banner preview"
-            style={{ objectPosition: `${position.x}% ${position.y}%` }}
-            className="h-full w-full object-cover object-center"
+            style={getBannerPositionStyles(position)}
+            className="h-full w-full object-cover"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center px-4 text-center text-sm leading-relaxed text-slate-400">

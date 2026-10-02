@@ -12,6 +12,7 @@ import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player
 import { StudyRoomBlockRow } from "@/components/study-room/study-room-block-row";
 import { Stepper } from "@/components/study-room/stepper";
 import type { BannerPosition } from "@/components/instructor/banner-manager";
+import { getBannerPositionStyles } from "@/lib/banner-position";
 
 export type StudentPreviewStep = StudyStepId;
 export type PreviewSidebarBlock = { id: string; title: string; body: string; icon?: string; parentMainBlockId?: string };
@@ -163,12 +164,12 @@ export function StudentStudyRoomPreview({
       <div className="mx-auto max-w-7xl px-4 py-5 md:px-6">
         <header className="overflow-hidden rounded-xl border border-[#202631] bg-[#121721]">
           <div className="relative flex h-[320px] w-full items-center overflow-hidden bg-slate-950 sm:h-[360px] md:h-[400px]">
-            {bannerUrl ? <img src={bannerUrl} alt="" style={{ objectPosition: `${bannerPosition.x}% ${bannerPosition.y}%` }} className="absolute inset-0 h-full w-full object-cover object-center" /> : <div className="absolute inset-0 bg-slate-950" aria-hidden="true" />}
+            {bannerUrl ? <img src={bannerUrl} alt="" style={getBannerPositionStyles(bannerPosition)} className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-0 bg-slate-950" aria-hidden="true" />}
             <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/60 to-transparent" aria-hidden="true" />
-            <div className="relative z-10 p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">English - Module {moduleNumber || 1}</p>
-              <h1 className="mt-2 text-2xl font-bold text-stone-100">{title || "Untitled Lesson"}</h1>
-              {subtitle && <p className="mt-2 text-sm text-stone-300">{subtitle}</p>}
+            <div className="relative z-10 space-y-2.5 p-5">
+              <p className="w-fit rounded-md border border-amber-500/40 bg-amber-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 md:text-sm">English - Module {moduleNumber || 1}</p>
+              <h1 className="text-3xl font-bold tracking-tight text-stone-100 md:text-4xl lg:text-[36px]">{title || "Untitled Lesson"}</h1>
+              {subtitle && <p className="text-sm text-stone-300 opacity-90 md:text-base">{subtitle}</p>}
             </div>
           </div>
           {content.ambientMusicUrl && <div className="border-t border-[#293343] p-4"><AmbientMusicPlayer src={content.ambientMusicUrl} /></div>}
