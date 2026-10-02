@@ -2303,8 +2303,8 @@ export default function InstructorWorkstationPage({
   const reviewStages: InstructorReviewStage[] = [
     { id: "warm_up", title: "Warm-up", prompt: reviewContent.warm_up?.intro_narrative?.text || reviewContent.warm_up?.quote?.text, tasks: [] },
     { id: "lesson", title: "Lesson", prompt: reviewContent.lesson?.core_concept?.text, tasks: [] },
-    { id: "listening", title: "Listening", prompt: reviewContent.listening?.transcript?.text, tasks: [] },
-    { id: "reading", title: "Reading", prompt: reviewContent.reading?.article_markdown?.text, tasks: [] },
+    { id: "listening", title: "Listening", referenceText: reviewContent.listening?.transcript?.text, referenceAudioUrl: reviewContent.listening?.audio_url, tasks: [] },
+    { id: "reading", title: "Reading", referenceText: reviewContent.reading?.article_markdown?.text || reviewContent.reading?.mainArticle?.text, tasks: [] },
     { id: "writing", title: "Writing", prompt: reviewContent.writing?.prompt?.text, tasks: [] },
     { id: "speaking", title: "Speaking", prompt: reviewContent.speaking?.scenario?.text, tasks: [] },
   ];

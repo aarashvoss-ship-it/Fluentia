@@ -15,6 +15,8 @@ export interface UnifiedReportStage {
   id: string;
   title: string;
   prompt?: string;
+  referenceText?: string;
+  referenceAudioUrl?: string;
   tasks: UnifiedReportTask[];
 }
 
@@ -113,17 +115,25 @@ export function UnifiedReportCard({
             <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-amber-400">{stage.title}</h3>
             {stage.prompt && <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-stone-400">{stripMarkdown(stage.prompt)}</p>}
           </div>
+          {(stage.referenceText || stage.referenceAudioUrl) && <details className="mb-4 rounded-lg border border-slate-800 bg-slate-900/50 p-4">
+            <summary className="cursor-pointer text-sm font-medium text-stone-200">Show Lesson Reference / Passage</summary>
+            {stage.referenceText && <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-stone-300">{stripMarkdown(stage.referenceText)}</p>}
+            {stage.referenceAudioUrl && <div className="mt-3"><CustomAudioPlayer src={stage.referenceAudioUrl} label={`${stage.title} lesson reference audio`} /></div>}
+          </details>}
           {stage.tasks.length > 0 ? <div className="space-y-3">
             {stage.tasks.map((task, index) => <article key={task.id} className="w-full min-w-0 rounded-lg border border-[#293343] bg-[#0c1017] p-4">
-              <h4 className="text-sm font-medium leading-relaxed text-stone-100">{index + 1}. {stripMarkdown(task.title)}</h4>
-              <div className="mt-3">
+              <div className="rounded-md bg-zinc-900 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Task Prompt</p>
+                <h4 className="mt-1 text-sm font-medium leading-relaxed text-stone-100">{index + 1}. {stripMarkdown(task.title)}</h4>
+              </div>
+              <div className="mt-3 rounded-md bg-zinc-900/70 p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Your Response</p>
                 <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-300">{stripMarkdown(task.studentAnswer) || <span className="italic text-stone-500">No response submitted.</span>}</p>
                 {task.audioUrls?.map((url, mediaIndex) => <div key={`${url}-${mediaIndex}`} className="mt-2 min-w-0 max-w-full overflow-hidden"><CustomAudioPlayer src={url} label={`${stripMarkdown(task.title)} recording`} /></div>)}
               </div>
-              {task.modelAnswer && <div className="mt-3 border-t border-[#293343] pt-3">
+              {task.modelAnswer && <div className="mt-3 rounded-md border border-amber-900/40 bg-amber-950/20 p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400">Correct / Model Answer</p>
-                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-amber-400">{stripMarkdown(task.modelAnswer)}</p>
+                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-amber-200">{stripMarkdown(task.modelAnswer)}</p>
               </div>}
               {task.explanation && <div className="mt-3 border-t border-[#293343] pt-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Explanation</p>
