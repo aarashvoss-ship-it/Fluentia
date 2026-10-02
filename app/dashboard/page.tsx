@@ -169,16 +169,6 @@ function getLessonStatusCopy(status: LessonStatus) {
         : "NOT STARTED";
 }
 
-function getLessonModuleNumber(lesson: LessonWithVersion) {
-  const contentModuleNumber = lesson.content?.moduleNumber;
-  if (typeof contentModuleNumber === "number" && Number.isFinite(contentModuleNumber)) {
-    return contentModuleNumber;
-  }
-  return typeof lesson.module_number === "number" && Number.isFinite(lesson.module_number)
-    ? lesson.module_number
-    : Number.POSITIVE_INFINITY;
-}
-
 function isValidImageUrl(value: string) {
   try {
     const url = new URL(value);
@@ -745,9 +735,7 @@ function DashboardContent() {
 
   const token = activeStudent.token;
   const displayLessons = [...lessons].sort((left, right) => {
-    const moduleOrder = getLessonModuleNumber(left) - getLessonModuleNumber(right);
-    if (moduleOrder !== 0) return moduleOrder;
-    const createdOrder = Date.parse(left.created_at) - Date.parse(right.created_at);
+    const createdOrder = Date.parse(right.created_at) - Date.parse(left.created_at);
     return Number.isFinite(createdOrder) ? createdOrder : 0;
   });
   const nextLesson = displayLessons.find((lesson) => {
@@ -1836,27 +1824,11 @@ function DashboardContent() {
                   className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,11,17,.95),rgba(7,11,17,.6)_52%,rgba(7,11,17,.82)),linear-gradient(0deg,rgba(7,11,17,.92),transparent_65%)]" />
+                <span className="absolute bottom-4 left-5 z-10 rounded-md border border-amber-500/40 bg-amber-500/20 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400">
+                  Module {activeModuleNumber ?? 1}
+                </span>
                 <div className="relative flex h-full flex-col justify-between p-5 md:p-7">
-                  <div>
-                    <div className="flex items-center gap-2 text-amber-400">
-                      <Flame className="h-4 w-4" />
-                      <span className="text-[10px] font-semibold tracking-[0.16em]">
-                        Seven stages. One connected journey
-                      </span>
-                    </div>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <span className="rounded-md border border-amber-500/40 bg-amber-500/20 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-amber-400">
-                        Module {activeModuleNumber ?? 1}
-                      </span>
-                      {nextLessonStatus && (
-                        <span className={`rounded-md border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ${nextLessonStatus === "in-progress" ? "border-sky-500/30 bg-sky-500/10 text-sky-300" : "border-[#394252] bg-[#171d28] text-stone-300"}`}>
-                          {getLessonStatusCopy(nextLessonStatus)}
-                        </span>
-                      )}
-                      <span className="text-[11px] text-stone-300">
-                        Guided by {nextLesson.content?.instructor?.fullName || assignedInstructorName}
-                      </span>
-                    </div>
+                  <div className="max-w-3xl">
                     <h2 className="mt-2 font-sans text-2xl font-semibold text-stone-100 md:text-3xl">
                       {nextLesson.title}
                     </h2>
@@ -1864,6 +1836,20 @@ function DashboardContent() {
                       {nextLesson.content?.subtitle ||
                         "Continue your personalized language practice."}
                     </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {nextLessonStatus && (
+                        <span className={`rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${
+                          nextLessonStatus === "in-progress"
+                            ? "border-sky-500/30 bg-sky-500/10 text-sky-300"
+                            : "border-[#394252] bg-[#171d28]/80 text-stone-300"
+                        }`}>
+                          {getLessonStatusCopy(nextLessonStatus)}
+                        </span>
+                      )}
+                      <span className="text-[11px] text-stone-300">
+                        Guided by {nextLesson.content?.instructor?.fullName || assignedInstructorName}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex items-end justify-end">
                     <Tooltip content={`Continue to ${nextLesson.title}.`}>
