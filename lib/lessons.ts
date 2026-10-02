@@ -121,14 +121,6 @@ const FALLBACK_LESSON: LessonWithVersion = {
   },
 };
 
-function isMissingBannerColumn(error: { code?: string; message?: string } | null) {
-  return Boolean(error && (error.code === "42703" || error.code === "PGRST204") && /banner_url/i.test(error.message || ""));
-}
-
-function isMissingStudentColumn(error: { code?: string; message?: string } | null) {
-  return Boolean(error && (error.code === "42703" || error.code === "PGRST204") && /student_(id|token)/i.test(error.message || ""));
-}
-
 function isMissingPublishedColumn(error: { code?: string; message?: string } | null) {
   return Boolean(error && (error.code === "42703" || error.code === "PGRST204") && /is_published/i.test(error.message || ""));
 }
@@ -161,6 +153,14 @@ const LESSON_UPDATE_COLUMNS = [
   "is_published",
 ] as const;
 const PRESERVED_UPDATE_COLUMNS = new Set(["banner_url"]);
+const OPTIONAL_LESSON_INSERT_COLUMNS = new Set([
+  "tags",
+  "banner_url",
+  "student_id",
+  "student_token",
+  "instructor_id",
+  "is_published",
+]);
 
 function sanitizeJsonValue(value: unknown): unknown {
   if (value === undefined) return undefined;
@@ -716,7 +716,9 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
     const slugBase = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
     const slug = `${slugBase || "lesson"}-${Date.now()}`;
     const status = lessonData.status || "draft";
-    const safeContent = sanitizeLessonContent(content) || {};
+    const safeContent = sanitizeLessonContent(
+      content && lessonData.tags !== undefined ? { ...content, tags: lessonData.tags } : content,
+    ) || {};
     const versionContent = {
       ...safeContent,
       slug,
@@ -738,16 +740,33 @@ export async function createLesson(input: CreateLessonInput): Promise<LessonWith
       tags: lessonData.tags || {},
       ...(typeof lessonData.assigned_all_students === "boolean" ? { assigned_all_students: lessonData.assigned_all_students } : {}),
     };
+    let insertPayload: Record<string, unknown> = lessonPayload;
     let { data: lesson, error: lessonError } = await supabase
       .from("lessons")
-      .insert([lessonPayload])
+      .insert([insertPayload])
       .select()
       .single();
-    if (isMissingBannerColumn(lessonError) || isMissingStudentColumn(lessonError) || isMissingPublishedColumn(lessonError)) {
-      const { banner_url: _ignoredBannerUrl, student_id: _ignoredStudentId, student_token: _ignoredStudentToken, instructor_id: _ignoredInstructorId, is_published: _ignoredPublished, ...lessonPayloadWithoutOptionalColumns } = lessonPayload;
+    const triedMissingColumns = new Set<string>();
+    while (lessonError && triedMissingColumns.size < OPTIONAL_LESSON_INSERT_COLUMNS.size) {
+      const missingColumn = getMissingColumnName(lessonError);
+      if (
+        !missingColumn
+        || !OPTIONAL_LESSON_INSERT_COLUMNS.has(missingColumn)
+        || triedMissingColumns.has(missingColumn)
+        || !Object.prototype.hasOwnProperty.call(insertPayload, missingColumn)
+      ) break;
+      triedMissingColumns.add(missingColumn);
+      insertPayload = Object.fromEntries(
+        Object.entries(insertPayload).filter(([column]) => column !== missingColumn),
+      );
+      console.warn(`Retrying lesson insert without unavailable '${missingColumn}' column.`, {
+        retry: triedMissingColumns.size,
+        code: lessonError.code,
+        message: lessonError.message,
+      });
       ({ data: lesson, error: lessonError } = await supabase
         .from("lessons")
-        .insert([lessonPayloadWithoutOptionalColumns])
+        .insert([insertPayload])
         .select()
         .single());
     }
