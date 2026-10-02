@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, ChevronRight, Grid3X3, List, MoreVertical, Pencil, Plus, Search, Trash2, X, Lightbulb, UploadCloud } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Grid3X3, Image, List, MoreVertical, Pencil, Plus, Search, Trash2, X, Lightbulb, UploadCloud } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { StudentContextPanel } from "@/components/instructor/student-context-panel";
 import { LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
-import { InstructorBannerManager } from "@/components/instructor/banner-manager";
+import { InstructorBannerManager, type BannerPosition } from "@/components/instructor/banner-manager";
 import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/submission-evaluator";
 import type { UnifiedReportStage } from "@/components/shared/unified-report-card";
 import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
@@ -225,6 +225,19 @@ function normalizeLessonTags(value: unknown, content: Record<string, any> = {}):
     skill_focus: stringValue(source.skill_focus, content.skill_focus || content.skillFocus || content.primarySkill),
     practice_type: stringValue(source.practice_type, content.practice_type || content.practiceType),
     custom: custom.filter((tag): tag is string => typeof tag === "string").map((tag) => tag.trim()).filter(Boolean),
+  };
+}
+
+function normalizeBannerPosition(value: unknown): BannerPosition {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const y = Math.max(0, Math.min(100, value));
+    return { x: 50, y };
+  }
+  if (!value || typeof value !== "object") return { x: 50, y: 50 };
+  const position = value as { x?: unknown; y?: unknown };
+  return {
+    x: typeof position.x === "number" && Number.isFinite(position.x) ? Math.max(0, Math.min(100, position.x)) : 50,
+    y: typeof position.y === "number" && Number.isFinite(position.y) ? Math.max(0, Math.min(100, position.y)) : 50,
   };
 }
 
@@ -513,6 +526,7 @@ export default function InstructorWorkstationPage({
   const [workstationState, setWorkstationState] = useState<{
     content: StrictStepContent;
     bannerUrl: string;
+    bannerPosition: BannerPosition;
     customBannerUrl: string;
     studentProfile: StudentProfile;
     evaluation: LessonEvaluation;
@@ -520,6 +534,7 @@ export default function InstructorWorkstationPage({
   }>({
     content: {},
     bannerUrl: "",
+    bannerPosition: { x: 50, y: 50 },
     customBannerUrl: "",
     studentProfile: {
       fullName: "",
@@ -581,6 +596,7 @@ export default function InstructorWorkstationPage({
     title: newLesson.title,
     subtitle: newLesson.subtitle,
     bannerUrl: workstationState.bannerUrl,
+    bannerPosition: workstationState.bannerPosition,
     moduleNumber: Number(newLesson.moduleNumber) || 1,
   };
   const livePreviewSnapshotRef = useRef(livePreviewSnapshot);
@@ -606,7 +622,7 @@ export default function InstructorWorkstationPage({
 
   useEffect(() => {
     previewChannelRef.current?.postMessage({ type: "preview-state", snapshot: livePreviewSnapshot });
-  }, [workstationState.content, sidebarBlocksByStep, previewStep, newLesson.title, newLesson.subtitle, newLesson.moduleNumber, workstationState.bannerUrl]);
+  }, [workstationState.content, sidebarBlocksByStep, previewStep, newLesson.title, newLesson.subtitle, newLesson.moduleNumber, workstationState.bannerUrl, workstationState.bannerPosition]);
 
   useEffect(() => {
     if (!profileSaveToast) return;
@@ -691,6 +707,7 @@ export default function InstructorWorkstationPage({
       ...previous,
       content: {},
       bannerUrl: "",
+      bannerPosition: { x: 50, y: 50 },
       customBannerUrl: "",
       studentProfile: { fullName: "", level: "", targetGoal: "", weaknesses: [], teacherNotes: "", attendanceRate: 0, completedModulesCount: 0 },
       evaluation: { scores: { task: 4, coherence: 4, lexical: 3, grammar: 4 }, comments: "", criterionFeedback: {}, published: false },
@@ -1062,6 +1079,7 @@ export default function InstructorWorkstationPage({
       ...previous,
       content,
       bannerUrl: typeof content.coverImage === "string" ? content.coverImage : lesson.banner_url || "",
+      bannerPosition: normalizeBannerPosition(content.bannerPosition ?? content.banner_position),
     }));
     setSidebarBlocksByStep(normalizeSidebarBlocksByStep((content as Record<string, any>).sidebarBlocks));
     const rawResources = (content as Record<string, any>).lessonResources;
@@ -1705,6 +1723,7 @@ export default function InstructorWorkstationPage({
         student_token: assignedStudentToken,
         coverImage: workstationState.bannerUrl,
         bannerUrl: workstationState.bannerUrl,
+        bannerPosition: workstationState.bannerPosition,
         sidebarBlocks: sidebarBlocksByStep,
       instructorGuidance: newLesson.instructorGuidance,
       lessonResources,
@@ -2070,6 +2089,7 @@ export default function InstructorWorkstationPage({
       student_token: assignedStudent.token,
       coverImage: workstationState.bannerUrl,
       bannerUrl: workstationState.bannerUrl,
+      bannerPosition: workstationState.bannerPosition,
       sidebarBlocks: sidebarBlocksByStep,
       instructorGuidance: newLesson.instructorGuidance,
       lessonResources,
@@ -2128,6 +2148,7 @@ export default function InstructorWorkstationPage({
         ...previous,
         content: JSON.stringify(previous.content) === JSON.stringify(workstationState.content) ? lesson.content || content : previous.content,
         bannerUrl: workstationState.bannerUrl,
+        bannerPosition: workstationState.bannerPosition,
       }));
       hasLoadedLesson.current = true;
       await refreshCreatedLessons();
@@ -2629,8 +2650,21 @@ export default function InstructorWorkstationPage({
   );
   const heroBannerPanel = (
     <details className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" open={heroBannerOpen} onToggle={(event) => setHeroBannerOpen(event.currentTarget.open)}>
-      <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-semibold text-stone-200"><span>Hero Banner</span><ChevronDown className={`h-4 w-4 text-amber-400 transition-transform ${heroBannerOpen ? "rotate-180" : ""}`} aria-hidden="true" /></summary>
-      <div className="mt-4"><InstructorBannerManager bannerUrl={workstationState.bannerUrl} customInput={workstationState.customBannerUrl} onUpdateBanner={(bannerUrl: string) => setWorkstationState((previous) => ({ ...previous, bannerUrl }))} onUpdateCustomInput={(customBannerUrl: string) => setWorkstationState((previous) => ({ ...previous, customBannerUrl }))} /></div>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold text-stone-200">
+        <span className="flex min-w-0 items-center gap-2"><Image className="h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" /><span className="truncate">Hero Banner</span></span>
+        <span className="flex shrink-0 items-center gap-3"><span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-[10px] font-medium text-amber-300">16:9 · Dynamic Storage</span><ChevronDown className={`h-4 w-4 text-amber-400 transition-transform ${heroBannerOpen ? "rotate-180" : ""}`} aria-hidden="true" /></span>
+      </summary>
+      <div className="mt-4 border-t border-[#29303c] pt-4">
+        <InstructorBannerManager
+          bannerUrl={workstationState.bannerUrl}
+          customInput={workstationState.customBannerUrl}
+          position={workstationState.bannerPosition}
+          embedded
+          onUpdateBanner={(bannerUrl) => setWorkstationState((previous) => ({ ...previous, bannerUrl }))}
+          onUpdatePosition={(bannerPosition) => setWorkstationState((previous) => ({ ...previous, bannerPosition }))}
+          onUpdateCustomInput={(customBannerUrl) => setWorkstationState((previous) => ({ ...previous, customBannerUrl }))}
+        />
+      </div>
     </details>
   );
   const sidebarEditorPanel = (

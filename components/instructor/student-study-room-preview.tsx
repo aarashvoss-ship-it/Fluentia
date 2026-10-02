@@ -11,6 +11,7 @@ import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player";
 import { StudyRoomBlockRow } from "@/components/study-room/study-room-block-row";
 import { Stepper } from "@/components/study-room/stepper";
+import type { BannerPosition } from "@/components/instructor/banner-manager";
 
 export type StudentPreviewStep = StudyStepId;
 export type PreviewSidebarBlock = { id: string; title: string; body: string; icon?: string; parentMainBlockId?: string };
@@ -24,6 +25,7 @@ export interface StudentPreviewSnapshot {
   title: string;
   subtitle: string;
   bannerUrl?: string;
+  bannerPosition?: BannerPosition;
   moduleNumber?: number;
 }
 
@@ -45,6 +47,7 @@ export interface StudentStudyRoomPreviewProps {
   title: string;
   subtitle: string;
   bannerUrl?: string;
+  bannerPosition?: BannerPosition;
   moduleNumber?: number;
   embedded?: boolean;
 }
@@ -57,6 +60,7 @@ export function StudentStudyRoomPreview({
   title,
   subtitle,
   bannerUrl,
+  bannerPosition = { x: 50, y: 50 },
   moduleNumber,
   embedded = false,
 }: StudentStudyRoomPreviewProps) {
@@ -158,8 +162,8 @@ export function StudentStudyRoomPreview({
     <div className={`fluentia-study-room bg-[#0c1017] text-[#e8e7e4] ${embedded ? "h-full min-h-full" : "min-h-screen"}`}>
       <div className="mx-auto max-w-7xl px-4 py-5 md:px-6">
         <header className="overflow-hidden rounded-xl border border-[#202631] bg-[#121721]">
-          <div className="relative flex h-48 min-h-[200px] items-center overflow-hidden bg-slate-950 md:h-56">
-            {bannerUrl ? <img src={bannerUrl} alt="" style={{ objectPosition: "center 50%" }} className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-0 bg-slate-950" aria-hidden="true" />}
+          <div className="relative flex aspect-video w-full items-center overflow-hidden bg-slate-950">
+            {bannerUrl ? <img src={bannerUrl} alt="" style={{ objectPosition: `${bannerPosition.x}% ${bannerPosition.y}%` }} className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-0 bg-slate-950" aria-hidden="true" />}
             <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/60 to-transparent" aria-hidden="true" />
             <div className="relative z-10 p-5">
               <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">English - Module {moduleNumber || 1}</p>

@@ -664,6 +664,11 @@ export default function LessonPage() {
         ? lesson.banner_url
         : undefined;
   const heroBanner = bannerLoadFailed ? undefined : lessonBanner;
+  const rawBannerPosition = rawLessonContent.bannerPosition ?? rawLessonContent.banner_position;
+  const bannerPosition = rawBannerPosition && typeof rawBannerPosition === "object"
+    ? rawBannerPosition as { x?: number; y?: number }
+    : typeof rawBannerPosition === "number" ? { x: 50, y: rawBannerPosition } : { x: 50, y: 50 };
+  const bannerObjectPosition = `${Math.max(0, Math.min(100, bannerPosition.x ?? 50))}% ${Math.max(0, Math.min(100, bannerPosition.y ?? 50))}%`;
   const evaluation = publishedLesson?.evaluation;
   const isEvaluationPublished = evaluation?.published === true;
   const totalScore = evaluation?.totalScore ?? (evaluation
@@ -1102,9 +1107,9 @@ export default function LessonPage() {
         </p>
       )}
       {!isResultsStep && (
-        <section className="relative flex min-h-[320px] w-full items-start overflow-hidden rounded-xl bg-slate-950 bg-cover bg-center md:min-h-[320px]">
+        <section className="relative flex aspect-video w-full items-start overflow-hidden rounded-xl bg-slate-950">
           {heroBanner ? (
-            <img src={heroBanner} alt="" onError={() => setBannerLoadFailed(true)} className="absolute inset-0 h-full w-full object-cover" />
+            <img src={heroBanner} alt="" onError={() => setBannerLoadFailed(true)} style={{ objectPosition: bannerObjectPosition }} className="absolute inset-0 h-full w-full object-cover" />
           ) : (
             <div className="absolute inset-0 bg-slate-950" aria-hidden="true" />
           )}

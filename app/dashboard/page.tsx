@@ -1103,7 +1103,7 @@ function DashboardContent() {
           style={{
             backgroundColor: "#0c1017",
           }}
-          className="relative flex min-h-[280px] w-full items-start overflow-hidden rounded-xl bg-slate-950 bg-cover bg-center md:min-h-[300px]"
+          className="relative flex aspect-video w-full items-start overflow-hidden rounded-xl bg-slate-950"
         >
           <img
             src={dashboardHeaderBanner}
@@ -1643,12 +1643,12 @@ function DashboardContent() {
                               );
                             })}
                           </div>
-                          <div className="overflow-hidden rounded-md border border-[#29303c] bg-[#0c1017]">
+                          <div className="aspect-video overflow-hidden rounded-md border border-[#29303c] bg-[#0c1017]">
                             <img
                               src={activeBannerUrl}
                               alt="Banner preview"
                               style={{ objectPosition: `center ${bannerPosition}%` }}
-                              className="h-20 w-full object-cover"
+                              className="h-full w-full object-cover"
                             />
                           </div>
                           <label className="block text-[10px] text-stone-400">
