@@ -111,24 +111,24 @@ export function CelebrationModal({
         </div>
 
         {/* Action Buttons */}
-        <div className="sticky bottom-0 z-10 shrink-0 border-t border-stone-800 bg-[#141413] px-6 pb-2 pt-3">
+        <div className="sticky bottom-0 z-10 shrink-0 border-t border-stone-800 bg-[#141413] px-6 pb-2 pt-2">
           {/* Primary CTA */}
           {submitError && <p role="alert" className="mb-3 text-xs text-red-300">Submission could not be saved: {submitError}</p>}
           <div className="space-y-1.5">
             <button
               onClick={onSubmit}
               disabled={isSubmitting}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-amber-400/50 bg-amber-500 px-6 py-2.5 text-sm !font-semibold text-zinc-950 shadow-md shadow-amber-500/20 transition-colors duration-200 hover:bg-amber-400 active:scale-[0.99] disabled:cursor-wait disabled:opacity-60"
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-amber-400/50 bg-amber-500 px-6 py-2.5 text-sm font-bold text-zinc-950 shadow-md shadow-amber-500/20 transition-colors duration-200 hover:bg-amber-400 active:scale-[0.99] disabled:cursor-wait disabled:opacity-60"
             >
               <span>{isSubmitting ? "Saving Submission..." : "Submit & View Results"}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
 
             {/* Secondary & Ghost Actions */}
-            <div className="flex flex-col space-y-1">
+            <div className="flex flex-col gap-1">
             <button
               onClick={onReview}
-              className="w-full flex items-center gap-2 py-2.5 px-2 text-stone-400 hover:text-stone-200 hover:bg-stone-800/40 rounded-lg text-sm transition-colors text-left font-normal"
+              className="w-full flex items-center gap-2 px-2 py-1 text-zinc-500 hover:text-zinc-300 hover:bg-stone-800/40 rounded-lg text-xs transition-colors text-left font-normal"
             >
               <ArrowLeft className="w-4 h-4 text-stone-500 shrink-0" />
               <span>Review &amp; Edit Answers</span>
@@ -136,7 +136,7 @@ export function CelebrationModal({
 
             <button
               onClick={handleSaveDraftAndExit}
-              className="w-full flex items-center gap-2 py-2.5 px-2 text-stone-400 hover:text-stone-200 hover:bg-stone-800/40 rounded-lg text-sm transition-colors text-left font-normal"
+              className="w-full flex items-center gap-2 px-2 py-1 text-zinc-500 hover:text-zinc-300 hover:bg-stone-800/40 rounded-lg text-xs transition-colors text-left font-normal"
             >
               <ArrowLeft className="w-4 h-4 text-stone-500 shrink-0" />
               <span>Exit to Dashboard</span>
