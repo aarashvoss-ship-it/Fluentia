@@ -204,11 +204,18 @@ export function TiptapEditor({
               </div>
             )}
           </div>
-          <ToolbarButton compact={compact} label="Insert Icon" title="Insert Icon" onClick={() => {
-            if (!editor) return;
-            const picker = document.querySelector("[data-lucide-icon-picker-trigger]") as HTMLElement | null;
-            picker?.click();
-          }}><PlusCircle className="h-3.5 w-3.5" /></ToolbarButton>
+          <Tooltip content="Insert Icon">
+            <LucideIconPicker
+              value=""
+              triggerLabel="Insert Icon"
+              triggerIcon={PlusCircle}
+              compact
+              onChange={(name) => editor?.chain().focus().insertContent({
+                type: "inlineLucideIcon",
+                attrs: { name },
+              }).run()}
+            />
+          </Tooltip>
         </div>
       </div>
       <div className="rounded border border-[#202631] bg-[#0c1017] px-3 py-2 text-xs text-stone-200 outline-none transition focus-within:border-amber-500/40 [&_.ProseMirror]:min-h-[100px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:leading-relaxed [&_.ProseMirror_h1]:my-3 [&_.ProseMirror_h1]:text-xl [&_.ProseMirror_h1]:font-semibold [&_.ProseMirror_h2]:my-2 [&_.ProseMirror_h2]:text-lg [&_.ProseMirror_h2]:font-semibold [&_.ProseMirror_h3]:my-2 [&_.ProseMirror_h3]:text-base [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_blockquote]:my-2 [&_.ProseMirror_blockquote]:border-l-2 [&_.ProseMirror_blockquote]:border-amber-500/40 [&_.ProseMirror_blockquote]:pl-3 [&_.ProseMirror_pre]:my-2 [&_.ProseMirror_pre]:overflow-x-auto [&_.ProseMirror_pre]:rounded [&_.ProseMirror_pre]:bg-[#171d28] [&_.ProseMirror_pre]:p-3 [&_.ProseMirror_code]:rounded [&_.ProseMirror_code]:bg-[#171d28] [&_.ProseMirror_code]:px-1 [&_.ProseMirror_ul]:my-2 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5 [&_.ProseMirror_ol]:my-2 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-5 [&_.ProseMirror_hr]:my-3 [&_.ProseMirror_a]:text-amber-400 [&_.ProseMirror_a]:underline">

@@ -130,6 +130,7 @@ export function LucideIconPicker({
       <button
         ref={triggerRef}
         type="button"
+        onMouseDown={(event) => event.preventDefault()}
         onClick={() => {
           if (!isOpen) updatePopoverPosition();
           setIsOpen((open) => !open);
