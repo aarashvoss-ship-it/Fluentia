@@ -115,23 +115,24 @@ export function UnifiedReportCard({
             <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-amber-400">{stage.title}</h3>
             {stage.prompt && <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-stone-400">{stripMarkdown(stage.prompt)}</p>}
           </div>
-          {(stage.referenceText || stage.referenceAudioUrl) && <details className="mb-4 rounded-lg border border-slate-800 bg-slate-900/50 p-4">
+          {isInstructorView && (stage.id === "reading" || stage.id === "listening") && <details className="mb-4 rounded-lg border border-slate-800 bg-slate-900/50 p-4">
             <summary className="cursor-pointer text-sm font-medium text-stone-200">Show Lesson Reference / Passage</summary>
             {stage.referenceText && <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-stone-300">{stripMarkdown(stage.referenceText)}</p>}
             {stage.referenceAudioUrl && <div className="mt-3"><CustomAudioPlayer src={stage.referenceAudioUrl} label={`${stage.title} lesson reference audio`} /></div>}
+            {!stage.referenceText && !stage.referenceAudioUrl && <p className="mt-3 text-sm text-stone-400">No lesson reference is available.</p>}
           </details>}
           {stage.tasks.length > 0 ? <div className="space-y-3">
             {stage.tasks.map((task, index) => <article key={task.id} className="w-full min-w-0 rounded-lg border border-[#293343] bg-[#0c1017] p-4">
-              <div className="rounded-md bg-zinc-900 p-3">
+              <div className="rounded-md border border-zinc-800 bg-zinc-900/90 p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Task Prompt</p>
                 <h4 className="mt-1 text-sm font-medium leading-relaxed text-stone-100">{index + 1}. {stripMarkdown(task.title)}</h4>
               </div>
-              <div className="mt-3 rounded-md bg-zinc-900/70 p-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Your Response</p>
-                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-300">{stripMarkdown(task.studentAnswer) || <span className="italic text-stone-500">No response submitted.</span>}</p>
+              <div className="mt-3 rounded-md border border-blue-500/30 bg-slate-900/90 p-3 text-blue-100">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-blue-300">Your Response</p>
+                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-blue-100">{stripMarkdown(task.studentAnswer) || <span className="italic text-blue-300">No response submitted.</span>}</p>
                 {task.audioUrls?.map((url, mediaIndex) => <div key={`${url}-${mediaIndex}`} className="mt-2 min-w-0 max-w-full overflow-hidden"><CustomAudioPlayer src={url} label={`${stripMarkdown(task.title)} recording`} /></div>)}
               </div>
-              {task.modelAnswer && <div className="mt-3 rounded-md border border-amber-900/40 bg-amber-950/20 p-3">
+              {task.modelAnswer && <div className="mt-3 rounded-md border border-amber-500/40 bg-amber-950/40 p-3 text-amber-200">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400">Correct / Model Answer</p>
                 <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-amber-200">{stripMarkdown(task.modelAnswer)}</p>
               </div>}
@@ -141,8 +142,8 @@ export function UnifiedReportCard({
               </div>}
             </article>)}
           </div> : <div className="rounded-lg border border-dashed border-[#394252] bg-[#0c1017]/60 px-4 py-5 text-center">
-            <p className="text-sm font-medium text-stone-300">Instructional Step Completed</p>
-            <p className="mt-1 text-xs leading-relaxed text-stone-500">This stage focused on learning content and required no interactive response.</p>
+            <p className="text-sm font-medium text-stone-300">{stage.id === "speaking" ? "No speaking recording submitted" : "Instructional Step Completed"}</p>
+            {stage.id !== "speaking" && <p className="mt-1 text-xs leading-relaxed text-stone-500">This stage focused on learning content and required no interactive response.</p>}
           </div>}
           <div className={`rounded-lg border p-4 ${isInstructorView ? "border-[#394252] bg-[#0c1017]" : "border-[#293343] bg-[#121721]"}`}>
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Instructor Task Feedback</p>
