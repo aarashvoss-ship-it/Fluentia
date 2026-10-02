@@ -133,9 +133,9 @@ export function UnifiedReportCard({
                 <p className={`mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed ${task.isCorrect === false ? "text-amber-200" : "text-blue-100"}`}>{stripMarkdown(task.studentAnswer) || <span className={`italic ${task.isCorrect === false ? "text-amber-300" : "text-blue-300"}`}>No response submitted.</span>}</p>
                 {task.audioUrls?.map((url, mediaIndex) => <div key={`${url}-${mediaIndex}`} className="mt-2 min-w-0 max-w-full overflow-hidden"><CustomAudioPlayer src={url} label={`${stripMarkdown(task.title)} recording`} /></div>)}
               </div>
-              {task.modelAnswer && <div className="mt-3 rounded-md border border-amber-500/40 bg-amber-950/40 p-3 text-amber-200">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400">Correct / Model Answer</p>
-                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-amber-200">{stripMarkdown(task.modelAnswer)}</p>
+              {task.modelAnswer && <div className="mt-3 rounded-md border border-blue-500/30 bg-slate-900/90 p-3 text-blue-100">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-blue-300">Correct / Model Answer</p>
+                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-blue-100">{stripMarkdown(task.modelAnswer)}</p>
               </div>}
               {task.explanation && <div className="mt-3 border-t border-[#293343] pt-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Explanation</p>

@@ -316,6 +316,11 @@ function normalizeReviewAnswer(value: string) {
     .trim();
 }
 
+function getReviewPrompt(...candidates: Array<string | undefined>) {
+  const genericPrompt = /^(audio response|text response|reflection question|writing response|speaking recording|student response)$/i;
+  return candidates.find((candidate) => candidate?.trim() && !genericPrompt.test(candidate.trim()))?.trim();
+}
+
 const EMPTY_RESOURCE_DRAFT = {
   type: "note" as StudentResourceType,
   title: "",
@@ -2330,13 +2335,27 @@ export default function InstructorWorkstationPage({
     { id: "writing", title: "Writing", prompt: reviewContent.writing?.prompt?.text, tasks: [] },
     { id: "speaking", title: "Speaking", prompt: reviewContent.speaking?.scenario?.text, tasks: [] },
   ];
-  const reviewQuestionText: Record<string, string> = { warm_up: "Reflection Question", writingText: "Writing response", speaking: "Speaking recording" };
+  const reviewQuestionText: Record<string, string> = {};
+  const warmUpPrompt = getReviewPrompt(reviewContent.warm_up?.prompt?.text, reviewContent.warm_up?.intro_narrative?.text, reviewContent.warm_up?.quote?.text);
+  const writingPrompt = getReviewPrompt(reviewContent.writing?.prompt?.text);
+  const speakingPrompt = getReviewPrompt(
+    reviewContent.speaking?.scenario?.text,
+    ...(reviewContent.speaking?.discussion_points || []).map((point: { text?: string }) => point.text),
+  );
+  if (warmUpPrompt) reviewQuestionText.warm_up = stripReviewMarkdown(warmUpPrompt);
+  if (writingPrompt) reviewQuestionText.writingText = stripReviewMarkdown(writingPrompt);
+  if (speakingPrompt) reviewQuestionText.speaking = stripReviewMarkdown(speakingPrompt);
   const reviewModelAnswers: Record<string, string> = {};
+  const reviewAutoCheckKeys = new Set<string>();
   const reviewStageForKey: Record<string, InstructorReviewStageId> = { warm_up: "warm_up", writingText: "writing", speaking: "speaking" };
-  const addReviewReference = (stage: InstructorReviewStageId, key: string, question: string | undefined, answer?: string) => {
-    reviewQuestionText[key] = stripReviewMarkdown(question?.trim() || "Student response");
+  const addReviewReference = (stage: InstructorReviewStageId, key: string, question: string | undefined, answer?: string, shouldAutoCheck = Boolean(answer?.trim())) => {
+    const prompt = getReviewPrompt(question);
+    if (prompt) reviewQuestionText[key] = stripReviewMarkdown(prompt);
     reviewStageForKey[key] = stage;
-    if (answer?.trim()) reviewModelAnswers[key] = answer;
+    if (answer?.trim()) {
+      reviewModelAnswers[key] = answer;
+      if (shouldAutoCheck) reviewAutoCheckKeys.add(key);
+    }
   };
   (reviewContent.listening?.questions || []).forEach((question: { id: string; question: string; correct_answer?: string }) => {
     addReviewReference("listening", question.id, question.question, question.correct_answer || reviewContent.results?.answer_keys?.listening?.[question.id]);
@@ -2347,19 +2366,21 @@ export default function InstructorWorkstationPage({
   (reviewStages.map((stage) => stage.id)).forEach((step) => {
     (reviewContent[step]?.blocks || []).forEach((block: ContentBlock) => {
       if (block.type === "question") {
-        addReviewReference(step, block.id, block.prompt, block.question_type === "open_ended" ? block.sample_answer : block.correct_answer);
+        addReviewReference(step, block.id, block.prompt || block.title, block.question_type === "open_ended" ? block.sample_answer : block.correct_answer, block.question_type !== "open_ended");
       } else if (block.type === "quiz") {
         block.questions.forEach((question) => addReviewReference(step, question.id, question.prompt, question.correct_answer || question.correctAnswer || reviewContent.results?.answer_keys?.[step]?.[question.id]));
       } else if (block.type === "fill-in-the-blanks") {
         block.acceptableAnswers.forEach((answers, index) => addReviewReference(step, `${block.id}-blank-${index}`, `${block.textWithBlanks.replace(/\[[^\]]+\]/g, "_____ ")} (Blank ${index + 1})`, answers.join(" / ")));
       } else if (block.type === "video" && block.reflection_prompt_text) {
-        addReviewReference(step, `${block.id}-reflection`, "Reflection Question", undefined);
+        addReviewReference(step, `${block.id}-reflection`, block.reflection_prompt_text);
       } else if (block.type === "writing") {
-        addReviewReference(step, block.id, block.prompt);
+        addReviewReference(step, block.id, block.prompt || block.title);
       } else if (block.type === "text" && (block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true)) {
-        addReviewReference(step, block.id, block.title || "Text response");
+        const taskDefinition = block as ContentBlock & { prompt?: string; question?: string };
+        addReviewReference(step, block.id, getReviewPrompt(taskDefinition.prompt, taskDefinition.question, block.title, reviewStages.find((stage) => stage.id === step)?.prompt));
       } else if (block.type === "audio" && block.allowStudentVoiceResponse) {
-        addReviewReference(step, block.id, block.title || "Audio response");
+        const taskDefinition = block as ContentBlock & { prompt?: string; question?: string };
+        addReviewReference(step, block.id, getReviewPrompt(taskDefinition.prompt, taskDefinition.question, block.title, reviewStages.find((stage) => stage.id === step)?.prompt));
       }
     });
   });
@@ -2367,7 +2388,7 @@ export default function InstructorWorkstationPage({
     if (reviewQuestionText[key]) return stripReviewMarkdown(reviewQuestionText[key]);
     const blankMatch = key.match(/-blank-(\d+)$/i);
     if (blankMatch) return `Fill in the blank #${Number(blankMatch[1]) + 1}`;
-    return stripReviewMarkdown(/^[0-9a-f-]{32,}$/i.test(key) ? `${reviewStages.find((stage) => stage.id === fallbackStage)?.title || "Lesson"} response` : key.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()));
+    return stripReviewMarkdown(/^[0-9a-f-]{32,}$/i.test(key) ? `${reviewStages.find((stage) => stage.id === fallbackStage)?.title || "Lesson"} prompt not provided` : key.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()));
   };
   const addReviewAnswer = (stageId: InstructorReviewStageId, key: string, answer: string, audioUrl?: string, markedIsCorrect?: boolean) => {
     const stage = reviewStages.find((item) => item.id === stageId);
@@ -2377,7 +2398,7 @@ export default function InstructorWorkstationPage({
     const normalizedStudentAnswer = normalizeReviewAnswer(answer);
     const isCorrect = typeof markedIsCorrect === "boolean"
       ? markedIsCorrect
-      : modelAnswer
+      : modelAnswer && reviewAutoCheckKeys.has(key)
         ? modelAnswer.split(/[\/|]/).some((candidate) => normalizeReviewAnswer(candidate) === normalizedStudentAnswer)
         : undefined;
     stage.tasks.push({
