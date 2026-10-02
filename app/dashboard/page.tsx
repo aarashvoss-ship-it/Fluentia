@@ -46,7 +46,7 @@ import {
 } from "@/lib/student-profiles";
 import { createBrowserClient } from "@supabase/ssr";
 import { getBannerPositionStyles, normalizeBannerPosition } from "@/lib/banner-position";
-import { HeroBanner } from "@/components/shared/hero-banner";
+import { HeroBanner, HeroBannerContent } from "@/components/shared/hero-banner";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -1117,26 +1117,34 @@ function DashboardContent() {
                 className="fixed inset-0 z-0 cursor-default bg-black/55"
               />
             )}
-            <div className="flex flex-col items-start gap-2.5">
-              <h1 className="font-sans text-3xl font-bold tracking-tight text-[#f1eee8] md:text-4xl lg:text-[36px]">
-                Welcome back, {displayName}.
-              </h1>
-              <p className="text-sm text-[#b5bac2] opacity-90 md:text-base">
-                Seven stages. One connected journey.
-              </p>
-              <div className="flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 md:text-sm">
-                <UserRound className="h-3.5 w-3.5" />
-                {displayLessons.length} lessons available{" "}
-                <span aria-hidden="true">|</span> {studentLevel}
-              </div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-amber-500/40 bg-transparent p-1.5 md:h-10 md:w-10">
-                <img
-                  src="/logo.png"
-                  alt="Fluentia"
-                  className="w-full h-full object-contain"
-                />
-              </div>
-            </div>
+            <HeroBannerContent
+              badge={
+                <span className="inline-flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 md:text-sm">
+                  <UserRound className="h-3.5 w-3.5" />
+                  {displayLessons.length} lessons available
+                  <span aria-hidden="true">|</span> {studentLevel}
+                </span>
+              }
+              title={
+                <h1 className="font-sans text-3xl font-bold tracking-tight text-[#f1eee8] md:text-4xl lg:text-[36px]">
+                  Welcome back, {displayName}.
+                </h1>
+              }
+              subtitle={
+                <p className="text-sm text-[#b5bac2] opacity-90 md:text-base">
+                  Seven stages. One connected journey.
+                </p>
+              }
+              footer={
+                <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-amber-500/40 bg-transparent p-1.5 md:h-10 md:w-10">
+                  <img
+                    src="/logo.png"
+                    alt="Fluentia"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+              }
+            />
             <div className="hidden" aria-label="Student profile">
               <button
                 type="button"

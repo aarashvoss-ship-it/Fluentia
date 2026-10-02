@@ -9,6 +9,29 @@ interface HeroBannerProps {
   className?: string;
 }
 
+interface HeroBannerContentProps {
+  badge: ReactNode;
+  title: ReactNode;
+  subtitle: ReactNode;
+  footer: ReactNode;
+}
+
+export function HeroBannerContent({
+  badge,
+  title,
+  subtitle,
+  footer,
+}: HeroBannerContentProps) {
+  return (
+    <div className="flex flex-col items-start gap-2.5">
+      <div>{badge}</div>
+      <div>{title}</div>
+      <div>{subtitle}</div>
+      <div className="mt-1 flex items-center gap-2">{footer}</div>
+    </div>
+  );
+}
+
 export function HeroBanner({
   imageUrl,
   position,

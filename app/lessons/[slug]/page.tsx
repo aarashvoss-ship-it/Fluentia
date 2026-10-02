@@ -23,7 +23,7 @@ import { UnifiedReportCard, type UnifiedReportStage } from "@/components/shared/
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { FillInBlanksMarkdown } from "@/components/study-room/fill-in-blanks-markdown";
 import { normalizeBannerPosition } from "@/lib/banner-position";
-import { HeroBanner } from "@/components/shared/hero-banner";
+import { HeroBanner, HeroBannerContent } from "@/components/shared/hero-banner";
 import { ExerciseQuestions } from "@/components/study-room/exercise-questions";
 import { WritingBlockRenderer } from "@/components/shared/writing-block";
 import { StudyRoomBlockRow } from "@/components/study-room/study-room-block-row";
@@ -1107,15 +1107,32 @@ export default function LessonPage() {
       )}
       {!isResultsStep && (
         <HeroBanner imageUrl={heroBanner} position={bannerPosition} onImageError={() => setBannerLoadFailed(true)}>
-          <div className="flex flex-col items-start gap-2.5">
-            <span className="rounded-md border border-amber-500/40 bg-amber-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 md:text-sm">{lessonLevel} - MODULE {lessonModuleNumber ?? 1}</span>
-            <h1 className="font-sans text-3xl font-bold tracking-tight text-[#f1eee8] md:text-4xl lg:text-[36px]">
-              {displayLessonTitle || lesson.title}
-            </h1>
-            {lessonSubtitle && <p className="text-sm text-[#b5bac2] opacity-90 md:text-base">{lessonSubtitle}</p>}
-            <div className="mt-1 flex items-center gap-2 text-xs text-[#9ba1aa] md:text-sm"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#283344] text-[10px] font-semibold text-amber-400">{instructor.initials}</span>Guided by {instructor.fullName}</div>
-            <div className="mt-1 flex h-9 w-9 items-center justify-center rounded-full border-2 border-amber-500/40 bg-transparent p-1.5 md:h-10 md:w-10"><img src="/logo.png" alt="Fluentia" className="h-full w-full object-contain" /></div>
-          </div>
+          <HeroBannerContent
+            badge={
+              <span className="inline-flex rounded-md border border-amber-500/40 bg-amber-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 md:text-sm">
+                {lessonLevel} - MODULE {lessonModuleNumber ?? 1}
+              </span>
+            }
+            title={
+              <h1 className="font-sans text-3xl font-bold tracking-tight text-[#f1eee8] md:text-4xl lg:text-[36px]">
+                {displayLessonTitle || lesson.title}
+              </h1>
+            }
+            subtitle={
+              lessonSubtitle
+                ? <p className="text-sm text-[#b5bac2] opacity-90 md:text-base">{lessonSubtitle}</p>
+                : null
+            }
+            footer={
+              <>
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#283344] text-[10px] font-semibold text-amber-400">{instructor.initials}</span>
+                <span className="text-xs text-[#9ba1aa] md:text-sm">Guided by {instructor.fullName}</span>
+                <div className="ml-1 flex h-9 w-9 items-center justify-center rounded-full border-2 border-amber-500/40 bg-transparent p-1.5 md:h-10 md:w-10">
+                  <img src="/logo.png" alt="Fluentia" className="h-full w-full object-contain" />
+                </div>
+              </>
+            }
+          />
         </HeroBanner>
       )}
 
