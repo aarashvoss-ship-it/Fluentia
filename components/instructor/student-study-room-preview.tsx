@@ -63,12 +63,13 @@ export function StudentStudyRoomPreview({
   const blocks = step === "results"
     ? []
     : (stepContent?.blocks || []).filter((block) => block.is_active !== false && block.enabled !== false);
-  const conceptualFraming = blocks.find((block) => block.type === "text" && /conceptual framing/i.test(block.title || ""));
-  const displayBlocks = conceptualFraming ? blocks.filter((block) => block.id !== conceptualFraming.id) : blocks;
   const sidebarBlocks = step === "results" ? [] : sidebarBlocksByStep[step] || [];
   const linkedSidebarIds = new Set([
     ...sidebarBlocks.filter((block) => block.parentMainBlockId).map((block) => block.id),
-    ...blocks.filter((block) => block.layoutMode === "inline-row" && block.sidebarBlockId).map((block) => block.sidebarBlockId),
+    ...blocks
+      .filter((block) => block.layoutMode === "inline-row")
+      .map((block) => block.sidebarBlockId || block.alignNextTo)
+      .filter((id): id is string => Boolean(id)),
   ]);
   const topSidebarBlocks = sidebarBlocks.filter((block) => !linkedSidebarIds.has(block.id));
 
@@ -97,21 +98,13 @@ export function StudentStudyRoomPreview({
 
     return (
       <div className="w-full space-y-6">
-        {conceptualFraming?.type === "text" && (
-          <article key={conceptualFraming.id} className="mb-6 w-full rounded-xl border border-[#202631] bg-[#121721] p-5">
-            <div className="mb-3 flex items-center gap-2">
-              {conceptualFraming.icon && <DynamicLucideIcon name={conceptualFraming.icon} className="h-4 w-4 text-amber-400" aria-hidden="true" />}
-              {conceptualFraming.title && <h3 className="font-sans text-xl font-semibold text-stone-100">{conceptualFraming.title}</h3>}
-            </div>
-            <MarkdownContent value={conceptualFraming.body || ""} className="text-sm leading-relaxed text-stone-300" />
-          </article>
-        )}
-        {displayBlocks.map((block, blockIndex) => {
+        {blocks.map((block, blockIndex) => {
           const sidebarBlock = sidebarBlocks.find((candidate) => candidate.parentMainBlockId === block.id)
-            || (block.layoutMode === "inline-row" && block.sidebarBlockId
-              ? sidebarBlocks.find((candidate) => candidate.id === block.sidebarBlockId)
+            || (block.layoutMode === "inline-row" && (block.sidebarBlockId || block.alignNextTo)
+              ? sidebarBlocks.find((candidate) => candidate.id === (block.sidebarBlockId || block.alignNextTo))
               : undefined);
-          const expandsInlineRow = block.layoutMode === "inline-row" && !sidebarBlock && block.rowEmptyMode === "full";
+          const rowEmptyMode = block.rowEmptyMode || block.whenEmpty;
+          const expandsInlineRow = block.layoutMode === "inline-row" && !sidebarBlock && rowEmptyMode === "full";
           const article = (
             <article key={block.id} className="rounded-xl border border-[#202631] bg-[#121721] p-5">
               {block.title && (
@@ -155,7 +148,7 @@ export function StudentStudyRoomPreview({
             </StudyRoomBlockRow>
           );
         })}
-        {displayBlocks.length === 0 && !conceptualFraming && <p className="rounded-lg border border-dashed border-[#394252] p-6 text-sm text-stone-500">This step has no content blocks yet.</p>}
+        {blocks.length === 0 && <p className="rounded-lg border border-dashed border-[#394252] p-6 text-sm text-stone-500">This step has no content blocks yet.</p>}
       </div>
     );
   };

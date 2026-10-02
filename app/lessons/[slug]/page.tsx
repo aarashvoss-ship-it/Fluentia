@@ -967,7 +967,10 @@ export default function LessonPage() {
     const questionBlocks = visibleBlocks.filter((block) => block.type === "question");
     const linkedSidebarIds = new Set([
       ...currentStepSidebarBlocks.filter((sidebarBlock) => sidebarBlock.parentMainBlockId).map((sidebarBlock) => sidebarBlock.id),
-      ...visibleBlocks.filter((block) => block.layoutMode === "inline-row" && block.sidebarBlockId).map((block) => block.sidebarBlockId),
+      ...visibleBlocks
+        .filter((block) => block.layoutMode === "inline-row")
+        .map((block) => block.sidebarBlockId || block.alignNextTo)
+        .filter((id): id is string => Boolean(id)),
     ]);
     const topSidebarBlocks = currentStepSidebarBlocks.filter((sidebarBlock) => !linkedSidebarIds.has(sidebarBlock.id));
     const questionSidebarBlocks = questionBlocks
@@ -979,10 +982,11 @@ export default function LessonPage() {
       {visibleBlocks.map((block, blockIndex) => {
         if (block.type === "question" && block !== questionBlocks[0]) return null;
         const sidebarBlock = currentStepSidebarBlocks.find((candidate) => candidate.parentMainBlockId === block.id)
-          || (block.layoutMode === "inline-row" && block.sidebarBlockId
-            ? currentStepSidebarBlocks.find((candidate) => candidate.id === block.sidebarBlockId)
+          || (block.layoutMode === "inline-row" && (block.sidebarBlockId || block.alignNextTo)
+            ? currentStepSidebarBlocks.find((candidate) => candidate.id === (block.sidebarBlockId || block.alignNextTo))
             : undefined);
-        const expandsInlineRow = block.layoutMode === "inline-row" && !sidebarBlock && block.rowEmptyMode === "full";
+        const rowEmptyMode = block.rowEmptyMode || block.whenEmpty;
+        const expandsInlineRow = block.layoutMode === "inline-row" && !sidebarBlock && rowEmptyMode === "full";
         const article = (
         <article key={block.id} className="rounded-xl border border-[#202631] bg-[#121721] p-5">
           {block.title && <h3 className="mb-3 flex items-center gap-2 font-sans text-xl font-semibold text-stone-100">{block.icon && <DynamicLucideIcon name={block.icon} className="h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />}{block.title}</h3>}

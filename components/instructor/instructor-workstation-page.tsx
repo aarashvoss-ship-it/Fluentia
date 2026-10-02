@@ -2452,9 +2452,6 @@ export default function InstructorWorkstationPage({
   const previewBlocks: ContentBlock[] = previewStep==="results" ? [] : Array.isArray(previewContent?.blocks)
     ? (previewContent.blocks as ContentBlock[]).filter((block: ContentBlock) => block.is_active !== false && block.enabled !== false)
     : [];
-  const conceptualFramingBlock = previewBlocks.find((block): block is Extract<ContentBlock, { type: "text" }> => block.type === "text" && /conceptual framing/i.test(block.title || ""));
-  const stageContentBlocks = conceptualFramingBlock ? previewBlocks.filter((block) => block.id !== conceptualFramingBlock.id) : previewBlocks;
-
   const renderPreviewStep = () => {
     if (previewStep==="results") {
       const answerKeys: Record<string,string> = {};
@@ -2472,19 +2469,20 @@ export default function InstructorWorkstationPage({
     const previewSidebarBlocks = sidebarBlocksByStep[previewStep as keyof SidebarBlocksByStep] || [];
     const linkedSidebarIds = new Set([
       ...previewSidebarBlocks.filter((sidebarBlock) => sidebarBlock.parentMainBlockId).map((sidebarBlock) => sidebarBlock.id),
-      ...previewBlocks.filter((block) => block.layoutMode === "inline-row" && block.sidebarBlockId).map((block) => block.sidebarBlockId),
+      ...previewBlocks
+        .filter((block) => block.layoutMode === "inline-row")
+        .map((block) => block.sidebarBlockId || block.alignNextTo)
+        .filter((id): id is string => Boolean(id)),
     ]);
     const topSidebarBlocks = previewSidebarBlocks.filter((sidebarBlock) => !linkedSidebarIds.has(sidebarBlock.id));
     return (
     <div className="w-full space-y-6">
-      {conceptualFramingBlock && <article key={conceptualFramingBlock.id} className="mb-6 w-full rounded-xl border border-[#202631] bg-[#121721] p-5">
-        <MarkdownContent value={conceptualFramingBlock.body || ""} className="text-sm leading-relaxed text-stone-300" />
-      </article>}
-      {stageContentBlocks.map((block: ContentBlock, blockIndex) => {
+      {previewBlocks.map((block: ContentBlock, blockIndex) => {
         const sidebarBlock = (sidebarBlocksByStep[previewStep as keyof SidebarBlocksByStep] || []).find((candidate) => candidate.parentMainBlockId === block.id)
-          || (block.layoutMode === "inline-row" && block.sidebarBlockId
-            ? (sidebarBlocksByStep[previewStep as keyof SidebarBlocksByStep] || []).find((candidate) => candidate.id === block.sidebarBlockId)
+          || (block.layoutMode === "inline-row" && (block.sidebarBlockId || block.alignNextTo)
+            ? (sidebarBlocksByStep[previewStep as keyof SidebarBlocksByStep] || []).find((candidate) => candidate.id === (block.sidebarBlockId || block.alignNextTo))
             : undefined);
+        const rowEmptyMode = block.rowEmptyMode || block.whenEmpty;
         const article = (
         <article key={block.id} className="rounded-xl border border-[#202631] bg-[#121721] p-5">
           {block.title && <h3 className="mb-3 font-sans text-xl font-semibold text-stone-100">{block.title}</h3>}
@@ -2500,6 +2498,7 @@ export default function InstructorWorkstationPage({
         );
         return (
           <StudyRoomBlockRow
+            fullWidth={block.layoutMode === "inline-row" && !sidebarBlock && rowEmptyMode === "full"}
             key={block.id}
             sidebar={(
               <>
@@ -2528,7 +2527,7 @@ export default function InstructorWorkstationPage({
           </StudyRoomBlockRow>
         );
       })}
-      {stageContentBlocks.length === 0 && !conceptualFramingBlock && <p className="rounded-lg border border-dashed border-[#394252] p-6 text-sm text-stone-500">This step has no content blocks yet.</p>}
+      {previewBlocks.length === 0 && <p className="rounded-lg border border-dashed border-[#394252] p-6 text-sm text-stone-500">This step has no content blocks yet.</p>}
     </div>
   );};
 
