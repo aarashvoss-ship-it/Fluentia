@@ -1798,7 +1798,7 @@ function DashboardContent() {
 
           {nextLesson && (
             <section className="mt-6" aria-label="Continue learning">
-              <Tooltip content={`Continue to ${nextLesson.title}. Course progress: ${progressPercent}% (${completedLessons} of ${displayLessons.length} lessons).`}>
+              <Tooltip content={`Continue to ${nextLesson.title}.`}>
               <Link
                 href={getLessonHref(
                   nextLesson,
@@ -1829,30 +1829,7 @@ function DashboardContent() {
                         "Continue your personalized language practice."}
                     </p>
                   </div>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                    <div className="w-full max-w-xs">
-                      <div className="flex items-center justify-between text-xs text-stone-300">
-                        <span>{progressPercent}% course progress</span>
-                        <span>
-                          {completedLessons}/{displayLessons.length}
-                        </span>
-                      </div>
-                      <Tooltip content={`You have completed ${completedLessons} of ${displayLessons.length} lessons (${progressPercent}%).`}>
-                      <div
-                        className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[#0c1017]/80"
-                        role="progressbar"
-                        aria-label="Course progress"
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                        aria-valuenow={progressPercent}
-                      >
-                        <div
-                          className="h-full rounded-full bg-amber-500/20 transition-all"
-                          style={{ width: `${progressPercent}%` }}
-                        />
-                      </div>
-                      </Tooltip>
-                    </div>
+                  <div className="flex items-end justify-end">
                     <span className="inline-flex w-fit items-center rounded-md bg-amber-500/20 px-3 py-2 text-xs font-normal text-amber-400 transition group-hover:bg-amber-500/20">
                       Start Lesson{" "}
                       <span className="ml-2" aria-hidden="true">
