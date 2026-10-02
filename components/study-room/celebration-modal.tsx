@@ -111,10 +111,10 @@ export function CelebrationModal({
         </div>
 
         {/* Action Buttons */}
-        <div className="sticky bottom-0 z-10 shrink-0 border-t border-stone-800 bg-[#141413] px-6 pb-4 pt-3">
+        <div className="sticky bottom-0 z-10 shrink-0 border-t border-stone-800 bg-[#141413] px-6 pb-2 pt-3">
           {/* Primary CTA */}
           {submitError && <p role="alert" className="mb-3 text-xs text-red-300">Submission could not be saved: {submitError}</p>}
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <button
               onClick={onSubmit}
               disabled={isSubmitting}
