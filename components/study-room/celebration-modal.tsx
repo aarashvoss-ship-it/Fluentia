@@ -80,7 +80,7 @@ export function CelebrationModal({
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Six-Step Review</p>
               <p className="mt-1 text-xs text-stone-500">Review each submitted response before finalizing the lesson.</p>
             </div>
-            <div className="min-h-0 max-h-[calc(90vh-23rem)] space-y-4 overflow-y-auto overscroll-contain pr-1 scroll-smooth">
+            <div className="review-response-scrollbar min-h-0 max-h-[calc(90vh-23rem)] space-y-4 overflow-y-auto overscroll-contain pr-1 scroll-smooth">
               {stepResults.map((result) => (
                 <section key={result.id} className="rounded-lg border border-stone-800 bg-stone-950/50 p-3 text-xs">
                   <h3 className="font-semibold uppercase tracking-[0.12em] text-amber-400">{result.step}</h3>
@@ -117,7 +117,7 @@ export function CelebrationModal({
           <button
             onClick={onSubmit}
             disabled={isSubmitting}
-            className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl bg-amber-500/20 hover:bg-amber-500/20 text-stone-950  text-sm transition-all duration-150 shadow-lg shadow-amber-500/20 active:scale-[0.99] disabled:cursor-wait disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-amber-400/50 bg-amber-500 px-6 py-3.5 text-sm !font-semibold text-slate-950 shadow-lg shadow-amber-500/20 transition-colors duration-200 hover:bg-amber-400 active:scale-[0.99] disabled:cursor-wait disabled:opacity-60"
           >
             <span>{isSubmitting ? "Saving Submission..." : "Submit & View Results"}</span>
             <ArrowRight className="w-4 h-4" />

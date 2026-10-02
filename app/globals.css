@@ -78,6 +78,26 @@ body {
   display: none;
 }
 
+.review-response-scrollbar {
+  scrollbar-color: #3f3f46 transparent;
+  scrollbar-width: thin;
+}
+
+.review-response-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.review-response-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.review-response-scrollbar::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 9999px;
+  background-color: #3f3f46;
+  background-clip: content-box;
+}
+
 .student-profile-note {
   overflow-y: auto;
   scrollbar-color: #596273 transparent;
