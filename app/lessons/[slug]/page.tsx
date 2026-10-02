@@ -1107,9 +1107,9 @@ export default function LessonPage() {
         </p>
       )}
       {!isResultsStep && (
-        <section className="relative flex h-[220px] w-full items-start overflow-hidden rounded-xl bg-slate-950 sm:h-[240px] md:h-[260px]">
+        <section className="relative flex h-[320px] w-full items-start overflow-hidden rounded-xl bg-slate-950 sm:h-[360px] md:h-[400px]">
           {heroBanner ? (
-            <img src={heroBanner} alt="" onError={() => setBannerLoadFailed(true)} style={{ objectPosition: bannerObjectPosition }} className="absolute inset-0 h-full w-full object-cover" />
+            <img src={heroBanner} alt="" onError={() => setBannerLoadFailed(true)} style={{ objectPosition: bannerObjectPosition }} className="absolute inset-0 h-full w-full object-cover object-center" />
           ) : (
             <div className="absolute inset-0 bg-slate-950" aria-hidden="true" />
           )}

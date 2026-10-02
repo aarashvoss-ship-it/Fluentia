@@ -150,6 +150,21 @@ function logDashboardError(context: string, error: unknown) {
   });
 }
 
+function getLessonBannerObjectPosition(value: unknown): string {
+  const position = typeof value === "number"
+    ? { x: 50, y: value }
+    : value && typeof value === "object" && !Array.isArray(value)
+      ? value as { x?: unknown; y?: unknown }
+      : {};
+  const x = typeof position.x === "number" && Number.isFinite(position.x)
+    ? Math.max(0, Math.min(100, position.x))
+    : 50;
+  const y = typeof position.y === "number" && Number.isFinite(position.y)
+    ? Math.max(0, Math.min(100, position.y))
+    : 50;
+  return `${x}% ${y}%`;
+}
+
 function getLessonStatus(state?: PublishedLessonState | null): LessonStatus {
   if (!state || state.status === "draft") return "not-started";
   if (state.submission?.status === "reviewed" || state.submission?.status === "evaluated" || state.evaluation.published)
@@ -846,6 +861,9 @@ function DashboardContent() {
           : typeof nextLesson?.content?.bannerUrl === "string"
             ? nextLesson.content.bannerUrl
             : undefined;
+  const nextLessonBannerPosition = getLessonBannerObjectPosition(
+    lessonContent.bannerPosition ?? lessonContent.banner_position,
+  );
   const avatarImage = isValidImageUrl(customAvatarUrl.trim())
     ? customAvatarUrl.trim()
     : "";
@@ -1103,14 +1121,14 @@ function DashboardContent() {
           style={{
             backgroundColor: "#0c1017",
           }}
-          className="relative flex h-[220px] w-full items-start overflow-hidden rounded-xl bg-slate-950 sm:h-[240px] md:h-[260px]"
+          className="relative flex h-[320px] w-full items-start overflow-hidden rounded-xl bg-slate-950 sm:h-[360px] md:h-[400px]"
         >
           <img
             src={dashboardHeaderBanner}
             alt=""
             onError={() => setBannerLoadFailed(true)}
             style={{ objectPosition: `center ${bannerPosition}%` }}
-            className="absolute inset-0 h-full w-full object-cover"
+            className="absolute inset-0 h-full w-full object-cover object-center"
             aria-hidden="true"
           />
           {!hasCustomBanner && (
@@ -1820,7 +1838,8 @@ function DashboardContent() {
                 <img
                   src={instructorLessonBanner || BANNER_PRESETS[0].image}
                   alt=""
-                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  style={{ objectPosition: nextLessonBannerPosition }}
+                  className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,11,17,.95),rgba(7,11,17,.6)_52%,rgba(7,11,17,.82)),linear-gradient(0deg,rgba(7,11,17,.92),transparent_65%)]" />
                 <span className="absolute left-5 top-4 z-10 rounded-md px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 bg-amber-500/20 border border-amber-500/40">
@@ -1971,6 +1990,9 @@ function DashboardContent() {
               ) : (
                 availableLessons.map((lesson) => {
                   const status = getLessonStatus(lessonStates[lesson.id]);
+                  const lessonBannerPosition = getLessonBannerObjectPosition(
+                    lesson.content?.bannerPosition ?? lesson.content?.banner_position,
+                  );
                   const statusCopy = getLessonStatusCopy(status);
                   const ctaCopy =
                     status === "completed"
@@ -1995,7 +2017,8 @@ function DashboardContent() {
                                 : undefined) || BANNER_PRESETS[0].image
                           }
                           alt=""
-                          className="h-full w-full object-cover opacity-70 transition-transform duration-500 group-hover:scale-105"
+                          style={{ objectPosition: lessonBannerPosition }}
+                          className="h-full w-full object-cover object-center opacity-70 transition-transform duration-500 group-hover:scale-105"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-[#121721] via-transparent to-transparent" />
                         <span className="absolute bottom-4 left-5 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 bg-amber-500/20 border border-amber-500/40 rounded-md">

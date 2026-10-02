@@ -163,7 +163,7 @@ export function InstructorBannerManager({
       </div>}
 
       <div
-        className="relative mb-2 h-[220px] w-full touch-none overflow-hidden rounded-lg border border-[#202631] bg-black/40 sm:h-[240px] md:h-[260px]"
+        className="relative mb-2 h-[320px] w-full touch-none overflow-hidden rounded-lg border border-[#202631] bg-black/40 sm:h-[360px] md:h-[400px]"
         onPointerDown={(event) => {
           if (!selectedUrl || !onUpdatePosition) return;
           event.currentTarget.setPointerCapture(event.pointerId);
@@ -182,7 +182,7 @@ export function InstructorBannerManager({
             src={selectedUrl}
             alt="Current live hero banner preview"
             style={{ objectPosition: `${position.x}% ${position.y}%` }}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover object-center"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center px-4 text-center text-sm leading-relaxed text-slate-400">
