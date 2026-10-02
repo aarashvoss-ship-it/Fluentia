@@ -1105,7 +1105,7 @@ export default function LessonPage() {
         </p>
       )}
       {!isResultsStep && (
-        <section className="relative flex h-[320px] w-full items-start overflow-hidden rounded-xl bg-slate-950 sm:h-[360px] md:h-[400px]">
+        <section className="relative flex h-[280px] w-full items-start overflow-hidden rounded-2xl bg-slate-950 md:h-[320px]">
           {heroBanner ? (
             <img src={heroBanner} alt="" onError={() => setBannerLoadFailed(true)} style={getBannerPositionStyles(bannerPosition)} className="absolute inset-0 h-full w-full object-cover" />
           ) : (

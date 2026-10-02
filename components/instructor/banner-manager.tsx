@@ -164,7 +164,7 @@ export function InstructorBannerManager({
       </div>}
 
       <div
-        className="relative mb-2 h-[320px] w-full touch-none overflow-hidden rounded-lg border border-[#202631] bg-black/40 sm:h-[360px] md:h-[400px]"
+        className="relative mb-2 aspect-video w-full touch-none overflow-hidden rounded-lg border border-[#202631] bg-black/40"
         onPointerDown={(event) => {
           if (!selectedUrl || !onUpdatePosition) return;
           event.currentTarget.setPointerCapture(event.pointerId);

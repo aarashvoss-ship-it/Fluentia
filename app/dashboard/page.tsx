@@ -1107,14 +1107,14 @@ function DashboardContent() {
           style={{
             backgroundColor: "#0c1017",
           }}
-          className="relative flex h-[320px] w-full items-start overflow-hidden rounded-xl bg-slate-950 sm:h-[360px] md:h-[400px]"
+          className="relative flex h-[280px] w-full items-start overflow-hidden rounded-2xl bg-slate-950 md:h-[320px]"
         >
           <img
             src={dashboardHeaderBanner}
             alt=""
             onError={() => setBannerLoadFailed(true)}
-            style={{ objectPosition: `center ${bannerPosition}%` }}
-            className="absolute inset-0 h-full w-full object-cover object-center"
+            style={getBannerPositionStyles(normalizeBannerPosition({ x: 50, y: bannerPosition }))}
+            className="absolute inset-0 h-full w-full object-cover"
             aria-hidden="true"
           />
           {!hasCustomBanner && (
@@ -1651,7 +1651,7 @@ function DashboardContent() {
                             <img
                               src={activeBannerUrl}
                               alt="Banner preview"
-                              style={{ objectPosition: `center ${bannerPosition}%` }}
+                              style={getBannerPositionStyles(normalizeBannerPosition({ x: 50, y: bannerPosition }))}
                               className="h-full w-full object-cover"
                             />
                           </div>
