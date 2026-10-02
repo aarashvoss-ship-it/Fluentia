@@ -15,8 +15,8 @@ const STUDENT_TRACKS_KEY = "fluentia:ambient-music:student-tracks";
 const POMODORO_BREAK_EVENT = "fluentia:study-room-timer-break-start";
 const POMODORO_FOCUS_EVENT = "fluentia:study-room-timer-focus-start";
 const TIMER_CHIME_EVENT = "fluentia:study-room-timer-chime";
-const AUDIO_CONTROL_CLASS = "flex h-8 w-8 items-center justify-center rounded-md border bg-transparent p-2 transition-colors";
-const AUDIO_CONTROL_IDLE_CLASS = "border-slate-700/50 text-slate-400 hover:border-slate-600 hover:text-slate-200";
+const AUDIO_CONTROL_CLASS = "flex h-8 w-8 items-center justify-center rounded-md border bg-transparent p-2 transition-colors duration-200 hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-400";
+const AUDIO_CONTROL_IDLE_CLASS = "border-slate-700/50 text-slate-400";
 const AUDIO_CONTROL_ACTIVE_CLASS = "border-amber-500/40 text-amber-400";
 
 type StudentTrack = LessonAudioTrack & { id: string; storedFile?: boolean };

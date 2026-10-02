@@ -260,7 +260,7 @@ export function StudyRoomTimer() {
         onClick={() => setIsOpen((open) => !open)}
         aria-label={`Open study timer, ${formatTime(displayedSeconds, timer.mode === "stopwatch")}`}
         aria-expanded={isOpen}
-        className={`flex h-8 items-center gap-1.5 rounded-md border bg-transparent px-2 text-xs transition-colors ${timer.running ? "border-amber-500/40 text-amber-400" : "border-slate-700/50 text-slate-400 hover:border-slate-600 hover:text-slate-200"}`}
+        className={`flex h-8 items-center gap-1.5 rounded-md border bg-transparent px-2 text-xs transition-colors duration-200 hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-400 ${timer.running ? "border-amber-500/40 text-amber-400" : "border-slate-700/50 text-slate-400"}`}
       >
         <Timer className="h-3.5 w-3.5" />
         <span className="font-mono tabular-nums">{formatTime(displayedSeconds, timer.mode === "stopwatch")}</span>
