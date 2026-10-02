@@ -54,8 +54,8 @@ export function CelebrationModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-stone-800 bg-[#141413] shadow-2xl">
-        <div className="sticky top-0 z-10 shrink-0 space-y-6 border-b border-stone-800 bg-[#141413] p-8">
+      <div className="relative flex h-[85vh] max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-stone-800 bg-[#141413] shadow-2xl">
+        <div className="sticky top-0 z-10 shrink-0 space-y-4 border-b border-stone-800 bg-[#141413] p-6">
           {/* Checkmark Icon centered at top */}
           <div className="flex justify-center">
             <div className="flex h-14 w-14 items-center justify-center rounded-full border border-amber-500/40 bg-amber-500/20 text-amber-400 shadow-inner">
@@ -74,13 +74,14 @@ export function CelebrationModal({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 px-8">
-          <div className="space-y-3 py-4 text-left">
+        <div className="flex min-h-0 flex-1 flex-col px-6">
+          <div className="shrink-0 space-y-3 py-3 text-left">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Six-Step Review</p>
               <p className="mt-1 text-xs text-stone-500">Review each submitted response before finalizing the lesson.</p>
             </div>
-            <div className="review-response-scrollbar min-h-0 max-h-[420px] space-y-4 overflow-y-auto overscroll-contain pr-1 scroll-smooth">
+          </div>
+          <div className="review-response-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-1 scroll-smooth">
               {stepResults.map((result) => (
                 <section key={result.id} className="rounded-lg border border-stone-800 bg-stone-950/50 p-3 text-xs">
                   <h3 className="font-semibold uppercase tracking-[0.12em] text-amber-400">{result.step}</h3>
@@ -106,25 +107,25 @@ export function CelebrationModal({
                   </div>
                 </section>
               ))}
-            </div>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="sticky bottom-0 z-10 shrink-0 border-t border-stone-800 bg-[#141413] px-8 pb-4 pt-4">
+        <div className="sticky bottom-0 z-10 shrink-0 border-t border-stone-800 bg-[#141413] px-6 pb-4 pt-3">
           {/* Primary CTA */}
           {submitError && <p role="alert" className="mb-3 text-xs text-red-300">Submission could not be saved: {submitError}</p>}
-          <button
-            onClick={onSubmit}
-            disabled={isSubmitting}
-            className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-amber-400/50 bg-amber-500 px-6 py-2.5 text-sm !font-semibold text-zinc-950 shadow-md shadow-amber-500/20 transition-colors duration-200 hover:bg-amber-400 active:scale-[0.99] disabled:cursor-wait disabled:opacity-60"
-          >
-            <span>{isSubmitting ? "Saving Submission..." : "Submit & View Results"}</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
+          <div className="space-y-2">
+            <button
+              onClick={onSubmit}
+              disabled={isSubmitting}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-amber-400/50 bg-amber-500 px-6 py-2.5 text-sm !font-semibold text-zinc-950 shadow-md shadow-amber-500/20 transition-colors duration-200 hover:bg-amber-400 active:scale-[0.99] disabled:cursor-wait disabled:opacity-60"
+            >
+              <span>{isSubmitting ? "Saving Submission..." : "Submit & View Results"}</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
 
-          {/* Secondary & Ghost Actions */}
-          <div className="mt-3 flex flex-col space-y-1 pt-1">
+            {/* Secondary & Ghost Actions */}
+            <div className="flex flex-col space-y-1">
             <button
               onClick={onReview}
               className="w-full flex items-center gap-2 py-2.5 px-2 text-stone-400 hover:text-stone-200 hover:bg-stone-800/40 rounded-lg text-sm transition-colors text-left font-normal"
@@ -140,6 +141,7 @@ export function CelebrationModal({
               <ArrowLeft className="w-4 h-4 text-stone-500 shrink-0" />
               <span>Exit to Dashboard</span>
             </button>
+            </div>
           </div>
         </div>
 
