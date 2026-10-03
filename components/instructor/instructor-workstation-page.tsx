@@ -42,6 +42,61 @@ interface InstructorWorkstationProps {
   lessonSlug: string;
 }
 
+function LessonMetadataDisclosure({
+  lessonId,
+  lessonTitle,
+  level,
+  tags,
+  expanded,
+  compact = false,
+  onToggle,
+}: {
+  lessonId: string;
+  lessonTitle: string;
+  level: string;
+  tags: { label: string; className: string }[];
+  expanded: boolean;
+  compact?: boolean;
+  onToggle: () => void;
+}) {
+  const disclosureId = `lesson-tags-${lessonId}`;
+
+  return (
+    <div className="min-w-0">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className={`${compact ? "rounded px-1.5" : "rounded-full px-2"} shrink-0 bg-amber-500/20 py-1 text-[10px] text-amber-400`}>{level}</span>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={expanded}
+          aria-controls={disclosureId}
+          aria-label={`${expanded ? "Hide" : "Show"} tags for ${lessonTitle}`}
+          className="inline-flex min-w-0 cursor-pointer items-center gap-1 text-xs text-slate-400 transition-colors hover:text-amber-400"
+        >
+          <span className="truncate">{expanded ? "Hide tags" : `+${tags.length} tags`}</span>
+          <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
+        </button>
+      </div>
+      <div
+        id={disclosureId}
+        aria-hidden={!expanded}
+        className="grid transition-[grid-template-rows] duration-300 ease-in-out"
+        style={{ gridTemplateRows: expanded ? "1fr" : "0fr" }}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="flex flex-wrap gap-1.5 pt-2">
+            {tags.map((tag, index) => (
+              <span key={`${tag.label}-${index}`} className={`${tag.className} ${compact ? "rounded px-1.5" : "rounded-full px-2"} py-1 text-[10px]`}>
+                {tag.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type SidebarBlock = { id: string; title: string; body: string; icon?: string; parentMainBlockId?: string };
 type SidebarBlocksByStep = Partial<Record<"warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking", SidebarBlock[]>>;
 
@@ -477,6 +532,7 @@ export default function InstructorWorkstationPage({
   const [libraryDomain, setLibraryDomain] = useState("all");
   const [librarySortBy, setLibrarySortBy] = useState<"title" | "domain" | "practiceType" | "skillFocus">("title");
   const [libraryView, setLibraryView] = useState<"grid" | "table">("grid");
+  const [expandedLibraryMetadata, setExpandedLibraryMetadata] = useState<Set<string>>(() => new Set());
   const [assignmentEditorLessonId, setAssignmentEditorLessonId] = useState<string | null>(null);
   const [quickTagEditor, setQuickTagEditor] = useState<{ lessonId: string; level: string; tags: LessonTags; customTagsText: string } | null>(null);
   const [quickTagSaving, setQuickTagSaving] = useState(false);
@@ -2603,6 +2659,21 @@ export default function InstructorWorkstationPage({
       subtitle: String(content.subtitle || lesson.subtitle || "No subtitle"),
     };
   };
+  const getLibraryMetadataTags = (metadata: ReturnType<typeof getLessonMetadata>) => [
+    { label: metadata.domain, className: "bg-sky-500/15 text-sky-300" },
+    { label: metadata.theme, className: "bg-stone-500/15 text-stone-300" },
+    { label: metadata.skillFocus, className: "bg-emerald-500/15 text-emerald-300" },
+    ...(metadata.practiceType ? [{ label: metadata.practiceType, className: "bg-rose-500/15 text-rose-300" }] : []),
+    ...metadata.customTags.map((tag) => ({ label: tag, className: "bg-stone-500/15 text-stone-300" })),
+  ];
+  const toggleLibraryMetadata = (lessonId: string) => {
+    setExpandedLibraryMetadata((current) => {
+      const next = new Set(current);
+      if (next.has(lessonId)) next.delete(lessonId);
+      else next.add(lessonId);
+      return next;
+    });
+  };
   const filteredLibraryLessons = createdLessons.filter((lesson) => {
     const metadata = getLessonMetadata(lesson);
     const query = librarySearch.trim().toLowerCase();
@@ -2834,7 +2905,108 @@ export default function InstructorWorkstationPage({
               <div className="flex rounded-md border border-[#394252] bg-[#0c1017] p-1" role="group" aria-label="Lesson view mode"><Tooltip content="Show lessons as cards"><button type="button" onClick={() => setLibraryView("grid")} aria-label="Grid view" className={`rounded p-1.5 ${libraryView === "grid" ? "bg-amber-500/20 text-amber-400" : "text-stone-500 hover:text-stone-200"}`}><Grid3X3 className="h-4 w-4" /></button></Tooltip><Tooltip content="Show lessons in a table"><button type="button" onClick={() => setLibraryView("table")} aria-label="Table view" className={`rounded p-1.5 ${libraryView === "table" ? "bg-amber-500/20 text-amber-400" : "text-stone-500 hover:text-stone-200"}`}><List className="h-4 w-4" /></button></Tooltip></div>
             </div>
           </div>
-          {libraryView === "grid" ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{filteredLibraryLessons.map((lesson) => { const metadata = getLessonMetadata(lesson); const assignedIds = getAssignedStudentIds(lesson); return <article key={lesson.id} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 transition hover:border-amber-500/40"><div className="flex items-start justify-between gap-3"><button type="button" onClick={() => handleEditLesson(lesson)} className="min-w-0 text-left"><h3 className="truncate  text-stone-100">{lesson.title}</h3><p className="mt-1 line-clamp-2 text-xs leading-relaxed text-stone-500">{metadata.subtitle}</p></button><span className={`shrink-0 rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase ${lesson.status === "published" ? "border-emerald-500/30 text-emerald-300" : "border-amber-500/40 text-amber-400"}`}>{lesson.status}</span></div><div className="mt-4 flex flex-wrap gap-1.5"><span className="rounded-full bg-amber-500/20 px-2 py-1 text-[10px] text-amber-400">{metadata.level}</span><span className="rounded-full bg-sky-500/15 px-2 py-1 text-[10px] text-sky-300">{metadata.domain}</span><span className="rounded-full bg-stone-500/15 px-2 py-1 text-[10px] text-stone-300">{metadata.theme}</span><span className="rounded-full bg-emerald-500/15 px-2 py-1 text-[10px] text-emerald-300">{metadata.skillFocus}</span>{metadata.practiceType && <span className="rounded-full bg-rose-500/15 px-2 py-1 text-[10px] text-rose-300">{metadata.practiceType}</span>}{metadata.customTags.map((tag) => <span key={tag} className="rounded-full bg-stone-500/15 px-2 py-1 text-[10px] text-stone-300">{tag}</span>)}</div><div className="mt-2"><button type="button" onClick={() => openQuickTagEditor(lesson)} aria-label={`Edit tags for ${lesson.title}`} className="inline-flex items-center gap-1 text-[11px]  text-amber-400 hover:text-amber-400"><Pencil className="h-3 w-3" />Edit level & tags</button></div><div className="relative mt-5 border-t border-[#202631] pt-4" onClick={(event) => event.stopPropagation()}><div className="flex items-center justify-between gap-2"><div className="flex min-w-0 flex-wrap gap-1">{assignedIds.length === 0 ? <span className="text-xs text-stone-500">No students assigned</span> : assignedIds.map((id) => { const student = students.find((item) => item.id === id); return <span key={id} title={student?.name || id} className="flex h-7 w-7 items-center justify-center rounded-full border border-amber-500/40 bg-amber-500/20 text-[10px] font-semibold text-amber-400">{(student?.name || id).slice(0, 2).toUpperCase()}</span>; })}</div><button type="button" onClick={() => setAssignmentEditorLessonId((current) => current === lesson.id ? null : lesson.id)} className="rounded-md border border-amber-500/40 px-2.5 py-1.5 text-[11px]  text-amber-400">Assign</button></div>{assignmentEditorLessonId === lesson.id && <div className="absolute left-0 right-0 top-full z-30 mt-2 rounded-lg border border-[#394252] bg-[#171d28] p-3 shadow-xl"><p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Assign students</p>{students.map((student) => <label key={student.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs text-stone-300 hover:bg-[#202631]"><input type="checkbox" checked={assignedIds.includes(student.id)} onChange={() => void handleAssignmentToggle(lesson, student.id)} className="accent-amber-500" /><span className="min-w-0 flex-1 truncate">{student.name}</span>{assignedIds.includes(student.id) && <Check className="h-3.5 w-3.5 text-amber-400" />}</label>)}<button type="button" onClick={() => setAssignmentEditorLessonId(null)} className="mt-2 w-full rounded border border-[#394252] px-2 py-1.5 text-[11px] text-stone-400">Done</button></div>}</div><div className="mt-4 flex items-center justify-between"><span className="text-[11px] text-stone-500">Module {lesson.content?.moduleNumber || lesson.module_number || 1}</span><div className="flex items-center gap-2"><button type="button" onClick={() => handleEditLesson(lesson)} className="text-xs  text-amber-400 hover:text-amber-400">Edit / Continue</button><button type="button" onClick={() => setLessonPendingDelete(lesson)} aria-label={`Delete ${lesson.title}`} title="Delete lesson" className="flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 transition hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button></div></div></article>; })}</div> : <div className="overflow-x-auto rounded-xl border border-[#202631] bg-[#171d28]/60"><table className="min-w-[900px] w-full text-left text-xs"><thead className="border-b border-[#202631] bg-[#0c1017] text-[10px] uppercase tracking-[0.12em] text-stone-500"><tr><th className="px-5 py-3">Lesson</th><th className="px-4 py-3">Metadata</th><th className="px-4 py-3">Assigned students</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Action</th></tr></thead><tbody className="divide-y divide-[#202631]">{filteredLibraryLessons.map((lesson) => { const metadata = getLessonMetadata(lesson); return <tr key={lesson.id} className="text-stone-300 hover:bg-[#202631]/30"><td className="px-5 py-4"><button type="button" onClick={() => handleEditLesson(lesson)} className="text-left"><p className=" text-stone-100">{lesson.title}</p><p className="mt-1 text-[11px] text-stone-500">{metadata.subtitle}</p></button></td><td className="px-4 py-4"><div className="flex max-w-xs flex-wrap gap-1"><span className="rounded bg-amber-500/20 px-1.5 py-1 text-[10px] text-amber-400">{metadata.level}</span><span className="rounded bg-sky-500/15 px-1.5 py-1 text-[10px] text-sky-300">{metadata.domain}</span><span className="rounded bg-stone-500/15 px-1.5 py-1 text-[10px] text-stone-300">{metadata.theme}</span><span className="rounded bg-emerald-500/15 px-1.5 py-1 text-[10px] text-emerald-300">{metadata.skillFocus}</span>{metadata.practiceType && <span className="rounded bg-rose-500/15 px-1.5 py-1 text-[10px] text-rose-300">{metadata.practiceType}</span>}{metadata.customTags.map((tag) => <span key={tag} className="rounded bg-stone-500/15 px-1.5 py-1 text-[10px] text-stone-300">{tag}</span>)}</div></td><td className="px-4 py-4">{renderAssignedStudents(lesson)}</td><td className="px-4 py-4 capitalize">{lesson.status}</td><td className="px-4 py-4 text-right"><button type="button" onClick={() => openQuickTagEditor(lesson)} className="text-xs  text-amber-400">Edit tags</button><button type="button" onClick={() => handleEditLesson(lesson)} className="ml-3 text-xs  text-amber-400">Edit</button><button type="button" onClick={() => setLessonPendingDelete(lesson)} aria-label={`Delete ${lesson.title}`} title="Delete lesson" className="ml-3 inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button></td></tr>; })}</tbody></table></div>}
+          {libraryView === "grid" ? (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {filteredLibraryLessons.map((lesson) => {
+                const metadata = getLessonMetadata(lesson);
+                const tags = getLibraryMetadataTags(metadata);
+                const assignedIds = getAssignedStudentIds(lesson);
+                return (
+                  <article key={lesson.id} className="flex h-full flex-col rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 transition hover:border-amber-500/40">
+                    <div className="flex items-start justify-between gap-3">
+                      <button type="button" onClick={() => handleEditLesson(lesson)} className="min-w-0 text-left">
+                        <h3 className="truncate text-stone-100">{lesson.title}</h3>
+                        <p className="mt-1 min-h-8 line-clamp-2 text-xs leading-relaxed text-stone-500">{metadata.subtitle}</p>
+                      </button>
+                      <span className={`shrink-0 rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase ${lesson.status === "published" ? "border-emerald-500/30 text-emerald-300" : "border-amber-500/40 text-amber-400"}`}>{lesson.status}</span>
+                    </div>
+                    <div className="mt-4">
+                      <LessonMetadataDisclosure
+                        lessonId={lesson.id}
+                        lessonTitle={lesson.title}
+                        level={metadata.level}
+                        tags={tags}
+                        expanded={expandedLibraryMetadata.has(lesson.id)}
+                        onToggle={() => toggleLibraryMetadata(lesson.id)}
+                      />
+                      <button type="button" onClick={() => openQuickTagEditor(lesson)} aria-label={`Edit tags for ${lesson.title}`} className="mt-2 inline-flex items-center gap-1 text-[11px] text-amber-400 hover:text-amber-300">
+                        <Pencil className="h-3 w-3" />Edit level & tags
+                      </button>
+                    </div>
+                    <div className="relative mt-auto border-t border-[#202631] pt-4" onClick={(event) => event.stopPropagation()}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex min-w-0 flex-wrap gap-1">
+                          {assignedIds.length === 0 ? <span className="text-xs text-stone-500">No students assigned</span> : assignedIds.map((id) => {
+                            const student = students.find((item) => item.id === id);
+                            return <span key={id} title={student?.name || id} className="flex h-7 w-7 items-center justify-center rounded-full border border-amber-500/40 bg-amber-500/20 text-[10px] font-semibold text-amber-400">{(student?.name || id).slice(0, 2).toUpperCase()}</span>;
+                          })}
+                        </div>
+                        <button type="button" onClick={() => setAssignmentEditorLessonId((current) => current === lesson.id ? null : lesson.id)} className="rounded-md border border-amber-500/40 px-2.5 py-1.5 text-[11px] text-amber-400">Assign</button>
+                      </div>
+                      {assignmentEditorLessonId === lesson.id && <div className="absolute left-0 right-0 top-full z-30 mt-2 rounded-lg border border-[#394252] bg-[#171d28] p-3 shadow-xl">
+                        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Assign students</p>
+                        {students.map((student) => <label key={student.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs text-stone-300 hover:bg-[#202631]">
+                          <input type="checkbox" checked={assignedIds.includes(student.id)} onChange={() => void handleAssignmentToggle(lesson, student.id)} className="accent-amber-500" />
+                          <span className="min-w-0 flex-1 truncate">{student.name}</span>
+                          {assignedIds.includes(student.id) && <Check className="h-3.5 w-3.5 text-amber-400" />}
+                        </label>)}
+                        <button type="button" onClick={() => setAssignmentEditorLessonId(null)} className="mt-2 w-full rounded border border-[#394252] px-2 py-1.5 text-[11px] text-stone-400">Done</button>
+                      </div>}
+                    </div>
+                    <div className="mt-4 flex items-center justify-between">
+                      <span className="text-[11px] text-stone-500">Module {lesson.content?.moduleNumber || lesson.module_number || 1}</span>
+                      <div className="flex items-center gap-2">
+                        <button type="button" onClick={() => handleEditLesson(lesson)} className="text-xs text-amber-400 hover:text-amber-300">Edit / Continue</button>
+                        <button type="button" onClick={() => setLessonPendingDelete(lesson)} aria-label={`Delete ${lesson.title}`} title="Delete lesson" className="flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 transition hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-[#202631] bg-[#171d28]/60">
+              <table className="min-w-[900px] w-full text-left text-xs">
+                <thead className="border-b border-[#202631] bg-[#0c1017] text-[10px] uppercase tracking-[0.12em] text-stone-500">
+                  <tr><th className="px-5 py-3">Lesson</th><th className="px-4 py-3">Metadata</th><th className="px-4 py-3">Assigned students</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Action</th></tr>
+                </thead>
+                <tbody className="divide-y divide-[#202631]">
+                  {filteredLibraryLessons.map((lesson) => {
+                    const metadata = getLessonMetadata(lesson);
+                    const tags = getLibraryMetadataTags(metadata);
+                    return (
+                      <tr key={lesson.id} className="text-stone-300 hover:bg-[#202631]/30">
+                        <td className="px-5 py-4 align-middle">
+                          <button type="button" onClick={() => handleEditLesson(lesson)} className="block w-full min-w-0 text-left">
+                            <p className="truncate text-stone-100" title={lesson.title}>{lesson.title}</p>
+                            <p className="mt-1 truncate text-[11px] text-stone-500" title={metadata.subtitle}>{metadata.subtitle}</p>
+                          </button>
+                        </td>
+                        <td className="px-4 py-4 align-middle">
+                          <LessonMetadataDisclosure
+                            lessonId={lesson.id}
+                            lessonTitle={lesson.title}
+                            level={metadata.level}
+                            tags={tags}
+                            expanded={expandedLibraryMetadata.has(lesson.id)}
+                            compact
+                            onToggle={() => toggleLibraryMetadata(lesson.id)}
+                          />
+                        </td>
+                        <td className="px-4 py-4 align-middle">{renderAssignedStudents(lesson)}</td>
+                        <td className="px-4 py-4 align-middle capitalize">{lesson.status}</td>
+                        <td className="px-4 py-4 text-right align-middle">
+                          <button type="button" onClick={() => openQuickTagEditor(lesson)} className="text-xs text-amber-400">Edit tags</button>
+                          <button type="button" onClick={() => handleEditLesson(lesson)} className="ml-3 text-xs text-amber-400">Edit</button>
+                          <button type="button" onClick={() => setLessonPendingDelete(lesson)} aria-label={`Delete ${lesson.title}`} title="Delete lesson" className="ml-3 inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
           {filteredLibraryLessons.length === 0 && <div className="rounded-xl border border-dashed border-[#394252] p-10 text-center text-sm text-stone-500">No lessons match these filters.</div>}
           {quickTagEditor && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !quickTagSaving) setQuickTagEditor(null); }}><section role="dialog" aria-modal="true" aria-labelledby="quick-tag-editor-title" className="w-full max-w-lg rounded-lg border border-[#394252] bg-[#171d28] p-5 shadow-2xl"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Lesson metadata</p><h3 id="quick-tag-editor-title" className="mt-1 text-lg font-semibold text-stone-100">Edit level & tags</h3></div><button type="button" aria-label="Close tag editor" disabled={quickTagSaving} onClick={() => setQuickTagEditor(null)} className="rounded border border-[#394252] p-1.5 text-stone-400 hover:text-stone-100 disabled:opacity-50"><X className="h-4 w-4" /></button></div><div className="mt-5 grid gap-3 sm:grid-cols-2"><label className="text-xs text-stone-400">CEFR Level<select value={quickTagEditor.level} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, level: event.target.value } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-white [color-scheme:dark]">{CEFR_LEVELS.map((level) => <option key={level}>{level}</option>)}</select></label><label className="text-xs text-stone-400">Domain<input value={quickTagEditor.tags.domain} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, domain: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Skill Focus<input value={quickTagEditor.tags.skill_focus} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, skill_focus: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Practice Type<input value={quickTagEditor.tags.practice_type} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, practice_type: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400 sm:col-span-2">Custom Tags<input value={quickTagEditor.customTagsText} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, customTagsText: event.target.value } : current)} placeholder="Comma-separated custom tags" className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label></div>{quickTagError && <p role="alert" className="mt-3 text-xs text-red-300">{quickTagError}</p>}<div className="mt-5 flex justify-end gap-2"><button type="button" disabled={quickTagSaving} onClick={() => setQuickTagEditor(null)} className="rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 disabled:opacity-50">Cancel</button><button type="button" disabled={quickTagSaving} onClick={() => void saveQuickTagEditor()} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/20 px-3 py-2 text-xs  text-amber-400 disabled:opacity-50">{quickTagSaving ? "Saving..." : <><Check className="h-3.5 w-3.5" />Save tags</>}</button></div></section></div>}
         </section>}
