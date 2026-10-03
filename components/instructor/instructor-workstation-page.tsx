@@ -2965,10 +2965,10 @@ export default function InstructorWorkstationPage({
               })}
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-[#202631] bg-[#171d28]/60">
+            <div className="w-full overflow-x-auto rounded-xl border border-[#202631] bg-[#171d28]/60">
               <table className="min-w-[900px] w-full text-left text-xs">
                 <thead className="border-b border-[#202631] bg-[#0c1017] text-[10px] uppercase tracking-[0.12em] text-stone-500">
-                  <tr><th className="px-5 py-3">Lesson</th><th className="px-4 py-3">Metadata</th><th className="px-4 py-3">Assigned students</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Action</th></tr>
+                  <tr><th className="w-2/5 px-5 py-3">Lesson</th><th className="px-4 py-3">Metadata</th><th className="px-4 py-3">Assigned students</th><th className="px-4 py-3">Status</th><th className="min-w-[160px] px-4 py-3 text-right whitespace-nowrap">Action</th></tr>
                 </thead>
                 <tbody className="divide-y divide-[#202631]">
                   {filteredLibraryLessons.map((lesson) => {
@@ -2978,8 +2978,8 @@ export default function InstructorWorkstationPage({
                       <tr key={lesson.id} className="text-stone-300 hover:bg-[#202631]/30">
                         <td className="px-5 py-4 align-middle">
                           <button type="button" onClick={() => handleEditLesson(lesson)} className="block w-full min-w-0 text-left">
-                            <p className="truncate text-stone-100" title={lesson.title}>{lesson.title}</p>
-                            <p className="mt-1 truncate text-[11px] text-stone-500" title={metadata.subtitle}>{metadata.subtitle}</p>
+                            <p className="line-clamp-2 break-words text-stone-100" title={lesson.title}>{lesson.title}</p>
+                            <p className="mt-1 line-clamp-2 break-words text-[11px] text-stone-500" title={metadata.subtitle}>{metadata.subtitle}</p>
                           </button>
                         </td>
                         <td className="px-4 py-4 align-middle">
@@ -2995,10 +2995,12 @@ export default function InstructorWorkstationPage({
                         </td>
                         <td className="px-4 py-4 align-middle">{renderAssignedStudents(lesson)}</td>
                         <td className="px-4 py-4 align-middle capitalize">{lesson.status}</td>
-                        <td className="px-4 py-4 text-right align-middle">
-                          <button type="button" onClick={() => openQuickTagEditor(lesson)} className="text-xs text-amber-400">Edit tags</button>
-                          <button type="button" onClick={() => handleEditLesson(lesson)} className="ml-3 text-xs text-amber-400">Edit</button>
-                          <button type="button" onClick={() => setLessonPendingDelete(lesson)} aria-label={`Delete ${lesson.title}`} title="Delete lesson" className="ml-3 inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button>
+                        <td className="min-w-[160px] px-4 py-4 text-right align-middle">
+                          <div className="flex items-center justify-end gap-3 whitespace-nowrap">
+                            <button type="button" onClick={() => openQuickTagEditor(lesson)} className="whitespace-nowrap text-xs text-amber-400">Edit tags</button>
+                            <button type="button" onClick={() => handleEditLesson(lesson)} className="whitespace-nowrap text-xs text-amber-400">Edit</button>
+                            <button type="button" onClick={() => setLessonPendingDelete(lesson)} aria-label={`Delete ${lesson.title}`} title="Delete lesson" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-red-500/30 text-red-300 hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button>
+                          </div>
                         </td>
                       </tr>
                     );
