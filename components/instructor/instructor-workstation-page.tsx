@@ -663,6 +663,7 @@ export default function InstructorWorkstationPage({
   const [previewStep, setPreviewStep] = useState<"warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking" | "results">("warm_up");
   const previewChannelRef = useRef<BroadcastChannel | null>(null);
   const [saveIndicator, setSaveIndicator] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [isDirty, setIsDirty] = useState(false);
   const hasLoadedLesson = useRef(false);
   const lastSavedDraftSignature = useRef<string | null>(null);
   const saveRequestId = useRef(0);
@@ -673,6 +674,8 @@ export default function InstructorWorkstationPage({
   const pendingAutoSave = useRef(false);
   const lastInputAt = useRef(0);
   const inputTimer = useRef<number | null>(null);
+  const autoSaveTimer = useRef<number | null>(null);
+  const savedIndicatorTimer = useRef<number | null>(null);
   const [validationErrors, setValidationErrors] = useState<Partial<Record<"selectedStudentId" | "title" | "slug" | "moduleNumber", string>>>({});
   const [createdLessons, setCreatedLessons] = useState<LessonWithVersion[]>([]);
   const [lessonPendingDelete, setLessonPendingDelete] = useState<LessonWithVersion | null>(null);
@@ -793,6 +796,10 @@ export default function InstructorWorkstationPage({
 
   const resetBuilderState = (studentId = "") => {
     saveRequestId.current += 1;
+    if (autoSaveTimer.current !== null) window.clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = null;
+    if (savedIndicatorTimer.current !== null) window.clearTimeout(savedIndicatorTimer.current);
+    savedIndicatorTimer.current = null;
     pendingAutoSave.current = false;
     saveInFlight.current = false;
     activeLessonIdRef.current = null;
@@ -821,6 +828,7 @@ export default function InstructorWorkstationPage({
     }));
     setLessonStatus("draft");
     setSaveIndicator("idle");
+    setIsDirty(false);
     setValidationErrors({});
     setPublishStatus(null);
     setPreviewStep("warm_up");
@@ -852,12 +860,17 @@ export default function InstructorWorkstationPage({
     setActiveTab("builder");
   };
 
-  const getDraftSignature = (content: StrictStepContent, title: string, subtitle: string, moduleNumber: string) =>
+  const getDraftSignature = (content: StrictStepContent, title: string, subtitle: string, moduleNumber: string, slug = newLesson.slug) =>
     JSON.stringify({
       content,
       title: title.trim() || "Untitled Lesson",
       subtitle: subtitle.trim() || "A new Fluentia learning journey.",
       moduleNumber: Number(moduleNumber) || 1,
+      slug: slug.trim().toLowerCase(),
+      level: normalizeCefrLevel(newLesson.level),
+      tags: newLesson.tags,
+      customTagsText: newLesson.customTagsText,
+      studentId: selectedStudentId || newLesson.studentId || selectedStudent?.id || "",
       bannerUrl: workstationState.bannerUrl,
       bannerPosition: workstationState.bannerPosition,
       bannerDimness: workstationState.bannerDimness,
@@ -865,6 +878,19 @@ export default function InstructorWorkstationPage({
       instructorGuidance: newLesson.instructorGuidance,
       lessonResources,
     });
+  const currentDraftSignature = getDraftSignature(
+    workstationState.content,
+    newLesson.title,
+    newLesson.subtitle,
+    newLesson.moduleNumber,
+  );
+  const currentDraftSignatureRef = useRef(currentDraftSignature);
+  currentDraftSignatureRef.current = currentDraftSignature;
+  const isDraftDirty = lastSavedDraftSignature.current === null
+    ? isDirty
+    : currentDraftSignature !== lastSavedDraftSignature.current;
+  const isSaveBarVisible = isDraftDirty || saveIndicator === "saving" || (saveIndicator === "saved" && !isDraftDirty);
+  const saveLessonChangesRef = useRef<((status: "draft" | "published", isAutoSave?: boolean, isPublishAction?: boolean) => Promise<void>) | null>(null);
 
   async function handleStudentChange(student: StudentUser) {
     const id = student?.id?.trim();
@@ -1155,10 +1181,16 @@ export default function InstructorWorkstationPage({
 
   const activateLesson = (lesson: LessonWithVersion) => {
     saveRequestId.current += 1;
+    if (autoSaveTimer.current !== null) window.clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = null;
+    if (savedIndicatorTimer.current !== null) window.clearTimeout(savedIndicatorTimer.current);
+    savedIndicatorTimer.current = null;
     pendingAutoSave.current = false;
     saveInFlight.current = false;
     activeLessonIdRef.current = lesson.id;
     lastSavedDraftSignature.current = null;
+    setIsDirty(false);
+    setSaveIndicator("idle");
     bindLesson(lesson);
     const content = lesson.content || {};
     const lessonSlug = typeof content.slug === "string" ? content.slug : lesson.id;
@@ -1215,9 +1247,16 @@ export default function InstructorWorkstationPage({
   const duplicateLesson = (lesson?: LessonWithVersion) => {
     writeEditLessonQuery(null);
     saveRequestId.current += 1;
+    if (autoSaveTimer.current !== null) window.clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = null;
+    if (savedIndicatorTimer.current !== null) window.clearTimeout(savedIndicatorTimer.current);
+    savedIndicatorTimer.current = null;
     pendingAutoSave.current = false;
     saveInFlight.current = false;
     activeLessonIdRef.current = null;
+    lastSavedDraftSignature.current = null;
+    setIsDirty(false);
+    setSaveIndicator("idle");
     resetStore();
     const sourceContent = (lesson?.content || workstationState.content) as Record<string, any>;
     const sourceTitle = lesson?.title || newLesson.title || "Untitled Lesson";
@@ -1922,23 +1961,55 @@ export default function InstructorWorkstationPage({
   }, [createdLessons, activeTab, databaseLessonId]);
 
   useEffect(() => {
-    if (!databaseLessonId || !hasLoadedLesson.current) return;
-    const draftSignature = getDraftSignature(workstationState.content, newLesson.title, newLesson.subtitle, newLesson.moduleNumber);
+    if (databaseLessonId && !hasLoadedLesson.current) return;
     if (lastSavedDraftSignature.current === null) {
-      lastSavedDraftSignature.current = draftSignature;
+      lastSavedDraftSignature.current = currentDraftSignature;
+      setIsDirty(false);
       return;
     }
-    if (lastSavedDraftSignature.current === draftSignature) return;
-    setSaveIndicator("saving");
+    setIsDirty(currentDraftSignature !== lastSavedDraftSignature.current);
+  }, [currentDraftSignature, databaseLessonId]);
+
+  useEffect(() => {
+    if (!databaseLessonId || !hasLoadedLesson.current) return;
+    const draftSignature = currentDraftSignature;
+    if (lastSavedDraftSignature.current === null) {
+      lastSavedDraftSignature.current = draftSignature;
+      setIsDirty(false);
+      return;
+    }
+    if (lastSavedDraftSignature.current === draftSignature) {
+      setIsDirty(false);
+      return;
+    }
+    setIsDirty(true);
     const saveAfterInactivity = () => {
+      autoSaveTimer.current = null;
       const elapsed = Date.now() - lastInputAt.current;
-      if (elapsed < 3000) return window.setTimeout(saveAfterInactivity, 3000 - elapsed);
+      if (elapsed < 3000) {
+        autoSaveTimer.current = window.setTimeout(saveAfterInactivity, 3000 - elapsed);
+        return;
+      }
       void saveLessonChanges(newLesson.status === "published" ? "published" : "draft", true);
-      return undefined;
     };
-    const timer = window.setTimeout(saveAfterInactivity, 5000);
-    return () => window.clearTimeout(timer);
-  }, [workstationState.content, workstationState.bannerUrl, workstationState.bannerPosition, workstationState.bannerDimness, newLesson.title, newLesson.subtitle, newLesson.moduleNumber, sidebarBlocksByStep, databaseLessonId]);
+    autoSaveTimer.current = window.setTimeout(saveAfterInactivity, 5000);
+    return () => {
+      if (autoSaveTimer.current !== null) window.clearTimeout(autoSaveTimer.current);
+      autoSaveTimer.current = null;
+    };
+  }, [currentDraftSignature, databaseLessonId, newLesson.status]);
+
+  useEffect(() => {
+    if (saveIndicator !== "saved") return;
+    savedIndicatorTimer.current = window.setTimeout(() => {
+      savedIndicatorTimer.current = null;
+      setSaveIndicator((current) => current === "saved" ? "idle" : current);
+    }, 2000);
+    return () => {
+      if (savedIndicatorTimer.current !== null) window.clearTimeout(savedIndicatorTimer.current);
+      savedIndicatorTimer.current = null;
+    };
+  }, [saveIndicator]);
 
   useEffect(() => {
     const handleInput = () => {
@@ -2195,6 +2266,7 @@ export default function InstructorWorkstationPage({
       lessonResources,
     };
     const requestId = ++saveRequestId.current;
+    let saveSucceeded = false;
     try {
       if (selectedLessonId && editorLesson?.id !== selectedLessonId) {
         throw new Error("The active lesson identity is not synchronized with the database record");
@@ -2231,6 +2303,19 @@ export default function InstructorWorkstationPage({
           });
       const savedSlug = typeof lesson.content?.slug === "string" ? lesson.content.slug : slug;
       if (requestId !== saveRequestId.current || activeLessonIdRef.current !== selectedLessonId) return;
+      saveSucceeded = true;
+      const savedDraftSignature = getDraftSignature(
+        workstationState.content,
+        newLesson.title,
+        newLesson.subtitle,
+        newLesson.moduleNumber,
+        savedSlug,
+      );
+      lastSavedDraftSignature.current = savedDraftSignature;
+      if (currentDraftSignatureRef.current === savedDraftSignature) {
+        if (autoSaveTimer.current !== null) window.clearTimeout(autoSaveTimer.current);
+        autoSaveTimer.current = null;
+      }
       setDatabaseLessonId(lesson.id);
       activeLessonIdRef.current = lesson.id;
       bindLesson(lesson);
@@ -2244,7 +2329,6 @@ export default function InstructorWorkstationPage({
       }));
       setWorkstationState((previous) => ({
         ...previous,
-        content: JSON.stringify(previous.content) === JSON.stringify(workstationState.content) ? lesson.content || content : previous.content,
         bannerUrl: workstationState.bannerUrl,
         bannerPosition: workstationState.bannerPosition,
         bannerDimness: workstationState.bannerDimness,
@@ -2254,7 +2338,6 @@ export default function InstructorWorkstationPage({
       window.dispatchEvent(new Event("fluentia:lesson-updated"));
       setLessonStatus(status);
       setSaveIndicator("saved");
-      lastSavedDraftSignature.current = getDraftSignature(content, title, content.subtitle, String(moduleNumber));
       let assignmentSyncWarning = "";
       if (status === "published" && assignedStudent?.id) {
         try {
@@ -2301,16 +2384,17 @@ export default function InstructorWorkstationPage({
       if (requestId === saveRequestId.current) {
         saveInFlight.current = false;
         if (!isAutoSave) setIsPublishing(false);
-        if (pendingAutoSave.current) {
-          pendingAutoSave.current = false;
-          const latestSignature = getDraftSignature(workstationState.content, newLesson.title, newLesson.subtitle, newLesson.moduleNumber);
-          if (latestSignature !== lastSavedDraftSignature.current) {
-            window.setTimeout(() => void saveLessonChanges(status, true), 0);
-          }
+        pendingAutoSave.current = false;
+        if (saveSucceeded && currentDraftSignatureRef.current !== lastSavedDraftSignature.current) {
+          window.setTimeout(() => {
+            void saveLessonChangesRef.current?.(status, true);
+          }, 0);
         }
       }
     }
   };
+
+  saveLessonChangesRef.current = saveLessonChanges;
 
   const handleSaveDraft = () => {
     console.log("Saving lesson...", { ...newLesson, content: workstationState.content });
@@ -4212,15 +4296,20 @@ export default function InstructorWorkstationPage({
 </section>
 </>}
       </div>
-      {activeTab === "builder" && <div className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 rounded-full border border-slate-800 bg-slate-900/90 px-5 py-2.5 shadow-2xl backdrop-blur">
-        <button
-          type="button"
-          onClick={handleSaveDraft}
-          disabled={saveIndicator === "saving"}
-          className="whitespace-nowrap text-sm font-medium text-amber-400 transition hover:text-amber-300 disabled:cursor-wait disabled:opacity-60"
-        >
-          {saveIndicator === "saving" ? "Saving..." : "Save Changes"}
-        </button>
+      {activeTab === "builder" && <div aria-hidden={!isSaveBarVisible} className={`fixed bottom-6 left-1/2 z-40 -translate-x-1/2 rounded-full border border-slate-800 bg-slate-900/90 px-5 py-2.5 shadow-2xl backdrop-blur transition-all duration-300 ${isSaveBarVisible ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0"}`}>
+        {saveIndicator === "saved" && !isDraftDirty ? (
+          <span role="status" className="whitespace-nowrap text-sm font-medium text-emerald-400">Saved ✓</span>
+        ) : (
+          <button
+            type="button"
+            onClick={handleSaveDraft}
+            disabled={saveIndicator === "saving"}
+            tabIndex={isSaveBarVisible ? 0 : -1}
+            className="whitespace-nowrap text-sm font-medium text-amber-400 transition hover:text-amber-300 disabled:cursor-wait disabled:opacity-60"
+          >
+            {saveIndicator === "saving" ? "Saving..." : "Save Changes"}
+          </button>
+        )}
       </div>}
       <div className={`fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm transition-opacity duration-300 ease-in-out ${guidanceOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`} role="presentation" onClick={() => setGuidanceOpen(false)} aria-hidden={!guidanceOpen}>
         <aside className={`absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-amber-500/40 bg-[#0c1017]/95 p-5 text-stone-200 shadow-2xl backdrop-blur-md transition-transform duration-300 ease-in-out ${guidanceOpen ? "translate-x-0" : "translate-x-full"}`} role="dialog" aria-modal={guidanceOpen} aria-labelledby="workstation-guidance-title" onClick={(event) => event.stopPropagation()}>
