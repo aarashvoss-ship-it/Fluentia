@@ -42,6 +42,13 @@ function normalizeEscapedBoldMarkdown(markdown: string) {
   return markdown.replace(/\\\*\s*\\\*\s*(.+?)\s*\\\*\s*\\\*/g, "**$1**");
 }
 
+function normalizeLegacyMarkdown(markdown: string) {
+  const unwrapped = markdown.startsWith('"') && markdown.endsWith('"')
+    ? markdown.slice(1, -1).replace(/\\"/g, '"')
+    : markdown;
+  return normalizeEscapedBoldMarkdown(unwrapped.replace(/\\n/g, "\n"));
+}
+
 function isHtmlContent(value: string) {
   return /<\/?(?:p|h[1-6]|ul|ol|li|blockquote|pre|code|table|thead|tbody|tr|th|td|a|strong|em|s|span|hr|br)\b/i.test(value);
 }
@@ -110,7 +117,7 @@ export function TiptapEditor({
   const [iconSearch, setIconSearch] = useState("");
   const iconSelectionRef = useRef<{ from: number; to: number } | null>(null);
   const valueIsHtml = isHtmlContent(value);
-  const normalizedValue = valueIsHtml ? value : normalizeEscapedBoldMarkdown(value);
+  const normalizedValue = valueIsHtml ? value : normalizeLegacyMarkdown(value);
 
   const extensions = useMemo(() => [
     StarterKit.configure({ link: false, heading: { levels: [1, 2, 3, 4] } }),
@@ -146,12 +153,16 @@ export function TiptapEditor({
 
   useEffect(() => {
     if (!editor) return;
-    const currentValue = valueIsHtml ? editor.getHTML() : editor.getMarkdown();
-    if (currentValue !== normalizedValue) {
-      editor.commands.setContent(normalizedValue, { contentType: valueIsHtml ? "html" : "markdown", emitUpdate: false });
+    if (valueIsHtml) {
+      if (editor.getHTML() !== normalizedValue) {
+        editor.commands.setContent(normalizedValue, { contentType: "html", emitUpdate: false });
+      }
+    } else {
+      editor.commands.setContent(normalizedValue, { contentType: "markdown", emitUpdate: false });
     }
-    onHtmlChangeRef.current?.(editor.isEmpty ? "" : editor.getHTML());
-    if (normalizedValue !== value) onChangeRef.current(editor.isEmpty ? "" : editor.getHTML());
+    const html = editor.isEmpty ? "" : editor.getHTML();
+    onHtmlChangeRef.current?.(html);
+    if (!valueIsHtml && html !== value) onChangeRef.current(html);
   }, [editor, normalizedValue, value, valueIsHtml]);
 
   const activeStates = useEditorState({
