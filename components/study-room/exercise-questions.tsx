@@ -43,8 +43,8 @@ export function ExerciseQuestions({
 
         return (
           <section key={question.id} className="space-y-3 border-b border-[#202631] pb-5 last:border-0 last:pb-0">
-            <div id={`exercise-question-${question.id}`} role="heading" aria-level={4} className="flex items-start gap-1 text-base font-semibold leading-relaxed text-stone-100">
-              <span className="mr-1 text-amber-400">{index + 1}.</span>
+            <div id={`exercise-question-${question.id}`} role="heading" aria-level={4} className="flex items-start gap-1 text-base leading-relaxed text-stone-100">
+              <span className="mr-1 shrink-0 font-semibold text-amber-400">{index + 1}.</span>
               {type === "fill_in_the_blanks" ? (
                 <FillInBlanksMarkdown
                   blockId={question.id}
@@ -55,10 +55,10 @@ export function ExerciseQuestions({
                   values={textAnswers}
                   onChange={(blankIndex, answer) => onBlankAnswer?.(question.id, blankIndex, answer)}
                   readOnly={readOnly}
-                  className="min-w-0 flex-1 text-base font-semibold leading-relaxed text-stone-100 [&_p]:mb-0 [&_strong]:font-semibold"
+                  className="min-w-0 flex-1 text-base leading-relaxed text-stone-100 [&_p]:mb-0 [&_strong]:font-semibold"
                 />
               ) : (
-                <MarkdownContent value={question.prompt || ""} className="min-w-0 flex-1 text-base font-semibold leading-relaxed text-stone-100 [&_p]:m-0 [&_strong]:font-semibold" />
+                <MarkdownContent value={question.prompt || ""} className="min-w-0 flex-1 text-base leading-relaxed text-stone-100 [&_p]:m-0 [&_strong]:font-semibold" />
               )}
             </div>
 
