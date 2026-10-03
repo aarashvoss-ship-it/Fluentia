@@ -42,6 +42,12 @@ interface InstructorWorkstationProps {
   lessonSlug: string;
 }
 
+function resizeTextareaToContent(textarea: HTMLTextAreaElement | null) {
+  if (!textarea) return;
+  textarea.style.height = "auto";
+  textarea.style.height = `${textarea.scrollHeight}px`;
+}
+
 function LessonMetadataDisclosure({
   lessonId,
   lessonTitle,
@@ -696,6 +702,8 @@ export default function InstructorWorkstationPage({
     customTagsText: "",
     status: "draft" as "draft" | "published",
   });
+  const lessonTitleTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const lessonSubtitleTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const livePreviewSnapshot: StudentPreviewSnapshot = {
     content: workstationState.content,
@@ -732,6 +740,11 @@ export default function InstructorWorkstationPage({
   useEffect(() => {
     previewChannelRef.current?.postMessage({ type: "preview-state", snapshot: livePreviewSnapshot });
   }, [workstationState.content, sidebarBlocksByStep, previewStep, newLesson.title, newLesson.subtitle, newLesson.moduleNumber, workstationState.bannerUrl, workstationState.bannerPosition, workstationState.bannerDimness]);
+
+  useEffect(() => {
+    resizeTextareaToContent(lessonTitleTextareaRef.current);
+    resizeTextareaToContent(lessonSubtitleTextareaRef.current);
+  }, [newLesson.title, newLesson.subtitle]);
 
   useEffect(() => {
     if (!profileSaveToast) return;
@@ -3738,20 +3751,39 @@ export default function InstructorWorkstationPage({
 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Lesson Builder</p>
 <h2 id="lesson-details-title" className="mt-1 font-sans text-xl font-semibold text-stone-100">Lesson Details</h2>
 </div>
-            <div className="grid gap-3 md:grid-cols-5">
-<label className="text-xs text-stone-400">Lesson Title<input value={newLesson.title} onChange={(event) => setLessonTitle(event.target.value)} placeholder="A new lesson" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" />
-</label>
-<label className="text-xs text-stone-400">Select Student<select value={selectedStudentId || ""} onChange={(event) => { const nextStudent = students.find((student) => student.id === event.target.value); if (nextStudent) void handleStudentChange(nextStudent); }} className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-white [color-scheme:dark]" aria-label="Select student for lesson"><option value="" className="bg-[#0c1017] text-white">{studentsLoading ? "Loading students..." : studentsError ? "Unable to load students" : students.length === 0 ? "No registered students" : "Choose a student"}</option>{students.map((student) => <option key={student.id} value={student.id} className="bg-[#0c1017] text-white">{student.name}</option>)}</select>
-</label>
-<label className="text-xs text-stone-400">Module Number<input value={newLesson.moduleNumber} onChange={(event) => setNewLesson((previous) => ({ ...previous, moduleNumber: event.target.value }))} placeholder="1" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" />
-</label>
-<label className="text-xs text-stone-400">CEFR Level<select value={newLesson.level} onChange={(event) => updateBuilderLevel(event.target.value)} className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-white [color-scheme:dark]" aria-label="Lesson CEFR level">{CEFR_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select>
-</label>
-<div className="text-xs text-stone-400">Visibility<p className="mt-1 rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200">{lessonStatus === "published" ? "Published" : "Draft"}</p></div>
-</div>
-            
-            <label className="mt-3 block text-xs text-stone-400">Subtitle<input value={newLesson.subtitle} onChange={(event) => setNewLesson((previous) => ({ ...previous, subtitle: event.target.value }))} placeholder="Lesson summary" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" />
-</label>
+            <div className="grid gap-3">
+              <label className="block text-xs text-stone-400">Lesson Title
+                <textarea
+                  ref={lessonTitleTextareaRef}
+                  value={newLesson.title}
+                  onChange={(event) => setLessonTitle(event.target.value)}
+                  onInput={(event) => resizeTextareaToContent(event.currentTarget)}
+                  placeholder="A new lesson"
+                  rows={1}
+                  className="mt-1 min-h-10 w-full resize-none overflow-hidden rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs leading-relaxed text-stone-200 outline-none focus:border-amber-500/40"
+                />
+              </label>
+              <label className="block text-xs text-stone-400">Subtitle
+                <textarea
+                  ref={lessonSubtitleTextareaRef}
+                  value={newLesson.subtitle}
+                  onChange={(event) => setNewLesson((previous) => ({ ...previous, subtitle: event.target.value }))}
+                  onInput={(event) => resizeTextareaToContent(event.currentTarget)}
+                  placeholder="Lesson summary"
+                  rows={1}
+                  className="mt-1 min-h-10 w-full resize-none overflow-hidden rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs leading-relaxed text-stone-200 outline-none focus:border-amber-500/40"
+                />
+              </label>
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="text-xs text-stone-400">Select Student<select value={selectedStudentId || ""} onChange={(event) => { const nextStudent = students.find((student) => student.id === event.target.value); if (nextStudent) void handleStudentChange(nextStudent); }} className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-white [color-scheme:dark]" aria-label="Select student for lesson"><option value="" className="bg-[#0c1017] text-white">{studentsLoading ? "Loading students..." : studentsError ? "Unable to load students" : students.length === 0 ? "No registered students" : "Choose a student"}</option>{students.map((student) => <option key={student.id} value={student.id} className="bg-[#0c1017] text-white">{student.name}</option>)}</select>
+              </label>
+              <label className="text-xs text-stone-400">Module Number<input value={newLesson.moduleNumber} onChange={(event) => setNewLesson((previous) => ({ ...previous, moduleNumber: event.target.value }))} placeholder="1" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" />
+              </label>
+              <label className="text-xs text-stone-400">CEFR Level<select value={newLesson.level} onChange={(event) => updateBuilderLevel(event.target.value)} className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-white [color-scheme:dark]" aria-label="Lesson CEFR level">{CEFR_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select>
+              </label>
+              <div className="text-xs text-stone-400">Visibility<p className="mt-1 rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200">{lessonStatus === "published" ? "Published" : "Draft"}</p></div>
+            </div>
             <div className="mt-3 grid gap-3 md:grid-cols-3">
               <label className="text-xs text-stone-400">Domain<input value={newLesson.tags.domain} onChange={(event) => updateBuilderTags({ ...newLesson.tags, domain: event.target.value }, newLesson.customTagsText)} placeholder="Work, travel, culture..." className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label>
               <label className="text-xs text-stone-400">Skill Focus<input value={newLesson.tags.skill_focus} onChange={(event) => updateBuilderTags({ ...newLesson.tags, skill_focus: event.target.value }, newLesson.customTagsText)} placeholder="Speaking, listening..." className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label>
