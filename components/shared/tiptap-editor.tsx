@@ -108,11 +108,16 @@ function ToolbarButton({
   );
 }
 
+function restoreWindowScrollPosition(scrollX: number, scrollY: number) {
+  window.requestAnimationFrame(() => window.scrollTo(scrollX, scrollY));
+}
+
 function TiptapIconPicker({ editor, compact }: { editor: Editor | null; compact: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const selectionRef = useRef<{ from: number; to: number } | null>(null);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const normalizedSearch = normalizeIconSearch(search);
@@ -137,6 +142,7 @@ function TiptapIconPicker({ editor, compact }: { editor: Editor | null; compact:
 
   useEffect(() => {
     if (!isOpen) return;
+    searchInputRef.current?.focus({ preventScroll: true });
     updatePosition();
     const handlePointerDown = (event: PointerEvent) => {
       if (event.target instanceof Node
@@ -167,12 +173,16 @@ function TiptapIconPicker({ editor, compact }: { editor: Editor | null; compact:
           ref={triggerRef}
           type="button"
           onMouseDown={(event) => event.preventDefault()}
-          onClick={() => {
+          onClick={(event) => {
+            event.preventDefault();
+            const scrollX = window.scrollX;
+            const scrollY = window.scrollY;
             if (!editor) return;
             selectionRef.current = { from: editor.state.selection.from, to: editor.state.selection.to };
             setSearch("");
             if (!isOpen) updatePosition();
             setIsOpen((open) => !open);
+            restoreWindowScrollPosition(scrollX, scrollY);
           }}
           aria-label="Insert Icon"
           aria-expanded={isOpen}
@@ -192,7 +202,7 @@ function TiptapIconPicker({ editor, compact }: { editor: Editor | null; compact:
             className="w-72 max-w-[calc(100vw-1rem)] rounded-md border border-[#394252] bg-[#171d28] p-3 shadow-2xl"
           >
             <input
-              autoFocus
+              ref={searchInputRef}
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -208,7 +218,10 @@ function TiptapIconPicker({ editor, compact }: { editor: Editor | null; compact:
                   aria-label={name}
                   title={name}
                   onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => {
+                  onClick={(event) => {
+                    event.preventDefault();
+                    const scrollX = window.scrollX;
+                    const scrollY = window.scrollY;
                     if (!editor || !isLucideIconName(name)) return;
                     const selection = selectionRef.current || editor.state.selection;
                     const maxPosition = editor.state.doc.content.size;
@@ -217,8 +230,9 @@ function TiptapIconPicker({ editor, compact }: { editor: Editor | null; compact:
                     editor.chain().insertContentAt({ from, to }, {
                       type: "inlineLucideIcon",
                       attrs: { name },
-                    }).focus().run();
+                    }).focus(undefined, { scrollIntoView: false }).run();
                     setIsOpen(false);
+                    restoreWindowScrollPosition(scrollX, scrollY);
                   }}
                   className="flex h-8 items-center justify-center rounded border border-transparent text-stone-300 hover:border-amber-500/40 hover:bg-amber-500/20 hover:text-amber-400"
                 >

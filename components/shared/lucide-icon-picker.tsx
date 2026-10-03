@@ -81,6 +81,10 @@ export function normalizeIconSearch(value: unknown): string {
   return typeof value === "string" ? value.normalize("NFKC").trim().toLocaleLowerCase() : "";
 }
 
+function restoreWindowScrollPosition(scrollX: number, scrollY: number) {
+  window.requestAnimationFrame(() => window.scrollTo(scrollX, scrollY));
+}
+
 export function filterLucideIconNames(names: readonly unknown[], search: string): string[] {
   return names.filter((name): name is string =>
     typeof name === "string"
@@ -122,6 +126,7 @@ export function LucideIconPicker({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
   const selectedName = isLucideIconName(value) ? value : "";
   const selectedIcon = selectedName ? ICON_COMPONENTS[selectedName] : undefined;
@@ -151,6 +156,7 @@ export function LucideIconPicker({
 
   useEffect(() => {
     if (!isOpen) return;
+    searchInputRef.current?.focus({ preventScroll: true });
     updatePopoverPosition();
     const handlePointerDown = (event: PointerEvent) => {
       if (event.target instanceof Node
@@ -180,9 +186,13 @@ export function LucideIconPicker({
         ref={triggerRef}
         type="button"
         onMouseDown={(event) => event.preventDefault()}
-        onClick={() => {
+        onClick={(event) => {
+          event.preventDefault();
+          const scrollX = window.scrollX;
+          const scrollY = window.scrollY;
           if (!isOpen) updatePopoverPosition();
           setIsOpen((open) => !open);
+          restoreWindowScrollPosition(scrollX, scrollY);
         }}
         aria-expanded={isOpen}
         aria-haspopup="dialog"
@@ -207,7 +217,7 @@ export function LucideIconPicker({
           <label className="relative block">
             <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-stone-500" aria-hidden="true" />
             <input
-              autoFocus
+              ref={searchInputRef}
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -239,9 +249,14 @@ export function LucideIconPicker({
                 aria-selected={selectedName === iconName}
                 title={iconName}
                 aria-label={iconName}
-                onClick={() => {
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={(event) => {
+                  event.preventDefault();
+                  const scrollX = window.scrollX;
+                  const scrollY = window.scrollY;
                   onChange(iconName);
                   setIsOpen(false);
+                  restoreWindowScrollPosition(scrollX, scrollY);
                 }}
                 className={`flex aspect-square items-center justify-center rounded border transition hover:border-amber-500/40 hover:bg-amber-500/20 ${selectedName === iconName ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-transparent text-stone-300"}`}
               >
