@@ -85,12 +85,14 @@ function restoreWindowScrollPosition(scrollX: number, scrollY: number) {
   window.requestAnimationFrame(() => window.scrollTo(scrollX, scrollY));
 }
 
-export function filterLucideIconNames(names: readonly unknown[], search: string): string[] {
-  return names.filter((name): name is string =>
+export function filterLucideIconNames(names: readonly unknown[] | null | undefined, search: string): string[] {
+  if (!Array.isArray(names)) return [];
+  const filteredNames = names.filter((name): name is string =>
     typeof name === "string"
     && isRenderableIcon(ICON_COMPONENTS[name])
     && name.toLocaleLowerCase().includes(search),
   );
+  return Array.isArray(filteredNames) ? filteredNames : [];
 }
 
 export function isLucideIconName(name: unknown): name is string {
@@ -147,10 +149,11 @@ export function LucideIconPicker({
     setPopoverPosition({ top, left });
   };
 
-  const visibleIcons = useMemo(() => {
-    const names = normalizedSearch
+  const safeFilteredIcons = useMemo(() => {
+    const categoryIcons = ICON_CATEGORIES.find((category) => category.id === activeCategory)?.icons;
+    const names: readonly unknown[] = normalizedSearch
       ? ALL_ICON_NAMES
-      : ICON_CATEGORIES.find((category) => category.id === activeCategory)?.icons || [];
+      : Array.isArray(categoryIcons) ? categoryIcons : [];
     return filterLucideIconNames(names, normalizedSearch);
   }, [activeCategory, normalizedSearch]);
 
@@ -229,7 +232,7 @@ export function LucideIconPicker({
             />
           </label>
           <div className="mt-3 flex gap-1 overflow-x-auto pb-1" role="tablist" aria-label="Icon categories">
-            {ICON_CATEGORIES.map((category) => (
+            {(Array.isArray(ICON_CATEGORIES) ? ICON_CATEGORIES : []).map((category) => (
               <button
                 key={category.id}
                 type="button"
@@ -243,7 +246,7 @@ export function LucideIconPicker({
             ))}
           </div>
           <div className="mt-2 grid max-h-52 grid-cols-5 gap-1 overflow-y-auto sm:grid-cols-6" role="listbox" aria-label="Available icons">
-            {visibleIcons.map((iconName) => (
+            {(Array.isArray(safeFilteredIcons) ? safeFilteredIcons : []).map((iconName) => (
               <button
                 key={iconName}
                 type="button"
@@ -265,7 +268,7 @@ export function LucideIconPicker({
                 <DynamicLucideIcon name={iconName} className="h-4 w-4" aria-hidden="true" />
               </button>
             ))}
-            {visibleIcons.length === 0 && <p className="col-span-full py-6 text-center text-xs text-stone-500">No icons found.</p>}
+            {safeFilteredIcons.length === 0 && <p className="col-span-full py-6 text-center text-xs text-stone-500">No icons found.</p>}
           </div>
           </div>
         </IconPickerErrorBoundary>,

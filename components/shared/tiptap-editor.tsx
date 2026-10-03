@@ -126,6 +126,7 @@ function TiptapIconPicker({ editor, compact }: { editor: Editor | null; compact:
     () => filterLucideIconNames(normalizedSearch ? LUCIDE_ICON_NAMES : popularIcons, normalizedSearch).slice(0, 60),
     [normalizedSearch],
   );
+  const safeFilteredIcons = Array.isArray(visibleIcons) ? visibleIcons : [];
 
   const updatePosition = () => {
     const trigger = triggerRef.current;
@@ -213,7 +214,7 @@ function TiptapIconPicker({ editor, compact }: { editor: Editor | null; compact:
               className="h-9 w-full rounded border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500/40"
             />
             <div className="mt-2 grid max-h-48 grid-cols-6 gap-1 overflow-y-auto" aria-label="Available icons">
-              {visibleIcons.map((name) => isLucideIconName(name) ? (
+              {safeFilteredIcons.map((name) => isLucideIconName(name) ? (
                 <button
                   key={name}
                   type="button"
@@ -241,7 +242,7 @@ function TiptapIconPicker({ editor, compact }: { editor: Editor | null; compact:
                   <DynamicLucideIcon name={name} className="h-4 w-4" aria-hidden="true" />
                 </button>
               ) : null)}
-              {visibleIcons.length === 0 && <p className="col-span-full py-4 text-center text-xs text-stone-500">No icons found.</p>}
+              {safeFilteredIcons.length === 0 && <p className="col-span-full py-4 text-center text-xs text-stone-500">No icons found.</p>}
             </div>
           </div>
         </IconPickerErrorBoundary>,
