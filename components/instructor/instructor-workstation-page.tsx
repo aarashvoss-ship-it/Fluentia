@@ -113,10 +113,22 @@ function StepSidebarEditorPanel({
   setSidebarBlocksByStep: React.Dispatch<React.SetStateAction<SidebarBlocksByStep>>;
   mainBlocks: ContentBlock[];
 }) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const contentId = "step-sidebar-editor-content";
+
   return (
     <section className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="font-sans text-xl font-semibold text-stone-100">Step Sidebar</h3>
+        <button
+          type="button"
+          onClick={() => setIsCollapsed((collapsed) => !collapsed)}
+          aria-expanded={!isCollapsed}
+          aria-controls={contentId}
+          className="flex min-w-0 items-center gap-2 text-left"
+        >
+          <ChevronDown className={`h-4 w-4 shrink-0 text-stone-400 transition-transform duration-200 ${isCollapsed ? "-rotate-90" : ""}`} aria-hidden="true" />
+          <h3 className="font-sans text-xl font-semibold text-stone-100">Step Sidebar</h3>
+        </button>
         <button
           type="button"
           onClick={() => setSidebarBlocksByStep((current) => ({
@@ -128,7 +140,15 @@ function StepSidebarEditorPanel({
           <Plus className="h-3.5 w-3.5" /> Add Block
         </button>
       </div>
-      <label className="mt-3 block text-xs text-stone-500">
+      <div
+        id={contentId}
+        aria-hidden={isCollapsed}
+        inert={isCollapsed}
+        className="grid transition-[grid-template-rows] duration-200 ease-in-out"
+        style={{ gridTemplateRows: isCollapsed ? "0fr" : "1fr" }}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <label className="mt-3 block text-xs text-stone-500">
         Editing step
         <select value={sidebarStep} onChange={(event) => setSidebarStep(event.target.value as keyof SidebarBlocksByStep)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark]" aria-label="Sidebar step">
           <option value="warm_up">Warm-up</option>
@@ -138,8 +158,8 @@ function StepSidebarEditorPanel({
           <option value="writing">Writing</option>
           <option value="speaking">Speaking</option>
         </select>
-      </label>
-      <div className="mt-4 space-y-3">
+          </label>
+          <div className="mt-4 space-y-3">
         {(sidebarBlocksByStep[sidebarStep] || []).map((block) => (
           <div key={block.id} className="space-y-3 rounded-md border border-[#202631] bg-[#171d28] p-3">
             <div className="flex items-center gap-2">
@@ -205,6 +225,8 @@ function StepSidebarEditorPanel({
           </div>
         ))}
         {(sidebarBlocksByStep[sidebarStep] || []).length === 0 && <p className="rounded-md border border-dashed border-[#394252] p-4 text-xs text-stone-500">No sidebar blocks for this step.</p>}
+          </div>
+        </div>
       </div>
     </section>
   );

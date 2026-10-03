@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { EditorContent, useEditor } from "@tiptap/react";
+import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -42,9 +42,13 @@ function normalizeEscapedBoldMarkdown(markdown: string) {
   return markdown.replace(/\\\*\s*\\\*\s*(.+?)\s*\\\*\s*\\\*/g, "**$1**");
 }
 
+function isHtmlContent(value: string) {
+  return /<\/?(?:p|h[1-6]|ul|ol|li|blockquote|pre|code|table|thead|tbody|tr|th|td|a|strong|em|s|span|hr|br)\b/i.test(value);
+}
+
 type TiptapEditorProps = {
   value: string;
-  onChange: (markdown: string) => void;
+  onChange: (html: string) => void;
   onHtmlChange?: (html: string) => void;
   placeholder?: string;
   ariaLabel: string;
@@ -105,7 +109,8 @@ export function TiptapEditor({
   const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
   const [iconSearch, setIconSearch] = useState("");
   const iconSelectionRef = useRef<{ from: number; to: number } | null>(null);
-  const normalizedValue = normalizeEscapedBoldMarkdown(value);
+  const valueIsHtml = isHtmlContent(value);
+  const normalizedValue = valueIsHtml ? value : normalizeEscapedBoldMarkdown(value);
 
   const extensions = useMemo(() => [
     StarterKit.configure({ link: false, heading: { levels: [1, 2, 3, 4] } }),
@@ -124,7 +129,7 @@ export function TiptapEditor({
   const editor = useEditor({
     extensions,
     content: normalizedValue,
-    contentType: "markdown",
+    contentType: valueIsHtml ? "html" : "markdown",
     immediatelyRender: false,
     editorProps: {
       attributes: {
@@ -133,19 +138,59 @@ export function TiptapEditor({
       },
     },
     onUpdate: ({ editor: updatedEditor }) => {
-      onChangeRef.current(updatedEditor.getMarkdown());
-      onHtmlChangeRef.current?.(updatedEditor.getHTML());
+      const html = updatedEditor.isEmpty ? "" : updatedEditor.getHTML();
+      onChangeRef.current(html);
+      onHtmlChangeRef.current?.(html);
     },
   }, [extensions]);
 
   useEffect(() => {
     if (!editor) return;
-    if (editor.getMarkdown() !== normalizedValue) {
-      editor.commands.setContent(normalizedValue, { contentType: "markdown", emitUpdate: false });
+    const currentValue = valueIsHtml ? editor.getHTML() : editor.getMarkdown();
+    if (currentValue !== normalizedValue) {
+      editor.commands.setContent(normalizedValue, { contentType: valueIsHtml ? "html" : "markdown", emitUpdate: false });
     }
-    onHtmlChangeRef.current?.(editor.getHTML());
-    if (normalizedValue !== value) onChangeRef.current(normalizedValue);
-  }, [editor, normalizedValue, value]);
+    onHtmlChangeRef.current?.(editor.isEmpty ? "" : editor.getHTML());
+    if (normalizedValue !== value) onChangeRef.current(editor.isEmpty ? "" : editor.getHTML());
+  }, [editor, normalizedValue, value, valueIsHtml]);
+
+  const activeStates = useEditorState({
+    editor,
+    selector: ({ editor: currentEditor }) => ({
+      paragraph: currentEditor?.isActive("paragraph") ?? false,
+      heading1: currentEditor?.isActive("heading", { level: 1 }) ?? false,
+      heading2: currentEditor?.isActive("heading", { level: 2 }) ?? false,
+      heading3: currentEditor?.isActive("heading", { level: 3 }) ?? false,
+      heading4: currentEditor?.isActive("heading", { level: 4 }) ?? false,
+      bold: currentEditor?.isActive("bold") ?? false,
+      italic: currentEditor?.isActive("italic") ?? false,
+      strike: currentEditor?.isActive("strike") ?? false,
+      bulletList: currentEditor?.isActive("bulletList") ?? false,
+      orderedList: currentEditor?.isActive("orderedList") ?? false,
+      blockquote: currentEditor?.isActive("blockquote") ?? false,
+      codeBlock: currentEditor?.isActive("codeBlock") ?? false,
+      link: currentEditor?.isActive("link") ?? false,
+      textStyle: currentEditor?.isActive("textStyle") ?? false,
+      table: currentEditor?.isActive("table") ?? false,
+    }),
+  });
+  const active = activeStates ?? {
+    paragraph: false,
+    heading1: false,
+    heading2: false,
+    heading3: false,
+    heading4: false,
+    bold: false,
+    italic: false,
+    strike: false,
+    bulletList: false,
+    orderedList: false,
+    blockquote: false,
+    codeBlock: false,
+    link: false,
+    textStyle: false,
+    table: false,
+  };
 
   useEffect(() => {
     if (!isColorPaletteOpen) return;
@@ -179,33 +224,33 @@ export function TiptapEditor({
     <div className="tiptap-editor w-full min-w-0 space-y-2">
       <div className="w-full min-w-0">
         <div className={`box-border flex w-full min-w-0 items-center justify-start rounded border border-[#202631] bg-[#0c1017] p-1 ${wrapToolbar ? "flex-wrap" : ""} ${compact ? "gap-1" : "gap-1.5"}`} role="toolbar" aria-label="Rich text formatting">
-          <ToolbarButton compact={compact} label="Normal paragraph" active={!!editor?.isActive("paragraph")} onClick={() => editor?.chain().focus().setParagraph().run()}>P</ToolbarButton>
-          <ToolbarButton compact={compact} label="Heading 1" active={!!editor?.isActive("heading", { level: 1 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}>H1</ToolbarButton>
-          <ToolbarButton compact={compact} label="Heading 2" active={!!editor?.isActive("heading", { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>H2</ToolbarButton>
-          <ToolbarButton compact={compact} label="Heading 3" active={!!editor?.isActive("heading", { level: 3 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}>H3</ToolbarButton>
-          <ToolbarButton compact={compact} label="Heading 4" active={!!editor?.isActive("heading", { level: 4 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 4 }).run()}>H4</ToolbarButton>
+          <ToolbarButton compact={compact} label="Normal paragraph" active={active.paragraph} onClick={() => editor?.chain().focus().setParagraph().run()}>P</ToolbarButton>
+          <ToolbarButton compact={compact} label="Heading 1" active={active.heading1} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}>H1</ToolbarButton>
+          <ToolbarButton compact={compact} label="Heading 2" active={active.heading2} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>H2</ToolbarButton>
+          <ToolbarButton compact={compact} label="Heading 3" active={active.heading3} onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}>H3</ToolbarButton>
+          <ToolbarButton compact={compact} label="Heading 4" active={active.heading4} onClick={() => editor?.chain().focus().toggleHeading({ level: 4 }).run()}>H4</ToolbarButton>
           <span className={`${compact ? "mx-0.5" : "mx-1"} h-4 w-px shrink-0 bg-[#394252]`} aria-hidden="true" />
-          <ToolbarButton compact={compact} label="Bold" active={!!editor?.isActive("bold")} onClick={() => editor?.chain().focus().toggleBold().run()}><Bold className="h-3.5 w-3.5" /></ToolbarButton>
-          <ToolbarButton compact={compact} label="Italic" active={!!editor?.isActive("italic")} onClick={() => editor?.chain().focus().toggleItalic().run()}><Italic className="h-3.5 w-3.5" /></ToolbarButton>
-          <ToolbarButton compact={compact} label="Strikethrough" active={!!editor?.isActive("strike")} onClick={() => editor?.chain().focus().toggleStrike().run()}><Strikethrough className="h-3.5 w-3.5" /></ToolbarButton>
+          <ToolbarButton compact={compact} label="Bold" active={active.bold} onClick={() => editor?.chain().focus().toggleBold().run()}><Bold className="h-3.5 w-3.5" /></ToolbarButton>
+          <ToolbarButton compact={compact} label="Italic" active={active.italic} onClick={() => editor?.chain().focus().toggleItalic().run()}><Italic className="h-3.5 w-3.5" /></ToolbarButton>
+          <ToolbarButton compact={compact} label="Strikethrough" active={active.strike} onClick={() => editor?.chain().focus().toggleStrike().run()}><Strikethrough className="h-3.5 w-3.5" /></ToolbarButton>
           <span className={`${compact ? "mx-0.5" : "mx-1"} h-4 w-px shrink-0 bg-[#394252]`} aria-hidden="true" />
-          <ToolbarButton compact={compact} label="Bullet list" active={!!editor?.isActive("bulletList")} onClick={() => editor?.chain().focus().toggleBulletList().run()}><List className="h-3.5 w-3.5" /></ToolbarButton>
-          <ToolbarButton compact={compact} label="Numbered list" active={!!editor?.isActive("orderedList")} onClick={() => editor?.chain().focus().toggleOrderedList().run()}><ListOrdered className="h-3.5 w-3.5" /></ToolbarButton>
+          <ToolbarButton compact={compact} label="Bullet list" active={active.bulletList} onClick={() => editor?.chain().focus().toggleBulletList().run()}><List className="h-3.5 w-3.5" /></ToolbarButton>
+          <ToolbarButton compact={compact} label="Numbered list" active={active.orderedList} onClick={() => editor?.chain().focus().toggleOrderedList().run()}><ListOrdered className="h-3.5 w-3.5" /></ToolbarButton>
           <span className={`${compact ? "mx-0.5" : "mx-1"} h-4 w-px shrink-0 bg-[#394252]`} aria-hidden="true" />
-          <ToolbarButton compact={compact} label="Callout / blockquote" active={!!editor?.isActive("blockquote")} onClick={() => editor?.chain().focus().toggleBlockquote().run()}><Lightbulb className="h-3.5 w-3.5" /></ToolbarButton>
-          <ToolbarButton compact={compact} label="Code block" active={!!editor?.isActive("codeBlock")} onClick={() => editor?.chain().focus().toggleCodeBlock().run()}><Code2 className="h-3.5 w-3.5" /></ToolbarButton>
+          <ToolbarButton compact={compact} label="Callout / blockquote" active={active.blockquote} onClick={() => editor?.chain().focus().toggleBlockquote().run()}><Lightbulb className="h-3.5 w-3.5" /></ToolbarButton>
+          <ToolbarButton compact={compact} label="Code block" active={active.codeBlock} onClick={() => editor?.chain().focus().toggleCodeBlock().run()}><Code2 className="h-3.5 w-3.5" /></ToolbarButton>
           <ToolbarButton compact={compact} label="Horizontal rule" onClick={() => editor?.chain().focus().setHorizontalRule().run()}><Minus className="h-3.5 w-3.5" /></ToolbarButton>
-          <ToolbarButton compact={compact} label={editor?.isActive("link") ? "Remove link" : "Add link"} active={!!editor?.isActive("link")} onClick={applyLink}><Link2 className="h-3.5 w-3.5" /></ToolbarButton>
+          <ToolbarButton compact={compact} label={active.link ? "Remove link" : "Add link"} active={active.link} onClick={applyLink}><Link2 className="h-3.5 w-3.5" /></ToolbarButton>
           <span className={`${compact ? "mx-0.5" : "mx-1"} h-4 w-px shrink-0 bg-[#394252]`} aria-hidden="true" />
           <ToolbarButton compact={compact} label="Insert table" onClick={() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}>Table +</ToolbarButton>
-          <ToolbarButton compact={compact} label="Add row below" disabled={!editor?.isActive("table")} onClick={() => editor?.chain().focus().addRowAfter().run()}>+ Row</ToolbarButton>
-          <ToolbarButton compact={compact} label="Delete row" disabled={!editor?.isActive("table")} onClick={() => editor?.chain().focus().deleteRow().run()}>− Row</ToolbarButton>
-          <ToolbarButton compact={compact} label="Add column after" disabled={!editor?.isActive("table")} onClick={() => editor?.chain().focus().addColumnAfter().run()}>+ Col</ToolbarButton>
-          <ToolbarButton compact={compact} label="Delete column" disabled={!editor?.isActive("table")} onClick={() => editor?.chain().focus().deleteColumn().run()}>− Col</ToolbarButton>
-          <ToolbarButton compact={compact} label="Toggle header row" disabled={!editor?.isActive("table")} onClick={() => editor?.chain().focus().toggleHeaderRow().run()}>Header</ToolbarButton>
-          <ToolbarButton compact={compact} label="Delete table" disabled={!editor?.isActive("table")} onClick={() => editor?.chain().focus().deleteTable().run()}>Delete table</ToolbarButton>
+          <ToolbarButton compact={compact} label="Add row below" disabled={!active.table} onClick={() => editor?.chain().focus().addRowAfter().run()}>+ Row</ToolbarButton>
+          <ToolbarButton compact={compact} label="Delete row" disabled={!active.table} onClick={() => editor?.chain().focus().deleteRow().run()}>− Row</ToolbarButton>
+          <ToolbarButton compact={compact} label="Add column after" disabled={!active.table} onClick={() => editor?.chain().focus().addColumnAfter().run()}>+ Col</ToolbarButton>
+          <ToolbarButton compact={compact} label="Delete column" disabled={!active.table} onClick={() => editor?.chain().focus().deleteColumn().run()}>− Col</ToolbarButton>
+          <ToolbarButton compact={compact} label="Toggle header row" disabled={!active.table} onClick={() => editor?.chain().focus().toggleHeaderRow().run()}>Header</ToolbarButton>
+          <ToolbarButton compact={compact} label="Delete table" disabled={!active.table} onClick={() => editor?.chain().focus().deleteTable().run()}>Delete table</ToolbarButton>
           <div ref={colorPaletteRef} className="relative shrink-0">
-            <ToolbarButton compact={compact} label="Text color" active={!!editor?.isActive("textStyle")} onClick={() => setIsColorPaletteOpen((open) => !open)}><Palette className="h-3.5 w-3.5" /></ToolbarButton>
+            <ToolbarButton compact={compact} label="Text color" active={active.textStyle} onClick={() => setIsColorPaletteOpen((open) => !open)}><Palette className="h-3.5 w-3.5" /></ToolbarButton>
             {isColorPaletteOpen && (
               <div className="absolute right-0 top-full z-40 mt-2 grid w-36 grid-cols-4 gap-2 rounded-md border border-[#394252] bg-[#171d28] p-3 shadow-xl" role="dialog" aria-label="Choose text color">
                 {textColors.map((color) => (
