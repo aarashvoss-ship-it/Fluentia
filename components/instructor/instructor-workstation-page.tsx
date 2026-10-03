@@ -1704,16 +1704,11 @@ export default function InstructorWorkstationPage({
     const draftStudentId = selectedStudentId || newLesson.studentId || selectedStudent?.id || "";
     const student = students.find((item) => item.id === draftStudentId)
       || (selectedStudent?.id === draftStudentId ? selectedStudent : null);
-    if (!student) {
-      setValidationErrors({ selectedStudentId: "Select a student before creating the draft." });
-      setPublishStatus("Select a student before creating the draft.");
-      return;
-    }
-    const title = newLesson.title.trim() || "Untitled Draft";
+    const title = newLesson.title.trim() || "Untitled Lesson";
     const slug = newLesson.slug.trim().toLowerCase() || `draft-${Date.now()}`;
     const moduleNumber = Number(newLesson.moduleNumber) || 1;
-    const assignedStudentId = student.id;
-    const assignedStudentToken = student.token;
+    const assignedStudentId = student?.id;
+    const assignedStudentToken = student?.token;
 
     try {
       const content = {
@@ -1727,8 +1722,8 @@ export default function InstructorWorkstationPage({
         domain: newLesson.tags.domain,
         skill_focus: newLesson.tags.skill_focus,
         practice_type: newLesson.tags.practice_type,
-        student_id: assignedStudentId,
-        student_token: assignedStudentToken,
+        ...(assignedStudentId ? { student_id: assignedStudentId } : {}),
+        ...(assignedStudentToken ? { student_token: assignedStudentToken } : {}),
         coverImage: workstationState.bannerUrl,
         bannerUrl: workstationState.bannerUrl,
         bannerPosition: workstationState.bannerPosition,
@@ -1740,8 +1735,8 @@ export default function InstructorWorkstationPage({
       const created = await createLesson({
         title,
         banner_url: workstationState.bannerUrl,
-        student_id: student.id,
-        student_token: student.token,
+        student_id: student?.id || null,
+        ...(student?.token ? { student_token: student.token } : {}),
         instructor_id: instructorId,
         grade: normalizeCefrLevel(newLesson.level),
         tags: { ...newLesson.tags, custom: parseCustomLessonTags(newLesson.customTagsText) },
@@ -1752,8 +1747,8 @@ export default function InstructorWorkstationPage({
       });
       const lesson = created;
       bindLesson(lesson);
-      setSelectedStudentId(student.id);
-      setNewLesson((previous) => ({ ...previous, studentId: student.id, title: lesson.title, slug, moduleNumber: String(moduleNumber), status: "draft" }));
+      if (student) setSelectedStudentId(student.id);
+      setNewLesson((previous) => ({ ...previous, studentId: student?.id || "", title: lesson.title, slug, moduleNumber: String(moduleNumber), status: "draft" }));
       setWorkstationState((previous) => ({ ...previous, content: created.content || previous.content }));
       setDatabaseLessonId(created.id);
       activeLessonIdRef.current = created.id;
@@ -2040,7 +2035,7 @@ export default function InstructorWorkstationPage({
     setNewLesson((previous) => ({ ...previous, slug }));
   };
 
-  const saveLessonChanges = async (status: "draft" | "published", isAutoSave = false) => {
+  const saveLessonChanges = async (status: "draft" | "published", isAutoSave = false, isPublishAction = false) => {
     const selectedLessonId = databaseLessonId;
     if (selectedLessonId && activeLessonIdRef.current !== selectedLessonId) return;
     if (isAutoSave && saveInFlight.current) {
@@ -2048,15 +2043,15 @@ export default function InstructorWorkstationPage({
       return;
     }
     saveInFlight.current = true;
-    const title = newLesson.title.trim() || "Untitled Draft";
+    const title = newLesson.title.trim() || "Untitled Lesson";
     const slug = newLesson.slug.trim().toLowerCase() || `draft-${Date.now()}`;
     const moduleNumber = Number(newLesson.moduleNumber) || 1;
-    if (status === "published" && !isAutoSave) {
+    const studentId = selectedStudentId || newLesson.studentId || selectedStudent?.id || "";
+    if (isPublishAction) {
       const errors: typeof validationErrors = {};
-      if (!selectedStudentId) errors.selectedStudentId = "Select a student.";
+      if (!studentId) errors.selectedStudentId = "Select a student.";
       if (!newLesson.title.trim()) errors.title = "Enter a lesson title.";
       else if (newLesson.slug.trim() && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(newLesson.slug.trim().toLowerCase())) errors.slug = "Use lowercase letters, numbers, and hyphens only.";
-      if (!newLesson.moduleNumber.trim() || !Number.isInteger(Number(newLesson.moduleNumber)) || Number(newLesson.moduleNumber) < 1) errors.moduleNumber = "Enter a whole module number greater than zero.";
       if (Object.keys(errors).length > 0) {
         setValidationErrors(errors);
         setPublishStatus("Fix the highlighted fields before publishing.");
@@ -2064,21 +2059,16 @@ export default function InstructorWorkstationPage({
         return;
       }
     }
-    const studentId = selectedStudentId || newLesson.studentId || selectedStudent?.id || "";
-    if (!studentId) {
-      setPublishStatus("Select a student before saving the lesson.");
-      saveInFlight.current = false;
-      return;
-    }
     setValidationErrors({});
     setSaveIndicator("saving");
     if (!isAutoSave) setIsPublishing(true);
     const assignedStudent = students.find(
       (student) => student.id === studentId
     ) || (selectedStudent?.id === studentId ? selectedStudent : null);
-    if (!assignedStudent?.id) {
+    if (status === "published" && !assignedStudent?.id) {
       setSaveIndicator("error");
-      setPublishStatus("Select a valid student before saving the lesson.");
+      setValidationErrors({ selectedStudentId: "Select a valid student before publishing." });
+      setPublishStatus("Select a valid student before publishing.");
       if (!isAutoSave) setIsPublishing(false);
       saveInFlight.current = false;
       return;
@@ -2094,8 +2084,7 @@ export default function InstructorWorkstationPage({
       domain: newLesson.tags.domain,
       skill_focus: newLesson.tags.skill_focus,
       practice_type: newLesson.tags.practice_type,
-      student_id: assignedStudent.id,
-      student_token: assignedStudent.token,
+      ...(assignedStudent ? { student_id: assignedStudent.id, student_token: assignedStudent.token } : {}),
       coverImage: workstationState.bannerUrl,
       bannerUrl: workstationState.bannerUrl,
       bannerPosition: workstationState.bannerPosition,
@@ -2115,8 +2104,7 @@ export default function InstructorWorkstationPage({
           subtitle: newLesson.subtitle.trim() || "A new Fluentia learning journey.",
           module_number: moduleNumber,
           banner_url: workstationState.bannerUrl,
-            student_id: assignedStudent.id,
-            student_token: assignedStudent.token,
+            ...(assignedStudent ? { student_id: assignedStudent.id, student_token: assignedStudent.token } : {}),
             instructor_id: instructorId,
             status,
             grade: normalizeCefrLevel(newLesson.level),
@@ -2130,8 +2118,7 @@ export default function InstructorWorkstationPage({
         : await createLesson({
             title,
             banner_url: workstationState.bannerUrl,
-            student_id: assignedStudent.id,
-            student_token: assignedStudent.token,
+            ...(assignedStudent ? { student_id: assignedStudent.id, student_token: assignedStudent.token } : {}),
             instructor_id: instructorId,
             status,
             grade: normalizeCefrLevel(newLesson.level),
@@ -2168,7 +2155,7 @@ export default function InstructorWorkstationPage({
       setSaveIndicator("saved");
       lastSavedDraftSignature.current = getDraftSignature(content, title, content.subtitle, String(moduleNumber));
       let assignmentSyncWarning = "";
-      if (status === "published") {
+      if (status === "published" && assignedStudent?.id) {
         try {
           await publishLessonAndAssign(lesson.id, assignedStudent.id, instructorId);
         } catch (assignmentError) {
@@ -2325,7 +2312,7 @@ export default function InstructorWorkstationPage({
   };
 
   const handleConfirmPublish = () => {
-    void saveLessonChanges("published");
+    void saveLessonChanges("published", false, true);
   };
 
   const handleUnpublish = () => {
