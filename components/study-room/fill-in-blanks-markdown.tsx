@@ -77,12 +77,12 @@ export function FillInBlanksMarkdown({
   };
 
   return (
-    <div className={className}>
+    <div className={`flex h-auto min-h-0 flex-col ${className}`}>
       {text
         ? <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={components}>{markdownWithInputs}</ReactMarkdown>
         : null}
       {wordBank.length > 0 && (
-        <div className="mt-6 border-t border-[#394252] pt-6">
+        <div className="mt-6 h-auto min-h-0 border-t border-[#394252] pb-2 pt-6">
           <div className="flex flex-col gap-3">
             <p className="m-0 text-xs font-semibold uppercase tracking-[0.12em] text-amber-400">Word Bank</p>
             <div className="flex flex-wrap gap-2" aria-label="Fill in the blanks word bank">
