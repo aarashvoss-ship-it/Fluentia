@@ -1116,13 +1116,13 @@ export default function LessonPage() {
               </span>
             }
             title={
-              <h1 className="font-sans text-3xl font-bold tracking-tight text-[#f1eee8] md:text-4xl lg:text-[36px]">
+              <h1 className="whitespace-pre-line font-sans text-3xl font-bold tracking-tight text-[#f1eee8] md:text-4xl lg:text-[36px]">
                 {displayLessonTitle || lesson.title}
               </h1>
             }
             subtitle={
               lessonSubtitle
-                ? <p className="text-sm text-[#b5bac2] opacity-90 md:text-base">{lessonSubtitle}</p>
+                ? <p className="whitespace-pre-line text-sm text-[#b5bac2] opacity-90 md:text-base">{lessonSubtitle}</p>
                 : null
             }
             footer={
