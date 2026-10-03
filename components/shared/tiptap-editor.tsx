@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import type { Editor } from "@tiptap/core";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
@@ -32,6 +33,7 @@ import { Tooltip } from "@/components/shared/tooltip";
 import {
   DynamicLucideIcon,
   filterLucideIconNames,
+  IconPickerErrorBoundary,
   isLucideIconName,
   LUCIDE_ICON_NAMES,
   normalizeIconSearch,
@@ -106,6 +108,133 @@ function ToolbarButton({
   );
 }
 
+function TiptapIconPicker({ editor, compact }: { editor: Editor | null; compact: boolean }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const selectionRef = useRef<{ from: number; to: number } | null>(null);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const normalizedSearch = normalizeIconSearch(search);
+  const popularIcons = ["BookOpen", "Check", "Star", "Play", "Lightbulb", "Target", "Sparkles", "Heart", "Clock", "Award", "Bookmark"];
+  const visibleIcons = useMemo(
+    () => filterLucideIconNames(normalizedSearch ? LUCIDE_ICON_NAMES : popularIcons, normalizedSearch).slice(0, 60),
+    [normalizedSearch],
+  );
+
+  const updatePosition = () => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const bounds = trigger.getBoundingClientRect();
+    const width = Math.min(288, window.innerWidth - 16);
+    const height = Math.min(320, window.innerHeight - 16);
+    const left = Math.max(8, Math.min(bounds.right - width, window.innerWidth - width - 8));
+    const top = bounds.bottom + height + 8 <= window.innerHeight
+      ? bounds.bottom + 8
+      : Math.max(8, bounds.top - height - 8);
+    setPosition({ top, left });
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    updatePosition();
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node
+        && !triggerRef.current?.contains(event.target)
+        && !popoverRef.current?.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsOpen(false);
+    };
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
+  return (
+    <>
+      <Tooltip content="Insert Icon">
+        <button
+          ref={triggerRef}
+          type="button"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => {
+            if (!editor) return;
+            selectionRef.current = { from: editor.state.selection.from, to: editor.state.selection.to };
+            setSearch("");
+            if (!isOpen) updatePosition();
+            setIsOpen((open) => !open);
+          }}
+          aria-label="Insert Icon"
+          aria-expanded={isOpen}
+          aria-haspopup="dialog"
+          className={`flex items-center justify-center rounded transition ${compact ? "h-6 min-w-6 px-1" : "h-7 min-w-7 px-1.5"} text-stone-300 hover:bg-[#293343] hover:text-white`}
+        >
+          <PlusCircle className="h-3.5 w-3.5" />
+        </button>
+      </Tooltip>
+      {isOpen && typeof document !== "undefined" && createPortal(
+        <IconPickerErrorBoundary>
+          <div
+            ref={popoverRef}
+            role="dialog"
+            aria-label="Choose an icon to insert"
+            style={{ position: "fixed", top: position.top, left: position.left, zIndex: 10000 }}
+            className="w-72 max-w-[calc(100vw-1rem)] rounded-md border border-[#394252] bg-[#171d28] p-3 shadow-2xl"
+          >
+            <input
+              autoFocus
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search icons"
+              aria-label="Search icons by name"
+              className="h-9 w-full rounded border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+            />
+            <div className="mt-2 grid max-h-48 grid-cols-6 gap-1 overflow-y-auto" aria-label="Available icons">
+              {visibleIcons.map((name) => isLucideIconName(name) ? (
+                <button
+                  key={name}
+                  type="button"
+                  aria-label={name}
+                  title={name}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    if (!editor || !isLucideIconName(name)) return;
+                    const selection = selectionRef.current || editor.state.selection;
+                    const maxPosition = editor.state.doc.content.size;
+                    const from = Math.min(selection.from, maxPosition);
+                    const to = Math.min(selection.to, maxPosition);
+                    editor.chain().insertContentAt({ from, to }, {
+                      type: "inlineLucideIcon",
+                      attrs: { name },
+                    }).focus().run();
+                    setIsOpen(false);
+                  }}
+                  className="flex h-8 items-center justify-center rounded border border-transparent text-stone-300 hover:border-amber-500/40 hover:bg-amber-500/20 hover:text-amber-400"
+                >
+                  <DynamicLucideIcon name={name} className="h-4 w-4" aria-hidden="true" />
+                </button>
+              ) : null)}
+              {visibleIcons.length === 0 && <p className="col-span-full py-4 text-center text-xs text-stone-500">No icons found.</p>}
+            </div>
+          </div>
+        </IconPickerErrorBoundary>,
+        document.body,
+      )}
+    </>
+  );
+}
+
 export function TiptapEditor({
   value,
   onChange,
@@ -121,12 +250,6 @@ export function TiptapEditor({
   onHtmlChangeRef.current = onHtmlChange;
   const [isColorPaletteOpen, setIsColorPaletteOpen] = useState(false);
   const colorPaletteRef = useRef<HTMLDivElement | null>(null);
-  const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
-  const [iconSearch, setIconSearch] = useState("");
-  const iconSelectionRef = useRef<{ from: number; to: number } | null>(null);
-  const iconPickerButtonRef = useRef<HTMLButtonElement | null>(null);
-  const iconPickerRef = useRef<HTMLDivElement | null>(null);
-  const [iconPickerPosition, setIconPickerPosition] = useState({ top: 0, left: 0 });
   const [isTableMenuOpen, setIsTableMenuOpen] = useState(false);
   const tableMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const tableMenuRef = useRef<HTMLDivElement | null>(null);
@@ -230,7 +353,7 @@ export function TiptapEditor({
   }, [isColorPaletteOpen]);
 
   useEffect(() => {
-    if (!isIconPickerOpen && !isTableMenuOpen) return;
+    if (!isTableMenuOpen) return;
     const updatePopoverPositions = () => {
       const positionPopover = (trigger: HTMLButtonElement | null, width: number, height: number) => {
         if (!trigger) return { top: 0, left: 0 };
@@ -241,16 +364,10 @@ export function TiptapEditor({
           : Math.max(8, bounds.top - height - 8);
         return { top, left };
       };
-      if (isIconPickerOpen) setIconPickerPosition(positionPopover(iconPickerButtonRef.current, 288, 320));
       if (isTableMenuOpen) setTableMenuPosition(positionPopover(tableMenuButtonRef.current, 192, 220));
     };
     const handlePointerDown = (event: PointerEvent) => {
       if (!(event.target instanceof Node)) return;
-      if (isIconPickerOpen
-        && !iconPickerButtonRef.current?.contains(event.target)
-        && !iconPickerRef.current?.contains(event.target)) {
-        setIsIconPickerOpen(false);
-      }
       if (isTableMenuOpen
         && !tableMenuButtonRef.current?.contains(event.target)
         && !tableMenuRef.current?.contains(event.target)) {
@@ -259,7 +376,6 @@ export function TiptapEditor({
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setIsIconPickerOpen(false);
         setIsTableMenuOpen(false);
       }
     };
@@ -274,7 +390,7 @@ export function TiptapEditor({
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isIconPickerOpen, isTableMenuOpen]);
+  }, [isTableMenuOpen]);
 
   const applyLink = () => {
     if (!editor) return;
@@ -287,13 +403,6 @@ export function TiptapEditor({
   };
 
   const textColors = ["#f3f4f6", "#fbbf24", "#ef4444", "#10b981", "#06b6d4", "#a78bfa", "#f472b6", "#9ca3af"];
-  const popularIcons = ["BookOpen", "Check", "Star", "Play", "Lightbulb", "Target", "Sparkles", "Heart", "Clock", "Award", "Bookmark"];
-  const normalizedIconSearch = normalizeIconSearch(iconSearch);
-  const visibleIcons = useMemo(
-    () => filterLucideIconNames(normalizedIconSearch ? LUCIDE_ICON_NAMES : popularIcons, normalizedIconSearch).slice(0, 60),
-    [normalizedIconSearch],
-  );
-
   return (
     <div className="tiptap-editor w-full min-w-0 space-y-2">
       <div className="w-full min-w-0">
@@ -372,66 +481,7 @@ export function TiptapEditor({
             )}
           </div>
           <div className="shrink-0">
-            <Tooltip content="Insert Icon">
-              <button
-                ref={iconPickerButtonRef}
-                type="button"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => {
-                  if (!editor || !isLucideIconName(name)) return;
-                  iconSelectionRef.current = { from: editor.state.selection.from, to: editor.state.selection.to };
-                  setIconSearch("");
-                  setIsIconPickerOpen((open) => !open);
-                }}
-                aria-label="Insert Icon"
-                aria-expanded={isIconPickerOpen}
-                aria-haspopup="dialog"
-                className={`flex items-center justify-center rounded transition ${compact ? "h-6 min-w-6 px-1" : "h-7 min-w-7 px-1.5"} text-stone-300 hover:bg-[#293343] hover:text-white`}
-              >
-                <PlusCircle className="h-3.5 w-3.5" />
-              </button>
-            </Tooltip>
-            {isIconPickerOpen && typeof document !== "undefined" && createPortal(
-              <div ref={iconPickerRef} role="dialog" aria-label="Choose an icon to insert" style={{ position: "fixed", top: iconPickerPosition.top, left: iconPickerPosition.left, zIndex: 10000 }} className="w-72 max-w-[calc(100vw-1rem)] rounded-md border border-[#394252] bg-[#171d28] p-3 shadow-2xl">
-                <input
-                  autoFocus
-                  type="search"
-                  value={iconSearch}
-                  onChange={(event) => setIconSearch(event.target.value)}
-                  placeholder="Search icons"
-                  aria-label="Search icons by name"
-                  className="h-9 w-full rounded border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500/40"
-                />
-                <div className="mt-2 grid max-h-48 grid-cols-6 gap-1 overflow-y-auto" aria-label="Available icons">
-                  {visibleIcons.map((name) => (
-                    <button
-                      key={name}
-                      type="button"
-                      aria-label={name}
-                      title={name}
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => {
-                        if (!editor) return;
-                        const selection = iconSelectionRef.current || editor.state.selection;
-                        const maxPosition = editor.state.doc.content.size;
-                        const from = Math.min(selection.from, maxPosition);
-                        const to = Math.min(selection.to, maxPosition);
-                        editor.chain().insertContentAt({ from, to }, {
-                          type: "inlineLucideIcon",
-                          attrs: { name },
-                        }).focus().run();
-                        setIsIconPickerOpen(false);
-                      }}
-                      className="flex h-8 items-center justify-center rounded border border-transparent text-stone-300 hover:border-amber-500/40 hover:bg-amber-500/20 hover:text-amber-400"
-                    >
-                      <DynamicLucideIcon name={name} className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                  ))}
-                  {visibleIcons.length === 0 && <p className="col-span-full py-4 text-center text-xs text-stone-500">No icons found.</p>}
-                </div>
-              </div>,
-              document.body,
-            )}
+            <TiptapIconPicker editor={editor} compact={compact} />
           </div>
         </div>
       </div>

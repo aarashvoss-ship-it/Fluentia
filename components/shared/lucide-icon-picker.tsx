@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Component, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import * as LucideIcons from "lucide-react";
 import { CircleHelp, Search } from "lucide-react";
 import type { LucideIcon, LucideProps } from "lucide-react";
+import type { ErrorInfo, ReactNode } from "react";
 
 const ICON_COMPONENTS: Record<string, unknown> = LucideIcons;
 
@@ -42,8 +43,32 @@ function isRenderableIcon(value: unknown): value is LucideIcon {
       typeof value === "object"
       && value !== null
       && "$$typeof" in value
-      && value.$$typeof === Symbol.for("react.forward_ref")
+      && (value.$$typeof === Symbol.for("react.forward_ref") || value.$$typeof === Symbol.for("react.memo"))
     );
+}
+
+type IconPickerErrorBoundaryState = { hasError: boolean };
+
+export class IconPickerErrorBoundary extends Component<
+  { children: ReactNode },
+  IconPickerErrorBoundaryState
+> {
+  state: IconPickerErrorBoundaryState = { hasError: false };
+
+  static getDerivedStateFromError(): IconPickerErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("Icon picker failed to render.", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <div role="status" className="p-4 text-center text-xs text-stone-400">Icon picker unavailable.</div>;
+    }
+    return this.props.children;
+  }
 }
 
 const ALL_ICON_NAMES = Object.keys(ICON_COMPONENTS)
@@ -171,13 +196,14 @@ export function LucideIconPicker({
         {!compact && (triggerLabel || selectedName || "Choose icon")}
       </button>
       {isOpen && typeof document !== "undefined" && createPortal(
-        <div
-          ref={popoverRef}
-          role="dialog"
-          aria-label="Choose a Lucide icon"
-          style={{ position: "fixed", top: popoverPosition.top, left: popoverPosition.left, zIndex: 10000 }}
-          className="w-[min(21rem,calc(100vw-2rem))] rounded-md border border-[#394252] bg-[#171d28] p-3 shadow-2xl"
-        >
+        <IconPickerErrorBoundary>
+          <div
+            ref={popoverRef}
+            role="dialog"
+            aria-label="Choose a Lucide icon"
+            style={{ position: "fixed", top: popoverPosition.top, left: popoverPosition.left, zIndex: 10000 }}
+            className="w-[min(21rem,calc(100vw-2rem))] rounded-md border border-[#394252] bg-[#171d28] p-3 shadow-2xl"
+          >
           <label className="relative block">
             <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-stone-500" aria-hidden="true" />
             <input
@@ -224,7 +250,8 @@ export function LucideIconPicker({
             ))}
             {visibleIcons.length === 0 && <p className="col-span-full py-6 text-center text-xs text-stone-500">No icons found.</p>}
           </div>
-        </div>,
+          </div>
+        </IconPickerErrorBoundary>,
         document.body,
       )}
     </div>
