@@ -261,7 +261,10 @@ export function resolveLessonContent(lesson: LessonWithVersion, version: LessonV
     : undefined;
   const versionTitle = typeof versionContent?.title === "string" ? versionContent.title.trim() : "";
   const lessonTitle = typeof lesson.title === "string" ? lesson.title.trim() : "";
-  if (versionTitle && lessonTitle && versionTitle !== lessonTitle) return directContent || {};
+  const normalizeTitleForComparison = (title: string) => title.replace(/\s+/g, " ").trim();
+  if (versionTitle && lessonTitle && normalizeTitleForComparison(versionTitle) !== normalizeTitleForComparison(lessonTitle)) {
+    return directContent || {};
+  }
   return versionContent || directContent || {};
 }
 
