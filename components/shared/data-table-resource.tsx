@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Copy, FileDown } from "lucide-react";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 
@@ -20,8 +20,26 @@ function splitRow(line: string) {
   return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim().replace(/\\\|/g, "|"));
 }
 
-function parseTables(markdown: string): ParsedTable[] {
-  const lines = markdown.split(/\r?\n/);
+function isRichTextHtml(value: string) {
+  return /<\/?(?:p|h[1-6]|ul|ol|li|blockquote|pre|code|table|thead|tbody|tr|th|td|a|strong|em|s|span|hr|br)\b/i.test(value);
+}
+
+function parseTables(content: string): ParsedTable[] {
+  if (isRichTextHtml(content)) {
+    const parsed = new DOMParser().parseFromString(content, "text/html");
+    return Array.from(parsed.querySelectorAll("table")).map((table) => {
+      const rows = Array.from(table.rows);
+      const headerRow = rows.find((row) => row.querySelector("th"));
+      const headers = Array.from(headerRow?.cells || []).map((cell) => cell.textContent?.trim() || "");
+      const bodyRows = rows.filter((row) => row !== headerRow);
+      return {
+        headers,
+        rows: bodyRows.map((row) => Array.from(row.cells).map((cell) => cell.textContent?.trim() || "")),
+      };
+    }).filter((table) => table.headers.length > 0);
+  }
+
+  const lines = content.split(/\r?\n/);
   const tables: ParsedTable[] = [];
   for (let lineIndex = 0; lineIndex < lines.length - 1; lineIndex += 1) {
     if (!lines[lineIndex].includes("|") || !lines[lineIndex + 1].includes("|")) continue;
@@ -51,12 +69,12 @@ function escapeHtml(value: string) {
   })[character] || character);
 }
 
-function printTables(title: string, tables: ParsedTable[]) {
+function printTables(title: string, tables: ParsedTable[], fallbackText: string) {
   const printWindow = window.open("", "_blank");
   if (!printWindow) return false;
   const logoUrl = new URL("/logo.png", window.location.origin).href;
   const tableMarkup = tables.map(({ headers, rows }) => `<table><thead><tr>${headers.map((cell) => `<th>${escapeHtml(cell)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${headers.map((_, cellIndex) => `<td>${escapeHtml(row[cellIndex] || "")}</td>`).join("")}</tr>`).join("")}</tbody></table>`).join("");
-  printWindow.document.write(`<!doctype html><html><head><title>${escapeHtml(title)}</title><meta charset="utf-8"><style>@page{size:A4;margin:18mm}body{color:#1f2937;font:11pt/1.45 Arial,sans-serif}.report-header{display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid #cbd5e1;margin:0 0 18pt;padding:0 0 12pt}.report-header h1{font-size:18pt;margin:0}.report-header img{display:block;height:36px;width:auto;max-width:160px;object-fit:contain;print-color-adjust:exact;-webkit-print-color-adjust:exact}table{border-collapse:collapse;margin:0 0 18pt;width:100%;break-inside:avoid}th,td{border:1px solid #cbd5e1;padding:8px 10px;text-align:left;vertical-align:top;overflow-wrap:anywhere}th{background:#fef3c7;color:#b45309;font-weight:700}tbody tr:nth-child(even){background:#f8fafc}</style></head><body><header class="report-header"><h1>${escapeHtml(title)}</h1><img src="${escapeHtml(logoUrl)}" alt="Fluentia"></header>${tableMarkup || `<pre>${escapeHtml(markdownTextFallback(tables))}</pre>`}</body></html>`);
+  printWindow.document.write(`<!doctype html><html><head><title>${escapeHtml(title)}</title><meta charset="utf-8"><style>@page{size:A4;margin:18mm}body{color:#1f2937;font:11pt/1.45 Arial,sans-serif}.report-header{display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid #cbd5e1;margin:0 0 18pt;padding:0 0 12pt}.report-header h1{font-size:18pt;margin:0}.report-header img{display:block;height:36px;width:auto;max-width:160px;object-fit:contain;print-color-adjust:exact;-webkit-print-color-adjust:exact}table{border-collapse:collapse;margin:0 0 18pt;width:100%;break-inside:avoid}th,td{border:1px solid #cbd5e1;padding:8px 10px;text-align:left;vertical-align:top;overflow-wrap:anywhere}th{background:#fef3c7;color:#b45309;font-weight:700}tbody tr:nth-child(even){background:#f8fafc}pre{white-space:pre-wrap}</style></head><body><header class="report-header"><h1>${escapeHtml(title)}</h1><img src="${escapeHtml(logoUrl)}" alt="Fluentia"></header>${tableMarkup || `<pre>${escapeHtml(fallbackText)}</pre>`}</body></html>`);
   printWindow.document.close();
   printWindow.addEventListener("load", () => {
     printWindow.focus();
@@ -65,20 +83,26 @@ function printTables(title: string, tables: ParsedTable[]) {
   return true;
 }
 
-function markdownTextFallback(tables: ParsedTable[]) {
-  return tables.map((table) => [table.headers.join(" | "), ...table.rows.map((row) => row.join(" | "))].join("\n")).join("\n\n");
-}
-
 export function DataTableResource({ title, markdown, html }: { title: string; markdown: string; html?: string }) {
   const [status, setStatus] = useState("");
-  const tables = parseTables(markdown);
+  const content = html ?? markdown;
+  const [tables, setTables] = useState<ParsedTable[]>([]);
+
+  useEffect(() => {
+    setTables(parseTables(content));
+  }, [content]);
+
+  const getPlainText = () => isRichTextHtml(content)
+    ? new DOMParser().parseFromString(content, "text/html").body.textContent || ""
+    : content;
 
   const copyText = async () => {
+    const plainText = getPlainText();
     try {
-      await navigator.clipboard.writeText(markdown);
-      setStatus("Markdown copied.");
+      await navigator.clipboard.writeText(plainText);
+      setStatus("Text copied.");
     } catch {
-      const fileUrl = URL.createObjectURL(new Blob([markdown], { type: "text/plain;charset=utf-8" }));
+      const fileUrl = URL.createObjectURL(new Blob([plainText], { type: "text/plain;charset=utf-8" }));
       const anchor = document.createElement("a");
       anchor.href = fileUrl;
       anchor.download = `${title.trim().replace(/[^a-z0-9-_]+/gi, "-") || "data-table"}.txt`;
@@ -95,7 +119,7 @@ export function DataTableResource({ title, markdown, html }: { title: string; ma
         <img src="/logo.png" alt="Fluentia" className="h-9 w-auto max-w-24 shrink-0 object-contain" />
       </header>
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <button type="button" onClick={() => { if (!printTables(title, tables)) setStatus("Allow pop-ups to print this table as PDF."); }} className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 px-2.5 py-1.5 text-[11px]  text-amber-400 transition hover:bg-amber-500/20">
+        <button type="button" onClick={() => { if (!printTables(title, tables, getPlainText())) setStatus("Allow pop-ups to print this table as PDF."); }} className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 px-2.5 py-1.5 text-[11px]  text-amber-400 transition hover:bg-amber-500/20">
           <FileDown className="h-3.5 w-3.5" /> Download PDF
         </button>
         <button type="button" onClick={() => void copyText()} className="inline-flex items-center gap-1.5 rounded-md border border-[#394252] px-2.5 py-1.5 text-[11px]  text-stone-300 transition hover:border-amber-500/40 hover:text-amber-400">
@@ -103,14 +127,7 @@ export function DataTableResource({ title, markdown, html }: { title: string; ma
         </button>
         {status && <span role="status" className="text-[10px] text-stone-500">{status}</span>}
       </div>
-      {html !== undefined ? (
-        <div
-          className="resource-rich-text text-sm leading-relaxed text-stone-300"
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
-      ) : (
-        <MarkdownContent value={markdown} className="text-sm leading-relaxed text-stone-300" dataTables />
-      )}
+      <MarkdownContent value={content} className="text-sm leading-relaxed text-stone-300" dataTables />
     </div>
   );
 }

@@ -392,6 +392,15 @@ type InstructorReviewStage = UnifiedReportStage & { id: InstructorReviewStageId 
 
 function stripReviewMarkdown(value: string) {
   return value
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(?:p|h[1-6]|li|blockquote|div)>/gi, "\n")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
     .replace(/^\s{0,3}#{1,6}\s*/gm, "")
     .replace(/^\s*>\s?/gm, "")
     .replace(/(\*\*|__)(.*?)\1/g, "$2")
@@ -479,7 +488,8 @@ function getSupportedResourceMediaType(file: File) {
 
 function AudioTranscriptAccordion({ resourceId, transcript }: { resourceId: string; transcript: string }) {
   const [isExpanded, setIsExpanded] = useState(true);
-  const transcriptLines = parseInteractiveTranscript(transcript);
+  const richTextTranscript = /<\/?(?:p|h[1-6]|ul|ol|li|blockquote|table|span)\b/i.test(transcript);
+  const transcriptLines = richTextTranscript ? [] : parseInteractiveTranscript(transcript);
   const contentId = `audio-transcript-${resourceId.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 
   return (
@@ -496,7 +506,7 @@ function AudioTranscriptAccordion({ resourceId, transcript }: { resourceId: stri
       </button>
       <div id={contentId} className={`grid transition-[grid-template-rows] duration-300 ease-out ${isExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
         <div className="min-h-0 overflow-hidden">
-          {transcriptLines.length > 0 ? <div className="divide-y divide-[#202631]">
+          {richTextTranscript ? <MarkdownContent value={transcript} className="p-3 text-xs leading-relaxed text-stone-300" /> : transcriptLines.length > 0 ? <div className="divide-y divide-[#202631]">
             {transcriptLines.map((line, index) => <div key={`${line.seconds}-${index}`} className="flex items-start gap-3 px-3 py-2.5">
               <span className="shrink-0 rounded border border-amber-500/40 bg-amber-500/20 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-amber-400">{line.timestamp}</span>
               <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-stone-300">{line.text}</p>
@@ -1536,7 +1546,7 @@ export default function InstructorWorkstationPage({
     }
 
     if (resourceType === "data_table" && !resourceDraft.body.trim()) {
-      setResourceStatus("Add Markdown table content before saving this Data Table.");
+      setResourceStatus("Add content before saving this Data Table.");
       return;
     }
 
@@ -2636,7 +2646,7 @@ export default function InstructorWorkstationPage({
           {block.type === "text" && <>{<MarkdownContent value={block.body || ""} className="text-sm leading-relaxed text-stone-300" />}{block.hasStudentResponseInput === true && <textarea rows={6} placeholder="Write your response here..." readOnly className="mt-4 min-h-[140px] w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" aria-label="Student response field preview" />}</>}
           {block.type === "image" && <>{block.imageUrl && <img src={block.imageUrl} alt={block.caption || block.title || "Lesson image"} className="max-h-72 w-full rounded-md object-cover" onError={(e)=>{(e.target as HTMLImageElement).style.display="none";}} />}{block.caption && <p className="mt-2 text-xs text-stone-500">{block.caption}</p>}</>}
           {block.type === "audio" && block.audioUrl && <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio lesson"} />}
-          {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} />{block.show_reflection_prompt !== false && block.reflection_prompt_text?.trim() && <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/20 p-4"><p className="text-sm font-semibold text-amber-400">Reflection Question</p><p className="mt-2 text-sm leading-relaxed text-stone-300">{block.reflection_prompt_text.trim()}</p><textarea rows={4} placeholder="Write your reflection here..." readOnly className="mt-3 w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" aria-label="Reflection question response preview" /></div>}</>}
+          {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} />{block.show_reflection_prompt !== false && block.reflection_prompt_text?.trim() && <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/20 p-4"><p className="text-sm font-semibold text-amber-400">Reflection Question</p><MarkdownContent value={block.reflection_prompt_text.trim()} className="mt-2 text-sm leading-relaxed text-stone-300" /><textarea rows={4} placeholder="Write your reflection here..." readOnly className="mt-3 w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" aria-label="Reflection question response preview" /></div>}</>}
           {block.type === "resource" && block.resourceUrl && <a href={block.resourceUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded border border-amber-500/40 bg-amber-500/20 p-3 text-sm text-amber-400 hover:border-amber-500/40">Open document{block.description ? `: ${block.description}` : ""}</a>}
           {block.type === "question" && <ExerciseQuestions questions={[{ id: block.id, type: block.question_type === "open_ended" ? "short_answer" : "multiple_choice", prompt: block.prompt || "", options: block.options, correct_answer: block.correct_answer, sample_answer: block.sample_answer }]} readOnly />}
           {block.type === "quiz" && <ExerciseQuestions questions={block.questions || []} readOnly />}

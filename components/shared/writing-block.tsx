@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
+import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import type { WritingContentBlock } from "@/types/lesson";
 
 export interface WritingBlockEditorProps {
@@ -22,14 +23,12 @@ export function WritingBlockEditor({ block, onChange }: WritingBlockEditorProps)
         />
       </label>
       <label className="block text-xs text-stone-500">
-        Instructions (Markdown supported)
-        <textarea
+        Instructions
+        <TiptapEditor
           value={block.prompt}
-          onChange={(event) => onChange({ prompt: event.target.value })}
+          onChange={(prompt) => onChange({ prompt })}
           placeholder="Describe the writing task and any requirements..."
-          rows={6}
-          className="mt-1 w-full resize-y rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
-          aria-label="Writing prompt instructions"
+          ariaLabel="Writing prompt instructions"
         />
       </label>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -56,13 +55,11 @@ export function WritingBlockEditor({ block, onChange }: WritingBlockEditorProps)
       </div>
       <label className="block text-xs text-stone-500">
         Guidance / model answer notes (optional)
-        <textarea
+        <TiptapEditor
           value={block.guidance || ""}
-          onChange={(event) => onChange({ guidance: event.target.value })}
+          onChange={(guidance) => onChange({ guidance })}
           placeholder="Private guidance for evaluation or a model answer..."
-          rows={4}
-          className="mt-1 w-full resize-y rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
-          aria-label="Writing guidance or model answer notes"
+          ariaLabel="Writing guidance or model answer notes"
         />
       </label>
       <div className="rounded border border-[#202631] bg-[#0c1017]/50 p-3">

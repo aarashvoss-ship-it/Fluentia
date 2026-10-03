@@ -54,12 +54,29 @@ function getSafeResourceHref(value?: string | null) {
 
 type MarkdownTable = { headers: string[]; rows: string[][] };
 
+function isRichTextHtml(value: string) {
+  return /<\/?(?:p|h[1-6]|ul|ol|li|blockquote|pre|code|table|thead|tbody|tr|th|td|a|strong|em|s|span|hr|br)\b/i.test(value);
+}
+
 function splitMarkdownTableRow(line: string) {
   return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim().replace(/\\\|/g, "|"));
 }
 
-function extractMarkdownTables(markdown: string): MarkdownTable[] {
-  const lines = markdown.split(/\r?\n/);
+function extractMarkdownTables(content: string): MarkdownTable[] {
+  if (isRichTextHtml(content)) {
+    const parsed = new DOMParser().parseFromString(content, "text/html");
+    return Array.from(parsed.querySelectorAll("table")).map((table) => {
+      const rows = Array.from(table.rows);
+      const headerRow = rows.find((row) => row.querySelector("th"));
+      const headers = Array.from(headerRow?.cells || []).map((cell) => cell.textContent?.trim() || "");
+      return {
+        headers,
+        rows: rows.filter((row) => row !== headerRow).map((row) => Array.from(row.cells).map((cell) => cell.textContent?.trim() || "")),
+      };
+    }).filter((table) => table.headers.length > 0);
+  }
+
+  const lines = content.split(/\r?\n/);
   const tables: MarkdownTable[] = [];
   for (let index = 0; index < lines.length - 1; index += 1) {
     const headerLine = lines[index].trim();
@@ -116,14 +133,21 @@ function printMarkdownTables(title: string, tables: MarkdownTable[]) {
 
 function MarkdownResourceContent({ title, value, className = "" }: { title: string; value: string; className?: string }) {
   const [exportStatus, setExportStatus] = useState("");
-  const tables = extractMarkdownTables(value);
+  const [tables, setTables] = useState<MarkdownTable[]>([]);
+
+  useEffect(() => {
+    setTables(extractMarkdownTables(value));
+  }, [value]);
 
   const copyOrDownloadText = async () => {
+    const plainText = isRichTextHtml(value)
+      ? new DOMParser().parseFromString(value, "text/html").body.textContent || ""
+      : value;
     try {
-      await navigator.clipboard.writeText(value);
+      await navigator.clipboard.writeText(plainText);
       setExportStatus("Table text copied.");
     } catch {
-      const url = URL.createObjectURL(new Blob([value], { type: "text/plain;charset=utf-8" }));
+      const url = URL.createObjectURL(new Blob([plainText], { type: "text/plain;charset=utf-8" }));
       const anchor = document.createElement("a");
       anchor.href = url;
       anchor.download = `${title.replace(/[^a-z0-9-_]+/gi, "-") || "resource"}.txt`;
@@ -175,7 +199,10 @@ async function downloadMaterial(title: string, href?: string | null, content?: s
     return;
   }
   if (content) {
-    const objectUrl = URL.createObjectURL(new Blob([content], { type: "text/plain;charset=utf-8" }));
+    const plainText = isRichTextHtml(content)
+      ? new DOMParser().parseFromString(content, "text/html").body.textContent || ""
+      : content;
+    const objectUrl = URL.createObjectURL(new Blob([plainText], { type: "text/plain;charset=utf-8" }));
     const anchor = document.createElement("a");
     anchor.href = objectUrl;
     anchor.download = `${filename}.txt`;
@@ -485,15 +512,15 @@ export function LearningSidebar({
                   >
                     <div className="absolute inset-0 flex flex-col justify-between rounded-2xl p-5 [backface-visibility:hidden]">
                       <div className="flex items-center justify-between gap-2"><span className="text-[10px]  uppercase tracking-[0.16em] text-amber-400">{cardIndex + 1} / {studyCards.length}</span><span className="rounded-full border border-amber-500/40 bg-amber-500/20 px-2 py-1 text-[10px]  uppercase text-amber-400">Question</span></div>
-                      <p className="max-h-[190px] overflow-y-auto break-words text-xl  leading-snug text-stone-100">{currentCard.question}</p>
+                      <div className="max-h-[190px] overflow-y-auto break-words text-xl leading-snug text-stone-100"><MarkdownContent value={currentCard.question} /></div>
                       <div className="flex justify-center"><span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px]  text-stone-300">See answer</span></div>
                     </div>
                     <div className="absolute inset-0 flex flex-col justify-between rounded-2xl p-5 [backface-visibility:hidden] [transform:rotateY(180deg)]">
                       <div className="flex items-center justify-between gap-2"><span className="text-[10px]  uppercase tracking-[0.16em] text-emerald-300">Answer</span><span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px]  uppercase text-emerald-200">Key idea</span></div>
-                      <p className="max-h-[190px] overflow-y-auto break-words text-lg  leading-relaxed text-stone-100">{currentCard.answer}</p>
+                      <div className="max-h-[190px] overflow-y-auto break-words text-lg leading-relaxed text-stone-100"><MarkdownContent value={currentCard.answer} /></div>
                       <div className="min-h-10">
                         {currentCard.explanation && <button type="button" onClick={(event) => { event.stopPropagation(); setShowExplanation((value) => !value); }} className="rounded-full border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-[10px]  uppercase tracking-[0.12em] text-sky-200">{showExplanation ? "Hide explanation" : "Explain"}</button>}
-                        {showExplanation && currentCard.explanation && <p className="mt-2 max-h-16 overflow-y-auto text-xs leading-relaxed text-stone-300">{currentCard.explanation}</p>}
+                        {showExplanation && currentCard.explanation && <MarkdownContent value={currentCard.explanation} className="mt-2 max-h-16 overflow-y-auto text-xs leading-relaxed text-stone-300" />}
                       </div>
                     </div>
                   </div>
