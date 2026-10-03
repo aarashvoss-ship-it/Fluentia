@@ -7,7 +7,7 @@ import { CircleHelp, Search } from "lucide-react";
 import type { LucideIcon, LucideProps } from "lucide-react";
 import type { ErrorInfo, ReactNode } from "react";
 
-const ICON_COMPONENTS: Record<string, unknown> = LucideIcons;
+const ICON_COMPONENTS: Record<string, unknown> = LucideIcons.icons;
 
 const ICON_CATEGORIES = [
   {
