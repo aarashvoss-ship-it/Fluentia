@@ -45,22 +45,24 @@ export function ExerciseQuestions({
           <section key={question.id} className="space-y-3 border-b border-[#202631] pb-5 last:border-0 last:pb-0">
             <div id={`exercise-question-${question.id}`} role="heading" aria-level={4} className="flex items-start gap-1 text-base font-semibold leading-relaxed text-stone-100">
               <span className="mr-1 text-amber-400">{index + 1}.</span>
-              {type !== "fill_in_the_blanks" && <MarkdownContent value={question.prompt || ""} className="min-w-0 flex-1 text-base font-semibold leading-relaxed text-stone-100 [&_p]:m-0 [&_strong]:font-semibold" />}
+              {type === "fill_in_the_blanks" ? (
+                <FillInBlanksMarkdown
+                  blockId={question.id}
+                  text={question.prompt || ""}
+                  acceptableAnswers={question.acceptableAnswers || []}
+                  wordBank={question.wordBank}
+                  caseSensitive={question.caseSensitive}
+                  values={textAnswers}
+                  onChange={(blankIndex, answer) => onBlankAnswer?.(question.id, blankIndex, answer)}
+                  readOnly={readOnly}
+                  className="min-w-0 flex-1 text-sm font-normal leading-relaxed text-stone-300 [&_p]:mb-0"
+                />
+              ) : (
+                <MarkdownContent value={question.prompt || ""} className="min-w-0 flex-1 text-base font-semibold leading-relaxed text-stone-100 [&_p]:m-0 [&_strong]:font-semibold" />
+              )}
             </div>
 
-            {type === "fill_in_the_blanks" ? (
-              <FillInBlanksMarkdown
-                blockId={question.id}
-                text={question.prompt || ""}
-                acceptableAnswers={question.acceptableAnswers || []}
-                wordBank={question.wordBank}
-                caseSensitive={question.caseSensitive}
-                values={textAnswers}
-                onChange={(blankIndex, answer) => onBlankAnswer?.(question.id, blankIndex, answer)}
-                readOnly={readOnly}
-                className="text-sm leading-relaxed text-stone-300"
-              />
-            ) : type === "short_answer" ? (
+            {type === "short_answer" ? (
               <textarea
                 value={textAnswers[question.id] || ""}
                 onChange={(event) => onTextAnswer?.(question.id, event.target.value)}

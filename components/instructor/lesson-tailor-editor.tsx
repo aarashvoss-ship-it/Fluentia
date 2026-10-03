@@ -786,6 +786,7 @@ export function LessonTailorEditor({
                             className="w-full resize-y rounded border border-[#394252] bg-[#171d28] p-2 text-xs text-stone-200"
                             aria-label={`Question ${questionIndex + 1} word bank`}
                           />
+                          <p className="text-[11px] text-stone-500">Type one answer per line. You can also separate answers with commas.</p>
                           <label className="flex items-center gap-2 text-xs text-stone-400">
                             <input type="checkbox" checked={question.caseSensitive === true} onChange={(event) => updateQuestion({ caseSensitive: event.target.checked })} className="h-4 w-4 accent-amber-500" />
                             Case-sensitive answers
