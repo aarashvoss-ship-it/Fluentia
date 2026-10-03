@@ -664,6 +664,7 @@ export default function InstructorWorkstationPage({
   const previewChannelRef = useRef<BroadcastChannel | null>(null);
   const [saveIndicator, setSaveIndicator] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [isDirty, setIsDirty] = useState(false);
+  const [showSuccessCheck, setShowSuccessCheck] = useState(false);
   const hasLoadedLesson = useRef(false);
   const lastSavedDraftSignature = useRef<string | null>(null);
   const saveRequestId = useRef(0);
@@ -829,6 +830,7 @@ export default function InstructorWorkstationPage({
     setLessonStatus("draft");
     setSaveIndicator("idle");
     setIsDirty(false);
+    setShowSuccessCheck(false);
     setValidationErrors({});
     setPublishStatus(null);
     setPreviewStep("warm_up");
@@ -870,7 +872,7 @@ export default function InstructorWorkstationPage({
       level: normalizeCefrLevel(newLesson.level),
       tags: newLesson.tags,
       customTagsText: newLesson.customTagsText,
-      studentId: selectedStudentId || newLesson.studentId || selectedStudent?.id || "",
+      studentId: selectedStudentId || newLesson.studentId || "",
       bannerUrl: workstationState.bannerUrl,
       bannerPosition: workstationState.bannerPosition,
       bannerDimness: workstationState.bannerDimness,
@@ -889,7 +891,7 @@ export default function InstructorWorkstationPage({
   const isDraftDirty = lastSavedDraftSignature.current === null
     ? isDirty
     : currentDraftSignature !== lastSavedDraftSignature.current;
-  const isSaveBarVisible = isDraftDirty || saveIndicator === "saving" || (saveIndicator === "saved" && !isDraftDirty);
+  const isSaveBarVisible = isDraftDirty || saveIndicator === "saving" || showSuccessCheck;
   const saveLessonChangesRef = useRef<((status: "draft" | "published", isAutoSave?: boolean, isPublishAction?: boolean) => Promise<void>) | null>(null);
 
   async function handleStudentChange(student: StudentUser) {
@@ -1191,6 +1193,7 @@ export default function InstructorWorkstationPage({
     lastSavedDraftSignature.current = null;
     setIsDirty(false);
     setSaveIndicator("idle");
+    setShowSuccessCheck(false);
     bindLesson(lesson);
     const content = lesson.content || {};
     const lessonSlug = typeof content.slug === "string" ? content.slug : lesson.id;
@@ -1257,6 +1260,7 @@ export default function InstructorWorkstationPage({
     lastSavedDraftSignature.current = null;
     setIsDirty(false);
     setSaveIndicator("idle");
+    setShowSuccessCheck(false);
     resetStore();
     const sourceContent = (lesson?.content || workstationState.content) as Record<string, any>;
     const sourceTitle = lesson?.title || newLesson.title || "Untitled Lesson";
@@ -1967,7 +1971,9 @@ export default function InstructorWorkstationPage({
       setIsDirty(false);
       return;
     }
-    setIsDirty(currentDraftSignature !== lastSavedDraftSignature.current);
+    const draftIsDirty = currentDraftSignature !== lastSavedDraftSignature.current;
+    setIsDirty(draftIsDirty);
+    if (draftIsDirty) setShowSuccessCheck(false);
   }, [currentDraftSignature, databaseLessonId]);
 
   useEffect(() => {
@@ -2010,6 +2016,12 @@ export default function InstructorWorkstationPage({
       savedIndicatorTimer.current = null;
     };
   }, [saveIndicator]);
+
+  useEffect(() => {
+    if (!showSuccessCheck) return;
+    const timer = window.setTimeout(() => setShowSuccessCheck(false), 2000);
+    return () => window.clearTimeout(timer);
+  }, [showSuccessCheck]);
 
   useEffect(() => {
     const handleInput = () => {
@@ -2233,6 +2245,7 @@ export default function InstructorWorkstationPage({
     }
     setValidationErrors({});
     setSaveIndicator("saving");
+    setShowSuccessCheck(false);
     if (!isAutoSave) setIsPublishing(true);
     const assignedStudent = students.find(
       (student) => student.id === studentId
@@ -2312,6 +2325,9 @@ export default function InstructorWorkstationPage({
         savedSlug,
       );
       lastSavedDraftSignature.current = savedDraftSignature;
+      const draftIsDirty = currentDraftSignatureRef.current !== savedDraftSignature;
+      setIsDirty(draftIsDirty);
+      setShowSuccessCheck(!draftIsDirty);
       if (currentDraftSignatureRef.current === savedDraftSignature) {
         if (autoSaveTimer.current !== null) window.clearTimeout(autoSaveTimer.current);
         autoSaveTimer.current = null;
@@ -4296,15 +4312,14 @@ export default function InstructorWorkstationPage({
 </section>
 </>}
       </div>
-      {activeTab === "builder" && <div aria-hidden={!isSaveBarVisible} className={`fixed bottom-6 left-1/2 z-40 -translate-x-1/2 rounded-full border border-slate-800 bg-slate-900/90 px-5 py-2.5 shadow-2xl backdrop-blur transition-all duration-300 ${isSaveBarVisible ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0"}`}>
-        {saveIndicator === "saved" && !isDraftDirty ? (
+      {activeTab === "builder" && isSaveBarVisible && <div className="animate-save-bar fixed bottom-6 left-1/2 z-40 -translate-x-1/2 rounded-full border border-slate-800 bg-slate-900/90 px-5 py-2.5 shadow-2xl backdrop-blur">
+        {showSuccessCheck && !isDraftDirty ? (
           <span role="status" className="whitespace-nowrap text-sm font-medium text-emerald-400">Saved ✓</span>
         ) : (
           <button
             type="button"
             onClick={handleSaveDraft}
             disabled={saveIndicator === "saving"}
-            tabIndex={isSaveBarVisible ? 0 : -1}
             className="whitespace-nowrap text-sm font-medium text-amber-400 transition hover:text-amber-300 disabled:cursor-wait disabled:opacity-60"
           >
             {saveIndicator === "saving" ? "Saving..." : "Save Changes"}

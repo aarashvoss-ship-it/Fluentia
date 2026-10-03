@@ -317,7 +317,6 @@ export function TiptapEditor({
     }
     const html = editor.isEmpty ? "" : editor.getHTML();
     onHtmlChangeRef.current?.(html);
-    if (!valueIsHtml && html !== value) onChangeRef.current(html);
   }, [editor, normalizedValue, value, valueIsHtml]);
 
   const activeStates = useEditorState({
