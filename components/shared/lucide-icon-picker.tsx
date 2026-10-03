@@ -221,6 +221,8 @@ export function LucideIconPicker({
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => event.stopPropagation()}
               placeholder="Search icons"
               aria-label="Search icons by name"
               className="h-9 w-full rounded border border-[#394252] bg-[#0c1017] pl-8 pr-3 text-xs text-stone-200 outline-none focus:border-amber-500/40"
