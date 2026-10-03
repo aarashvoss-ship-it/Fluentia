@@ -69,7 +69,7 @@ function markdownTextFallback(tables: ParsedTable[]) {
   return tables.map((table) => [table.headers.join(" | "), ...table.rows.map((row) => row.join(" | "))].join("\n")).join("\n\n");
 }
 
-export function DataTableResource({ title, markdown }: { title: string; markdown: string }) {
+export function DataTableResource({ title, markdown, html }: { title: string; markdown: string; html?: string }) {
   const [status, setStatus] = useState("");
   const tables = parseTables(markdown);
 
@@ -103,7 +103,14 @@ export function DataTableResource({ title, markdown }: { title: string; markdown
         </button>
         {status && <span role="status" className="text-[10px] text-stone-500">{status}</span>}
       </div>
-      <MarkdownContent value={markdown} className="text-sm leading-relaxed text-stone-300" dataTables />
+      {html !== undefined ? (
+        <div
+          className="resource-rich-text text-sm leading-relaxed text-stone-300"
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      ) : (
+        <MarkdownContent value={markdown} className="text-sm leading-relaxed text-stone-300" dataTables />
+      )}
     </div>
   );
 }

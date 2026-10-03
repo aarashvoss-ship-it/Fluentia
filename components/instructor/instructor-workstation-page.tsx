@@ -402,6 +402,15 @@ const EMPTY_RESOURCE_DRAFT = {
   explanation: "",
 };
 
+function ResourceRichTextPreview({ html, fallback, className = "" }: { html: string; fallback: string; className?: string }) {
+  const hasContent = html.trim() !== "" && html.trim() !== "<p></p>";
+  return hasContent ? (
+    <div className={`resource-rich-text ${className}`} dangerouslySetInnerHTML={{ __html: html }} />
+  ) : (
+    <p className={className}>{fallback}</p>
+  );
+}
+
 function getResourcePreviewHref(value?: string | null) {
   if (!value?.trim()) return null;
   const rawUrl = value.trim();
@@ -546,6 +555,10 @@ export default function InstructorWorkstationPage({
   const [lessonResources, setLessonResources] = useState<LessonResource[]>([]);
   const [studentResources, setStudentResources] = useState<StudentResourceEntry[]>([]);
   const [resourceDraft, setResourceDraft] = useState(EMPTY_RESOURCE_DRAFT);
+  const [resourceBodyHtml, setResourceBodyHtml] = useState("");
+  const [resourceQuestionHtml, setResourceQuestionHtml] = useState("");
+  const [resourceAnswerHtml, setResourceAnswerHtml] = useState("");
+  const [resourceExplanationHtml, setResourceExplanationHtml] = useState("");
   const [resourceInputMode, setResourceInputMode] = useState<"upload" | "url">("upload");
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioFilePreviewUrl, setAudioFilePreviewUrl] = useState<string | null>(null);
@@ -3289,13 +3302,13 @@ export default function InstructorWorkstationPage({
                           />
                         </label>
                         <label className="block text-xs text-stone-400">
-                          Reading notes (Markdown)
-                          <textarea
+                          Reading notes
+                          <TiptapEditor
                             value={resourceDraft.body}
-                            onChange={(event) => setResourceDraft((previous) => ({ ...previous, body: event.target.value }))}
-                            rows={8}
-                            placeholder="Add a short introduction or reading notes. Markdown is supported."
-                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                            onChange={(body) => setResourceDraft((previous) => ({ ...previous, body }))}
+                            onHtmlChange={setResourceBodyHtml}
+                            placeholder="Add a short introduction or reading notes."
+                            ariaLabel="Reading notes"
                           />
                         </label>
                       </>
@@ -3324,12 +3337,12 @@ export default function InstructorWorkstationPage({
                         </label>
                         <label className="block text-xs text-stone-400">
                           Optional description / transcript notes
-                          <textarea
+                          <TiptapEditor
                             value={resourceDraft.body}
-                            onChange={(event) => setResourceDraft((previous) => ({ ...previous, body: event.target.value }))}
-                            rows={4}
+                            onChange={(body) => setResourceDraft((previous) => ({ ...previous, body }))}
+                            onHtmlChange={setResourceBodyHtml}
                             placeholder="Add context or transcript notes for the student."
-                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                            ariaLabel="Optional audio description and transcript notes"
                           />
                         </label>
                       </>
@@ -3337,13 +3350,13 @@ export default function InstructorWorkstationPage({
 
                     {resourceDraft.type === "data_table" && (
                       <label className="block text-xs text-stone-400">
-                        Markdown Content
-                        <textarea
+                        Data table content
+                        <TiptapEditor
                           value={resourceDraft.body}
-                          onChange={(event) => setResourceDraft((previous) => ({ ...previous, body: event.target.value }))}
-                          rows={12}
-                          placeholder="Paste Markdown Table here..."
-                          className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 font-mono text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                          onChange={(body) => setResourceDraft((previous) => ({ ...previous, body }))}
+                          onHtmlChange={setResourceBodyHtml}
+                          placeholder="Write content or insert a table with the toolbar."
+                          ariaLabel="Data table content"
                         />
                       </label>
                     )}
@@ -3351,12 +3364,12 @@ export default function InstructorWorkstationPage({
                     {(resourceDraft.type === "note" || resourceDraft.type === "quiz") && (
                       <label className="block text-xs text-stone-400">
                         {resourceDraft.type === "quiz" ? "Practice prompt" : "Notes"}
-                        <textarea
+                        <TiptapEditor
                           value={resourceDraft.body}
-                          onChange={(event) => setResourceDraft((previous) => ({ ...previous, body: event.target.value }))}
-                          rows={5}
+                          onChange={(body) => setResourceDraft((previous) => ({ ...previous, body }))}
+                          onHtmlChange={setResourceBodyHtml}
                           placeholder={resourceDraft.type === "quiz" ? "Write a practice exercise or prompt for the student." : "Add the material notes the student should review."}
-                          className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                          ariaLabel={resourceDraft.type === "quiz" ? "Practice prompt" : "Notes"}
                         />
                       </label>
                     )}
@@ -3365,32 +3378,32 @@ export default function InstructorWorkstationPage({
                       <>
                         <label className="block text-xs text-stone-400">
                           Front / Question
-                          <textarea
+                          <TiptapEditor
                             value={resourceDraft.question}
-                            onChange={(event) => setResourceDraft((previous) => ({ ...previous, question: event.target.value }))}
-                            rows={3}
+                            onChange={(question) => setResourceDraft((previous) => ({ ...previous, question }))}
+                            onHtmlChange={setResourceQuestionHtml}
                             placeholder="What is the term for … ?"
-                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                            ariaLabel="Flashcard front question"
                           />
                         </label>
                         <label className="block text-xs text-stone-400">
                           Back / Answer
-                          <textarea
+                          <TiptapEditor
                             value={resourceDraft.answer}
-                            onChange={(event) => setResourceDraft((previous) => ({ ...previous, answer: event.target.value }))}
-                            rows={3}
+                            onChange={(answer) => setResourceDraft((previous) => ({ ...previous, answer }))}
+                            onHtmlChange={setResourceAnswerHtml}
                             placeholder="A clear, student-friendly definition or explanation."
-                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                            ariaLabel="Flashcard back answer"
                           />
                         </label>
                         <label className="block text-xs text-stone-400">
                           Optional explanation
-                          <textarea
+                          <TiptapEditor
                             value={resourceDraft.explanation}
-                            onChange={(event) => setResourceDraft((previous) => ({ ...previous, explanation: event.target.value }))}
-                            rows={3}
+                            onChange={(explanation) => setResourceDraft((previous) => ({ ...previous, explanation }))}
+                            onHtmlChange={setResourceExplanationHtml}
                             placeholder="Optional AI-friendly nuance or extra context."
-                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                            ariaLabel="Optional flashcard explanation"
                           />
                         </label>
                       </>
@@ -3434,7 +3447,7 @@ export default function InstructorWorkstationPage({
                               <span className="rounded-full border border-amber-500/40 bg-amber-500/20 px-2 py-1 text-[10px]  uppercase tracking-[0.12em] text-amber-400">Term</span>
                             </div>
                             <div className="flex-1 pt-8">
-                              <p className="text-2xl  leading-snug text-stone-100">{currentFlashcard.question || currentFlashcard.title}</p>
+                              <MarkdownContent value={currentFlashcard.question || currentFlashcard.title} className="text-2xl leading-snug text-stone-100" />
                             </div>
                             <div className="flex justify-center">
                               <span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px]  text-stone-300">See answer</span>
@@ -3447,7 +3460,7 @@ export default function InstructorWorkstationPage({
                               <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px]  uppercase tracking-[0.12em] text-emerald-200">Key idea</span>
                             </div>
                             <div className="flex-1 pt-8">
-                              <p className="text-xl  leading-relaxed text-stone-100">{currentFlashcard.answer || "No answer yet."}</p>
+                              <MarkdownContent value={currentFlashcard.answer || "No answer yet."} className="text-xl leading-relaxed text-stone-100" />
                               {currentFlashcard.explanation && (
                                 <div className="mt-5">
                                   <button
@@ -3460,7 +3473,7 @@ export default function InstructorWorkstationPage({
                                   >
                                     {showFlashcardExplanation ? "Hide explain" : "Explain"}
                                   </button>
-                                  {showFlashcardExplanation && <p className="mt-3 text-sm leading-relaxed text-stone-300">{currentFlashcard.explanation}</p>}
+                                  {showFlashcardExplanation && <MarkdownContent value={currentFlashcard.explanation} className="mt-3 text-sm leading-relaxed text-stone-300" />}
                                 </div>
                               )}
                             </div>
@@ -3554,9 +3567,9 @@ export default function InstructorWorkstationPage({
                           </div>
                           {resource.resource_type === "flashcard" && (
                             <div className="mt-3 space-y-2 text-sm text-stone-300">
-                              <p><span className="font-semibold text-stone-100">Q:</span> {resource.question || "No question"}</p>
-                              <p><span className="font-semibold text-stone-100">A:</span> {resource.answer || "No answer"}</p>
-                              {resource.explanation && <p className="text-stone-400">{resource.explanation}</p>}
+                              <div><span className="font-semibold text-stone-100">Q:</span> <MarkdownContent value={resource.question || "No question"} /></div>
+                              <div><span className="font-semibold text-stone-100">A:</span> <MarkdownContent value={resource.answer || "No answer"} /></div>
+                              {resource.explanation && <MarkdownContent value={resource.explanation} className="text-stone-400" />}
                             </div>
                           )}
                           {resource.resource_type === "reading" && resource.link_url && (
@@ -3570,8 +3583,9 @@ export default function InstructorWorkstationPage({
                             </div>
                           )}
                           {isDataTable && resource.body && <div className="mt-3"><DataTableResource title={resourceTitle} markdown={resource.body} /></div>}
-                          {resource.resource_type === "note" && !isDataTable && resource.body && <p className="mt-3 text-sm leading-relaxed text-stone-300">{resource.body}</p>}
-                          {resource.resource_type === "quiz" && resource.body && <p className="mt-3 text-sm leading-relaxed text-stone-300">{resource.body}</p>}
+                          {resource.resource_type === "reading" && resource.body && <MarkdownContent value={resource.body} className="mt-3 text-sm leading-relaxed text-stone-300" />}
+                          {resource.resource_type === "note" && !isDataTable && resource.body && <MarkdownContent value={resource.body} className="mt-3 text-sm leading-relaxed text-stone-300" />}
+                          {resource.resource_type === "quiz" && resource.body && <MarkdownContent value={resource.body} className="mt-3 text-sm leading-relaxed text-stone-300" />}
                         </div>
                         );
                       })
@@ -3744,29 +3758,43 @@ export default function InstructorWorkstationPage({
                         </label>
                       )}
 
+                      {resourceDraft.type === "reading" && (
+                        <label className="block text-xs text-stone-400">
+                          Reading notes
+                          <TiptapEditor
+                            value={resourceDraft.body}
+                            onChange={(body) => setResourceDraft((previous) => ({ ...previous, body }))}
+                            onHtmlChange={setResourceBodyHtml}
+                            placeholder="Add an introduction or notes to accompany the reading."
+                            ariaLabel="Reading notes"
+                          />
+                        </label>
+                      )}
+
                       {resourceDraft.type === "audio" && resourceInputMode === "url" && (
-                        <>
-                          <label className="block text-xs text-stone-400">
-                            Audio file URL
-                            <input
-                              type="url"
-                              value={resourceDraft.linkUrl}
-                              onChange={(event) => setResourceDraft((previous) => ({ ...previous, linkUrl: event.target.value }))}
-                              placeholder="https://…"
-                              className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
-                            />
-                          </label>
-                          <label className="block text-xs text-stone-400">
-                            Optional description / transcript notes
-                            <textarea
-                              value={resourceDraft.body}
-                              onChange={(event) => setResourceDraft((previous) => ({ ...previous, body: event.target.value }))}
-                              rows={4}
-                              placeholder="Add context or transcript notes for the student."
-                              className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
-                            />
-                          </label>
-                        </>
+                        <label className="block text-xs text-stone-400">
+                          Audio file URL
+                          <input
+                            type="url"
+                            value={resourceDraft.linkUrl}
+                            onChange={(event) => setResourceDraft((previous) => ({ ...previous, linkUrl: event.target.value }))}
+                            placeholder="https://…"
+                            className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                          />
+                        </label>
+                      )}
+
+                      {resourceDraft.type === "audio" && (
+                        <label className="block text-xs text-stone-400">
+                          Optional description / transcript notes
+                          <TiptapEditor
+                            value={resourceDraft.body}
+                            onChange={(body) => setResourceDraft((previous) => ({ ...previous, body }))}
+                            onHtmlChange={setResourceBodyHtml}
+                            placeholder="Add context or transcript notes for the student."
+                            ariaLabel="Optional audio description and transcript notes"
+                          />
+                        </label>
                       )}
 
                       {resourceDraft.type === "audio" && resourceInputMode === "upload" && (
@@ -3784,13 +3812,13 @@ export default function InstructorWorkstationPage({
 
                       {resourceDraft.type === "data_table" && (
                         <label className="block text-xs text-stone-400">
-                          Markdown Content
-                          <textarea
+                          Data table content
+                          <TiptapEditor
                             value={resourceDraft.body}
-                            onChange={(event) => setResourceDraft((previous) => ({ ...previous, body: event.target.value }))}
-                            rows={12}
-                            placeholder="Paste Markdown Table here..."
-                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 font-mono text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                            onChange={(body) => setResourceDraft((previous) => ({ ...previous, body }))}
+                            onHtmlChange={setResourceBodyHtml}
+                            placeholder="Write content or insert a table with the toolbar."
+                            ariaLabel="Data table content"
                           />
                         </label>
                       )}
@@ -3798,12 +3826,12 @@ export default function InstructorWorkstationPage({
                       {(resourceDraft.type === "note" || resourceDraft.type === "quiz") && (
                         <label className="block text-xs text-stone-400">
                           {resourceDraft.type === "quiz" ? "Practice prompt" : "Notes"}
-                          <textarea
+                          <TiptapEditor
                             value={resourceDraft.body}
-                            onChange={(event) => setResourceDraft((previous) => ({ ...previous, body: event.target.value }))}
-                            rows={5}
+                            onChange={(body) => setResourceDraft((previous) => ({ ...previous, body }))}
+                            onHtmlChange={setResourceBodyHtml}
                             placeholder={resourceDraft.type === "quiz" ? "Write a practice exercise or prompt for the student." : "Add the material notes the student should review."}
-                            className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                            ariaLabel={resourceDraft.type === "quiz" ? "Practice prompt" : "Notes"}
                           />
                         </label>
                       )}
@@ -3812,32 +3840,32 @@ export default function InstructorWorkstationPage({
                         <>
                           <label className="block text-xs text-stone-400">
                             Front / Question
-                            <textarea
+                            <TiptapEditor
                               value={resourceDraft.question}
-                              onChange={(event) => setResourceDraft((previous) => ({ ...previous, question: event.target.value }))}
-                              rows={3}
+                              onChange={(question) => setResourceDraft((previous) => ({ ...previous, question }))}
+                              onHtmlChange={setResourceQuestionHtml}
                               placeholder="What is the term for … ?"
-                              className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                              ariaLabel="Flashcard front question"
                             />
                           </label>
                           <label className="block text-xs text-stone-400">
                             Back / Answer
-                            <textarea
+                            <TiptapEditor
                               value={resourceDraft.answer}
-                              onChange={(event) => setResourceDraft((previous) => ({ ...previous, answer: event.target.value }))}
-                              rows={3}
+                              onChange={(answer) => setResourceDraft((previous) => ({ ...previous, answer }))}
+                              onHtmlChange={setResourceAnswerHtml}
                               placeholder="A clear, student-friendly definition or explanation."
-                              className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                              ariaLabel="Flashcard back answer"
                             />
                           </label>
                           <label className="block text-xs text-stone-400">
                             Optional explanation
-                            <textarea
+                            <TiptapEditor
                               value={resourceDraft.explanation}
-                              onChange={(event) => setResourceDraft((previous) => ({ ...previous, explanation: event.target.value }))}
-                              rows={3}
+                              onChange={(explanation) => setResourceDraft((previous) => ({ ...previous, explanation }))}
+                              onHtmlChange={setResourceExplanationHtml}
                               placeholder="Optional AI-friendly nuance or extra context."
-                              className="mt-1 w-full resize-y rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                              ariaLabel="Optional flashcard explanation"
                             />
                           </label>
                         </>
@@ -3878,12 +3906,12 @@ export default function InstructorWorkstationPage({
                       >
                         <div className="absolute inset-0 flex flex-col justify-between rounded-2xl p-5 [backface-visibility:hidden]">
                           <div className="flex items-center justify-between gap-2"><span className="text-[10px]  uppercase tracking-[0.16em] text-amber-400">Draft question</span><span className="rounded-full border border-amber-500/40 bg-amber-500/20 px-2 py-1 text-[10px]  uppercase text-amber-400">Question</span></div>
-                          <p className="max-h-[170px] overflow-y-auto break-words text-xl  leading-snug text-stone-100">{resourceDraft.question.trim() || "Your question will appear here as you type."}</p>
+                          <div className="max-h-[170px] overflow-y-auto break-words text-xl leading-snug text-stone-100"><ResourceRichTextPreview html={resourceQuestionHtml} fallback="Your question will appear here as you type." /></div>
                           <div className="flex justify-center"><span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px]  text-stone-300">See answer</span></div>
                         </div>
                         <div className="absolute inset-0 flex flex-col justify-between rounded-2xl p-5 [backface-visibility:hidden] [transform:rotateY(180deg)]">
                           <div className="flex items-center justify-between gap-2"><span className="text-[10px]  uppercase tracking-[0.16em] text-emerald-300">Draft answer</span><span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px]  uppercase text-emerald-200">Key idea</span></div>
-                          <div className="max-h-[170px] overflow-y-auto"><p className="break-words text-lg  leading-relaxed text-stone-100">{resourceDraft.answer.trim() || "Your answer will appear here as you type."}</p>{resourceDraft.explanation.trim() && <p className="mt-3 text-xs leading-relaxed text-stone-400">{resourceDraft.explanation}</p>}</div>
+                          <div className="max-h-[170px] overflow-y-auto break-words text-lg leading-relaxed text-stone-100"><ResourceRichTextPreview html={resourceAnswerHtml} fallback="Your answer will appear here as you type." />{resourceDraft.explanation.trim() && <ResourceRichTextPreview html={resourceExplanationHtml} fallback="" className="mt-3 text-xs leading-relaxed text-stone-400" />}</div>
                           <div className="flex justify-center"><span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px]  text-stone-300">Flip back</span></div>
                         </div>
                       </div>
@@ -3914,7 +3942,7 @@ export default function InstructorWorkstationPage({
                                   <span className="rounded-full border border-amber-500/40 bg-amber-500/20 px-2 py-1 text-[10px]  uppercase tracking-[0.12em] text-amber-400">Term</span>
                                 </div>
                                 <div className="flex-1 pt-8">
-                                  <p className="text-2xl  leading-snug text-stone-100">{currentFlashcard.question || currentFlashcard.title}</p>
+                                  <MarkdownContent value={currentFlashcard.question || currentFlashcard.title} className="text-2xl leading-snug text-stone-100" />
                                 </div>
                                 <div className="flex justify-center">
                                   <span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px]  text-stone-300">See answer</span>
@@ -3927,7 +3955,7 @@ export default function InstructorWorkstationPage({
                                   <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px]  uppercase tracking-[0.12em] text-emerald-200">Key idea</span>
                                 </div>
                                 <div className="flex-1 pt-8">
-                                  <p className="text-xl  leading-relaxed text-stone-100">{currentFlashcard.answer || "No answer yet."}</p>
+                                  <MarkdownContent value={currentFlashcard.answer || "No answer yet."} className="text-xl leading-relaxed text-stone-100" />
                                   {currentFlashcard.explanation && (
                                     <div className="mt-5">
                                       <button
@@ -3940,7 +3968,7 @@ export default function InstructorWorkstationPage({
                                       >
                                         {showFlashcardExplanation ? "Hide note" : "Show note"}
                                       </button>
-                                      {showFlashcardExplanation && <p className="mt-3 text-sm leading-relaxed text-stone-300">{currentFlashcard.explanation}</p>}
+                                      {showFlashcardExplanation && <MarkdownContent value={currentFlashcard.explanation} className="mt-3 text-sm leading-relaxed text-stone-300" />}
                                     </div>
                                   )}
                                 </div>
@@ -3987,24 +4015,24 @@ export default function InstructorWorkstationPage({
                         <h3 className="mt-1 font-sans text-xl font-semibold text-stone-100">{resourceDraft.title.trim() || "Untitled resource"}</h3>
                       </div>
                       {activeResourceType === "note" && (
-                        <MarkdownContent value={resourceDraft.body.trim() || "Your note preview will appear here as you type."} className="text-sm leading-relaxed text-stone-300" dataTables />
+                        <ResourceRichTextPreview html={resourceBodyHtml} fallback="Your note preview will appear here as you type." className="text-sm leading-relaxed text-stone-300" />
                       )}
                       {activeResourceType === "reading" && (
                         <div className="space-y-3">
-                          {resourceDraft.body.trim() ? <MarkdownContent value={resourceDraft.body} className="text-sm leading-relaxed text-stone-300" dataTables /> : <p className="text-sm text-stone-500">Add reading notes to preview the Markdown here.</p>}
+                          <ResourceRichTextPreview html={resourceBodyHtml} fallback="Add reading notes to preview them here." className="text-sm leading-relaxed text-stone-300" />
                           {resourceInputMode === "upload" && resourceFilePreviewUrl ? <a href={resourceFilePreviewUrl} target="_blank" rel="noreferrer" className="inline-flex rounded-md border border-amber-500/40 px-3 py-2 text-xs  text-amber-400 hover:border-amber-500/40">Open uploaded attachment: {resourceFile?.name}</a> : resourceInputMode === "url" && getResourcePreviewHref(resourceDraft.linkUrl) ? <a href={getResourcePreviewHref(resourceDraft.linkUrl) || undefined} target="_blank" rel="noreferrer" className="inline-flex rounded-md border border-amber-500/40 px-3 py-2 text-xs  text-amber-400 hover:border-amber-500/40">Open or download</a> : resourceDraft.linkUrl.trim() ? <p className="break-all text-xs text-stone-500">{resourceDraft.linkUrl}</p> : <p className="text-xs text-stone-500">Add a reading link or file to preview it here.</p>}
                         </div>
                       )}
                       {activeResourceType === "quiz" && (
                         <div className="rounded-lg border border-[#293343] bg-[#10181f] p-4">
                           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Practice prompt</p>
-                          <MarkdownContent value={resourceDraft.body.trim() || "Your practice prompt will appear here as you type."} className="mt-3 text-sm leading-relaxed text-stone-200" dataTables />
+                          <ResourceRichTextPreview html={resourceBodyHtml} fallback="Your practice prompt will appear here as you type." className="mt-3 text-sm leading-relaxed text-stone-200" />
                         </div>
                       )}
                       {activeResourceType === "audio" && (
                         <div className="space-y-3">
                           {resourceInputMode === "upload" && audioFilePreviewUrl ? <CustomAudioPlayer src="" blob={audioFile || undefined} label={resourceDraft.title.trim() || audioFile?.name || "Audio preview"} /> : resourceInputMode === "url" && getResourcePreviewHref(resourceDraft.linkUrl) ? <CustomAudioPlayer src={getResourcePreviewHref(resourceDraft.linkUrl) || ""} label={resourceDraft.title.trim() || "Audio preview"} /> : <p className="text-sm text-stone-500">Add audio using the selected input method to preview it here.</p>}
-                          {resourceDraft.body.trim() && <MarkdownContent value={resourceDraft.body} className="text-sm leading-relaxed text-stone-400" dataTables />}
+                          {resourceDraft.body.trim() && <ResourceRichTextPreview html={resourceBodyHtml} fallback="" className="text-sm leading-relaxed text-stone-400" />}
                         </div>
                       )}
                       {activeResourceType === "image" && (
@@ -4019,7 +4047,7 @@ export default function InstructorWorkstationPage({
                         />
                       )}
                       {activeResourceType === "data_table" && (
-                        resourceDraft.body.trim() ? <DataTableResource title={resourceDraft.title.trim() || "Data Table"} markdown={resourceDraft.body} /> : <p className="text-sm text-stone-500">Paste Markdown table content to preview it here.</p>
+                        resourceDraft.body.trim() ? <DataTableResource title={resourceDraft.title.trim() || "Data Table"} markdown={resourceDraft.body} html={resourceBodyHtml} /> : <p className="text-sm text-stone-500">Write content or insert a table to preview it here.</p>
                       )}
                       {activeResourceType === "file" && (
                         resourceInputMode === "upload" && resourceFile && resourceFilePreviewUrl ? (() => {
@@ -4094,8 +4122,9 @@ export default function InstructorWorkstationPage({
                               </div>
                             )}
                             {isDataTable && resource.body && <div className="mt-3"><DataTableResource title={resourceTitle} markdown={resource.body} /></div>}
-                            {resource.resource_type === "note" && !isDataTable && resource.body && <p className="mt-3 text-sm leading-relaxed text-stone-300">{resource.body}</p>}
-                            {resource.resource_type === "quiz" && resource.body && <p className="mt-3 text-sm leading-relaxed text-stone-300">{resource.body}</p>}
+                            {resource.resource_type === "reading" && resource.body && <MarkdownContent value={resource.body} className="mt-3 text-sm leading-relaxed text-stone-300" />}
+                            {resource.resource_type === "note" && !isDataTable && resource.body && <MarkdownContent value={resource.body} className="mt-3 text-sm leading-relaxed text-stone-300" />}
+                            {resource.resource_type === "quiz" && resource.body && <MarkdownContent value={resource.body} className="mt-3 text-sm leading-relaxed text-stone-300" />}
                           </div>
                         );
                       })}

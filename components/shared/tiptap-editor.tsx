@@ -8,6 +8,10 @@ import Placeholder from "@tiptap/extension-placeholder";
 import Color from "@tiptap/extension-color";
 import { TextStyle } from "@tiptap/extension-text-style";
 import { Markdown } from "@tiptap/markdown";
+import { Table } from "@tiptap/extension-table";
+import TableRow from "@tiptap/extension-table-row";
+import TableCell from "@tiptap/extension-table-cell";
+import TableHeader from "@tiptap/extension-table-header";
 import {
   Bold,
   Code2,
@@ -41,6 +45,7 @@ function normalizeEscapedBoldMarkdown(markdown: string) {
 type TiptapEditorProps = {
   value: string;
   onChange: (markdown: string) => void;
+  onHtmlChange?: (html: string) => void;
   placeholder?: string;
   ariaLabel: string;
   compact?: boolean;
@@ -54,6 +59,7 @@ function ToolbarButton({
   onClick,
   children,
   title,
+  disabled = false,
 }: {
   label: string;
   active?: boolean;
@@ -61,6 +67,7 @@ function ToolbarButton({
   onClick: () => void;
   children: React.ReactNode;
   title?: string;
+  disabled?: boolean;
 }) {
   return (
     <Tooltip content={label}>
@@ -71,7 +78,8 @@ function ToolbarButton({
         aria-label={label}
         title={title || label}
         aria-pressed={active}
-        className={`flex items-center justify-center rounded transition ${compact ? "h-6 min-w-6 px-1 text-[10px]" : "h-7 min-w-7 px-1.5 text-[11px]"} ${active ? "bg-amber-500/20 text-amber-400" : "text-stone-300 hover:bg-[#293343] hover:text-white"}`}
+        disabled={disabled}
+        className={`flex items-center justify-center rounded transition disabled:cursor-not-allowed disabled:opacity-40 ${compact ? "h-6 min-w-6 px-1 text-[10px]" : "h-7 min-w-7 px-1.5 text-[11px]"} ${active ? "bg-amber-500/20 text-amber-400" : "text-stone-300 hover:bg-[#293343] hover:text-white"}`}
       >
         {children}
       </button>
@@ -82,13 +90,16 @@ function ToolbarButton({
 export function TiptapEditor({
   value,
   onChange,
+  onHtmlChange,
   placeholder = "Start typing lesson content or use formatting options...",
   ariaLabel,
   compact = false,
-  wrapToolbar = false,
+  wrapToolbar = true,
 }: TiptapEditorProps) {
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const onHtmlChangeRef = useRef(onHtmlChange);
+  onHtmlChangeRef.current = onHtmlChange;
   const [isColorPaletteOpen, setIsColorPaletteOpen] = useState(false);
   const colorPaletteRef = useRef<HTMLDivElement | null>(null);
   const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
@@ -99,6 +110,10 @@ export function TiptapEditor({
   const extensions = useMemo(() => [
     StarterKit.configure({ link: false, heading: { levels: [1, 2, 3, 4] } }),
     Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true }),
+    Table.configure({ resizable: true }),
+    TableRow,
+    TableHeader,
+    TableCell,
     Placeholder.configure({ placeholder }),
     MarkdownTextStyle,
     Color.configure({ types: ["textStyle"] }),
@@ -119,6 +134,7 @@ export function TiptapEditor({
     },
     onUpdate: ({ editor: updatedEditor }) => {
       onChangeRef.current(updatedEditor.getMarkdown());
+      onHtmlChangeRef.current?.(updatedEditor.getHTML());
     },
   }, [extensions]);
 
@@ -127,6 +143,7 @@ export function TiptapEditor({
     if (editor.getMarkdown() !== normalizedValue) {
       editor.commands.setContent(normalizedValue, { contentType: "markdown", emitUpdate: false });
     }
+    onHtmlChangeRef.current?.(editor.getHTML());
     if (normalizedValue !== value) onChangeRef.current(normalizedValue);
   }, [editor, normalizedValue, value]);
 
@@ -179,6 +196,14 @@ export function TiptapEditor({
           <ToolbarButton compact={compact} label="Code block" active={!!editor?.isActive("codeBlock")} onClick={() => editor?.chain().focus().toggleCodeBlock().run()}><Code2 className="h-3.5 w-3.5" /></ToolbarButton>
           <ToolbarButton compact={compact} label="Horizontal rule" onClick={() => editor?.chain().focus().setHorizontalRule().run()}><Minus className="h-3.5 w-3.5" /></ToolbarButton>
           <ToolbarButton compact={compact} label={editor?.isActive("link") ? "Remove link" : "Add link"} active={!!editor?.isActive("link")} onClick={applyLink}><Link2 className="h-3.5 w-3.5" /></ToolbarButton>
+          <span className={`${compact ? "mx-0.5" : "mx-1"} h-4 w-px shrink-0 bg-[#394252]`} aria-hidden="true" />
+          <ToolbarButton compact={compact} label="Insert table" onClick={() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}>Table +</ToolbarButton>
+          <ToolbarButton compact={compact} label="Add row below" disabled={!editor?.isActive("table")} onClick={() => editor?.chain().focus().addRowAfter().run()}>+ Row</ToolbarButton>
+          <ToolbarButton compact={compact} label="Delete row" disabled={!editor?.isActive("table")} onClick={() => editor?.chain().focus().deleteRow().run()}>− Row</ToolbarButton>
+          <ToolbarButton compact={compact} label="Add column after" disabled={!editor?.isActive("table")} onClick={() => editor?.chain().focus().addColumnAfter().run()}>+ Col</ToolbarButton>
+          <ToolbarButton compact={compact} label="Delete column" disabled={!editor?.isActive("table")} onClick={() => editor?.chain().focus().deleteColumn().run()}>− Col</ToolbarButton>
+          <ToolbarButton compact={compact} label="Toggle header row" disabled={!editor?.isActive("table")} onClick={() => editor?.chain().focus().toggleHeaderRow().run()}>Header</ToolbarButton>
+          <ToolbarButton compact={compact} label="Delete table" disabled={!editor?.isActive("table")} onClick={() => editor?.chain().focus().deleteTable().run()}>Delete table</ToolbarButton>
           <div ref={colorPaletteRef} className="relative shrink-0">
             <ToolbarButton compact={compact} label="Text color" active={!!editor?.isActive("textStyle")} onClick={() => setIsColorPaletteOpen((open) => !open)}><Palette className="h-3.5 w-3.5" /></ToolbarButton>
             {isColorPaletteOpen && (
@@ -274,7 +299,7 @@ export function TiptapEditor({
           </div>
         </div>
       </div>
-      <div className="rounded border border-[#202631] bg-[#0c1017] px-3 py-2 text-xs text-stone-200 outline-none transition focus-within:border-amber-500/40 [&_.ProseMirror]:min-h-[100px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:leading-relaxed [&_.ProseMirror_h1]:my-3 [&_.ProseMirror_h1]:text-xl [&_.ProseMirror_h1]:font-semibold [&_.ProseMirror_h2]:my-2 [&_.ProseMirror_h2]:text-lg [&_.ProseMirror_h2]:font-semibold [&_.ProseMirror_h3]:my-2 [&_.ProseMirror_h3]:text-base [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h4]:my-2 [&_.ProseMirror_h4]:text-lg [&_.ProseMirror_h4]:font-semibold [&_.ProseMirror_h4]:leading-7 [&_.ProseMirror_blockquote]:my-2 [&_.ProseMirror_blockquote]:border-l-2 [&_.ProseMirror_blockquote]:border-amber-500/40 [&_.ProseMirror_blockquote]:pl-3 [&_.ProseMirror_pre]:my-2 [&_.ProseMirror_pre]:overflow-x-auto [&_.ProseMirror_pre]:rounded [&_.ProseMirror_pre]:bg-[#171d28] [&_.ProseMirror_pre]:p-3 [&_.ProseMirror_code]:rounded [&_.ProseMirror_code]:bg-[#171d28] [&_.ProseMirror_code]:px-1 [&_.ProseMirror_ul]:my-2 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5 [&_.ProseMirror_ol]:my-2 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-5 [&_.ProseMirror_hr]:my-3 [&_.ProseMirror_a]:text-amber-400 [&_.ProseMirror_a]:underline">
+      <div className="overflow-x-auto rounded border border-[#202631] bg-[#0c1017] px-3 py-2 text-xs text-stone-200 outline-none transition focus-within:border-amber-500/40 [&_.ProseMirror]:min-h-[100px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:leading-relaxed [&_.ProseMirror_h1]:my-3 [&_.ProseMirror_h1]:text-xl [&_.ProseMirror_h1]:font-semibold [&_.ProseMirror_h2]:my-2 [&_.ProseMirror_h2]:text-lg [&_.ProseMirror_h2]:font-semibold [&_.ProseMirror_h3]:my-2 [&_.ProseMirror_h3]:text-base [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h4]:my-2 [&_.ProseMirror_h4]:text-lg [&_.ProseMirror_h4]:font-semibold [&_.ProseMirror_h4]:leading-7 [&_.ProseMirror_blockquote]:my-2 [&_.ProseMirror_blockquote]:border-l-2 [&_.ProseMirror_blockquote]:border-amber-500/40 [&_.ProseMirror_blockquote]:pl-3 [&_.ProseMirror_pre]:my-2 [&_.ProseMirror_pre]:overflow-x-auto [&_.ProseMirror_pre]:rounded [&_.ProseMirror_pre]:bg-[#171d28] [&_.ProseMirror_pre]:p-3 [&_.ProseMirror_code]:rounded [&_.ProseMirror_code]:bg-[#171d28] [&_.ProseMirror_code]:px-1 [&_.ProseMirror_ul]:my-2 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5 [&_.ProseMirror_ol]:my-2 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-5 [&_.ProseMirror_hr]:my-3 [&_.ProseMirror_a]:text-amber-400 [&_.ProseMirror_a]:underline [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_table_th]:border [&_.ProseMirror_table_th]:border-[#394252] [&_.ProseMirror_table_th]:bg-[#171d28] [&_.ProseMirror_table_th]:p-2 [&_.ProseMirror_table_td]:border [&_.ProseMirror_table_td]:border-[#394252] [&_.ProseMirror_table_td]:p-2">
         <EditorContent editor={editor} />
       </div>
     </div>
