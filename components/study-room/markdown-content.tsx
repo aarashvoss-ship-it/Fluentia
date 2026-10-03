@@ -84,13 +84,13 @@ export function MarkdownContent({ value, className = "", plainCode = false, data
             return <span {...props}>{children}</span>;
           },
           h1: ({ children }) => <h1 className="mb-4 mt-6 text-2xl font-semibold leading-tight text-stone-100">{children}</h1>,
-          h2: ({ children }) => <h2 className="mb-3 mt-5 text-lg font-semibold leading-tight text-stone-100">{children}</h2>,
-          h3: ({ children }) => <h3 className="mb-3 mt-4 text-base font-semibold leading-tight text-stone-100">{children}</h3>,
-          h4: ({ children }) => <h4 className="mb-2 mt-4 text-lg font-semibold leading-7 text-stone-100">{children}</h4>,
+          h2: ({ children }) => <h2 className="mb-3 mt-5 text-xl font-semibold leading-tight text-stone-100">{children}</h2>,
+          h3: ({ children }) => <h3 className="mb-3 mt-4 text-lg font-semibold leading-tight text-stone-100">{children}</h3>,
+          h4: ({ children }) => <h4 className="mb-2 mt-4 text-[1.0625rem] font-semibold leading-7 text-stone-100">{children}</h4>,
           h5: ({ children }) => <h5 className="mb-2 mt-3 text-sm font-semibold leading-snug text-stone-200">{children}</h5>,
           h6: ({ children }) => <h6 className="mb-2 mt-3 text-xs font-semibold leading-snug text-stone-300">{children}</h6>,
           text: ({ children }) => <>{renderTextTokens(String(children))}</>,
-          strong: ({ children }) => <strong className="font-semibold text-amber-400">{children}</strong>,
+          strong: ({ children }) => <strong>{children}</strong>,
           p: ({ children }) => {
             const comparison = renderComparison(children);
             if (!comparison) return <p className="mb-4 whitespace-pre-wrap leading-7 last:mb-0">{children}</p>;

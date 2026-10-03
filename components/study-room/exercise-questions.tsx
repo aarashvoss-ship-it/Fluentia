@@ -55,10 +55,10 @@ export function ExerciseQuestions({
                   values={textAnswers}
                   onChange={(blankIndex, answer) => onBlankAnswer?.(question.id, blankIndex, answer)}
                   readOnly={readOnly}
-                  className="min-w-0 flex-1 text-base leading-relaxed text-stone-100 [&_p]:mb-0 [&_strong]:font-semibold"
+                  className="min-w-0 flex-1 text-base leading-relaxed text-stone-100 [&_p]:mb-0"
                 />
               ) : (
-                <MarkdownContent value={question.prompt || ""} className="min-w-0 flex-1 text-base leading-relaxed text-stone-100 [&_p]:m-0 [&_strong]:font-semibold" />
+                <MarkdownContent value={question.prompt || ""} className="min-w-0 flex-1 text-base leading-relaxed text-stone-100 [&_p]:m-0" />
               )}
             </div>
 

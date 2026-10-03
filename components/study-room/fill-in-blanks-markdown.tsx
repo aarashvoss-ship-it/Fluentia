@@ -58,13 +58,14 @@ export function FillInBlanksMarkdown({
 
   const components: Components = {
     h1: ({ children }) => <h1 className="mb-4 mt-6 text-2xl font-semibold leading-tight text-stone-100">{children}</h1>,
-    h2: ({ children }) => <h2 className="mb-3 mt-5 text-lg font-semibold leading-tight text-stone-100">{children}</h2>,
-    h3: ({ children }) => <h3 className="mb-3 mt-4 text-base font-semibold leading-tight text-stone-100">{children}</h3>,
+    h2: ({ children }) => <h2 className="mb-3 mt-5 text-xl font-semibold leading-tight text-stone-100">{children}</h2>,
+    h3: ({ children }) => <h3 className="mb-3 mt-4 text-lg font-semibold leading-tight text-stone-100">{children}</h3>,
+    h4: ({ children }) => <h4 className="mb-2 mt-3 text-[1.0625rem] font-semibold leading-tight text-stone-100">{children}</h4>,
     p: ({ children }) => <p className="mb-4 whitespace-pre-wrap leading-7 last:mb-0">{children}</p>,
     ul: ({ children }) => <ul className="mb-4 mt-2 list-disc space-y-1 pl-5 leading-7">{children}</ul>,
     ol: ({ children }) => <ol className="mb-4 mt-2 list-decimal space-y-1 pl-5 leading-7">{children}</ol>,
     li: ({ children }) => <li className="pl-1 text-slate-300">{children}</li>,
-    strong: ({ children }) => <strong className="font-semibold text-amber-400">{children}</strong>,
+    strong: ({ children }) => <strong>{children}</strong>,
     em: ({ children }) => <em className="italic text-stone-200">{children}</em>,
     code: ({ children }) => <code className="rounded border border-[#394252] bg-[#0c1017] px-1.5 py-0.5 font-mono text-xs text-amber-400">{children}</code>,
     a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="text-amber-400 underline decoration-amber-400 underline-offset-2 hover:text-amber-400">{children}</a>,

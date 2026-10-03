@@ -1016,7 +1016,7 @@ export default function LessonPage() {
     const renderSidebarBlock = (sidebarBlock: { id: string; title: string; body: string; icon?: string }) => (
       <div className="rounded-xl border border-[#202631] bg-[#121721] p-4">
         {sidebarBlock.title.trim() && sidebarBlock.title.trim() !== "Sidebar note" && <div className="flex items-start gap-2">{sidebarBlock.icon && <DynamicLucideIcon name={sidebarBlock.icon} className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />}<MarkdownContent value={sidebarBlock.title} className="text-xs font-semibold text-amber-400 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-xs [&_p]:m-0" /></div>}
-        <MarkdownContent value={sidebarBlock.body || ""} className="mt-2 text-sm leading-relaxed text-slate-300 [&_strong]:font-semibold [&_strong]:text-amber-400" />
+        <MarkdownContent value={sidebarBlock.body || ""} className="mt-2 text-sm leading-relaxed text-slate-300" />
       </div>
     );
     const renderFillInTheBlanks = (block: Extract<ContentBlock, { type: "fill-in-the-blanks" }>) => {

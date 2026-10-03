@@ -37,6 +37,12 @@ body {
   min-height: 100vh;
 }
 
+strong,
+b {
+  color: inherit;
+  font-weight: 700;
+}
+
 /* Soft interaction validation - fade-to-white subtle pulse instead of red shake */
 @keyframes soft-pulse-subtle {
   0%, 100% {
@@ -595,7 +601,7 @@ body {
 .resource-rich-text h1 { font-size: 1.5rem; }
 .resource-rich-text h2 { font-size: 1.25rem; }
 .resource-rich-text h3 { font-size: 1.125rem; }
-.resource-rich-text h4 { font-size: 1rem; }
+.resource-rich-text h4 { font-size: 1.0625rem; }
 
 .resource-rich-text ul,
 .resource-rich-text ol {

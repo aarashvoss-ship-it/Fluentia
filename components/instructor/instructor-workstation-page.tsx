@@ -2765,7 +2765,7 @@ export default function InstructorWorkstationPage({
                       {sidebarItem.icon && <DynamicLucideIcon name={sidebarItem.icon} className="h-4 w-4" aria-hidden="true" />}
                       {sidebarItem.title}
                     </p>
-                    <MarkdownContent value={sidebarItem.body || ""} className="mt-2 text-sm leading-relaxed text-stone-300 [&_strong]:font-semibold [&_strong]:text-amber-400" />
+                    <MarkdownContent value={sidebarItem.body || ""} className="mt-2 text-sm leading-relaxed text-stone-300" />
                   </div>
                 ))}
                 {sidebarBlock && (
@@ -2774,7 +2774,7 @@ export default function InstructorWorkstationPage({
                       {sidebarBlock.icon && <DynamicLucideIcon name={sidebarBlock.icon} className="h-4 w-4" aria-hidden="true" />}
                       {sidebarBlock.title}
                     </p>
-                    <MarkdownContent value={sidebarBlock.body || ""} className="mt-2 text-sm leading-relaxed text-stone-300 [&_strong]:font-semibold [&_strong]:text-amber-400" />
+                    <MarkdownContent value={sidebarBlock.body || ""} className="mt-2 text-sm leading-relaxed text-stone-300" />
                   </div>
                 )}
               </>
