@@ -6,7 +6,7 @@ import * as LucideIcons from "lucide-react";
 import { CircleHelp, Search } from "lucide-react";
 import type { LucideIcon, LucideProps } from "lucide-react";
 
-const ICON_COMPONENTS = LucideIcons as unknown as Record<string, LucideIcon>;
+const ICON_COMPONENTS: Record<string, unknown> = LucideIcons;
 
 const ICON_CATEGORIES = [
   {
@@ -38,20 +38,42 @@ const ICON_CATEGORIES = [
 
 function isRenderableIcon(value: unknown): value is LucideIcon {
   return typeof value === "function"
-    || (typeof value === "object" && value !== null && "$$typeof" in value);
+    || (
+      typeof value === "object"
+      && value !== null
+      && "$$typeof" in value
+      && value.$$typeof === Symbol.for("react.forward_ref")
+    );
 }
 
 const ALL_ICON_NAMES = Object.keys(ICON_COMPONENTS)
   .filter((name) => /^[A-Z]/.test(name) && isRenderableIcon(ICON_COMPONENTS[name]))
   .sort((first, second) => first.localeCompare(second));
+const ALL_ICON_NAMES_SET = new Set(ALL_ICON_NAMES);
 export const LUCIDE_ICON_NAMES = ALL_ICON_NAMES;
+
+export function normalizeIconSearch(value: unknown): string {
+  return typeof value === "string" ? value.normalize("NFKC").trim().toLocaleLowerCase() : "";
+}
+
+export function filterLucideIconNames(names: readonly unknown[], search: string): string[] {
+  return names.filter((name): name is string =>
+    typeof name === "string"
+    && isRenderableIcon(ICON_COMPONENTS[name])
+    && name.toLocaleLowerCase().includes(search),
+  );
+}
+
+export function isLucideIconName(name: unknown): name is string {
+  return typeof name === "string" && ALL_ICON_NAMES_SET.has(name);
+}
 
 export function DynamicLucideIcon({
   name,
   fallback: Fallback = CircleHelp,
   ...props
 }: LucideProps & { name?: string | null; fallback?: LucideIcon }) {
-  const candidate = name ? ICON_COMPONENTS[name] : undefined;
+  const candidate = isLucideIconName(name) ? ICON_COMPONENTS[name] : undefined;
   const Icon = isRenderableIcon(candidate) ? candidate : Fallback;
   return <Icon {...props} />;
 }
@@ -76,9 +98,10 @@ export function LucideIconPicker({
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
-  const selectedName = value && isRenderableIcon(ICON_COMPONENTS[value]) ? value : "";
-  const TriggerIcon = triggerIcon ?? (selectedName ? ICON_COMPONENTS[selectedName] : CircleHelp);
-  const normalizedSearch = search.trim().toLowerCase();
+  const selectedName = isLucideIconName(value) ? value : "";
+  const selectedIcon = selectedName ? ICON_COMPONENTS[selectedName] : undefined;
+  const TriggerIcon = triggerIcon ?? (isRenderableIcon(selectedIcon) ? selectedIcon : CircleHelp);
+  const normalizedSearch = normalizeIconSearch(search);
 
   const updatePopoverPosition = () => {
     const trigger = triggerRef.current;
@@ -98,7 +121,7 @@ export function LucideIconPicker({
     const names = normalizedSearch
       ? ALL_ICON_NAMES
       : ICON_CATEGORIES.find((category) => category.id === activeCategory)?.icons || [];
-    return names.filter((name) => name.toLowerCase().includes(normalizedSearch));
+    return filterLucideIconNames(names, normalizedSearch);
   }, [activeCategory, normalizedSearch]);
 
   useEffect(() => {

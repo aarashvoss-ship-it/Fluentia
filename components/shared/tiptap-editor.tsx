@@ -29,7 +29,13 @@ import {
   Strikethrough,
 } from "lucide-react";
 import { Tooltip } from "@/components/shared/tooltip";
-import { DynamicLucideIcon, LUCIDE_ICON_NAMES } from "@/components/shared/lucide-icon-picker";
+import {
+  DynamicLucideIcon,
+  filterLucideIconNames,
+  isLucideIconName,
+  LUCIDE_ICON_NAMES,
+  normalizeIconSearch,
+} from "@/components/shared/lucide-icon-picker";
 import { InlineLucideIcon } from "@/components/shared/inline-lucide-icon";
 
 const MarkdownTextStyle = TextStyle.extend({
@@ -282,10 +288,11 @@ export function TiptapEditor({
 
   const textColors = ["#f3f4f6", "#fbbf24", "#ef4444", "#10b981", "#06b6d4", "#a78bfa", "#f472b6", "#9ca3af"];
   const popularIcons = ["BookOpen", "Check", "Star", "Play", "Lightbulb", "Target", "Sparkles", "Heart", "Clock", "Award", "Bookmark"];
-  const normalizedIconSearch = iconSearch.trim().toLowerCase();
-  const visibleIcons = (normalizedIconSearch
-    ? LUCIDE_ICON_NAMES.filter((name) => name.toLowerCase().includes(normalizedIconSearch))
-    : popularIcons).slice(0, 60);
+  const normalizedIconSearch = normalizeIconSearch(iconSearch);
+  const visibleIcons = useMemo(
+    () => filterLucideIconNames(normalizedIconSearch ? LUCIDE_ICON_NAMES : popularIcons, normalizedIconSearch).slice(0, 60),
+    [normalizedIconSearch],
+  );
 
   return (
     <div className="tiptap-editor w-full min-w-0 space-y-2">
@@ -371,7 +378,7 @@ export function TiptapEditor({
                 type="button"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => {
-                  if (!editor) return;
+                  if (!editor || !isLucideIconName(name)) return;
                   iconSelectionRef.current = { from: editor.state.selection.from, to: editor.state.selection.to };
                   setIconSearch("");
                   setIsIconPickerOpen((open) => !open);
