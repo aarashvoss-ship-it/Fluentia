@@ -71,6 +71,7 @@ type TiptapEditorProps = {
   ariaLabel: string;
   compact?: boolean;
   wrapToolbar?: boolean;
+  defaultBold?: boolean;
 };
 
 function ToolbarButton({
@@ -260,6 +261,7 @@ export function TiptapEditor({
   ariaLabel,
   compact = false,
   wrapToolbar = true,
+  defaultBold = false,
 }: TiptapEditorProps) {
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -271,6 +273,7 @@ export function TiptapEditor({
   const tableMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const tableMenuRef = useRef<HTMLDivElement | null>(null);
   const [tableMenuPosition, setTableMenuPosition] = useState({ top: 0, left: 0 });
+  const defaultBoldEditorRef = useRef<Editor | null>(null);
   const valueIsHtml = isHtmlContent(value);
   const normalizedValue = valueIsHtml ? value : normalizeLegacyMarkdown(value);
 
@@ -318,6 +321,12 @@ export function TiptapEditor({
     const html = editor.isEmpty ? "" : editor.getHTML();
     onHtmlChangeRef.current?.(html);
   }, [editor, normalizedValue, value, valueIsHtml]);
+
+  useEffect(() => {
+    if (!defaultBold || !editor || defaultBoldEditorRef.current === editor) return;
+    defaultBoldEditorRef.current = editor;
+    if (editor.isEmpty) editor.commands.setMark("bold");
+  }, [defaultBold, editor]);
 
   const activeStates = useEditorState({
     editor,

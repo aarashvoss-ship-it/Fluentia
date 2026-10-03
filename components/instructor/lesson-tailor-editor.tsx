@@ -748,6 +748,7 @@ export function LessonTailorEditor({
                         placeholder={questionType === "fill_in_the_blanks" ? "The capital of France is [Paris]. Use [answer] for each blank." : `Write question ${questionIndex + 1}`}
                         ariaLabel={`Question ${questionIndex + 1} prompt`}
                         compact
+                        defaultBold
                       />
                       {questionType === "multiple_choice" && (
                         <div className="space-y-2">
