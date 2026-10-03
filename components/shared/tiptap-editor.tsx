@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
@@ -15,6 +16,7 @@ import TableHeader from "@tiptap/extension-table-header";
 import {
   Bold,
   Code2,
+  ChevronDown,
   Italic,
   Link2,
   List,
@@ -116,6 +118,13 @@ export function TiptapEditor({
   const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
   const [iconSearch, setIconSearch] = useState("");
   const iconSelectionRef = useRef<{ from: number; to: number } | null>(null);
+  const iconPickerButtonRef = useRef<HTMLButtonElement | null>(null);
+  const iconPickerRef = useRef<HTMLDivElement | null>(null);
+  const [iconPickerPosition, setIconPickerPosition] = useState({ top: 0, left: 0 });
+  const [isTableMenuOpen, setIsTableMenuOpen] = useState(false);
+  const tableMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const tableMenuRef = useRef<HTMLDivElement | null>(null);
+  const [tableMenuPosition, setTableMenuPosition] = useState({ top: 0, left: 0 });
   const valueIsHtml = isHtmlContent(value);
   const normalizedValue = valueIsHtml ? value : normalizeLegacyMarkdown(value);
 
@@ -214,6 +223,53 @@ export function TiptapEditor({
     return () => document.removeEventListener("pointerdown", handleOutsidePointerDown);
   }, [isColorPaletteOpen]);
 
+  useEffect(() => {
+    if (!isIconPickerOpen && !isTableMenuOpen) return;
+    const updatePopoverPositions = () => {
+      const positionPopover = (trigger: HTMLButtonElement | null, width: number, height: number) => {
+        if (!trigger) return { top: 0, left: 0 };
+        const bounds = trigger.getBoundingClientRect();
+        const left = Math.max(8, Math.min(bounds.right - width, window.innerWidth - width - 8));
+        const top = bounds.bottom + height + 8 <= window.innerHeight
+          ? bounds.bottom + 8
+          : Math.max(8, bounds.top - height - 8);
+        return { top, left };
+      };
+      if (isIconPickerOpen) setIconPickerPosition(positionPopover(iconPickerButtonRef.current, 288, 320));
+      if (isTableMenuOpen) setTableMenuPosition(positionPopover(tableMenuButtonRef.current, 192, 220));
+    };
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!(event.target instanceof Node)) return;
+      if (isIconPickerOpen
+        && !iconPickerButtonRef.current?.contains(event.target)
+        && !iconPickerRef.current?.contains(event.target)) {
+        setIsIconPickerOpen(false);
+      }
+      if (isTableMenuOpen
+        && !tableMenuButtonRef.current?.contains(event.target)
+        && !tableMenuRef.current?.contains(event.target)) {
+        setIsTableMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsIconPickerOpen(false);
+        setIsTableMenuOpen(false);
+      }
+    };
+    updatePopoverPositions();
+    window.addEventListener("resize", updatePopoverPositions);
+    window.addEventListener("scroll", updatePopoverPositions, true);
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("resize", updatePopoverPositions);
+      window.removeEventListener("scroll", updatePopoverPositions, true);
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isIconPickerOpen, isTableMenuOpen]);
+
   const applyLink = () => {
     if (!editor) return;
     if (editor.isActive("link")) {
@@ -234,32 +290,47 @@ export function TiptapEditor({
   return (
     <div className="tiptap-editor w-full min-w-0 space-y-2">
       <div className="w-full min-w-0">
-        <div className={`box-border flex w-full min-w-0 items-center justify-start rounded border border-[#202631] bg-[#0c1017] p-1 ${wrapToolbar ? "flex-wrap" : ""} ${compact ? "gap-1" : "gap-1.5"}`} role="toolbar" aria-label="Rich text formatting">
+        <div className={`box-border flex w-full min-w-0 items-center justify-start rounded border border-[#202631] bg-[#0c1017] p-1 ${wrapToolbar ? "flex-wrap" : ""} ${compact ? "gap-0.5" : "gap-1.5"}`} role="toolbar" aria-label="Rich text formatting">
           <ToolbarButton compact={compact} label="Normal paragraph" active={active.paragraph} onClick={() => editor?.chain().focus().setParagraph().run()}>P</ToolbarButton>
           <ToolbarButton compact={compact} label="Heading 1" active={active.heading1} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}>H1</ToolbarButton>
           <ToolbarButton compact={compact} label="Heading 2" active={active.heading2} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>H2</ToolbarButton>
           <ToolbarButton compact={compact} label="Heading 3" active={active.heading3} onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}>H3</ToolbarButton>
           <ToolbarButton compact={compact} label="Heading 4" active={active.heading4} onClick={() => editor?.chain().focus().toggleHeading({ level: 4 }).run()}>H4</ToolbarButton>
-          <span className={`${compact ? "mx-0.5" : "mx-1"} h-4 w-px shrink-0 bg-[#394252]`} aria-hidden="true" />
+          {!compact && <span className="mx-1 h-4 w-px shrink-0 bg-[#394252]" aria-hidden="true" />}
           <ToolbarButton compact={compact} label="Bold" active={active.bold} onClick={() => editor?.chain().focus().toggleBold().run()}><Bold className="h-3.5 w-3.5" /></ToolbarButton>
           <ToolbarButton compact={compact} label="Italic" active={active.italic} onClick={() => editor?.chain().focus().toggleItalic().run()}><Italic className="h-3.5 w-3.5" /></ToolbarButton>
           <ToolbarButton compact={compact} label="Strikethrough" active={active.strike} onClick={() => editor?.chain().focus().toggleStrike().run()}><Strikethrough className="h-3.5 w-3.5" /></ToolbarButton>
-          <span className={`${compact ? "mx-0.5" : "mx-1"} h-4 w-px shrink-0 bg-[#394252]`} aria-hidden="true" />
+          {!compact && <span className="mx-1 h-4 w-px shrink-0 bg-[#394252]" aria-hidden="true" />}
           <ToolbarButton compact={compact} label="Bullet list" active={active.bulletList} onClick={() => editor?.chain().focus().toggleBulletList().run()}><List className="h-3.5 w-3.5" /></ToolbarButton>
           <ToolbarButton compact={compact} label="Numbered list" active={active.orderedList} onClick={() => editor?.chain().focus().toggleOrderedList().run()}><ListOrdered className="h-3.5 w-3.5" /></ToolbarButton>
-          <span className={`${compact ? "mx-0.5" : "mx-1"} h-4 w-px shrink-0 bg-[#394252]`} aria-hidden="true" />
+          {!compact && <span className="mx-1 h-4 w-px shrink-0 bg-[#394252]" aria-hidden="true" />}
           <ToolbarButton compact={compact} label="Callout / blockquote" active={active.blockquote} onClick={() => editor?.chain().focus().toggleBlockquote().run()}><Lightbulb className="h-3.5 w-3.5" /></ToolbarButton>
           <ToolbarButton compact={compact} label="Code block" active={active.codeBlock} onClick={() => editor?.chain().focus().toggleCodeBlock().run()}><Code2 className="h-3.5 w-3.5" /></ToolbarButton>
           <ToolbarButton compact={compact} label="Horizontal rule" onClick={() => editor?.chain().focus().setHorizontalRule().run()}><Minus className="h-3.5 w-3.5" /></ToolbarButton>
           <ToolbarButton compact={compact} label={active.link ? "Remove link" : "Add link"} active={active.link} onClick={applyLink}><Link2 className="h-3.5 w-3.5" /></ToolbarButton>
-          <span className={`${compact ? "mx-0.5" : "mx-1"} h-4 w-px shrink-0 bg-[#394252]`} aria-hidden="true" />
-          <ToolbarButton compact={compact} label="Insert table" onClick={() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}>Table +</ToolbarButton>
-          <ToolbarButton compact={compact} label="Add row below" disabled={!active.table} onClick={() => editor?.chain().focus().addRowAfter().run()}>+ Row</ToolbarButton>
-          <ToolbarButton compact={compact} label="Delete row" disabled={!active.table} onClick={() => editor?.chain().focus().deleteRow().run()}>− Row</ToolbarButton>
-          <ToolbarButton compact={compact} label="Add column after" disabled={!active.table} onClick={() => editor?.chain().focus().addColumnAfter().run()}>+ Col</ToolbarButton>
-          <ToolbarButton compact={compact} label="Delete column" disabled={!active.table} onClick={() => editor?.chain().focus().deleteColumn().run()}>− Col</ToolbarButton>
-          <ToolbarButton compact={compact} label="Toggle header row" disabled={!active.table} onClick={() => editor?.chain().focus().toggleHeaderRow().run()}>Header</ToolbarButton>
-          <ToolbarButton compact={compact} label="Delete table" disabled={!active.table} onClick={() => editor?.chain().focus().deleteTable().run()}>Delete table</ToolbarButton>
+          {!compact && <span className="mx-1 h-4 w-px shrink-0 bg-[#394252]" aria-hidden="true" />}
+          <div className="shrink-0">
+            <Tooltip content="Table controls">
+              <button
+                ref={tableMenuButtonRef}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  if (!isTableMenuOpen) {
+                    const bounds = tableMenuButtonRef.current?.getBoundingClientRect();
+                    if (bounds) setTableMenuPosition({ top: bounds.bottom + 8, left: Math.max(8, Math.min(bounds.right - 192, window.innerWidth - 200)) });
+                  }
+                  setIsTableMenuOpen((open) => !open);
+                }}
+                aria-label="Table controls"
+                aria-expanded={isTableMenuOpen}
+                aria-haspopup="menu"
+                className={`flex items-center justify-center gap-1 rounded text-[10px] text-stone-300 transition hover:bg-[#293343] hover:text-white ${compact ? "h-6 px-1" : "h-7 px-1.5"}`}
+              >
+                Table <ChevronDown className="h-3 w-3" aria-hidden="true" />
+              </button>
+            </Tooltip>
+          </div>
           <div ref={colorPaletteRef} className="relative shrink-0">
             <ToolbarButton compact={compact} label="Text color" active={active.textStyle} onClick={() => setIsColorPaletteOpen((open) => !open)}><Palette className="h-3.5 w-3.5" /></ToolbarButton>
             {isColorPaletteOpen && (
@@ -293,9 +364,10 @@ export function TiptapEditor({
               </div>
             )}
           </div>
-          <div className="relative shrink-0">
+          <div className="shrink-0">
             <Tooltip content="Insert Icon">
               <button
+                ref={iconPickerButtonRef}
                 type="button"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => {
@@ -312,8 +384,8 @@ export function TiptapEditor({
                 <PlusCircle className="h-3.5 w-3.5" />
               </button>
             </Tooltip>
-            {isIconPickerOpen && (
-              <div role="dialog" aria-label="Choose an icon to insert" className="absolute right-0 top-full z-[10000] mt-2 w-72 rounded-md border border-[#394252] bg-[#171d28] p-3 shadow-2xl">
+            {isIconPickerOpen && typeof document !== "undefined" && createPortal(
+              <div ref={iconPickerRef} role="dialog" aria-label="Choose an icon to insert" style={{ position: "fixed", top: iconPickerPosition.top, left: iconPickerPosition.left, zIndex: 10000 }} className="w-72 max-w-[calc(100vw-1rem)] rounded-md border border-[#394252] bg-[#171d28] p-3 shadow-2xl">
                 <input
                   autoFocus
                   type="search"
@@ -350,11 +422,47 @@ export function TiptapEditor({
                   ))}
                   {visibleIcons.length === 0 && <p className="col-span-full py-4 text-center text-xs text-stone-500">No icons found.</p>}
                 </div>
-              </div>
+              </div>,
+              document.body,
             )}
           </div>
         </div>
       </div>
+      {isTableMenuOpen && typeof document !== "undefined" && createPortal(
+        <div
+          ref={tableMenuRef}
+          role="menu"
+          aria-label="Table controls"
+          style={{ position: "fixed", top: tableMenuPosition.top, left: tableMenuPosition.left, zIndex: 10000 }}
+          className="grid w-48 grid-cols-2 gap-1 rounded-md border border-[#394252] bg-[#171d28] p-2 shadow-2xl"
+        >
+          {[
+            { label: "Insert table", action: () => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), disabled: false },
+            { label: "Add row", action: () => editor?.chain().focus().addRowAfter().run(), disabled: !active.table },
+            { label: "Delete row", action: () => editor?.chain().focus().deleteRow().run(), disabled: !active.table },
+            { label: "Add column", action: () => editor?.chain().focus().addColumnAfter().run(), disabled: !active.table },
+            { label: "Delete column", action: () => editor?.chain().focus().deleteColumn().run(), disabled: !active.table },
+            { label: "Header row", action: () => editor?.chain().focus().toggleHeaderRow().run(), disabled: !active.table },
+            { label: "Delete table", action: () => editor?.chain().focus().deleteTable().run(), disabled: !active.table },
+          ].map(({ label, action, disabled }) => (
+            <button
+              key={label}
+              type="button"
+              role="menuitem"
+              disabled={disabled}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                action();
+                setIsTableMenuOpen(false);
+              }}
+              className="rounded px-2 py-1.5 text-left text-[11px] text-stone-300 hover:bg-[#293343] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {label}
+            </button>
+          ))}
+        </div>,
+        document.body,
+      )}
       <div className="overflow-x-auto rounded border border-[#202631] bg-[#0c1017] px-3 py-2 text-xs text-stone-200 outline-none transition focus-within:border-amber-500/40 [&_.ProseMirror]:min-h-[100px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:leading-relaxed [&_.ProseMirror_h1]:my-3 [&_.ProseMirror_h1]:text-xl [&_.ProseMirror_h1]:font-semibold [&_.ProseMirror_h2]:my-2 [&_.ProseMirror_h2]:text-lg [&_.ProseMirror_h2]:font-semibold [&_.ProseMirror_h3]:my-2 [&_.ProseMirror_h3]:text-base [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h4]:my-2 [&_.ProseMirror_h4]:text-lg [&_.ProseMirror_h4]:font-semibold [&_.ProseMirror_h4]:leading-7 [&_.ProseMirror_blockquote]:my-2 [&_.ProseMirror_blockquote]:border-l-2 [&_.ProseMirror_blockquote]:border-amber-500/40 [&_.ProseMirror_blockquote]:pl-3 [&_.ProseMirror_pre]:my-2 [&_.ProseMirror_pre]:overflow-x-auto [&_.ProseMirror_pre]:rounded [&_.ProseMirror_pre]:bg-[#171d28] [&_.ProseMirror_pre]:p-3 [&_.ProseMirror_code]:rounded [&_.ProseMirror_code]:bg-[#171d28] [&_.ProseMirror_code]:px-1 [&_.ProseMirror_ul]:my-2 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5 [&_.ProseMirror_ol]:my-2 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-5 [&_.ProseMirror_hr]:my-3 [&_.ProseMirror_a]:text-amber-400 [&_.ProseMirror_a]:underline [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_table_th]:border [&_.ProseMirror_table_th]:border-[#394252] [&_.ProseMirror_table_th]:bg-[#171d28] [&_.ProseMirror_table_th]:p-2 [&_.ProseMirror_table_td]:border [&_.ProseMirror_table_td]:border-[#394252] [&_.ProseMirror_table_td]:p-2">
         <EditorContent editor={editor} />
       </div>
