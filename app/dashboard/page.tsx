@@ -45,7 +45,7 @@ import {
   saveStudentProfile,
 } from "@/lib/student-profiles";
 import { createBrowserClient } from "@supabase/ssr";
-import { getBannerPositionStyles, normalizeBannerPosition } from "@/lib/banner-position";
+import { getBannerPositionStyles, normalizeBannerDimness, normalizeBannerPosition } from "@/lib/banner-position";
 import { HeroBanner, HeroBannerContent, HeroBannerLogo } from "@/components/shared/hero-banner";
 
 const supabase = createBrowserClient(
@@ -122,6 +122,8 @@ type ProfilePreferences = {
   customBannerUrl?: string;
   bannerPosition?: number;
   banner_position?: number;
+  dashboardBannerDimness?: number;
+  dashboard_banner_dimness?: number;
 };
 
 type DashboardError = {
@@ -210,6 +212,7 @@ function DashboardContent() {
     useState<ProfilePreferences["bannerPreset"]>("default-dark");
   const [customBannerUrl, setCustomBannerUrl] = useState("");
   const [bannerPosition, setBannerPosition] = useState(50);
+  const [dashboardBannerDimness, setDashboardBannerDimness] = useState(20);
   const [profileImageStatus, setProfileImageStatus] = useState<string | null>(null);
   const [profileSaveNotice, setProfileSaveNotice] = useState<string | null>(null);
   const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
@@ -254,6 +257,7 @@ function DashboardContent() {
         if (typeof customization.banner_position === "number") {
           setBannerPosition(customization.banner_position);
         }
+        setDashboardBannerDimness(normalizeBannerDimness(customization.dashboard_banner_dimness ?? customization.dashboardBannerDimness));
         setActiveStudent((current) => current ? {
           ...current,
           profile: {
@@ -395,6 +399,10 @@ function DashboardContent() {
         setBannerPreset(localPreferences.bannerPreset || "default-dark");
         const savedBannerPosition = localPreferences.bannerPosition ?? localPreferences.banner_position ?? localCustomization.banner_position;
         setBannerPosition(typeof savedBannerPosition === "number" ? savedBannerPosition : 50);
+        setDashboardBannerDimness(normalizeBannerDimness(
+          localPreferences.dashboardBannerDimness ?? localPreferences.dashboard_banner_dimness
+            ?? localCustomization.dashboard_banner_dimness ?? localCustomization.dashboardBannerDimness,
+        ));
         console.log("[Student Profile Modal] profile load identifier:", {
           studentToken,
           studentId: activeStudent.id,
@@ -687,6 +695,11 @@ function DashboardContent() {
         );
         const savedBannerPosition = preferences.bannerPosition ?? preferences.banner_position ?? localCustomization.banner_position ?? userMetadata.banner_position;
         setBannerPosition(typeof savedBannerPosition === "number" && Number.isFinite(savedBannerPosition) ? savedBannerPosition : 50);
+        setDashboardBannerDimness(normalizeBannerDimness(
+          preferences.dashboardBannerDimness ?? preferences.dashboard_banner_dimness
+            ?? localCustomization.dashboard_banner_dimness ?? localCustomization.dashboardBannerDimness
+            ?? userMetadata.dashboard_banner_dimness,
+        ));
         setIsMounted(true);
         const refreshLessons = () =>
           void loadDashboard(studentToken).catch((error) =>
@@ -851,6 +864,9 @@ function DashboardContent() {
   const nextLessonBannerPosition = normalizeBannerPosition(
     lessonContent.bannerPosition ?? lessonContent.banner_position,
   );
+  const nextLessonBannerDimness = normalizeBannerDimness(
+    lessonContent.bannerDimness ?? lessonContent.banner_dimness,
+  );
   const avatarImage = isValidImageUrl(customAvatarUrl.trim())
     ? customAvatarUrl.trim()
     : "";
@@ -953,6 +969,8 @@ function DashboardContent() {
       customBannerUrl: bannerUrl,
       bannerPosition,
       banner_position: bannerPosition,
+      dashboardBannerDimness,
+      dashboard_banner_dimness: dashboardBannerDimness,
     };
     const customization = {
       avatar_bg_color: nextAvatarColor,
@@ -961,6 +979,7 @@ function DashboardContent() {
       custom_avatar_url: avatarUrl,
       banner_url: bannerUrl,
       banner_position: bannerPosition,
+      dashboard_banner_dimness: dashboardBannerDimness,
     };
     try {
       window.localStorage.setItem("student_customization", JSON.stringify(customization));
@@ -1000,6 +1019,7 @@ function DashboardContent() {
           custom_avatar_url: avatarUrl,
           banner_url: bannerUrl,
           banner_position: bannerPosition,
+          dashboard_banner_dimness: dashboardBannerDimness,
         },
       });
       if (metadataError) throw metadataError;
@@ -1107,6 +1127,7 @@ function DashboardContent() {
         <HeroBanner
           imageUrl={dashboardHeaderBanner}
           position={normalizeBannerPosition({ x: 50, y: bannerPosition })}
+          dimness={dashboardBannerDimness}
           onImageError={() => setBannerLoadFailed(true)}
         >
             {profileOpen && (
@@ -1633,13 +1654,14 @@ function DashboardContent() {
                               );
                             })}
                           </div>
-                          <div className="aspect-video overflow-hidden rounded-md border border-[#29303c] bg-[#0c1017]">
+                          <div className="relative aspect-video overflow-hidden rounded-md border border-[#29303c] bg-[#0c1017]">
                             <img
                               src={activeBannerUrl}
                               alt="Banner preview"
                               style={getBannerPositionStyles(normalizeBannerPosition({ x: 50, y: bannerPosition }))}
                               className="h-full w-full object-cover"
                             />
+                            <div style={{ opacity: dashboardBannerDimness / 100 }} className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(12,16,23,.72),rgba(12,16,23,.24)),linear-gradient(0deg,rgba(12,16,23,.92),transparent_65%)]" />
                           </div>
                           <label className="block text-[10px] text-stone-400">
                             Vertical position <span className="float-right text-stone-500">{bannerPosition}%</span>
@@ -1650,6 +1672,18 @@ function DashboardContent() {
                               value={bannerPosition}
                               onChange={(event) => setBannerPosition(Number(event.target.value))}
                               aria-label="Banner vertical position"
+                              className="mt-1 w-full accent-amber-500"
+                            />
+                          </label>
+                          <label className="block text-[10px] text-stone-400">
+                            Dashboard banner dimness <span className="float-right text-stone-500">{dashboardBannerDimness}%</span>
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={dashboardBannerDimness}
+                              onChange={(event) => setDashboardBannerDimness(Number(event.target.value))}
+                              aria-label="Dashboard banner dimness"
                               className="mt-1 w-full accent-amber-500"
                             />
                           </label>
@@ -1813,7 +1847,7 @@ function DashboardContent() {
                   style={getBannerPositionStyles(nextLessonBannerPosition)}
                   className="absolute inset-0 h-full w-full object-cover"
                 />
-                <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,11,17,.95),rgba(7,11,17,.6)_52%,rgba(7,11,17,.82)),linear-gradient(0deg,rgba(7,11,17,.92),transparent_65%)]" />
+                <div style={{ opacity: nextLessonBannerDimness / 100 }} className="absolute inset-0 bg-[linear-gradient(90deg,rgba(12,16,23,.72),rgba(12,16,23,.24)),linear-gradient(0deg,rgba(12,16,23,.92),transparent_65%)]" />
                 <span className="absolute left-5 top-4 z-10 rounded-md px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 bg-amber-500/20 border border-amber-500/40">
                   Module {activeModuleNumber ?? 1}
                 </span>
@@ -1965,6 +1999,9 @@ function DashboardContent() {
                   const lessonBannerPosition = normalizeBannerPosition(
                     lesson.content?.bannerPosition ?? lesson.content?.banner_position,
                   );
+                  const lessonBannerDimness = normalizeBannerDimness(
+                    lesson.content?.bannerDimness ?? lesson.content?.banner_dimness,
+                  );
                   const statusCopy = getLessonStatusCopy(status);
                   const ctaCopy =
                     status === "completed"
@@ -1990,9 +2027,9 @@ function DashboardContent() {
                           }
                           alt=""
                           style={getBannerPositionStyles(lessonBannerPosition)}
-                          className="h-full w-full object-cover opacity-70"
+                          className="h-full w-full object-cover"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#121721] via-transparent to-transparent" />
+                        <div style={{ opacity: lessonBannerDimness / 100 }} className="absolute inset-0 bg-[linear-gradient(90deg,rgba(12,16,23,.72),rgba(12,16,23,.24)),linear-gradient(0deg,rgba(12,16,23,.92),transparent_65%)]" />
                         <span className="absolute bottom-4 left-5 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 bg-amber-500/20 border border-amber-500/40 rounded-md">
                           Module {lesson.content?.moduleNumber || 1}
                         </span>

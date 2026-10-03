@@ -27,6 +27,7 @@ export interface StudentPreviewSnapshot {
   subtitle: string;
   bannerUrl?: string;
   bannerPosition?: BannerPosition;
+  bannerDimness?: number;
   moduleNumber?: number;
 }
 
@@ -49,6 +50,7 @@ export interface StudentStudyRoomPreviewProps {
   subtitle: string;
   bannerUrl?: string;
   bannerPosition?: BannerPosition;
+  bannerDimness?: number;
   moduleNumber?: number;
   embedded?: boolean;
 }
@@ -62,6 +64,7 @@ export function StudentStudyRoomPreview({
   subtitle,
   bannerUrl,
   bannerPosition = { x: 50, y: 50 },
+  bannerDimness = 20,
   moduleNumber,
   embedded = false,
 }: StudentStudyRoomPreviewProps) {
@@ -165,7 +168,7 @@ export function StudentStudyRoomPreview({
         <header className="overflow-hidden rounded-2xl border border-[#202631] bg-[#121721]">
           <div className="relative flex h-[280px] w-full items-center overflow-hidden bg-slate-950 md:h-[320px]">
             {bannerUrl ? <img src={bannerUrl} alt="" style={getBannerPositionStyles(bannerPosition)} className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-0 bg-slate-950" aria-hidden="true" />}
-            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/60 to-transparent" aria-hidden="true" />
+            <div style={{ opacity: bannerDimness / 100 }} className="absolute inset-0 bg-[linear-gradient(90deg,rgba(12,16,23,.72),rgba(12,16,23,.24)),linear-gradient(0deg,rgba(12,16,23,.92),transparent_65%)]" aria-hidden="true" />
             <div className="relative z-10 space-y-2.5 p-5">
               <p className="w-fit rounded-md border border-amber-500/40 bg-amber-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 md:text-sm">English - Module {moduleNumber || 1}</p>
               <h1 className="text-3xl font-bold tracking-tight text-stone-100 md:text-4xl lg:text-[36px]">{title || "Untitled Lesson"}</h1>

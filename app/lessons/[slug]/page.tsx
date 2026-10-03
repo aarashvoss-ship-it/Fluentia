@@ -22,7 +22,7 @@ import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { UnifiedReportCard, type UnifiedReportStage } from "@/components/shared/unified-report-card";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { FillInBlanksMarkdown } from "@/components/study-room/fill-in-blanks-markdown";
-import { normalizeBannerPosition } from "@/lib/banner-position";
+import { normalizeBannerDimness, normalizeBannerPosition } from "@/lib/banner-position";
 import { HeroBanner, HeroBannerContent, HeroBannerLogo } from "@/components/shared/hero-banner";
 import { ExerciseQuestions } from "@/components/study-room/exercise-questions";
 import { WritingBlockRenderer } from "@/components/shared/writing-block";
@@ -668,6 +668,7 @@ export default function LessonPage() {
   const heroBanner = bannerLoadFailed ? undefined : lessonBanner;
   const rawBannerPosition = rawLessonContent.bannerPosition ?? rawLessonContent.banner_position;
   const bannerPosition = normalizeBannerPosition(rawBannerPosition);
+  const bannerDimness = normalizeBannerDimness(rawLessonContent.bannerDimness ?? rawLessonContent.banner_dimness);
   const evaluation = publishedLesson?.evaluation;
   const isEvaluationPublished = evaluation?.published === true;
   const totalScore = evaluation?.totalScore ?? (evaluation
@@ -1106,7 +1107,7 @@ export default function LessonPage() {
         </p>
       )}
       {!isResultsStep && (
-        <HeroBanner imageUrl={heroBanner} position={bannerPosition} onImageError={() => setBannerLoadFailed(true)}>
+        <HeroBanner imageUrl={heroBanner} position={bannerPosition} dimness={bannerDimness} onImageError={() => setBannerLoadFailed(true)}>
           <HeroBannerContent
             logo={<HeroBannerLogo />}
             badge={

@@ -17,6 +17,8 @@ interface BannerManagerProps {
   onUpdateCustomInput?: (url: string) => void;
   position?: BannerPosition;
   onUpdatePosition?: (position: BannerPosition) => void;
+  dimness?: number;
+  onUpdateDimness?: (dimness: number) => void;
   embedded?: boolean;
 }
 
@@ -35,6 +37,8 @@ export function InstructorBannerManager({
   onUpdateCustomInput,
   position = { x: 50, y: 50 },
   onUpdatePosition,
+  dimness = 20,
+  onUpdateDimness,
   embedded = false,
 }: BannerManagerProps) {
   const [selectedUrl, setSelectedUrl] = useState<string>(bannerUrl);
@@ -190,7 +194,8 @@ export function InstructorBannerManager({
             No banner selected
           </div>
         )}
-        {selectedUrl && <div className="pointer-events-none absolute inset-0 flex items-end bg-gradient-to-t from-[#0c1017]/70 to-transparent p-3"><span className="text-xs text-[#d9dce0]">Current Live Banner · drag to reposition</span></div>}
+        {selectedUrl && <div style={{ opacity: dimness / 100 }} className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(12,16,23,.72),rgba(12,16,23,.24)),linear-gradient(0deg,rgba(12,16,23,.92),transparent_65%)]" />}
+        {selectedUrl && <div className="pointer-events-none absolute inset-0 flex items-end p-3"><span className="text-xs text-[#d9dce0]">Current Live Banner · drag to reposition</span></div>}
       </div>
       {onUpdatePosition && (
         <div className="mb-3 grid gap-2 sm:grid-cols-2">
@@ -203,6 +208,20 @@ export function InstructorBannerManager({
             <input type="range" min="0" max="100" value={position.y} onChange={(event) => onUpdatePosition({ ...position, y: Number(event.target.value) })} aria-label="Banner vertical focal position" className="mt-1 w-full accent-amber-500" />
           </label>
         </div>
+      )}
+      {onUpdateDimness && (
+        <label className="mb-3 block text-[10px] text-stone-400">
+          Banner dimness <span className="float-right text-stone-500">{dimness}%</span>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={dimness}
+            onChange={(event) => onUpdateDimness(Number(event.target.value))}
+            aria-label="Lesson banner dimness"
+            className="mt-1 w-full accent-amber-500"
+          />
+        </label>
       )}
       {uploadedBannerPath && (
         <button

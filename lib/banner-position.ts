@@ -3,6 +3,12 @@ export interface BannerFocalPosition {
   y: number;
 }
 
+export function normalizeBannerDimness(value: unknown, fallback = 20): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(0, Math.min(100, value))
+    : fallback;
+}
+
 export function normalizeBannerPosition(value: unknown): BannerFocalPosition {
   const position = typeof value === "number"
     ? { x: 50, y: value }

@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { StudentContextPanel } from "@/components/instructor/student-context-panel";
 import { LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
 import { InstructorBannerManager, type BannerPosition } from "@/components/instructor/banner-manager";
+import { normalizeBannerDimness } from "@/lib/banner-position";
 import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/submission-evaluator";
 import type { UnifiedReportStage } from "@/components/shared/unified-report-card";
 import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
@@ -527,6 +528,7 @@ export default function InstructorWorkstationPage({
     content: StrictStepContent;
     bannerUrl: string;
     bannerPosition: BannerPosition;
+    bannerDimness: number;
     customBannerUrl: string;
     studentProfile: StudentProfile;
     evaluation: LessonEvaluation;
@@ -535,6 +537,7 @@ export default function InstructorWorkstationPage({
     content: {},
     bannerUrl: "",
     bannerPosition: { x: 50, y: 50 },
+    bannerDimness: 20,
     customBannerUrl: "",
     studentProfile: {
       fullName: "",
@@ -597,6 +600,7 @@ export default function InstructorWorkstationPage({
     subtitle: newLesson.subtitle,
     bannerUrl: workstationState.bannerUrl,
     bannerPosition: workstationState.bannerPosition,
+    bannerDimness: workstationState.bannerDimness,
     moduleNumber: Number(newLesson.moduleNumber) || 1,
   };
   const livePreviewSnapshotRef = useRef(livePreviewSnapshot);
@@ -622,7 +626,7 @@ export default function InstructorWorkstationPage({
 
   useEffect(() => {
     previewChannelRef.current?.postMessage({ type: "preview-state", snapshot: livePreviewSnapshot });
-  }, [workstationState.content, sidebarBlocksByStep, previewStep, newLesson.title, newLesson.subtitle, newLesson.moduleNumber, workstationState.bannerUrl, workstationState.bannerPosition]);
+  }, [workstationState.content, sidebarBlocksByStep, previewStep, newLesson.title, newLesson.subtitle, newLesson.moduleNumber, workstationState.bannerUrl, workstationState.bannerPosition, workstationState.bannerDimness]);
 
   useEffect(() => {
     if (!profileSaveToast) return;
@@ -708,6 +712,7 @@ export default function InstructorWorkstationPage({
       content: {},
       bannerUrl: "",
       bannerPosition: { x: 50, y: 50 },
+      bannerDimness: 20,
       customBannerUrl: "",
       studentProfile: { fullName: "", level: "", targetGoal: "", weaknesses: [], teacherNotes: "", attendanceRate: 0, completedModulesCount: 0 },
       evaluation: { scores: { task: 4, coherence: 4, lexical: 3, grammar: 4 }, comments: "", criterionFeedback: {}, published: false },
@@ -754,6 +759,7 @@ export default function InstructorWorkstationPage({
       moduleNumber: Number(moduleNumber) || 1,
       bannerUrl: workstationState.bannerUrl,
       bannerPosition: workstationState.bannerPosition,
+      bannerDimness: workstationState.bannerDimness,
       sidebarBlocksByStep,
       instructorGuidance: newLesson.instructorGuidance,
       lessonResources,
@@ -1081,6 +1087,7 @@ export default function InstructorWorkstationPage({
       content,
       bannerUrl: typeof content.coverImage === "string" ? content.coverImage : lesson.banner_url || "",
       bannerPosition: normalizeBannerPosition(content.bannerPosition ?? content.banner_position),
+      bannerDimness: normalizeBannerDimness(content.bannerDimness ?? content.banner_dimness),
     }));
     setSidebarBlocksByStep(normalizeSidebarBlocksByStep((content as Record<string, any>).sidebarBlocks));
     const rawResources = (content as Record<string, any>).lessonResources;
@@ -1725,6 +1732,7 @@ export default function InstructorWorkstationPage({
         coverImage: workstationState.bannerUrl,
         bannerUrl: workstationState.bannerUrl,
         bannerPosition: workstationState.bannerPosition,
+        bannerDimness: workstationState.bannerDimness,
         sidebarBlocks: sidebarBlocksByStep,
       instructorGuidance: newLesson.instructorGuidance,
       lessonResources,
@@ -1834,7 +1842,7 @@ export default function InstructorWorkstationPage({
     };
     const timer = window.setTimeout(saveAfterInactivity, 5000);
     return () => window.clearTimeout(timer);
-  }, [workstationState.content, workstationState.bannerUrl, workstationState.bannerPosition, newLesson.title, newLesson.subtitle, newLesson.moduleNumber, sidebarBlocksByStep, databaseLessonId]);
+  }, [workstationState.content, workstationState.bannerUrl, workstationState.bannerPosition, workstationState.bannerDimness, newLesson.title, newLesson.subtitle, newLesson.moduleNumber, sidebarBlocksByStep, databaseLessonId]);
 
   useEffect(() => {
     const handleInput = () => {
@@ -2091,6 +2099,7 @@ export default function InstructorWorkstationPage({
       coverImage: workstationState.bannerUrl,
       bannerUrl: workstationState.bannerUrl,
       bannerPosition: workstationState.bannerPosition,
+      bannerDimness: workstationState.bannerDimness,
       sidebarBlocks: sidebarBlocksByStep,
       instructorGuidance: newLesson.instructorGuidance,
       lessonResources,
@@ -2150,6 +2159,7 @@ export default function InstructorWorkstationPage({
         content: JSON.stringify(previous.content) === JSON.stringify(workstationState.content) ? lesson.content || content : previous.content,
         bannerUrl: workstationState.bannerUrl,
         bannerPosition: workstationState.bannerPosition,
+        bannerDimness: workstationState.bannerDimness,
       }));
       hasLoadedLesson.current = true;
       await refreshCreatedLessons();
@@ -2660,9 +2670,11 @@ export default function InstructorWorkstationPage({
           bannerUrl={workstationState.bannerUrl}
           customInput={workstationState.customBannerUrl}
           position={workstationState.bannerPosition}
+          dimness={workstationState.bannerDimness}
           embedded
           onUpdateBanner={(bannerUrl) => setWorkstationState((previous) => ({ ...previous, bannerUrl }))}
           onUpdatePosition={(bannerPosition) => setWorkstationState((previous) => ({ ...previous, bannerPosition }))}
+          onUpdateDimness={(bannerDimness) => setWorkstationState((previous) => ({ ...previous, bannerDimness }))}
           onUpdateCustomInput={(customBannerUrl) => setWorkstationState((previous) => ({ ...previous, customBannerUrl }))}
         />
       </div>
