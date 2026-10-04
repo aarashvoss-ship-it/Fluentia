@@ -456,7 +456,14 @@ function cloneSidebarBlocksByStep(blocks: SidebarBlocksByStep): SidebarBlocksByS
 }
 
 type LessonResource = { id: string; title: string; url: string; type: "PDF" | "Article" | "Video" };
-type StudentResourceType = "note" | "reading" | "flashcard" | "quiz" | "audio" | "data_table" | "file" | "image" | "video";
+type StudentResourceType = "note" | "reading" | "flashcard" | "flashcards" | "quiz" | "audio" | "data_table" | "file" | "image" | "video";
+type ResourceEditorType = Exclude<StudentResourceType, "flashcards">;
+type FlashcardItem = {
+  id?: string;
+  front: string;
+  back: string;
+  explanation?: string;
+};
 type StudentResourceEntry = {
   id: string;
   student_id: string;
@@ -470,6 +477,7 @@ type StudentResourceEntry = {
   question?: string | null;
   answer?: string | null;
   explanation?: string | null;
+  cards?: FlashcardItem[] | null;
   original_filename?: string | null;
   media_type?: string | null;
   storage_path?: string | null;
@@ -524,14 +532,59 @@ function getReviewPrompt(...candidates: Array<string | undefined>) {
 }
 
 const EMPTY_RESOURCE_DRAFT = {
-  type: "note" as StudentResourceType,
+  type: "note" as ResourceEditorType,
   title: "",
   body: "",
   linkUrl: "",
   question: "",
   answer: "",
   explanation: "",
+  cards: [] as FlashcardItem[],
 };
+
+function getResourceFlashcards(resource: StudentResourceEntry): FlashcardItem[] {
+  const savedCards = resource.cards?.filter((card) => (
+    card && typeof card.front === "string" && typeof card.back === "string"
+  ));
+  if (savedCards?.length) return savedCards;
+  if (resource.resource_type === "flashcard" && resource.question && resource.answer) {
+    return [{
+      front: resource.question,
+      back: resource.answer,
+      explanation: resource.explanation || undefined,
+    }];
+  }
+  return [];
+}
+
+function collectStudentFlashcards(resources: StudentResourceEntry[]) {
+  return resources.flatMap((resource) => getResourceFlashcards(resource).map((card, index) => ({
+    ...card,
+    id: card.id || `${resource.id}-${index}`,
+    deckTitle: resource.title,
+  })));
+}
+
+function FlashcardDraftList({ cards, onRemove }: { cards: FlashcardItem[]; onRemove?: (index: number) => void }) {
+  if (cards.length === 0) {
+    return <p className="rounded-md border border-dashed border-[#394252] px-3 py-3 text-xs text-stone-500">Cards you add will appear here before the deck is saved.</p>;
+  }
+  return (
+    <ol className="space-y-2" aria-label="Cards in this draft deck">
+      {cards.map((card, index) => (
+        <li key={card.id || index} className="rounded-md border border-[#293343] bg-[#0c1017] p-3 text-xs text-stone-300">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="font-semibold text-amber-400">Card {index + 1}</span>
+            {onRemove && <button type="button" onClick={() => onRemove(index)} className="text-stone-500 hover:text-red-300" aria-label={`Remove card ${index + 1}`}>Remove</button>}
+          </div>
+          <p><span className="font-semibold text-stone-100">Front:</span> <MarkdownContent value={card.front} /></p>
+          <p className="mt-1"><span className="font-semibold text-stone-100">Back:</span> <MarkdownContent value={card.back} /></p>
+          {card.explanation && <MarkdownContent value={card.explanation} className="mt-1 text-stone-400" />}
+        </li>
+      ))}
+    </ol>
+  );
+}
 
 function ResourceRichTextPreview({ html, fallback, className = "" }: { html: string; fallback: string; className?: string }) {
   const hasContent = html.trim() !== "" && html.trim() !== "<p></p>";
@@ -1658,7 +1711,32 @@ export default function InstructorWorkstationPage({
     }));
   };
 
-  const saveStudentResource = async ({ continueFlashcardDeck = false }: { continueFlashcardDeck?: boolean } = {}) => {
+  const addFlashcardToDeck = () => {
+    if (!resourceDraft.question.trim() || !resourceDraft.answer.trim()) {
+      setResourceStatus("Add both a front and a back before adding this card to the deck.");
+      return;
+    }
+    const card: FlashcardItem = {
+      id: crypto.randomUUID(),
+      front: resourceDraft.question.trim(),
+      back: resourceDraft.answer.trim(),
+      ...(resourceDraft.explanation.trim() ? { explanation: resourceDraft.explanation.trim() } : {}),
+    };
+    setResourceDraft((previous) => ({
+      ...previous,
+      cards: [...previous.cards, card],
+      question: "",
+      answer: "",
+      explanation: "",
+    }));
+    setResourceQuestionHtml("");
+    setResourceAnswerHtml("");
+    setResourceExplanationHtml("");
+    setDraftFlashcardFlipped(false);
+    setResourceStatus(`Card added to this deck (${resourceDraft.cards.length + 1} total).`);
+  };
+
+  const saveStudentResource = async () => {
     const resolvedStudent = selectedStudent ?? (selectedStudentId ? students.find((student) => student.id === selectedStudentId) ?? null : null);
     const resolvedLessonId = resourceLessonId || databaseLessonId || null;
     if (!resolvedStudent) {
@@ -1677,23 +1755,19 @@ export default function InstructorWorkstationPage({
     }
     const resourceType = resourceDraft.type;
     const resetDraftAfterSave = () => {
-      if (continueFlashcardDeck && resourceType === "flashcard") {
-        setResourceDraft((previous) => ({ ...previous, question: "", answer: "", explanation: "" }));
-        setResourceQuestionHtml("");
-        setResourceAnswerHtml("");
-        setResourceExplanationHtml("");
-        setDraftFlashcardFlipped(false);
-        setResourceStatus("Card added to the deck. Add another card or save the resource.");
-        return;
-      }
-      setResourceDraft(EMPTY_RESOURCE_DRAFT);
+      setResourceDraft({ ...EMPTY_RESOURCE_DRAFT, type: resourceType });
       setResourceQuestionHtml("");
       setResourceAnswerHtml("");
       setResourceExplanationHtml("");
+      setDraftFlashcardFlipped(false);
     };
 
-    if (resourceType === "flashcard" && (!resourceDraft.question.trim() || !resourceDraft.answer.trim())) {
-      setResourceStatus("Flashcards need both a question and an answer.");
+    if (resourceType === "flashcard" && resourceDraft.cards.length === 0) {
+      setResourceStatus("Add at least one card to the deck before saving it.");
+      return;
+    }
+    if (resourceType === "flashcard" && (resourceDraft.question.trim() || resourceDraft.answer.trim() || resourceDraft.explanation.trim())) {
+      setResourceStatus("Add the current front and back to the deck before saving the resource.");
       return;
     }
 
@@ -1750,7 +1824,7 @@ export default function InstructorWorkstationPage({
     }
 
     const studentToken = resolvedStudent.token || resolvedStudent.id;
-    const storedResourceType: StudentResourceType = resourceType;
+    const storedResourceType: StudentResourceType = resourceType === "flashcard" ? "flashcards" : resourceType;
     let resourceFileStoragePath: string | null = null;
     try {
       let resourceUrl = resourceDraft.linkUrl.trim();
@@ -1785,16 +1859,10 @@ export default function InstructorWorkstationPage({
           ...(usesMediaUpload && mediaUploadFile
             ? { original_filename: mediaUploadFile.name, media_type: resourceFileMediaType || undefined }
             : {}),
-          ...(resourceType === "flashcard"
-            ? {
-                question: resourceDraft.question.trim() || undefined,
-                answer: resourceDraft.answer.trim() || undefined,
-                explanation: resourceDraft.explanation.trim() || undefined,
-              }
-            : {}),
+          ...(resourceType === "flashcard" ? { cards: resourceDraft.cards } : {}),
         }).filter(([, value]) => value !== undefined && value !== null && (typeof value !== "string" || value.trim() !== "")),
       ) as Pick<StudentResourceEntry, "student_id" | "student_token" | "lesson_id" | "resource_type" | "title">
-        & Partial<Pick<StudentResourceEntry, "body" | "link_url" | "question" | "answer" | "explanation" | "original_filename" | "media_type">>
+        & Partial<Pick<StudentResourceEntry, "body" | "link_url" | "question" | "answer" | "explanation" | "cards" | "original_filename" | "media_type">>
         & { updated_at: string };
 
       const { data, error } = await supabase
@@ -1822,13 +1890,17 @@ export default function InstructorWorkstationPage({
           resetDraftAfterSave();
           setAudioFile(null);
           setResourceFile(null);
-          if (!continueFlashcardDeck || resourceType !== "flashcard") {
-            setResourceStatus("Resource saved locally because the student_resources table is not available yet.");
-          }
+          setResourceStatus("Resource saved locally because the student_resources table is not available yet.");
           return;
         }
         if (error.code === "PGRST204" && /original_filename|media_type/i.test(error.message || "")) {
           throw new Error("Apply migration 022 before saving uploaded media resources.");
+        }
+        if (resourceType === "flashcard" && (
+          error.code === "23514"
+          || (error.code === "PGRST204" && /cards/i.test(error.message || ""))
+        )) {
+          throw new Error("Apply migration 029 before saving flashcard decks.");
         }
         if ((resourceType === "image" || resourceType === "video") && error.code === "23514") {
           throw new Error("Apply migration 028 before saving image and video resources.");
@@ -1845,9 +1917,7 @@ export default function InstructorWorkstationPage({
       resetDraftAfterSave();
       setAudioFile(null);
       setResourceFile(null);
-      if (!continueFlashcardDeck || resourceType !== "flashcard") {
-        setResourceStatus("Resource saved to the selected student.");
-      }
+      setResourceStatus("Resource saved to the selected student.");
     } catch (error: any) {
       if (resourceFileStoragePath) {
         await supabase.storage.from("student-resources").remove([resourceFileStoragePath]);
@@ -2297,7 +2367,7 @@ export default function InstructorWorkstationPage({
     void loadStudentResources(selectedStudent, resourceLessonId);
   }, [selectedStudent?.id, selectedStudent?.token, resourceLessonId]);
 
-  const flashcards = studentResources.filter((resource) => resource.resource_type === "flashcard");
+  const flashcards = collectStudentFlashcards(studentResources);
 
   useEffect(() => {
     if (activeTab !== "resources" || flashcards.length === 0) return;
@@ -3469,7 +3539,7 @@ export default function InstructorWorkstationPage({
         </section>}
 
         {activeTab === "resources" && (() => {
-          const flashcards = studentResources.filter((resource) => resource.resource_type === "flashcard");
+          const flashcards = collectStudentFlashcards(studentResources);
           const currentFlashcard = flashcards[flashcardIndex] || null;
           return (
             <section className="mx-auto w-full min-w-0 max-w-6xl space-y-6" aria-label="Student resources panel">
@@ -3653,21 +3723,26 @@ export default function InstructorWorkstationPage({
                             ariaLabel="Optional flashcard explanation"
                           />
                         </label>
+                        <button
+                          type="button"
+                          onClick={addFlashcardToDeck}
+                          className="w-full rounded-md border border-[#394252] px-4 py-2.5 text-xs text-stone-200 transition hover:border-amber-500/40 hover:text-amber-400"
+                        >
+                          + Add Card to Deck
+                        </button>
+                        <FlashcardDraftList
+                          cards={resourceDraft.cards}
+                          onRemove={(index) => setResourceDraft((previous) => ({
+                            ...previous,
+                            cards: previous.cards.filter((_, cardIndex) => cardIndex !== index),
+                          }))}
+                        />
                       </>
                     )}
 
                     <button type="button" onClick={() => void saveStudentResource()} className="w-full rounded-md bg-amber-500/20 px-4 py-2.5 text-xs  text-amber-400 transition hover:bg-amber-500/20">
-                      {resourceDraft.type === "data_table" ? "Save Data Table" : resourceDraft.type === "flashcard" ? "Save Flashcard" : "Save resource"}
+                      {resourceDraft.type === "data_table" ? "Save Data Table" : resourceDraft.type === "flashcard" ? "Save Deck" : "Save resource"}
                     </button>
-                    {resourceDraft.type === "flashcard" && (
-                      <button
-                        type="button"
-                        onClick={() => void saveStudentResource({ continueFlashcardDeck: true })}
-                        className="w-full rounded-md border border-[#394252] px-4 py-2.5 text-xs text-stone-200 transition hover:border-amber-500/40 hover:text-amber-400"
-                      >
-                        + Add Another Card
-                      </button>
-                    )}
                     {resourceStatus && <p role="status" className="text-xs leading-relaxed text-amber-400">{resourceStatus}</p>}
                   </div>
                 </div>
@@ -3703,7 +3778,7 @@ export default function InstructorWorkstationPage({
                               <span className="rounded-full border border-amber-500/40 bg-amber-500/20 px-2 py-1 text-[10px]  uppercase tracking-[0.12em] text-amber-400">Term</span>
                             </div>
                             <div className="flex-1 pt-8">
-                              <MarkdownContent value={currentFlashcard.question || currentFlashcard.title} className="text-2xl leading-snug text-stone-100" />
+                              <MarkdownContent value={currentFlashcard.front} className="text-2xl leading-snug text-stone-100" />
                             </div>
                             <div className="flex justify-center">
                               <span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px]  text-stone-300">See answer</span>
@@ -3716,7 +3791,7 @@ export default function InstructorWorkstationPage({
                               <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px]  uppercase tracking-[0.12em] text-emerald-200">Key idea</span>
                             </div>
                             <div className="flex-1 pt-8">
-                              <MarkdownContent value={currentFlashcard.answer || "No answer yet."} className="text-xl leading-relaxed text-stone-100" />
+                              <MarkdownContent value={currentFlashcard.back || "No answer yet."} className="text-xl leading-relaxed text-stone-100" />
                               {currentFlashcard.explanation && (
                                 <div className="mt-5">
                                   <button
@@ -3808,24 +3883,24 @@ export default function InstructorWorkstationPage({
                       </div>
                     ) : (
                       studentResources.map((resource) => {
+                        const resourceCards = getResourceFlashcards(resource);
+                        const isFlashcardDeck = resource.resource_type === "flashcard" || resource.resource_type === "flashcards";
                         const isDataTable = resource.resource_type === "data_table" || isDataTableResourceTitle(resource.title);
                         const resourceTitle = isDataTable ? getDataTableResourceTitle(resource.title) : resource.title;
                         return (
                         <div key={resource.id} className="rounded-xl border border-[#202631] bg-[#10181f] p-3">
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400">{isDataTable ? "data_table" : resource.resource_type}</p>
-                              {!isDataTable && <h4 className="mt-1 font-semibold text-stone-100">{resourceTitle}</h4>}
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400">{isDataTable ? "data_table" : isFlashcardDeck ? "Flashcard Deck" : resource.resource_type}</p>
+                              {!isDataTable && <h4 className="mt-1 font-semibold text-stone-100">{resourceTitle}{isFlashcardDeck ? ` (${resourceCards.length} ${resourceCards.length === 1 ? "Card" : "Cards"})` : ""}</h4>}
                             </div>
                             <button type="button" onClick={() => void deleteStudentResource(resource)} className="text-stone-500 hover:text-red-300" aria-label={`Delete ${resource.title}`}>
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </div>
-                          {resource.resource_type === "flashcard" && (
-                            <div className="mt-3 space-y-2 text-sm text-stone-300">
-                              <div><span className="font-semibold text-stone-100">Q:</span> <MarkdownContent value={resource.question || "No question"} /></div>
-                              <div><span className="font-semibold text-stone-100">A:</span> <MarkdownContent value={resource.answer || "No answer"} /></div>
-                              {resource.explanation && <MarkdownContent value={resource.explanation} className="text-stone-400" />}
+                          {isFlashcardDeck && (
+                            <div className="mt-3">
+                              <FlashcardDraftList cards={resourceCards} />
                             </div>
                           )}
                           {resource.resource_type === "reading" && resource.link_url && (
@@ -4143,11 +4218,25 @@ export default function InstructorWorkstationPage({
                               ariaLabel="Optional flashcard explanation"
                             />
                           </label>
+                          <button
+                            type="button"
+                            onClick={addFlashcardToDeck}
+                            className="w-full rounded-md border border-[#394252] px-4 py-2.5 text-xs text-stone-200 transition hover:border-amber-500/40 hover:text-amber-400"
+                          >
+                            + Add Card to Deck
+                          </button>
+                          <FlashcardDraftList
+                            cards={resourceDraft.cards}
+                            onRemove={(index) => setResourceDraft((previous) => ({
+                              ...previous,
+                              cards: previous.cards.filter((_, cardIndex) => cardIndex !== index),
+                            }))}
+                          />
                         </>
                       )}
 
                       <button type="button" onClick={() => void saveStudentResource()} className="w-full rounded-md bg-amber-500/20 px-4 py-2.5 text-xs  text-amber-400 transition hover:bg-amber-500/20">
-                        {resourceDraft.type === "data_table" ? "Save Data Table" : "Save resource"}
+                        {resourceDraft.type === "data_table" ? "Save Data Table" : resourceDraft.type === "flashcard" ? "Save Deck" : "Save resource"}
                       </button>
                       {resourceStatus && <p role="status" className="text-xs leading-relaxed text-amber-400">{resourceStatus}</p>}
                     </div>
@@ -4161,7 +4250,7 @@ export default function InstructorWorkstationPage({
                         <h3 className="mt-1 font-sans text-xl font-semibold text-stone-100">Live Preview</h3>
                       </div>
                       <span className="rounded-full border border-[#394252] bg-[#171d28] px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-stone-300">
-                        {studentResources.filter((resource) => resource.resource_type === "flashcard").length} cards
+                        {collectStudentFlashcards(studentResources).length} saved cards
                       </span>
                     </div>
 
@@ -4195,7 +4284,7 @@ export default function InstructorWorkstationPage({
                     <h4 className="mb-3 border-t border-[#202631] pt-4 text-xs font-semibold uppercase tracking-[0.12em] text-stone-400">Saved deck</h4>
 
                     {(() => {
-                      const flashcards = studentResources.filter((resource) => resource.resource_type === "flashcard");
+                      const flashcards = collectStudentFlashcards(studentResources);
                       const currentFlashcard = flashcards[flashcardIndex] || null;
                       return currentFlashcard ? (
                         <>
@@ -4217,7 +4306,7 @@ export default function InstructorWorkstationPage({
                                   <span className="rounded-full border border-amber-500/40 bg-amber-500/20 px-2 py-1 text-[10px]  uppercase tracking-[0.12em] text-amber-400">Term</span>
                                 </div>
                                 <div className="flex-1 pt-8">
-                                  <MarkdownContent value={currentFlashcard.question || currentFlashcard.title} className="text-2xl leading-snug text-stone-100" />
+                                  <MarkdownContent value={currentFlashcard.front} className="text-2xl leading-snug text-stone-100" />
                                 </div>
                                 <div className="flex justify-center">
                                   <span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px]  text-stone-300">See answer</span>
@@ -4230,7 +4319,7 @@ export default function InstructorWorkstationPage({
                                   <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px]  uppercase tracking-[0.12em] text-emerald-200">Key idea</span>
                                 </div>
                                 <div className="flex-1 pt-8">
-                                  <MarkdownContent value={currentFlashcard.answer || "No answer yet."} className="text-xl leading-relaxed text-stone-100" />
+                                  <MarkdownContent value={currentFlashcard.back || "No answer yet."} className="text-xl leading-relaxed text-stone-100" />
                                   {currentFlashcard.explanation && (
                                     <div className="mt-5">
                                       <button

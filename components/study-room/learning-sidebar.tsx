@@ -13,7 +13,7 @@ type LearningTab = "vocab" | "notes" | "reading" | "flashcards" | "quizzes" | "a
 type StudentResource = {
   id: string;
   lesson_id: string | null;
-  resource_type: "note" | "reading" | "flashcard" | "quiz" | "audio" | "data_table" | "file" | "image" | "video";
+  resource_type: "note" | "reading" | "flashcard" | "flashcards" | "quiz" | "audio" | "data_table" | "file" | "image" | "video";
   title: string;
   body?: string | null;
   link_url?: string | null;
@@ -23,6 +23,7 @@ type StudentResource = {
   subtitle?: string | null;
   sub_title?: string | null;
   example?: string | null;
+  cards?: { id?: string; front: string; back: string; explanation?: string }[] | null;
   original_filename?: string | null;
   media_type?: string | null;
   storage_path?: string | null;
@@ -299,14 +300,30 @@ export function LearningSidebar({
     };
   }, [open, studentId, studentToken, activeLessonId]);
 
-  const flashcards = assignedResources.filter((item) => item.resource_type === "flashcard");
+  const flashcards = assignedResources.flatMap((item) => {
+    const cards = item.cards?.filter((card) => (
+      card && typeof card.front === "string" && typeof card.back === "string"
+    ));
+    if (cards?.length) {
+      return cards.map((card, index) => ({
+        id: card.id || `${item.id}-${index}`,
+        question: card.front,
+        answer: card.back,
+        explanation: card.explanation || "",
+      }));
+    }
+    if (item.resource_type === "flashcard" && item.question) {
+      return [{
+        id: item.id,
+        question: item.question,
+        answer: item.answer || "No answer provided.",
+        explanation: item.explanation || item.subtitle || item.sub_title || item.example || "",
+      }];
+    }
+    return [];
+  });
   const studyCards = flashcards.length > 0
-    ? flashcards.map((item) => ({
-      id: item.id,
-      question: item.question || item.title,
-      answer: item.answer || "No answer provided.",
-      explanation: item.explanation || item.subtitle || item.sub_title || item.example || "",
-    }))
+    ? flashcards
     : words.map((word) => ({
       id: word.word,
       question: word.word,
