@@ -1645,7 +1645,6 @@ export default function InstructorWorkstationPage({
     let resourceFileStoragePath: string | null = null;
     try {
       let resourceUrl = resourceDraft.linkUrl.trim();
-      const externalUrl = usesMediaUrl;
       if (usesMediaUpload && mediaUploadFile && resourceFileMediaType) {
         const safeFileName = mediaUploadFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
         resourceFileStoragePath = `${resolvedStudent.id}/${resolvedLessonId}/${crypto.randomUUID()}-${safeFileName}`;
@@ -1677,8 +1676,6 @@ export default function InstructorWorkstationPage({
           ...(usesMediaUpload && mediaUploadFile
             ? { original_filename: mediaUploadFile.name, media_type: resourceFileMediaType || undefined }
             : {}),
-          storage_path: resourceFileStoragePath,
-          is_external_url: externalUrl,
           ...(resourceType === "flashcard"
             ? {
                 question: resourceDraft.question.trim() || undefined,
@@ -1688,7 +1685,7 @@ export default function InstructorWorkstationPage({
             : {}),
         }).filter(([, value]) => value !== undefined && value !== null && (typeof value !== "string" || value.trim() !== "")),
       ) as Pick<StudentResourceEntry, "student_id" | "student_token" | "lesson_id" | "resource_type" | "title">
-        & Partial<Pick<StudentResourceEntry, "body" | "link_url" | "question" | "answer" | "explanation" | "original_filename" | "media_type" | "storage_path" | "is_external_url">>
+        & Partial<Pick<StudentResourceEntry, "body" | "link_url" | "question" | "answer" | "explanation" | "original_filename" | "media_type">>
         & { updated_at: string };
 
       const { data, error } = await supabase
@@ -1719,8 +1716,11 @@ export default function InstructorWorkstationPage({
           setResourceStatus("Resource saved locally because the student_resources table is not available yet.");
           return;
         }
-        if (error.code === "PGRST204" || /storage_path|is_external_url/i.test(error.message || "")) {
-          throw new Error("Apply migration 028 before saving uploaded or external media resources.");
+        if (error.code === "PGRST204" && /original_filename|media_type/i.test(error.message || "")) {
+          throw new Error("Apply migration 022 before saving uploaded media resources.");
+        }
+        if ((resourceType === "image" || resourceType === "video") && error.code === "23514") {
+          throw new Error("Apply migration 028 before saving image and video resources.");
         }
         throw error;
       }
