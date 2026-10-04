@@ -737,6 +737,17 @@ export function LessonTailorEditor({
                           <option value="short_answer">Short Answer / Open Question</option>
                         </select>
                       </label>
+                      <label className="block text-xs text-stone-500">
+                        Section Title / Instructions (Optional)
+                        <textarea
+                          value={question.sectionHeader || ""}
+                          onChange={(event) => updateQuestion({ sectionHeader: event.target.value })}
+                          placeholder="Add section remarks or guidelines for this question..."
+                          rows={2}
+                          className="mt-1 w-full resize-y rounded border border-[#394252] bg-[#171d28] p-2 text-xs text-stone-200"
+                          aria-label={`Question ${questionIndex + 1} section title or instructions`}
+                        />
+                      </label>
                       <TiptapEditor
                         value={question.prompt}
                         onChange={(prompt) => updateQuestion({
