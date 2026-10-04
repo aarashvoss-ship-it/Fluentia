@@ -747,6 +747,9 @@ export function LessonTailorEditor({
                           compact
                         />
                       </div>
+                      {questionType === "fill_in_the_blanks" && (
+                        <p className="text-xs font-medium text-stone-300">Question Text (Sentence with Blanks)</p>
+                      )}
                       <TiptapEditor
                         value={getQuizQuestionPrompt(question)}
                         onChange={(prompt) => updateQuestion({
@@ -756,13 +759,15 @@ export function LessonTailorEditor({
                             ? { acceptableAnswers: parseFillInBlanks(prompt).map((blank) => [blank.answer]) }
                             : {}),
                         })}
-                        placeholder={questionType === "fill_in_the_blanks" ? "The capital of France is [Paris]. Use [answer] for each blank." : `Write question ${questionIndex + 1}`}
+                        placeholder={questionType === "fill_in_the_blanks" ? "The capital of France is [Paris]." : `Write question ${questionIndex + 1}`}
                         ariaLabel={`Question ${questionIndex + 1} ${questionType === "fill_in_the_blanks" ? "text" : "prompt"}`}
                         compact
                         defaultBold
                       />
                       {questionType === "fill_in_the_blanks" && (
-                        <p className="text-[11px] text-stone-500">Question text: enter the sentence here and put each correct answer in square brackets, for example [Paris].</p>
+                        <p className="text-[11px] text-stone-500">
+                          Type your sentences here and put each correct answer in square brackets, e.g. The capital of France is [Paris].
+                        </p>
                       )}
                       {questionType === "multiple_choice" && (
                         <div className="space-y-2">
