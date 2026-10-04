@@ -7,29 +7,6 @@ import remarkGfm from "remark-gfm";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { DynamicLucideIcon } from "@/components/shared/lucide-icon-picker";
 
-const parseBracketsToBadges = (content: string) => {
-  if (!content) return "";
-  return content.replace(
-    /\[([^\]]+)\]/g,
-    '<span class="inline-flex items-center px-2 py-0.5 rounded text-sm font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/40 font-mono my-0.5">$1</span>'
-  );
-};
-
-function renderTextTokens(value: string): ReactNode {
-  const tokenPattern = /\[(.*?)\]/g;
-  const nodes: ReactNode[] = [];
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-  let tokenIndex = 0;
-  while ((match = tokenPattern.exec(value)) !== null) {
-    if (match.index > lastIndex) nodes.push(<React.Fragment key={`text-${tokenIndex++}`}>{value.slice(lastIndex, match.index)}</React.Fragment>);
-    nodes.push(<span key={`token-${tokenIndex++}`} className="mx-0.5 inline-block rounded border border-amber-500/40 bg-amber-500/20 px-1.5 py-0.5 font-semibold text-amber-400">{match[1]}</span>);
-    lastIndex = match.index + match[0].length;
-  }
-  if (lastIndex < value.length) nodes.push(<React.Fragment key={`text-${tokenIndex}`}>{value.slice(lastIndex)}</React.Fragment>);
-  return nodes.length ? nodes : value;
-}
-
 function getTextContent(children: ReactNode): string {
   return React.Children.toArray(children).map((child) => typeof child === "string" ? child : "").join("").trim();
 }
@@ -70,9 +47,8 @@ function renderLucideIconTokens(value: string) {
   return value.replace(/\{\{lucide:([A-Za-z][A-Za-z0-9]*)\}\}/g, '<span data-lucide-icon="$1"></span>');
 }
 
-export function MarkdownContent({ value, className = "", plainCode = false, dataTables = false, preserveBracketText = false }: { value: string; className?: string; plainCode?: boolean; dataTables?: boolean; preserveBracketText?: boolean }) {
+export function MarkdownContent({ value, className = "", plainCode = false, dataTables = false }: { value: string; className?: string; plainCode?: boolean; dataTables?: boolean }) {
   const renderPlainCode = plainCode || className.includes("text-slate-300");
-  const renderInlineText = (text: string) => preserveBracketText ? text : renderTextTokens(text);
   return (
     <div className={className} data-reading-content>
       <ReactMarkdown
@@ -90,13 +66,12 @@ export function MarkdownContent({ value, className = "", plainCode = false, data
           h4: ({ children }) => <h4 className="mb-2 mt-4 text-[1.0625rem] font-semibold leading-7 text-stone-100">{children}</h4>,
           h5: ({ children }) => <h5 className="mb-2 mt-3 text-sm font-semibold leading-snug text-stone-200">{children}</h5>,
           h6: ({ children }) => <h6 className="mb-2 mt-3 text-xs font-semibold leading-snug text-stone-300">{children}</h6>,
-          text: ({ children }) => <>{renderInlineText(String(children))}</>,
           strong: ({ children }) => <strong>{children}</strong>,
           p: ({ children }) => {
             const comparison = renderComparison(children);
             if (!comparison) return <p className="mb-4 whitespace-pre-wrap leading-7 last:mb-0">{children}</p>;
             const text = getTextContent(children);
-            return <p className="mb-4 whitespace-pre-wrap leading-7 last:mb-0"><span className={`mr-2 inline-flex rounded px-2 py-0.5 text-xs font-semibold ${comparison.badgeClass}`}>{comparison.label}</span>{renderInlineText(text.slice(comparison.prefixLength))}</p>;
+            return <p className="mb-4 whitespace-pre-wrap leading-7 last:mb-0"><span className={`mr-2 inline-flex rounded px-2 py-0.5 text-xs font-semibold ${comparison.badgeClass}`}>{comparison.label}</span>{text.slice(comparison.prefixLength)}</p>;
           },
           ul: ({ children }) => <ul className="mb-4 mt-2 list-disc space-y-1 pl-5 leading-7">{children}</ul>,
           ol: ({ children }) => <ol className="mb-4 mt-2 list-decimal space-y-1 pl-5 leading-7">{children}</ol>,
@@ -133,7 +108,7 @@ export function MarkdownContent({ value, className = "", plainCode = false, data
           },
         }}
       >
-        {parseBracketsToBadges(renderLucideIconTokens(normalizeMarkdown(value)))}
+        {renderLucideIconTokens(normalizeMarkdown(value))}
       </ReactMarkdown>
     </div>
   );
