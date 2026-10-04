@@ -20,6 +20,9 @@ type StudentResource = {
   question?: string | null;
   answer?: string | null;
   explanation?: string | null;
+  subtitle?: string | null;
+  sub_title?: string | null;
+  example?: string | null;
   original_filename?: string | null;
   media_type?: string | null;
   storage_path?: string | null;
@@ -241,7 +244,6 @@ export function LearningSidebar({
   const [lightboxImage, setLightboxImage] = useState<StudentResource | null>(null);
   const [cardIndex, setCardIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
-  const [showExplanation, setShowExplanation] = useState(false);
   const [rightCount, setRightCount] = useState(0);
   const [wrongCount, setWrongCount] = useState(0);
 
@@ -303,7 +305,7 @@ export function LearningSidebar({
       id: item.id,
       question: item.question || item.title,
       answer: item.answer || "No answer provided.",
-      explanation: item.explanation || "",
+      explanation: item.explanation || item.subtitle || item.sub_title || item.example || "",
     }))
     : words.map((word) => ({
       id: word.word,
@@ -316,7 +318,6 @@ export function LearningSidebar({
   useEffect(() => {
     setCardIndex((index) => Math.min(index, Math.max(studyCards.length - 1, 0)));
     setShowAnswer(false);
-    setShowExplanation(false);
   }, [studyCards.length]);
 
   useEffect(() => {
@@ -332,12 +333,10 @@ export function LearningSidebar({
         event.preventDefault();
         setCardIndex((index) => Math.max(0, index - 1));
         setShowAnswer(false);
-        setShowExplanation(false);
       } else if (event.key === "ArrowRight") {
         event.preventDefault();
         setCardIndex((index) => Math.min(studyCards.length - 1, index + 1));
         setShowAnswer(false);
-        setShowExplanation(false);
       }
     }
     window.addEventListener("keydown", handlePracticeKeys);
@@ -360,7 +359,6 @@ export function LearningSidebar({
   const goToCard = (index: number) => {
     setCardIndex(Math.max(0, Math.min(index, studyCards.length - 1)));
     setShowAnswer(false);
-    setShowExplanation(false);
   };
 
   const rateCard = (correct: boolean) => {
@@ -518,10 +516,11 @@ export function LearningSidebar({
                     <div className="absolute inset-0 flex flex-col justify-between rounded-2xl p-5 [backface-visibility:hidden] [transform:rotateY(180deg)]">
                       <div className="flex items-center justify-between gap-2"><span className="text-[10px]  uppercase tracking-[0.16em] text-emerald-300">Answer</span><span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px]  uppercase text-emerald-200">Key idea</span></div>
                       <div className="max-h-[190px] overflow-y-auto break-words text-lg leading-relaxed text-stone-100"><MarkdownContent value={currentCard.answer} /></div>
-                      <div className="min-h-10">
-                        {currentCard.explanation && <button type="button" onClick={(event) => { event.stopPropagation(); setShowExplanation((value) => !value); }} className="rounded-full border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-[10px]  uppercase tracking-[0.12em] text-sky-200">{showExplanation ? "Hide explanation" : "Explain"}</button>}
-                        {showExplanation && currentCard.explanation && <MarkdownContent value={currentCard.explanation} className="mt-2 max-h-16 overflow-y-auto text-xs leading-relaxed text-stone-300" />}
-                      </div>
+                      {currentCard.explanation && (
+                        <div className="max-h-16 overflow-y-auto border-t border-[#29303c] pt-2 text-xs leading-relaxed text-stone-300">
+                          <MarkdownContent value={currentCard.explanation} />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

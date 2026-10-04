@@ -1658,7 +1658,7 @@ export default function InstructorWorkstationPage({
     }));
   };
 
-  const saveStudentResource = async () => {
+  const saveStudentResource = async ({ continueFlashcardDeck = false }: { continueFlashcardDeck?: boolean } = {}) => {
     const resolvedStudent = selectedStudent ?? (selectedStudentId ? students.find((student) => student.id === selectedStudentId) ?? null : null);
     const resolvedLessonId = resourceLessonId || databaseLessonId || null;
     if (!resolvedStudent) {
@@ -1676,6 +1676,21 @@ export default function InstructorWorkstationPage({
       return;
     }
     const resourceType = resourceDraft.type;
+    const resetDraftAfterSave = () => {
+      if (continueFlashcardDeck && resourceType === "flashcard") {
+        setResourceDraft((previous) => ({ ...previous, question: "", answer: "", explanation: "" }));
+        setResourceQuestionHtml("");
+        setResourceAnswerHtml("");
+        setResourceExplanationHtml("");
+        setDraftFlashcardFlipped(false);
+        setResourceStatus("Card added to the deck. Add another card or save the resource.");
+        return;
+      }
+      setResourceDraft(EMPTY_RESOURCE_DRAFT);
+      setResourceQuestionHtml("");
+      setResourceAnswerHtml("");
+      setResourceExplanationHtml("");
+    };
 
     if (resourceType === "flashcard" && (!resourceDraft.question.trim() || !resourceDraft.answer.trim())) {
       setResourceStatus("Flashcards need both a question and an answer.");
@@ -1804,10 +1819,12 @@ export default function InstructorWorkstationPage({
           const next = [localEntry, ...readStudentResourcesLocally(studentToken)];
           setStudentResources(next);
           writeStudentResourcesLocally(studentToken, next);
-          setResourceDraft(EMPTY_RESOURCE_DRAFT);
+          resetDraftAfterSave();
           setAudioFile(null);
           setResourceFile(null);
-          setResourceStatus("Resource saved locally because the student_resources table is not available yet.");
+          if (!continueFlashcardDeck || resourceType !== "flashcard") {
+            setResourceStatus("Resource saved locally because the student_resources table is not available yet.");
+          }
           return;
         }
         if (error.code === "PGRST204" && /original_filename|media_type/i.test(error.message || "")) {
@@ -1825,10 +1842,12 @@ export default function InstructorWorkstationPage({
       ];
       setStudentResources(next);
       writeStudentResourcesLocally(studentToken, next);
-      setResourceDraft(EMPTY_RESOURCE_DRAFT);
+      resetDraftAfterSave();
       setAudioFile(null);
       setResourceFile(null);
-      setResourceStatus("Resource saved to the selected student.");
+      if (!continueFlashcardDeck || resourceType !== "flashcard") {
+        setResourceStatus("Resource saved to the selected student.");
+      }
     } catch (error: any) {
       if (resourceFileStoragePath) {
         await supabase.storage.from("student-resources").remove([resourceFileStoragePath]);
@@ -3638,8 +3657,17 @@ export default function InstructorWorkstationPage({
                     )}
 
                     <button type="button" onClick={() => void saveStudentResource()} className="w-full rounded-md bg-amber-500/20 px-4 py-2.5 text-xs  text-amber-400 transition hover:bg-amber-500/20">
-                      {resourceDraft.type === "data_table" ? "Save Data Table" : "Save resource"}
+                      {resourceDraft.type === "data_table" ? "Save Data Table" : resourceDraft.type === "flashcard" ? "Save Flashcard" : "Save resource"}
                     </button>
+                    {resourceDraft.type === "flashcard" && (
+                      <button
+                        type="button"
+                        onClick={() => void saveStudentResource({ continueFlashcardDeck: true })}
+                        className="w-full rounded-md border border-[#394252] px-4 py-2.5 text-xs text-stone-200 transition hover:border-amber-500/40 hover:text-amber-400"
+                      >
+                        + Add Another Card
+                      </button>
+                    )}
                     {resourceStatus && <p role="status" className="text-xs leading-relaxed text-amber-400">{resourceStatus}</p>}
                   </div>
                 </div>
