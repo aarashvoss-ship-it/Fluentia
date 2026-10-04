@@ -44,7 +44,10 @@ export function DictionaryModal({ initialWord = "", anchor = null, onClose, save
       const maxTop = Math.max(margin, window.innerHeight - height - margin);
 
       if (!anchor) {
-        setPopoverPosition({ top: maxTop, left: maxLeft });
+        setPopoverPosition({
+          top: Math.max(margin, Math.min((window.innerHeight - height) / 2, maxTop)),
+          left: Math.max(margin, Math.min((window.innerWidth - width) * 0.45, maxLeft)),
+        });
         return;
       }
 
@@ -97,9 +100,10 @@ export function DictionaryModal({ initialWord = "", anchor = null, onClose, save
 
   const handleDragStart = (event: ReactPointerEvent<HTMLElement>) => {
     if ((event.target as HTMLElement).closest("button")) return;
-    const bounds = event.currentTarget.parentElement?.getBoundingClientRect();
+    const bounds = dialogRef.current?.getBoundingClientRect();
     if (!bounds) return;
     event.currentTarget.setPointerCapture(event.pointerId);
+    setPopoverPosition({ top: bounds.top, left: bounds.left });
     dragOffset.current = { pointerId: event.pointerId, x: event.clientX - bounds.left, y: event.clientY - bounds.top };
   };
 
@@ -159,7 +163,7 @@ export function DictionaryModal({ initialWord = "", anchor = null, onClose, save
         aria-modal={!isPopover}
         aria-label="Dictionary lookup"
         onClick={(event) => event.stopPropagation()}
-        style={popoverPosition ? { top: popoverPosition.top, left: popoverPosition.left } : { top: "auto", right: 24, bottom: 24, left: "auto" }}
+        style={popoverPosition ? { top: popoverPosition.top, left: popoverPosition.left } : { top: "50%", left: "45%", transform: "translate(-50%, -50%)" }}
         className={`fixed max-h-[calc(100dvh-2rem)] w-[min(28rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-[#394252] bg-[#171d28] p-5 text-[#e8e7e4] shadow-2xl transition-[opacity,transform] duration-200 ease-out ${isVisible ? "translate-y-0 scale-100 opacity-100" : "translate-y-2 scale-[0.98] opacity-0"}`}
       >
         <div
@@ -183,9 +187,8 @@ export function DictionaryModal({ initialWord = "", anchor = null, onClose, save
         {entry && !loading && <div className="space-y-4 pt-4">
           <div><div className="flex items-center gap-2"><h3 className="font-sans text-2xl text-stone-100">{entry.word}</h3>{entry.partOfSpeech && <span className="text-xs italic text-amber-400">{entry.partOfSpeech}</span>}{entry.pronunciationUrl && <button type="button" onClick={() => { const a = new Audio(entry.pronunciationUrl!); void a.play(); }} aria-label="Play pronunciation" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-amber-500/40 bg-[#0c1017] text-amber-400 hover:bg-amber-500/20"><Volume2 className="h-3.5 w-3.5" /></button>}</div>{entry.phonetic && <p className="mt-1 text-xs text-stone-500">{entry.phonetic}</p>}<p className="mt-2 text-sm leading-relaxed text-stone-300">{entry.definition}</p></div>
           {entry.example && <p className="border-l-2 border-amber-500/40 pl-3 text-sm italic leading-relaxed text-stone-400">“{entry.example}”</p>}
-          <div className="flex flex-col gap-3 border-t border-[#29303c] pt-4 sm:flex-row sm:items-center">
-            {entry.pronunciationUrl && <button type="button" onClick={() => { const a = new Audio(entry.pronunciationUrl!); void a.play(); }} aria-label="Play pronunciation" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-amber-500/40 bg-[#0c1017] text-amber-400 hover:bg-amber-500/20"><Volume2 className="h-4 w-4" /></button>}
-            <button type="button" disabled={isSaved} onClick={() => onSave({ ...entry, savedAt: new Date().toISOString() })} className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-amber-500/20 px-4 py-2.5 text-sm  text-amber-400 shadow-md transition hover:bg-amber-500/20 disabled:bg-emerald-500/20 disabled:text-emerald-300">{isSaved ? <Check className="h-4 w-4" /> : "+"}{isSaved ? "Saved" : "Save to Vocab"}</button>
+          <div className="flex justify-start border-t border-[#29303c] pt-4">
+            <button type="button" disabled={isSaved} onClick={() => onSave({ ...entry, savedAt: new Date().toISOString() })} className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-amber-500/20 px-4 py-2.5 text-sm text-amber-400 shadow-md transition hover:bg-amber-500/20 disabled:bg-emerald-500/20 disabled:text-emerald-300">{isSaved ? <Check className="h-4 w-4" /> : "+"}{isSaved ? "Saved" : "Save to Vocab"}</button>
           </div>
           <a href={`https://www.merriam-webster.com/dictionary/${entry.word}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-stone-500 hover:text-amber-400">Open full dictionary entry <ExternalLink className="h-3 w-3" /></a>
         </div>}
