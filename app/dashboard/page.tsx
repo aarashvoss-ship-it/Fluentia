@@ -225,14 +225,20 @@ function DashboardContent() {
   const [savedInstructorNote, setSavedInstructorNote] = useState("");
 
   const [dictionaryWord, setDictionaryWord] = useState<string | null>(null);
+  const [dictionaryAnchor, setDictionaryAnchor] = useState<{ top: number; right: number; bottom: number; left: number } | null>(null);
 
   useEffect(() => {
     function onDblClick(e: MouseEvent) {
       const t = e.target as HTMLElement | null;
       if (t?.closest("input, textarea, button, a, [role=dialog]")) return;
-      const sel = window.getSelection()?.toString().trim() || "";
+      const selection = window.getSelection();
+      const sel = selection?.toString().trim() || "";
       const w = sel.match(/^[a-zA-Z]+(?:[-'][a-zA-Z]+)*$/)?.[0];
-      if (w && w.length > 1) setDictionaryWord(w);
+      if (w && w.length > 1) {
+        const rect = selection?.rangeCount ? selection.getRangeAt(0).getBoundingClientRect() : null;
+        setDictionaryAnchor(rect ? { top: rect.top, right: rect.right, bottom: rect.bottom, left: rect.left } : null);
+        setDictionaryWord(w);
+      }
     }
     document.addEventListener("dblclick", onDblClick);
     return () => document.removeEventListener("dblclick", onDblClick);
@@ -1421,7 +1427,10 @@ function DashboardContent() {
             <Tooltip content="Look up a word in the dictionary">
               <button
                 type="button"
-                onClick={() => setDictionaryOpen(true)}
+                onClick={() => {
+                  setDictionaryAnchor(null);
+                  setDictionaryOpen(true);
+                }}
                 aria-label="Open dictionary"
                 className={`group flex h-8 w-8 items-center justify-center rounded-lg border bg-slate-800/80 transition-all cursor-pointer ${dictionaryOpen ? "border-amber-500/40 text-amber-400" : "border-slate-700/60 text-slate-300 hover:border-amber-500/40 hover:text-amber-400 hover:bg-slate-800"}`}
               >
@@ -2194,7 +2203,9 @@ function DashboardContent() {
           onClose={() => {
             setDictionaryOpen(false);
             setDictionaryWord(null);
+            setDictionaryAnchor(null);
           }}
+          anchor={dictionaryAnchor}
           onSave={(word) => {
             setSavedWords([
               word,

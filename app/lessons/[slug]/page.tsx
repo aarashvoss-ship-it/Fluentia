@@ -326,6 +326,7 @@ export default function LessonPage() {
   const [notes, setNotes] = useState<StudentNote[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [dictionaryWord, setDictionaryWord] = useState<string | null>(null);
+  const [dictionaryAnchor, setDictionaryAnchor] = useState<{ top: number; right: number; bottom: number; left: number } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [guidanceOpen, setGuidanceOpen] = useState(false);
   const [submissionSaveError, setSubmissionSaveError] = useState<string | null>(null);
@@ -550,9 +551,14 @@ export default function LessonPage() {
       const target = event.target as HTMLElement | null;
       if (target?.closest("input, textarea, button, a, [role=dialog]")) return;
 
-      const selectedText = window.getSelection()?.toString().trim() || "";
+      const selection = window.getSelection();
+      const selectedText = selection?.toString().trim() || "";
       const selectedWord = selectedText.match(/^[a-zA-Z]+(?:[-'][a-zA-Z]+)*$/)?.[0];
-      if (selectedWord && selectedWord.length > 1) setDictionaryWord(selectedWord);
+      if (selectedWord && selectedWord.length > 1) {
+        const rect = selection?.rangeCount ? selection.getRangeAt(0).getBoundingClientRect() : null;
+        setDictionaryAnchor(rect ? { top: rect.top, right: rect.right, bottom: rect.bottom, left: rect.left } : null);
+        setDictionaryWord(selectedWord);
+      }
     }
 
     document.addEventListener("dblclick", handleDoubleClick);
@@ -1144,7 +1150,7 @@ export default function LessonPage() {
             <StudyRoomTimer />
             {((typeof lesson.instructor_note === "string" && lesson.instructor_note.trim()) || (typeof rawLessonContent.instructorGuidance === "string" && rawLessonContent.instructorGuidance.trim())) && <Tooltip content="Open lesson guidance"><button type="button" onClick={() => setGuidanceOpen((open) => !open)} aria-expanded={guidanceOpen} aria-label="Open lesson guidance" className={`flex h-8 w-8 items-center justify-center rounded-md border bg-transparent transition-colors duration-200 hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-400 ${guidanceOpen ? "border-amber-500/40 text-amber-400" : "border-slate-700/50 text-slate-400"}`}><Lightbulb className="h-4 w-4" /></button></Tooltip>}
             <Tooltip content="Open your notes, resources, and study tools"><button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex h-8 items-center gap-1.5 rounded-md border bg-transparent px-3 text-xs transition-colors duration-200 hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-400 ${sidebarOpen ? "border-amber-500/40 text-amber-400" : "border-slate-700/50 text-slate-400"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button></Tooltip>
-            <Tooltip content="Look up a word"><button type="button" onClick={() => setDictionaryWord("")} aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-700/50 bg-transparent text-slate-400 transition-colors duration-200 hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-400"><BookOpen className="w-4 h-4" /></button></Tooltip>
+            <Tooltip content="Look up a word"><button type="button" onClick={() => { setDictionaryAnchor(null); setDictionaryWord(""); }} aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-700/50 bg-transparent text-slate-400 transition-colors duration-200 hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-400"><BookOpen className="w-4 h-4" /></button></Tooltip>
             <Tooltip content="Display and appearance"><DisplaySettingsControl /></Tooltip>
             <Tooltip content="Return to your course overview"><Link href="/dashboard" className="flex h-8 items-center gap-1 rounded-md border border-slate-700/50 bg-transparent px-3 text-xs text-slate-400 transition-colors duration-200 hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-400"><ChevronRight className="h-3 w-3 rotate-180" />Course overview</Link></Tooltip>
           </div>
@@ -1490,8 +1496,9 @@ export default function LessonPage() {
       {dictionaryWord !== null && (
         <DictionaryModal
           initialWord={dictionaryWord}
+          anchor={dictionaryAnchor}
           savedWords={savedWords}
-          onClose={() => setDictionaryWord(null)}
+          onClose={() => { setDictionaryWord(null); setDictionaryAnchor(null); }}
           onSave={(word) => {
             setSavedWords([word, ...savedWords.filter((item) => item.word.toLowerCase() !== word.word.toLowerCase())]);
             void saveVocabularyWord(lessonStudentToken, word);

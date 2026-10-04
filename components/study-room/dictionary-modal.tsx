@@ -16,16 +16,41 @@ interface DictionaryEntry {
 
 interface DictionaryModalProps {
   initialWord?: string;
+  anchor?: { top: number; right: number; bottom: number; left: number } | null;
   onClose: () => void;
   savedWords: SavedVocabularyWord[];
   onSave: (word: SavedVocabularyWord) => void;
 }
 
-export function DictionaryModal({ initialWord = "", onClose, savedWords, onSave }: DictionaryModalProps) {
+export function DictionaryModal({ initialWord = "", anchor = null, onClose, savedWords, onSave }: DictionaryModalProps) {
   const [query, setQuery] = useState(initialWord);
   const [entry, setEntry] = useState<DictionaryEntry | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [popoverPosition, setPopoverPosition] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (!anchor) {
+      setPopoverPosition(null);
+      return;
+    }
+
+    const positionPopover = () => {
+      const margin = 16;
+      const popoverWidth = Math.min(448, window.innerWidth - margin * 2);
+      const estimatedHeight = Math.min(440, window.innerHeight - margin * 2);
+      const left = Math.max(margin, Math.min(anchor.left, window.innerWidth - popoverWidth - margin));
+      const below = anchor.bottom + 12;
+      const top = below + estimatedHeight <= window.innerHeight - margin
+        ? below
+        : Math.max(margin, anchor.top - estimatedHeight - 12);
+      setPopoverPosition({ top, left });
+    };
+
+    positionPopover();
+    window.addEventListener("resize", positionPopover);
+    return () => window.removeEventListener("resize", positionPopover);
+  }, [anchor]);
 
   async function lookup(word = query) {
     const cleanWord = word.trim().toLowerCase().replace(/[^a-z\-']/g, "");
@@ -51,10 +76,25 @@ export function DictionaryModal({ initialWord = "", onClose, savedWords, onSave 
   }, [initialWord]);
 
   const isSaved = entry ? savedWords.some((word) => word.word.toLowerCase() === entry.word.toLowerCase()) : false;
+  const isPopover = Boolean(anchor);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }} role="dialog" aria-modal="true" aria-label="Dictionary lookup">
-      <div className="w-full max-w-lg rounded-xl border border-[#394252] bg-[#171d28] p-5 text-[#e8e7e4] shadow-2xl">
+    <div
+      className={`fixed inset-0 z-[1300] flex ${isPopover ? "items-start justify-start bg-transparent" : "items-end justify-center bg-black/60 p-4 sm:items-center"}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        if (event.target === event.currentTarget) onClose();
+      }}
+      role="presentation"
+    >
+      <section
+        role="dialog"
+        aria-modal={!isPopover}
+        aria-label="Dictionary lookup"
+        onClick={(event) => event.stopPropagation()}
+        style={isPopover && popoverPosition ? { top: popoverPosition.top, left: popoverPosition.left } : undefined}
+        className={`max-h-[calc(100dvh-2rem)] w-full overflow-y-auto rounded-xl border border-[#394252] bg-[#171d28] p-5 text-[#e8e7e4] shadow-2xl ${isPopover ? "absolute max-w-lg" : "max-w-lg"}`}
+      >
         <div className="flex items-center justify-between border-b border-[#29303c] pb-3">
           <div className="flex items-center gap-2"><BookOpen className="h-4 w-4 text-amber-400" /><h2 className="font-sans text-xl">Dictionary</h2></div>
           <button type="button" onClick={onClose} aria-label="Close dictionary" className="text-stone-400 hover:text-white"><X className="h-4 w-4" /></button>
@@ -75,7 +115,7 @@ export function DictionaryModal({ initialWord = "", onClose, savedWords, onSave 
           </div>
           <a href={`https://www.merriam-webster.com/dictionary/${entry.word}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-stone-500 hover:text-amber-400">Open full dictionary entry <ExternalLink className="h-3 w-3" /></a>
         </div>}
-      </div>
+      </section>
     </div>
   );
 }
