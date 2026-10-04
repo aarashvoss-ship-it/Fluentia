@@ -30,6 +30,7 @@ import { StudyRoomBlockRow } from "@/components/study-room/study-room-block-row"
 import { Tooltip } from "@/components/shared/tooltip";
 import { DisplaySettingsControl } from "@/components/shared/display-settings";
 import { DynamicLucideIcon } from "@/components/shared/lucide-icon-picker";
+import { SidebarBlockCard } from "@/components/shared/sidebar-block-card";
 import { getQuizQuestionPrompt, parseFillInBlanks } from "@/lib/fill-in-blanks";
 import { uploadStudentAudio } from "@/services/storage-service";
 import {
@@ -978,7 +979,7 @@ export default function LessonPage() {
     || isResultsStep;
   const lessonStudentToken = activeStudent?.token ?? lesson?.student_token ?? lesson?.student_id ?? "student";
   const studentDisplayName = activeStudent?.name || "Student";
-  const currentStepSidebarBlocks = ((rawLessonContent.sidebarBlocks as Record<string, { id: string; title: string; body: string; icon?: string; parentMainBlockId?: string }[]> | undefined)?.[currentStep] || []);
+  const currentStepSidebarBlocks = ((rawLessonContent.sidebarBlocks as Record<string, { id: string; title: string; body: string; icon?: string; parentMainBlockId?: string; imageUrl?: string; altText?: string }[]> | undefined)?.[currentStep] || []);
 
   if (!isMounted) {
     return <div className="fluentia-study-room min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
@@ -1015,11 +1016,8 @@ export default function LessonPage() {
   }
 
   const renderDynamicBlocks = (blocks: ContentBlock[]) => {
-    const renderSidebarBlock = (sidebarBlock: { id: string; title: string; body: string; icon?: string }) => (
-      <div className="rounded-xl border border-[#202631] bg-[#121721] p-4">
-        {sidebarBlock.title.trim() && sidebarBlock.title.trim() !== "Sidebar note" && <div className="flex items-start gap-2">{sidebarBlock.icon && <DynamicLucideIcon name={sidebarBlock.icon} className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />}<MarkdownContent value={sidebarBlock.title} className="text-xs font-semibold text-amber-400 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-xs [&_p]:m-0" /></div>}
-        <MarkdownContent value={sidebarBlock.body || ""} className="mt-2 text-sm leading-relaxed text-slate-300" />
-      </div>
+    const renderSidebarBlock = (sidebarBlock: { id: string; title: string; body: string; icon?: string; parentMainBlockId?: string; imageUrl?: string; altText?: string }) => (
+      <SidebarBlockCard {...sidebarBlock} />
     );
     const renderFillInTheBlanks = (block: Extract<ContentBlock, { type: "fill-in-the-blanks" }>) => {
       const values = submission.blockResponses || {};

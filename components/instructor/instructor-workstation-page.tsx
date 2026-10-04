@@ -35,6 +35,7 @@ import { Tooltip } from "@/components/shared/tooltip";
 import { DisplaySettingsControl } from "@/components/shared/display-settings";
 import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import { DynamicLucideIcon, LucideIconPicker } from "@/components/shared/lucide-icon-picker";
+import { SidebarBlockCard } from "@/components/shared/sidebar-block-card";
 import { StudentStudyRoomPreview, STUDENT_PREVIEW_CHANNEL, type StudentPreviewSnapshot, type StudentPreviewStep } from "@/components/instructor/student-study-room-preview";
 
 interface InstructorWorkstationProps {
@@ -103,8 +104,11 @@ function LessonMetadataDisclosure({
   );
 }
 
-type SidebarBlock = { id: string; title: string; body: string; icon?: string; parentMainBlockId?: string };
+type SidebarBlock = { id: string; title: string; body: string; icon?: string; parentMainBlockId?: string; imageUrl?: string; altText?: string };
 type SidebarBlocksByStep = Partial<Record<"warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking", SidebarBlock[]>>;
+
+const SIDEBAR_IMAGE_MAX_SIZE = 5 * 1024 * 1024;
+const SIDEBAR_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 
 function StepSidebarEditorPanel({
   sidebarStep,
@@ -120,7 +124,44 @@ function StepSidebarEditorPanel({
   mainBlocks: ContentBlock[];
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [imageUploadStatus, setImageUploadStatus] = useState<Record<string, string>>({});
   const contentId = "step-sidebar-editor-content";
+  const updateSidebarBlock = (blockId: string, patch: Partial<SidebarBlock>) => {
+    setSidebarBlocksByStep((current) => ({
+      ...current,
+      [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === blockId ? { ...item, ...patch } : item),
+    }));
+  };
+  const uploadSidebarImage = async (block: SidebarBlock, file?: File) => {
+    if (!file) return;
+    if (!SIDEBAR_IMAGE_TYPES.has(file.type)) {
+      setImageUploadStatus((current) => ({ ...current, [block.id]: "Choose a PNG, JPG, or WebP image." }));
+      return;
+    }
+    if (file.size > SIDEBAR_IMAGE_MAX_SIZE) {
+      setImageUploadStatus((current) => ({ ...current, [block.id]: "Sidebar images must be 5 MB or smaller." }));
+      return;
+    }
+    setImageUploadStatus((current) => ({ ...current, [block.id]: "Uploading image..." }));
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const path = `sidebar-images/${crypto.randomUUID()}-${safeName}`;
+    try {
+      const { error } = await supabase.storage.from("lesson-assets").upload(path, file, {
+        cacheControl: "3600",
+        contentType: file.type,
+        upsert: false,
+      });
+      if (error) throw error;
+      const { data } = supabase.storage.from("lesson-assets").getPublicUrl(path);
+      if (!data.publicUrl) throw new Error("Supabase did not return a public image URL.");
+      updateSidebarBlock(block.id, { imageUrl: data.publicUrl });
+      setImageUploadStatus((current) => ({ ...current, [block.id]: "Image uploaded." }));
+    } catch (error) {
+      console.error("Sidebar image upload failed:", error);
+      const message = error instanceof Error && error.message ? error.message : "Check the lesson-assets bucket permissions and try again.";
+      setImageUploadStatus((current) => ({ ...current, [block.id]: `Upload failed: ${message}` }));
+    }
+  };
 
   return (
     <section className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
@@ -202,6 +243,60 @@ function StepSidebarEditorPanel({
                 }))}
               />
             </div>
+            <div className="space-y-3 rounded-md border border-[#29303c] bg-[#0c1017]/40 p-3">
+              <p className="text-xs font-medium text-stone-300">Image (Optional)</p>
+              <label className="block text-[11px] text-stone-500">
+                Image URL
+                <input
+                  type="url"
+                  value={block.imageUrl || ""}
+                  onChange={(event) => {
+                    updateSidebarBlock(block.id, { imageUrl: event.target.value });
+                    setImageUploadStatus((current) => ({ ...current, [block.id]: "" }));
+                  }}
+                  placeholder="https://example.com/image.jpg"
+                  className="mt-1 w-full rounded border border-[#394252] bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                  aria-label={`Image URL for ${block.title || "sidebar block"}`}
+                />
+              </label>
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded border border-dashed border-[#394252] px-3 py-2 text-xs text-stone-300 transition hover:border-amber-500/40 hover:text-amber-400">
+                <Image className="h-4 w-4" aria-hidden="true" />
+                Upload Image
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="sr-only"
+                  aria-label={`Upload sidebar image for ${block.title || "sidebar block"}`}
+                  onChange={(event) => {
+                    void uploadSidebarImage(block, event.target.files?.[0]);
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </label>
+              {imageUploadStatus[block.id] && <p className="text-[11px] text-stone-400" role="status">{imageUploadStatus[block.id]}</p>}
+              <label className="block text-[11px] text-stone-500">
+                Alt Text / Caption (Optional)
+                <input
+                  value={block.altText || ""}
+                  onChange={(event) => updateSidebarBlock(block.id, { altText: event.target.value })}
+                  placeholder="Describe the image for students"
+                  className="mt-1 w-full rounded border border-[#394252] bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                  aria-label={`Image alt text or caption for ${block.title || "sidebar block"}`}
+                />
+              </label>
+              {block.imageUrl?.trim() && (
+                <figure className="overflow-hidden rounded-lg border border-[#29303c] bg-[#0c1017]">
+                  <img
+                    src={block.imageUrl}
+                    alt={block.altText || ""}
+                    loading="lazy"
+                    onError={(event) => { event.currentTarget.style.display = "none"; }}
+                    className="aspect-[4/3] w-full object-cover transition-opacity duration-300"
+                  />
+                  {block.altText?.trim() && <figcaption className="px-2.5 py-2 text-[11px] leading-relaxed text-stone-500">{block.altText}</figcaption>}
+                </figure>
+              )}
+            </div>
             <label className="block text-[11px] text-stone-500">
               Align Next To (Main Block)
               <select
@@ -219,10 +314,7 @@ function StepSidebarEditorPanel({
             </label>
             <TiptapEditor
               value={block.body}
-              onChange={(body) => setSidebarBlocksByStep((current) => ({
-                ...current,
-                [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, body } : item),
-              }))}
+              onChange={(body) => updateSidebarBlock(block.id, { body })}
               placeholder="Start typing sidebar content or use formatting options..."
               ariaLabel={`Sidebar content for ${block.title || "sidebar block"}`}
               compact
@@ -344,6 +436,8 @@ function normalizeSidebarBlocksByStep(raw: unknown): SidebarBlocksByStep {
         id: typeof item.id === "string" && item.id.trim() ? item.id.trim() : `sidebar-${key}-${Date.now()}-${index}`,
         title: typeof item.title === "string" ? item.title : typeof item.name === "string" ? item.name : "Sidebar note",
         body: typeof item.body === "string" ? item.body : typeof item.text === "string" ? item.text : "",
+        imageUrl: typeof item.imageUrl === "string" ? item.imageUrl : undefined,
+        altText: typeof item.altText === "string" ? item.altText : undefined,
         icon: typeof item.icon === "string" ? item.icon : undefined,
         parentMainBlockId: typeof item.parentMainBlockId === "string" && item.parentMainBlockId.trim() ? item.parentMainBlockId.trim() : undefined,
       }));
@@ -2774,22 +2868,10 @@ export default function InstructorWorkstationPage({
             sidebar={(
               <>
                 {blockIndex === 0 && topSidebarBlocks.map((sidebarItem) => (
-                  <div key={sidebarItem.id} className="rounded-lg border border-[#202631] bg-[#121721] p-4">
-                    <p className="flex items-center gap-2 text-xs font-semibold text-amber-400">
-                      {sidebarItem.icon && <DynamicLucideIcon name={sidebarItem.icon} className="h-4 w-4" aria-hidden="true" />}
-                      {sidebarItem.title}
-                    </p>
-                    <MarkdownContent value={sidebarItem.body || ""} className="mt-2 text-sm leading-relaxed text-stone-300" />
-                  </div>
+                  <SidebarBlockCard key={sidebarItem.id} {...sidebarItem} />
                 ))}
                 {sidebarBlock && (
-                  <div className="rounded-lg border border-[#202631] bg-[#121721] p-4">
-                    <p className="flex items-center gap-2 text-xs font-semibold text-amber-400">
-                      {sidebarBlock.icon && <DynamicLucideIcon name={sidebarBlock.icon} className="h-4 w-4" aria-hidden="true" />}
-                      {sidebarBlock.title}
-                    </p>
-                    <MarkdownContent value={sidebarBlock.body || ""} className="mt-2 text-sm leading-relaxed text-stone-300" />
-                  </div>
+                  <SidebarBlockCard {...sidebarBlock} />
                 )}
               </>
             )}

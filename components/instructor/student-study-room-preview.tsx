@@ -11,11 +11,12 @@ import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player";
 import { StudyRoomBlockRow } from "@/components/study-room/study-room-block-row";
 import { Stepper } from "@/components/study-room/stepper";
+import { SidebarBlockCard } from "@/components/shared/sidebar-block-card";
 import type { BannerPosition } from "@/components/instructor/banner-manager";
 import { getBannerPositionStyles } from "@/lib/banner-position";
 
 export type StudentPreviewStep = StudyStepId;
-export type PreviewSidebarBlock = { id: string; title: string; body: string; icon?: string; parentMainBlockId?: string };
+export type PreviewSidebarBlock = { id: string; title: string; body: string; icon?: string; parentMainBlockId?: string; imageUrl?: string; altText?: string };
 export type PreviewSidebarBlocksByStep = Partial<Record<Exclude<StudyStepId, "results">, PreviewSidebarBlock[]>>;
 export const STUDENT_PREVIEW_CHANNEL = "fluentia:student-live-preview";
 
@@ -141,15 +142,9 @@ export function StudentStudyRoomPreview({
               sidebar={(
                 <div className="h-full w-full space-y-4">
                   {blockIndex === 0 && topSidebarBlocks.map((sidebarItem) => (
-                    <div key={sidebarItem.id} className="rounded-xl border border-[#202631] bg-[#121721] p-4">
-                      <p className="flex items-center gap-2 text-xs font-semibold text-amber-400">
-                        {sidebarItem.icon && <DynamicLucideIcon name={sidebarItem.icon} className="h-4 w-4" aria-hidden="true" />}
-                        {sidebarItem.title}
-                      </p>
-                      <MarkdownContent value={sidebarItem.body || ""} className="mt-2 text-sm leading-relaxed text-stone-300" />
-                    </div>
+                    <SidebarBlockCard key={sidebarItem.id} {...sidebarItem} />
                   ))}
-                  {sidebarBlock && <div className="rounded-xl border border-[#202631] bg-[#121721] p-4"><p className="flex items-center gap-2 text-xs font-semibold text-amber-400">{sidebarBlock.icon && <DynamicLucideIcon name={sidebarBlock.icon} className="h-4 w-4" aria-hidden="true" />}{sidebarBlock.title}</p><MarkdownContent value={sidebarBlock.body || ""} className="mt-2 text-sm leading-relaxed text-stone-300" /></div>}
+                  {sidebarBlock && <SidebarBlockCard {...sidebarBlock} />}
                 </div>
               )}
             >

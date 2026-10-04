@@ -1,0 +1,55 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { DynamicLucideIcon } from "@/components/shared/lucide-icon-picker";
+import { MarkdownContent } from "@/components/study-room/markdown-content";
+
+export function SidebarBlockCard({
+  title,
+  body,
+  icon,
+  imageUrl,
+  altText,
+}: {
+  title: string;
+  body: string;
+  icon?: string;
+  imageUrl?: string;
+  altText?: string;
+}) {
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
+
+  useEffect(() => {
+    setImageLoaded(false);
+    setImageFailed(false);
+  }, [imageUrl]);
+
+  return (
+    <article className="min-w-0 overflow-hidden rounded-xl border border-[#202631] bg-[#121721]">
+      {imageUrl && !imageFailed && (
+        <div className="aspect-[4/3] w-full overflow-hidden bg-[#0c1017]">
+          <img
+            src={imageUrl}
+            alt={altText || ""}
+            loading="lazy"
+            onLoad={() => setImageLoaded(true)}
+            onError={() => setImageFailed(true)}
+            className={`h-full w-full object-cover transition duration-300 hover:scale-[1.02] ${imageLoaded ? "opacity-100" : "animate-pulse opacity-0"}`}
+          />
+        </div>
+      )}
+      <div className="min-w-0 p-4">
+        {title.trim() && title.trim() !== "Sidebar note" && (
+          <div className="flex min-w-0 items-start gap-2">
+            {icon && <DynamicLucideIcon name={icon} className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />}
+            <MarkdownContent value={title} className="min-w-0 text-xs font-semibold text-amber-400 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-xs [&_p]:m-0" />
+          </div>
+        )}
+        {imageFailed && <p className="text-xs text-stone-500">Image could not be loaded.</p>}
+        {body && <MarkdownContent value={body} className="mt-2 text-sm leading-relaxed text-stone-300" />}
+        {imageUrl && altText?.trim() && <p className="mt-2 text-xs leading-relaxed text-stone-500">{altText}</p>}
+      </div>
+    </article>
+  );
+}
