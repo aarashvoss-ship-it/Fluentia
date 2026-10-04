@@ -558,7 +558,15 @@ function getResourceFlashcards(resource: StudentResourceEntry): FlashcardItem[] 
 }
 
 function collectStudentFlashcards(resources: StudentResourceEntry[]) {
-  return resources.flatMap((resource) => getResourceFlashcards(resource).map((card, index) => ({
+  const flashcardResources = resources
+    .filter((resource) => resource.resource_type === "flashcard" || resource.resource_type === "flashcards")
+    .slice()
+    .sort((left, right) => {
+      const leftTime = left.created_at ? new Date(left.created_at).getTime() : 0;
+      const rightTime = right.created_at ? new Date(right.created_at).getTime() : 0;
+      return leftTime - rightTime || left.id.localeCompare(right.id);
+    });
+  return flashcardResources.flatMap((resource) => getResourceFlashcards(resource).map((card, index) => ({
     ...card,
     id: card.id || `${resource.id}-${index}`,
     deckTitle: resource.title,
@@ -583,6 +591,61 @@ function FlashcardDraftList({ cards, onRemove }: { cards: FlashcardItem[]; onRem
         </li>
       ))}
     </ol>
+  );
+}
+
+function SavedResourcePreview({ resource, title }: { resource: StudentResourceEntry; title: string }) {
+  const cards = getResourceFlashcards(resource);
+  const href = getResourcePreviewHref(resource.link_url);
+  const isDataTable = resource.resource_type === "data_table" || isDataTableResourceTitle(resource.title);
+
+  if (resource.resource_type === "flashcard" || resource.resource_type === "flashcards") {
+    return cards.length > 0
+      ? <FlashcardDraftList cards={cards} />
+      : <p className="text-sm text-stone-500">This deck does not contain any saved cards.</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {resource.resource_type === "audio" && (
+        <>
+          {href ? <CustomAudioPlayer src={href} label={title} /> : <p className="text-sm text-stone-500">No audio file is available.</p>}
+          {resource.body && <MarkdownContent value={resource.body} className="text-sm leading-relaxed text-stone-300" />}
+          {href && <a href={href} target="_blank" rel="noreferrer" className="break-all text-xs text-sky-300 underline">Open audio file</a>}
+        </>
+      )}
+      {resource.resource_type === "video" && (
+        href ? <InteractiveVideoBlock videoUrl={href} title={title} /> : <p className="text-sm text-stone-500">No video is available.</p>
+      )}
+      {resource.resource_type === "image" && (
+        href ? <img src={href} alt={resource.original_filename || title} className="max-h-[520px] w-full rounded-lg border border-[#293343] object-contain" /> : <p className="text-sm text-stone-500">No image is available.</p>
+      )}
+      {resource.resource_type === "file" && (
+        <>
+          <p className="text-xs text-stone-400">{resource.original_filename || title}</p>
+          {href && resource.media_type?.startsWith("image/") && <img src={href} alt={resource.original_filename || title} className="max-h-[520px] w-full rounded-lg border border-[#293343] object-contain" />}
+          {href && resource.media_type === "application/pdf" && <iframe src={href} title={`Preview of ${resource.original_filename || title}`} className="h-80 w-full rounded-md border border-[#293343] bg-white" />}
+          {href && resource.media_type?.startsWith("audio/") && <CustomAudioPlayer src={href} label={title} />}
+          {href && resource.media_type?.startsWith("video/") && <video src={href} controls preload="metadata" className="max-h-80 w-full rounded-md bg-black" aria-label={`Preview of ${resource.original_filename || title}`} />}
+          {href && <a href={href} target="_blank" rel="noreferrer" download={resource.original_filename || undefined} className="inline-flex text-xs text-sky-300 underline">Open or download file</a>}
+          {!href && <p className="text-sm text-stone-500">No file is available.</p>}
+        </>
+      )}
+      {resource.resource_type === "reading" && (
+        <>
+          {href && <a href={href} target="_blank" rel="noreferrer" className="break-all text-xs text-sky-300 underline">Open reading attachment</a>}
+          {resource.body && <MarkdownContent value={resource.body} className="text-sm leading-relaxed text-stone-300" />}
+          {!href && !resource.body && <p className="text-sm text-stone-500">This reading has no saved text or attachment.</p>}
+        </>
+      )}
+      {(resource.resource_type === "note" || resource.resource_type === "quiz" || isDataTable) && (
+        resource.body
+          ? isDataTable
+            ? <DataTableResource title={title} markdown={resource.body} />
+            : <MarkdownContent value={resource.body} className="text-sm leading-relaxed text-stone-300" />
+          : <p className="text-sm text-stone-500">This resource has no saved text.</p>
+      )}
+    </div>
   );
 }
 
@@ -739,6 +802,8 @@ export default function InstructorWorkstationPage({
   const [sidebarBlocksByStep, setSidebarBlocksByStep] = useState<SidebarBlocksByStep>({});
   const [lessonResources, setLessonResources] = useState<LessonResource[]>([]);
   const [studentResources, setStudentResources] = useState<StudentResourceEntry[]>([]);
+  const [editingStudentResourceId, setEditingStudentResourceId] = useState<string | null>(null);
+  const [expandedStudentResourceIds, setExpandedStudentResourceIds] = useState<Set<string>>(() => new Set());
   const [resourceDraft, setResourceDraft] = useState(EMPTY_RESOURCE_DRAFT);
   const [resourceBodyHtml, setResourceBodyHtml] = useState("");
   const [resourceQuestionHtml, setResourceQuestionHtml] = useState("");
@@ -997,6 +1062,8 @@ export default function InstructorWorkstationPage({
     setAudioFile(null);
     setResourceFile(null);
     setResourceDraft(EMPTY_RESOURCE_DRAFT);
+    setEditingStudentResourceId(null);
+    setExpandedStudentResourceIds(new Set());
     setResourceStatus(null);
   };
 
@@ -1736,6 +1803,41 @@ export default function InstructorWorkstationPage({
     setResourceStatus(`Card added to this deck (${resourceDraft.cards.length + 1} total).`);
   };
 
+  const editStudentResource = (resource: StudentResourceEntry) => {
+    const type: ResourceEditorType = resource.resource_type === "flashcards" ? "flashcard" : resource.resource_type;
+    setEditingStudentResourceId(resource.id);
+    setResourceDraft({
+      ...EMPTY_RESOURCE_DRAFT,
+      type,
+      title: resource.title,
+      body: resource.body || "",
+      linkUrl: resource.link_url || "",
+      cards: getResourceFlashcards(resource).map((card) => ({ ...card })),
+    });
+    setResourceBodyHtml(resource.body || "");
+    setResourceQuestionHtml("");
+    setResourceAnswerHtml("");
+    setResourceExplanationHtml("");
+    setResourceInputMode(resource.link_url ? "url" : "upload");
+    setAudioFile(null);
+    setResourceFile(null);
+    setResourceStatus(null);
+    setActiveTab("builder");
+    window.setTimeout(() => document.getElementById("student-resource-editor")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  };
+
+  const cancelStudentResourceEdit = () => {
+    setEditingStudentResourceId(null);
+    setResourceDraft(EMPTY_RESOURCE_DRAFT);
+    setResourceBodyHtml("");
+    setResourceQuestionHtml("");
+    setResourceAnswerHtml("");
+    setResourceExplanationHtml("");
+    setAudioFile(null);
+    setResourceFile(null);
+    setResourceStatus(null);
+  };
+
   const saveStudentResource = async () => {
     const resolvedStudent = selectedStudent ?? (selectedStudentId ? students.find((student) => student.id === selectedStudentId) ?? null : null);
     const resolvedLessonId = resourceLessonId || databaseLessonId || null;
@@ -1754,12 +1856,20 @@ export default function InstructorWorkstationPage({
       return;
     }
     const resourceType = resourceDraft.type;
+    const resourceBeingEdited = editingStudentResourceId
+      ? studentResources.find((resource) => resource.id === editingStudentResourceId) || null
+      : null;
+    if (editingStudentResourceId && !resourceBeingEdited) {
+      setResourceStatus("This resource is no longer available. Refresh the list and try again.");
+      return;
+    }
     const resetDraftAfterSave = () => {
       setResourceDraft({ ...EMPTY_RESOURCE_DRAFT, type: resourceType });
       setResourceQuestionHtml("");
       setResourceAnswerHtml("");
       setResourceExplanationHtml("");
       setDraftFlashcardFlipped(false);
+      setEditingStudentResourceId(null);
     };
 
     if (resourceType === "flashcard" && resourceDraft.cards.length === 0) {
@@ -1826,6 +1936,7 @@ export default function InstructorWorkstationPage({
     const studentToken = resolvedStudent.token || resolvedStudent.id;
     const storedResourceType: StudentResourceType = resourceType === "flashcard" ? "flashcards" : resourceType;
     let resourceFileStoragePath: string | null = null;
+    let oldFileCleanupFailed = false;
     try {
       let resourceUrl = resourceDraft.linkUrl.trim();
       if (usesMediaUpload && mediaUploadFile && resourceFileMediaType) {
@@ -1841,33 +1952,64 @@ export default function InstructorWorkstationPage({
         }
         resourceUrl = supabase.storage.from("student-resources").getPublicUrl(resourceFileStoragePath).data.publicUrl;
       }
-      const payload = Object.fromEntries(
-        Object.entries({
-          student_id: resolvedStudent.id,
-          student_token: studentToken,
-          lesson_id: resolvedLessonId,
-          type: storedResourceType,
-          resource_type: storedResourceType,
-          title: trimmedTitle,
-          updated_at: new Date().toISOString(),
-          ...(resourceType === "note" || resourceType === "reading" || resourceType === "quiz" || resourceType === "audio" || resourceType === "data_table"
-            ? { body: resourceDraft.body.trim() || undefined }
-            : {}),
-          ...(resourceType === "reading" || resourceType === "audio" || resourceType === "file" || resourceType === "image" || resourceType === "video"
-            ? { link_url: resourceUrl || undefined }
-            : {}),
-          ...(usesMediaUpload && mediaUploadFile
-            ? { original_filename: mediaUploadFile.name, media_type: resourceFileMediaType || undefined }
-            : {}),
-          ...(resourceType === "flashcard" ? { cards: resourceDraft.cards } : {}),
-        }).filter(([, value]) => value !== undefined && value !== null && (typeof value !== "string" || value.trim() !== "")),
-      ) as Pick<StudentResourceEntry, "student_id" | "student_token" | "lesson_id" | "resource_type" | "title">
-        & Partial<Pick<StudentResourceEntry, "body" | "link_url" | "question" | "answer" | "explanation" | "cards" | "original_filename" | "media_type">>
+      const payload = {
+        student_id: resolvedStudent.id,
+        student_token: studentToken,
+        lesson_id: resolvedLessonId,
+        type: storedResourceType,
+        resource_type: storedResourceType,
+        title: trimmedTitle,
+        updated_at: new Date().toISOString(),
+        body: ["note", "reading", "quiz", "audio", "data_table"].includes(resourceType)
+          ? resourceDraft.body.trim() || null
+          : null,
+        link_url: ["reading", "audio", "file", "image", "video"].includes(resourceType)
+          ? resourceUrl || null
+          : null,
+        ...(["reading", "audio", "file", "image", "video"].includes(resourceType)
+          ? {
+              original_filename: usesMediaUpload && mediaUploadFile
+                ? mediaUploadFile.name
+                : resourceBeingEdited?.original_filename || null,
+              media_type: usesMediaUpload
+                ? resourceFileMediaType
+                : resourceBeingEdited?.media_type || null,
+            }
+          : {}),
+        ...(resourceType === "flashcard"
+          ? {
+              cards: resourceDraft.cards.map((card) => ({ ...card })),
+              question: null,
+              answer: null,
+              explanation: null,
+            }
+          : {}),
+      } as Pick<StudentResourceEntry, "student_id" | "student_token" | "lesson_id" | "resource_type" | "title">
+        & Partial<Pick<StudentResourceEntry, "type" | "body" | "link_url" | "question" | "answer" | "explanation" | "cards" | "original_filename" | "media_type">>
         & { updated_at: string };
 
-      const { data, error } = await supabase
-        .from("student_resources")
-        .insert(payload)
+      if (resourceBeingEdited?.id.startsWith("local-")) {
+        const savedResource = { ...resourceBeingEdited, ...payload } as StudentResourceEntry;
+        const next = studentResources.map((resource) => resource.id === resourceBeingEdited.id ? savedResource : resource);
+        setStudentResources(next);
+        writeStudentResourcesLocally(studentToken, next);
+        resetDraftAfterSave();
+        setAudioFile(null);
+        setResourceFile(null);
+        setResourceStatus("Resource updated for the selected student.");
+        return;
+      }
+
+      const writeRequest = resourceBeingEdited
+        ? supabase
+            .from("student_resources")
+            .update(payload)
+            .eq("id", resourceBeingEdited.id)
+            .eq("student_id", resolvedStudent.id)
+        : supabase
+            .from("student_resources")
+            .insert(payload);
+      const { data, error } = await writeRequest
         .select()
         .abortSignal(AbortSignal.timeout(8000))
         .single();
@@ -1877,7 +2019,7 @@ export default function InstructorWorkstationPage({
           await supabase.storage.from("student-resources").remove([resourceFileStoragePath]);
           resourceFileStoragePath = null;
         }
-        if (error.code === "PGRST205" || /does not exist|42P01/i.test(error.message || "")) {
+        if (!resourceBeingEdited && (error.code === "PGRST205" || /does not exist|42P01/i.test(error.message || ""))) {
           if (resourceType === "file" || resourceType === "image" || resourceType === "video") throw new Error("Apply migration 028 before saving image and video resources.");
           const localEntry: StudentResourceEntry = {
             id: `local-${Date.now()}`,
@@ -1908,16 +2050,41 @@ export default function InstructorWorkstationPage({
         throw error;
       }
 
-      const next = [
-        { ...payload, ...data, created_at: data?.created_at || new Date().toISOString(), updated_at: data?.updated_at || new Date().toISOString() },
-        ...studentResources,
-      ];
+      const savedResource = {
+        ...payload,
+        ...data,
+        id: data?.id || resourceBeingEdited?.id || `local-${Date.now()}`,
+        created_at: data?.created_at || resourceBeingEdited?.created_at || new Date().toISOString(),
+        updated_at: data?.updated_at || new Date().toISOString(),
+      } as StudentResourceEntry;
+      const next = resourceBeingEdited
+        ? studentResources.map((resource) => resource.id === resourceBeingEdited.id ? savedResource : resource)
+        : [savedResource, ...studentResources];
       setStudentResources(next);
       writeStudentResourcesLocally(studentToken, next);
+      if (resourceBeingEdited && resourceFileStoragePath && resourceBeingEdited.link_url) {
+        try {
+          const oldUrl = new URL(resourceBeingEdited.link_url);
+          const prefix = "/storage/v1/object/public/student-resources/";
+          const prefixIndex = oldUrl.pathname.indexOf(prefix);
+          if (prefixIndex >= 0) {
+            const oldPath = decodeURIComponent(oldUrl.pathname.slice(prefixIndex + prefix.length));
+            if (oldPath) {
+              const { error: cleanupError } = await supabase.storage.from("student-resources").remove([oldPath]);
+              if (cleanupError) throw cleanupError;
+            }
+          }
+        } catch (cleanupError) {
+          console.error("Replaced student resource file cleanup failed:", cleanupError);
+          oldFileCleanupFailed = true;
+        }
+      }
       resetDraftAfterSave();
       setAudioFile(null);
       setResourceFile(null);
-      setResourceStatus("Resource saved to the selected student.");
+      setResourceStatus(oldFileCleanupFailed
+        ? "Resource updated, but its previous stored file could not be removed."
+        : resourceBeingEdited ? "Resource updated for the selected student." : "Resource saved to the selected student.");
     } catch (error: any) {
       if (resourceFileStoragePath) {
         await supabase.storage.from("student-resources").remove([resourceFileStoragePath]);
@@ -4025,9 +4192,10 @@ export default function InstructorWorkstationPage({
                   <button
                     key={type}
                     type="button"
+                    disabled={Boolean(editingStudentResourceId && activeResourceType !== type)}
                     aria-pressed={activeResourceType === type}
                     onClick={() => setResourceDraft((previous) => ({ ...previous, type }))}
-                    className={`rounded-md border px-3 py-2 text-xs  transition ${activeResourceType === type ? 'border-amber-500/40 bg-amber-500/20 text-amber-400 shadow-sm' : 'border-[#394252] bg-[#0c1017] text-stone-400 hover:border-amber-500/40 hover:text-stone-100'}`}
+                    className={`rounded-md border px-3 py-2 text-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${activeResourceType === type ? 'border-amber-500/40 bg-amber-500/20 text-amber-400 shadow-sm' : 'border-[#394252] bg-[#0c1017] text-stone-400 hover:border-amber-500/40 hover:text-stone-100'}`}
                   >
                     {label}
                   </button>
@@ -4043,8 +4211,8 @@ export default function InstructorWorkstationPage({
               <div className="mt-5 space-y-6">
                 <div className="grid min-w-0 grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.35fr)]">
                   <div className="w-full min-w-0 rounded-2xl border border-[#202631] bg-[#171d28]/60 p-5">
-                    <div className="mb-4 border-b border-[#202631] pb-3">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Resource Editor</p>
+                    <div id="student-resource-editor" className="mb-4 border-b border-[#202631] pb-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">{editingStudentResourceId ? "Edit saved resource" : "Resource Editor"}</p>
                       <h4 className="mt-1 font-sans text-lg font-semibold text-stone-100">
                         {activeResourceType === "note" ? "Note Editor" : activeResourceType === "reading" ? "Reading Editor" : activeResourceType === "flashcard" ? "Flashcard Builder" : activeResourceType === "quiz" ? "Quiz Editor" : activeResourceType === "audio" ? "Audio Editor" : activeResourceType === "video" ? "Video Editor" : activeResourceType === "image" ? "Image Editor" : activeResourceType === "file" ? "File Upload" : "Data Table Editor"}
                       </h4>
@@ -4235,9 +4403,12 @@ export default function InstructorWorkstationPage({
                         </>
                       )}
 
-                      <button type="button" onClick={() => void saveStudentResource()} className="w-full rounded-md bg-amber-500/20 px-4 py-2.5 text-xs  text-amber-400 transition hover:bg-amber-500/20">
-                        {resourceDraft.type === "data_table" ? "Save Data Table" : resourceDraft.type === "flashcard" ? "Save Deck" : "Save resource"}
+                      <button type="button" onClick={() => void saveStudentResource()} className="w-full rounded-md bg-amber-500/20 px-4 py-2.5 text-xs text-amber-400 transition hover:bg-amber-500/30">
+                        {editingStudentResourceId
+                          ? resourceDraft.type === "flashcard" ? "Update Deck" : "Update resource"
+                          : resourceDraft.type === "data_table" ? "Save Data Table" : resourceDraft.type === "flashcard" ? "Save Deck" : "Save resource"}
                       </button>
+                      {editingStudentResourceId && <button type="button" onClick={cancelStudentResourceEdit} className="w-full rounded-md border border-[#394252] px-4 py-2.5 text-xs text-stone-300 transition hover:border-stone-300 hover:text-stone-100">Cancel edit</button>}
                       {resourceStatus && <p role="status" className="text-xs leading-relaxed text-amber-400">{resourceStatus}</p>}
                     </div>
                   </div>
@@ -4447,48 +4618,57 @@ export default function InstructorWorkstationPage({
                       {studentResources.map((resource) => {
                         const isDataTable = resource.resource_type === "data_table" || isDataTableResourceTitle(resource.title);
                         const resourceTitle = isDataTable ? getDataTableResourceTitle(resource.title) : resource.title;
+                        const resourceCards = getResourceFlashcards(resource);
+                        const isFlashcardDeck = resource.resource_type === "flashcard" || resource.resource_type === "flashcards";
+                        const isExpanded = expandedStudentResourceIds.has(resource.id);
+                        const previewId = `saved-resource-preview-${resource.id}`;
                         return (
                           <div key={resource.id} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-4">
                             <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="text-sm font-semibold text-stone-100">{resourceTitle}</p>
-                                <p className="mt-1 text-[10px] uppercase tracking-[0.12em] text-stone-500">{resource.resource_type}</p>
-                              </div>
                               <button
                                 type="button"
-                                onClick={() => void deleteStudentResource(resource)}
-                                className="rounded-md p-1.5 text-stone-500 transition hover:bg-red-500/10 hover:text-red-400"
-                                aria-label={`Delete ${resource.title}`}
+                                onClick={() => setExpandedStudentResourceIds((current) => {
+                                  const next = new Set(current);
+                                  if (next.has(resource.id)) next.delete(resource.id);
+                                  else next.add(resource.id);
+                                  return next;
+                                })}
+                                aria-expanded={isExpanded}
+                                aria-controls={previewId}
+                                className="flex min-w-0 flex-1 items-start gap-2 text-left"
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
+                                {isExpanded ? <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" /> : <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />}
+                                <span className="min-w-0">
+                                  <span className="block truncate text-sm font-semibold text-stone-100">{resourceTitle}</span>
+                                  <span className="mt-1 block text-[10px] uppercase tracking-[0.12em] text-stone-500">
+                                    {isFlashcardDeck ? `Flashcard deck · ${resourceCards.length} ${resourceCards.length === 1 ? "card" : "cards"}` : resource.resource_type}
+                                  </span>
+                                </span>
                               </button>
+                              <div className="flex shrink-0 items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => editStudentResource(resource)}
+                                  className="rounded-md p-1.5 text-stone-500 transition hover:bg-amber-500/10 hover:text-amber-400"
+                                  aria-label={`Edit ${resource.title}`}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void deleteStudentResource(resource)}
+                                  className="rounded-md p-1.5 text-stone-500 transition hover:bg-red-500/10 hover:text-red-400"
+                                  aria-label={`Delete ${resource.title}`}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
                             </div>
-                            {resource.resource_type === "reading" && resource.link_url && (
-                              <a href={resource.link_url} target="_blank" rel="noreferrer" className="mt-3 block truncate text-xs text-sky-300 underline">
-                                Open reading link
-                              </a>
-                            )}
-                            {resource.resource_type === "audio" && (
-                              <div className="mt-3 space-y-3">
-                                {resource.link_url ? <CustomAudioPlayer src={resource.link_url} label={resource.title} /> : <p className="text-xs text-stone-500">No audio URL is available.</p>}
-                                {resource.link_url && <a href={resource.link_url} target="_blank" rel="noreferrer" className="block truncate text-[11px] text-sky-300 underline">Open audio file</a>}
-                                {resource.body && <AudioTranscriptAccordion resourceId={resource.id} transcript={resource.body} />}
+                            {isExpanded && (
+                              <div id={previewId} className="mt-4 border-t border-[#293343] pt-4">
+                                <SavedResourcePreview resource={resource} title={resourceTitle} />
                               </div>
                             )}
-                            {resource.resource_type === "file" && resource.link_url && (
-                              <div className="mt-3 space-y-2">
-                                <p className="break-all text-xs text-stone-400">{resource.original_filename || "Uploaded file"}</p>
-                                {resource.media_type?.startsWith("image/") && <img src={resource.link_url} alt={resource.original_filename || resource.title} className="max-h-64 w-full rounded-md border border-[#293343] object-contain" />}
-                                {resource.media_type === "application/pdf" && <iframe src={resource.link_url} title={`Preview of ${resource.original_filename || resource.title}`} className="h-64 w-full rounded-md border border-[#293343] bg-white" />}
-                                {resource.media_type?.startsWith("audio/") && <CustomAudioPlayer src={resource.link_url} label={resource.title} />}
-                                {resource.media_type?.startsWith("video/") && <video src={resource.link_url} controls preload="metadata" className="max-h-64 w-full rounded-md bg-black" aria-label={`Preview of ${resource.original_filename || resource.title}`} />}
-                                <a href={resource.link_url} target="_blank" rel="noreferrer" download={resource.original_filename || undefined} className="inline-flex text-xs text-sky-300 underline">Open or download file</a>
-                              </div>
-                            )}
-                            {isDataTable && resource.body && <div className="mt-3"><DataTableResource title={resourceTitle} markdown={resource.body} /></div>}
-                            {resource.resource_type === "reading" && resource.body && <MarkdownContent value={resource.body} className="mt-3 text-sm leading-relaxed text-stone-300" />}
-                            {resource.resource_type === "note" && !isDataTable && resource.body && <MarkdownContent value={resource.body} className="mt-3 text-sm leading-relaxed text-stone-300" />}
-                            {resource.resource_type === "quiz" && resource.body && <MarkdownContent value={resource.body} className="mt-3 text-sm leading-relaxed text-stone-300" />}
                           </div>
                         );
                       })}

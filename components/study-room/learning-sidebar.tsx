@@ -28,6 +28,7 @@ type StudentResource = {
   media_type?: string | null;
   storage_path?: string | null;
   is_external_url?: boolean;
+  created_at?: string | null;
 };
 
 interface LearningSidebarProps {
@@ -300,7 +301,15 @@ export function LearningSidebar({
     };
   }, [open, studentId, studentToken, activeLessonId]);
 
-  const flashcards = assignedResources.flatMap((item) => {
+  const flashcardResources = assignedResources
+    .filter((item) => item.resource_type === "flashcard" || item.resource_type === "flashcards")
+    .slice()
+    .sort((left, right) => {
+      const leftTime = left.created_at ? new Date(left.created_at).getTime() : 0;
+      const rightTime = right.created_at ? new Date(right.created_at).getTime() : 0;
+      return leftTime - rightTime || left.id.localeCompare(right.id);
+    });
+  const flashcards = flashcardResources.flatMap((item) => {
     const cards = item.cards?.filter((card) => (
       card && typeof card.front === "string" && typeof card.back === "string"
     ));
