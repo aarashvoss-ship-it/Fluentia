@@ -6,6 +6,15 @@ export interface FillInBlank {
   end: number;
 }
 
+export function getQuizQuestionPrompt(question: {
+  prompt?: string | null;
+  text?: string | null;
+  question?: string | null;
+}): string {
+  return [question.text, question.prompt, question.question]
+    .find((value) => typeof value === "string" && value.trim().length > 0) || "";
+}
+
 export function parseFillInBlanks(text: string): FillInBlank[] {
   const blanks: FillInBlank[] = [];
   for (const match of text.matchAll(FILL_IN_BLANKS_PATTERN)) {

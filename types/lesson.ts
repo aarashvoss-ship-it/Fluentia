@@ -41,6 +41,8 @@ export type ExerciseQuestionType =
 export interface QuizQuestion {
   id: string;
   prompt: string;
+  text?: string;
+  question?: string;
   sectionHeader?: string;
   type?: ExerciseQuestionType;
   options?: string[];

@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ExerciseQuestionType, QuizQuestion } from "@/types/lesson";
 import { FillInBlanksMarkdown } from "@/components/study-room/fill-in-blanks-markdown";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
+import { getQuizQuestionPrompt } from "@/lib/fill-in-blanks";
 
 const TRUE_FALSE_NOT_GIVEN_OPTIONS = ["True", "False", "Not Given"];
 
@@ -38,6 +39,7 @@ export function ExerciseQuestions({
     <div className="space-y-6">
       {questions.map((question, index) => {
         const type = getExerciseQuestionType(question);
+        const questionPrompt = getQuizQuestionPrompt(question);
         const options = type === "true_false_not_given"
           ? TRUE_FALSE_NOT_GIVEN_OPTIONS
           : question.options || [];
@@ -57,7 +59,7 @@ export function ExerciseQuestions({
               {type === "fill_in_the_blanks" ? (
                 <FillInBlanksMarkdown
                   blockId={question.id}
-                  text={removeManualQuestionNumber(question.prompt || "")}
+                  text={removeManualQuestionNumber(questionPrompt)}
                   acceptableAnswers={question.acceptableAnswers || []}
                   wordBank={question.wordBank}
                   caseSensitive={question.caseSensitive}
@@ -67,7 +69,7 @@ export function ExerciseQuestions({
                   className="min-w-0 flex-1 text-base leading-relaxed text-stone-100 [&_p]:m-0"
                 />
               ) : (
-                <MarkdownContent value={removeManualQuestionNumber(question.prompt || "")} className="min-w-0 flex-1 text-base leading-relaxed text-stone-100 [&_p]:m-0" />
+                <MarkdownContent value={removeManualQuestionNumber(questionPrompt)} className="min-w-0 flex-1 text-base leading-relaxed text-stone-100 [&_p]:m-0" />
               )}
             </div>
 

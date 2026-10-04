@@ -8,7 +8,7 @@ import { InteractiveVideoBlock } from "@/components/shared/interactive-video-blo
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { FillInBlanksMarkdown } from "@/components/study-room/fill-in-blanks-markdown";
 import { WritingBlockEditor } from "@/components/shared/writing-block";
-import { parseFillInBlanks } from "@/lib/fill-in-blanks";
+import { getQuizQuestionPrompt, parseFillInBlanks } from "@/lib/fill-in-blanks";
 import { uploadLessonAsset, uploadLessonMedia } from "@/services/storage-service";
 import { DynamicLucideIcon, LucideIconPicker } from "@/components/shared/lucide-icon-picker";
 import { TiptapEditor } from "@/components/shared/tiptap-editor";
@@ -748,18 +748,22 @@ export function LessonTailorEditor({
                         />
                       </div>
                       <TiptapEditor
-                        value={question.prompt}
+                        value={getQuizQuestionPrompt(question)}
                         onChange={(prompt) => updateQuestion({
                           prompt,
+                          ...(questionType === "fill_in_the_blanks" ? { text: prompt } : {}),
                           ...(questionType === "fill_in_the_blanks"
                             ? { acceptableAnswers: parseFillInBlanks(prompt).map((blank) => [blank.answer]) }
                             : {}),
                         })}
                         placeholder={questionType === "fill_in_the_blanks" ? "The capital of France is [Paris]. Use [answer] for each blank." : `Write question ${questionIndex + 1}`}
-                        ariaLabel={`Question ${questionIndex + 1} prompt`}
+                        ariaLabel={`Question ${questionIndex + 1} ${questionType === "fill_in_the_blanks" ? "text" : "prompt"}`}
                         compact
                         defaultBold
                       />
+                      {questionType === "fill_in_the_blanks" && (
+                        <p className="text-[11px] text-stone-500">Question text: enter the sentence here and put each correct answer in square brackets, for example [Paris].</p>
+                      )}
                       {questionType === "multiple_choice" && (
                         <div className="space-y-2">
                           {question.options?.map((option, optionIndex) => (

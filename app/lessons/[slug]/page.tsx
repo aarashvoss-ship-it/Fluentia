@@ -30,7 +30,7 @@ import { StudyRoomBlockRow } from "@/components/study-room/study-room-block-row"
 import { Tooltip } from "@/components/shared/tooltip";
 import { DisplaySettingsControl } from "@/components/shared/display-settings";
 import { DynamicLucideIcon } from "@/components/shared/lucide-icon-picker";
-import { parseFillInBlanks } from "@/lib/fill-in-blanks";
+import { getQuizQuestionPrompt, parseFillInBlanks } from "@/lib/fill-in-blanks";
 import { uploadStudentAudio } from "@/services/storage-service";
 import {
   ArrowRight,
@@ -796,17 +796,18 @@ export default function LessonPage() {
           block.id,
         );
       } else if (block.type === "quiz") {
-        block.questions.filter((question) => question.prompt.trim()).forEach((question) => {
+        block.questions.filter((question) => getQuizQuestionPrompt(question).trim()).forEach((question) => {
+          const questionPrompt = getQuizQuestionPrompt(question);
           const answerKey = question.correct_answer
             || question.correctAnswer
             || lessonContent.results?.answer_keys?.[step]?.[question.id]
             || lessonContent.results?.quiz_breakdown?.find((item: { questionId: string; correctResponse: string }) => item.questionId === question.id)?.correctResponse;
           if (question.type === "fill_in_the_blanks") {
-            const parsedBlanks = parseFillInBlanks(question.prompt);
+            const parsedBlanks = parseFillInBlanks(questionPrompt);
             const acceptableAnswers = question.acceptableAnswers?.length
               ? question.acceptableAnswers
               : parsedBlanks.map((blank) => [blank.answer]);
-            const plainPrompt = question.prompt.replace(/\[([^\]]+)\]/g, "_____");
+            const plainPrompt = questionPrompt.replace(/\[([^\]]+)\]/g, "_____");
             parsedBlanks.forEach((blank, index) => {
               const accepted = acceptableAnswers[index]?.length ? acceptableAnswers[index] : [blank.answer];
               addResponse(
@@ -833,7 +834,7 @@ export default function LessonPage() {
             : -1;
           const correctOption = correctOptionIndex >= 0 ? question.options?.[correctOptionIndex] : undefined;
           addResponse(
-            question.prompt,
+            questionPrompt,
             isShortAnswer ? submission.blockResponses?.[question.id] : submission.quizSelections?.[question.id],
             correctOption || answerKey || question.sample_answer,
             question.explanation,

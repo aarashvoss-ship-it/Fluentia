@@ -24,7 +24,7 @@ import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { Stepper } from "@/components/study-room/stepper";
 import { StudyRoomBlockRow } from "@/components/study-room/study-room-block-row";
 import { parseInteractiveTranscript } from "@/lib/transcripts";
-import { parseFillInBlanks } from "@/lib/fill-in-blanks";
+import { getQuizQuestionPrompt, parseFillInBlanks } from "@/lib/fill-in-blanks";
 import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player";
 import { getStudentDirectory, getStudentProfile, normalizeStudentLevel, saveStudentProfile, STUDENT_CEFR_LEVELS, updateStudentTargetLevel, type StudentCefrLevel } from "@/lib/student-profiles";
 import { getInstructorDirectory, type InstructorDirectoryEntry, type InstructorStatus } from "@/lib/instructors";
@@ -2606,13 +2606,14 @@ export default function InstructorWorkstationPage({
       } else if (block.type === "quiz") {
         block.questions.forEach((question) => {
           const taskDefinition = question as typeof question & { title?: string; question?: string };
-          const prompt = getReviewPrompt(taskDefinition.prompt, taskDefinition.title, taskDefinition.question);
+          const questionText = getQuizQuestionPrompt(taskDefinition);
+          const prompt = getReviewPrompt(questionText, taskDefinition.title, taskDefinition.question);
           if (question.type === "fill_in_the_blanks") {
-            const parsedBlanks = parseFillInBlanks(question.prompt);
+            const parsedBlanks = parseFillInBlanks(questionText);
             const acceptableAnswers = question.acceptableAnswers?.length
               ? question.acceptableAnswers
               : parsedBlanks.map((blank) => [blank.answer]);
-            const plainPrompt = question.prompt.replace(/\[([^\]]+)\]/g, "_____ ");
+            const plainPrompt = questionText.replace(/\[([^\]]+)\]/g, "_____ ");
             parsedBlanks.forEach((blank, index) => addReviewReference(
               step,
               `${question.id}-blank-${index}`,
