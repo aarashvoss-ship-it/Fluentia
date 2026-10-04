@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, BookMarked, Check, Copy, Download, FileDown, FileText, Headphones, Image as ImageIcon, Layers3, Library, Table, Trash2, Video, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookMarked, Check, Copy, Download, ExternalLink, FileDown, FileText, Headphones, Image as ImageIcon, Layers3, Library, Table, Trash2, Video, X } from "lucide-react";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { DataTableResource, getDataTableResourceTitle, isDataTableResourceTitle } from "@/components/shared/data-table-resource";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
@@ -249,6 +249,16 @@ export function LearningSidebar({
   const [rightCount, setRightCount] = useState(0);
   const [wrongCount, setWrongCount] = useState(0);
 
+  const openInNewTab = () => {
+    const currentLessonPath = window.location.pathname.match(/^\/lessons\/[^/]+/)?.[0];
+    const lessonPath = currentLessonPath || (activeLessonId ? `/lessons/${encodeURIComponent(activeLessonId)}` : null);
+    if (!lessonPath) return;
+
+    const url = new URL(lessonPath, window.location.origin);
+    url.searchParams.set("studyHub", "1");
+    window.open(url.toString(), "_blank", "noopener,noreferrer");
+  };
+
   useEffect(() => {
     if (!open) return;
     function handleKeyDown(event: KeyboardEvent) {
@@ -422,9 +432,23 @@ export function LearningSidebar({
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Learning Hub</p>
             <h2 className="mt-1 font-sans text-2xl text-stone-100">Your study tools</h2>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close Learning Hub" tabIndex={open ? 0 : -1} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[#394252] text-stone-400 transition hover:border-amber-500/40 hover:text-amber-400">
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {activeLessonId && (
+              <button
+                type="button"
+                onClick={openInNewTab}
+                title="Open Learning Hub in a new tab"
+                aria-label="Open Learning Hub in a new tab"
+                tabIndex={open ? 0 : -1}
+                className="flex h-9 w-9 items-center justify-center rounded-md border border-[#394252] text-stone-400 transition hover:border-amber-500/40 hover:text-amber-400"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </button>
+            )}
+            <button type="button" onClick={onClose} aria-label="Close Learning Hub" tabIndex={open ? 0 : -1} className="flex h-9 w-9 items-center justify-center rounded-md border border-[#394252] text-stone-400 transition hover:border-amber-500/40 hover:text-amber-400">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-2 border-b border-[#29303c] p-3 min-[380px]:grid-cols-3 sm:grid-cols-5">
