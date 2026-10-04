@@ -70,8 +70,9 @@ function renderLucideIconTokens(value: string) {
   return value.replace(/\{\{lucide:([A-Za-z][A-Za-z0-9]*)\}\}/g, '<span data-lucide-icon="$1"></span>');
 }
 
-export function MarkdownContent({ value, className = "", plainCode = false, dataTables = false }: { value: string; className?: string; plainCode?: boolean; dataTables?: boolean }) {
+export function MarkdownContent({ value, className = "", plainCode = false, dataTables = false, preserveBracketText = false }: { value: string; className?: string; plainCode?: boolean; dataTables?: boolean; preserveBracketText?: boolean }) {
   const renderPlainCode = plainCode || className.includes("text-slate-300");
+  const renderInlineText = (text: string) => preserveBracketText ? text : renderTextTokens(text);
   return (
     <div className={className} data-reading-content>
       <ReactMarkdown
@@ -89,13 +90,13 @@ export function MarkdownContent({ value, className = "", plainCode = false, data
           h4: ({ children }) => <h4 className="mb-2 mt-4 text-[1.0625rem] font-semibold leading-7 text-stone-100">{children}</h4>,
           h5: ({ children }) => <h5 className="mb-2 mt-3 text-sm font-semibold leading-snug text-stone-200">{children}</h5>,
           h6: ({ children }) => <h6 className="mb-2 mt-3 text-xs font-semibold leading-snug text-stone-300">{children}</h6>,
-          text: ({ children }) => <>{renderTextTokens(String(children))}</>,
+          text: ({ children }) => <>{renderInlineText(String(children))}</>,
           strong: ({ children }) => <strong>{children}</strong>,
           p: ({ children }) => {
             const comparison = renderComparison(children);
             if (!comparison) return <p className="mb-4 whitespace-pre-wrap leading-7 last:mb-0">{children}</p>;
             const text = getTextContent(children);
-            return <p className="mb-4 whitespace-pre-wrap leading-7 last:mb-0"><span className={`mr-2 inline-flex rounded px-2 py-0.5 text-xs font-semibold ${comparison.badgeClass}`}>{comparison.label}</span>{renderTextTokens(text.slice(comparison.prefixLength))}</p>;
+            return <p className="mb-4 whitespace-pre-wrap leading-7 last:mb-0"><span className={`mr-2 inline-flex rounded px-2 py-0.5 text-xs font-semibold ${comparison.badgeClass}`}>{comparison.label}</span>{renderInlineText(text.slice(comparison.prefixLength))}</p>;
           },
           ul: ({ children }) => <ul className="mb-4 mt-2 list-disc space-y-1 pl-5 leading-7">{children}</ul>,
           ol: ({ children }) => <ol className="mb-4 mt-2 list-decimal space-y-1 pl-5 leading-7">{children}</ol>,
