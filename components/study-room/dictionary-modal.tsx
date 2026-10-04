@@ -45,8 +45,8 @@ export function DictionaryModal({ initialWord = "", anchor = null, onClose, save
 
       if (!anchor) {
         setPopoverPosition({
-          top: Math.max(margin, Math.min((window.innerHeight - height) / 2, maxTop)),
-          left: Math.max(margin, Math.min((window.innerWidth - width) * 0.45, maxLeft)),
+          top: Math.max(margin, Math.min(window.innerHeight * 0.45 - height / 2, maxTop)),
+          left: Math.max(margin, Math.min((window.innerWidth - width) / 2, maxLeft)),
         });
         return;
       }
@@ -163,8 +163,8 @@ export function DictionaryModal({ initialWord = "", anchor = null, onClose, save
         aria-modal={!isPopover}
         aria-label="Dictionary lookup"
         onClick={(event) => event.stopPropagation()}
-        style={popoverPosition ? { top: popoverPosition.top, left: popoverPosition.left } : { top: "50%", left: "45%", transform: "translate(-50%, -50%)" }}
-        className={`fixed max-h-[calc(100dvh-2rem)] w-[min(28rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-[#394252] bg-[#171d28] p-5 text-[#e8e7e4] shadow-2xl transition-[opacity,transform] duration-200 ease-out ${isVisible ? "translate-y-0 scale-100 opacity-100" : "translate-y-2 scale-[0.98] opacity-0"}`}
+        style={popoverPosition ? { top: popoverPosition.top, left: popoverPosition.left } : { top: "45%", left: "50%", transform: "translate(-50%, -50%)" }}
+        className={`fixed max-h-[calc(100dvh-2rem)] w-[min(28rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-[#394252] bg-[#171d28] p-5 text-[#e8e7e4] shadow-2xl transition-opacity duration-200 ease-out ${isVisible ? "opacity-100" : "opacity-0"}`}
       >
         <div
           onPointerDown={handleDragStart}
