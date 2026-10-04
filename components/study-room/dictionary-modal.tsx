@@ -28,9 +28,10 @@ export function DictionaryModal({ initialWord = "", anchor = null, onClose, save
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [popoverPosition, setPopoverPosition] = useState<{ top: number; left: number } | null>(null);
+  const [popoverWidth, setPopoverWidth] = useState<number | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const dialogRef = useRef<HTMLElement | null>(null);
-  const dragOffset = useRef<{ pointerId: number; x: number; y: number } | null>(null);
+  const dragOffset = useRef<{ pointerId: number; pointerX: number; pointerY: number; left: number; top: number } | null>(null);
   const closeTimer = useRef<number | null>(null);
 
   useLayoutEffect(() => {
@@ -42,6 +43,30 @@ export function DictionaryModal({ initialWord = "", anchor = null, onClose, save
       const { width, height } = dialog.getBoundingClientRect();
       const maxLeft = Math.max(margin, window.innerWidth - width - margin);
       const maxTop = Math.max(margin, window.innerHeight - height - margin);
+      const sidebar = document.getElementById("learning-sidebar");
+      const sidebarBounds = sidebar?.getAttribute("aria-hidden") === "false"
+        ? sidebar.getBoundingClientRect()
+        : null;
+      const sidebarLeft = sidebarBounds ? window.innerWidth - sidebarBounds.width : 0;
+
+      if (sidebarBounds && sidebarLeft > margin * 2) {
+        const availableWidth = sidebarLeft - margin * 2;
+        const targetWidth = Math.min(448, availableWidth);
+        if (availableWidth >= 200 && popoverWidth !== targetWidth) {
+          setPopoverWidth(targetWidth);
+          return;
+        }
+        if (availableWidth >= 200) {
+          setPopoverPosition({
+            top: Math.max(margin, Math.min((window.innerHeight - height) / 2, maxTop)),
+            left: margin,
+          });
+          return;
+        }
+      } else if (popoverWidth !== null) {
+        setPopoverWidth(null);
+        return;
+      }
 
       if (!anchor) {
         setPopoverPosition({
@@ -70,18 +95,11 @@ export function DictionaryModal({ initialWord = "", anchor = null, onClose, save
 
     positionInitially();
     const handleResize = () => {
-      const bounds = dialog.getBoundingClientRect();
-      setPopoverPosition((position) => {
-        if (!position) return position;
-        return {
-          top: Math.max(16, Math.min(position.top, window.innerHeight - bounds.height - 16)),
-          left: Math.max(16, Math.min(position.left, window.innerWidth - bounds.width - 16)),
-        };
-      });
+      positionInitially();
     };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, [anchor]);
+  }, [anchor, popoverWidth]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => setIsVisible(true));
@@ -102,17 +120,24 @@ export function DictionaryModal({ initialWord = "", anchor = null, onClose, save
     if ((event.target as HTMLElement).closest("button")) return;
     const bounds = dialogRef.current?.getBoundingClientRect();
     if (!bounds) return;
+    event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     setPopoverPosition({ top: bounds.top, left: bounds.left });
-    dragOffset.current = { pointerId: event.pointerId, x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+    dragOffset.current = {
+      pointerId: event.pointerId,
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      left: bounds.left,
+      top: bounds.top,
+    };
   };
 
   const handleDragMove = (event: ReactPointerEvent<HTMLElement>) => {
     if (dragOffset.current?.pointerId !== event.pointerId || !dialogRef.current) return;
     const bounds = dialogRef.current.getBoundingClientRect();
     const margin = 8;
-    const left = Math.max(margin, Math.min(event.clientX - dragOffset.current.x, window.innerWidth - bounds.width - margin));
-    const top = Math.max(margin, Math.min(event.clientY - dragOffset.current.y, window.innerHeight - bounds.height - margin));
+    const left = Math.max(margin, Math.min(dragOffset.current.left + event.clientX - dragOffset.current.pointerX, window.innerWidth - bounds.width - margin));
+    const top = Math.max(margin, Math.min(dragOffset.current.top + event.clientY - dragOffset.current.pointerY, window.innerHeight - bounds.height - margin));
     setPopoverPosition({ top, left });
   };
 
@@ -163,7 +188,12 @@ export function DictionaryModal({ initialWord = "", anchor = null, onClose, save
         aria-modal={!isPopover}
         aria-label="Dictionary lookup"
         onClick={(event) => event.stopPropagation()}
-        style={popoverPosition ? { top: popoverPosition.top, left: popoverPosition.left } : { top: "45%", left: "50%", transform: "translate(-50%, -50%)" }}
+        style={{
+          ...(popoverPosition
+            ? { top: popoverPosition.top, left: popoverPosition.left }
+            : { top: "45%", left: "50%", transform: "translate(-50%, -50%)" }),
+          ...(popoverWidth !== null ? { width: popoverWidth } : {}),
+        }}
         className={`fixed max-h-[calc(100dvh-2rem)] w-[min(28rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-[#394252] bg-[#171d28] p-5 text-[#e8e7e4] shadow-2xl transition-opacity duration-200 ease-out ${isVisible ? "opacity-100" : "opacity-0"}`}
       >
         <div
