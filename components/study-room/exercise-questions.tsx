@@ -7,6 +7,10 @@ import { MarkdownContent } from "@/components/study-room/markdown-content";
 
 const TRUE_FALSE_NOT_GIVEN_OPTIONS = ["True", "False", "Not Given"];
 
+function removeManualQuestionNumber(prompt: string) {
+  return prompt.replace(/^(\s*(?:<[^>]+>\s*)*)\d+[.)]\s+/, "$1");
+}
+
 export function getExerciseQuestionType(question: QuizQuestion): ExerciseQuestionType {
   return question.type || "multiple_choice";
 }
@@ -44,7 +48,7 @@ export function ExerciseQuestions({
         return (
           <section key={question.id} className="space-y-3 border-b border-[#202631] pb-5 last:border-0 last:pb-0">
             {question.sectionHeader?.trim() && (
-              <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm leading-relaxed text-amber-200 [&_p]:m-0">
+              <div className="text-sm leading-relaxed text-stone-300 [&_p]:m-0">
                 <MarkdownContent value={question.sectionHeader.trim()} />
               </div>
             )}
@@ -53,7 +57,7 @@ export function ExerciseQuestions({
               {type === "fill_in_the_blanks" ? (
                 <FillInBlanksMarkdown
                   blockId={question.id}
-                  text={question.prompt || ""}
+                  text={removeManualQuestionNumber(question.prompt || "")}
                   acceptableAnswers={question.acceptableAnswers || []}
                   wordBank={question.wordBank}
                   caseSensitive={question.caseSensitive}
@@ -63,7 +67,7 @@ export function ExerciseQuestions({
                   className="min-w-0 flex-1 text-base leading-relaxed text-stone-100 [&_p]:m-0"
                 />
               ) : (
-                <MarkdownContent value={question.prompt || ""} className="min-w-0 flex-1 text-base leading-relaxed text-stone-100 [&_p]:m-0" />
+                <MarkdownContent value={removeManualQuestionNumber(question.prompt || "")} className="min-w-0 flex-1 text-base leading-relaxed text-stone-100 [&_p]:m-0" />
               )}
             </div>
 
