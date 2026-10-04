@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { BookOpen, Check, ExternalLink, Volume2, X } from "lucide-react";
 import { SavedVocabularyWord } from "@/types/lesson";
 
@@ -28,29 +28,95 @@ export function DictionaryModal({ initialWord = "", anchor = null, onClose, save
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [popoverPosition, setPopoverPosition] = useState<{ top: number; left: number } | null>(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const dragOffset = useRef<{ pointerId: number; x: number; y: number } | null>(null);
+  const closeTimer = useRef<number | null>(null);
 
-  useEffect(() => {
-    if (!anchor) {
-      setPopoverPosition(null);
-      return;
-    }
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
 
-    const positionPopover = () => {
+    const positionInitially = () => {
       const margin = 16;
-      const popoverWidth = Math.min(448, window.innerWidth - margin * 2);
-      const estimatedHeight = Math.min(440, window.innerHeight - margin * 2);
-      const left = Math.max(margin, Math.min(anchor.left, window.innerWidth - popoverWidth - margin));
-      const below = anchor.bottom + 12;
-      const top = below + estimatedHeight <= window.innerHeight - margin
-        ? below
-        : Math.max(margin, anchor.top - estimatedHeight - 12);
-      setPopoverPosition({ top, left });
+      const { width, height } = dialog.getBoundingClientRect();
+      const maxLeft = Math.max(margin, window.innerWidth - width - margin);
+      const maxTop = Math.max(margin, window.innerHeight - height - margin);
+
+      if (!anchor) {
+        setPopoverPosition({ top: maxTop, left: maxLeft });
+        return;
+      }
+
+      const right = anchor.right + 12;
+      const left = anchor.left - width - 12;
+      const top = Math.max(margin, Math.min(anchor.top, maxTop));
+      if (right + width <= window.innerWidth - margin) {
+        setPopoverPosition({ top, left: right });
+      } else if (left >= margin) {
+        setPopoverPosition({ top, left });
+      } else {
+        const below = anchor.bottom + 12;
+        const above = anchor.top - height - 12;
+        const verticalTop = below + height <= window.innerHeight - margin
+          ? below
+          : above >= margin ? above : top;
+        setPopoverPosition({ top: Math.max(margin, Math.min(verticalTop, maxTop)), left: Math.max(margin, Math.min(anchor.left, maxLeft)) });
+      }
     };
 
-    positionPopover();
-    window.addEventListener("resize", positionPopover);
-    return () => window.removeEventListener("resize", positionPopover);
+    positionInitially();
+    const handleResize = () => {
+      const bounds = dialog.getBoundingClientRect();
+      setPopoverPosition((position) => {
+        if (!position) return position;
+        return {
+          top: Math.max(16, Math.min(position.top, window.innerHeight - bounds.height - 16)),
+          left: Math.max(16, Math.min(position.left, window.innerWidth - bounds.width - 16)),
+        };
+      });
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, [anchor]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setIsVisible(true));
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => () => {
+    if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
+  }, []);
+
+  const requestClose = () => {
+    if (closeTimer.current !== null) return;
+    setIsVisible(false);
+    closeTimer.current = window.setTimeout(onClose, 180);
+  };
+
+  const handleDragStart = (event: ReactPointerEvent<HTMLElement>) => {
+    if ((event.target as HTMLElement).closest("button")) return;
+    const bounds = event.currentTarget.parentElement?.getBoundingClientRect();
+    if (!bounds) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragOffset.current = { pointerId: event.pointerId, x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+  };
+
+  const handleDragMove = (event: ReactPointerEvent<HTMLElement>) => {
+    if (dragOffset.current?.pointerId !== event.pointerId || !dialogRef.current) return;
+    const bounds = dialogRef.current.getBoundingClientRect();
+    const margin = 8;
+    const left = Math.max(margin, Math.min(event.clientX - dragOffset.current.x, window.innerWidth - bounds.width - margin));
+    const top = Math.max(margin, Math.min(event.clientY - dragOffset.current.y, window.innerHeight - bounds.height - margin));
+    setPopoverPosition({ top, left });
+  };
+
+  const handleDragEnd = (event: ReactPointerEvent<HTMLElement>) => {
+    if (dragOffset.current?.pointerId !== event.pointerId) return;
+    dragOffset.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
 
   async function lookup(word = query) {
     const cleanWord = word.trim().toLowerCase().replace(/[^a-z\-']/g, "");
@@ -80,24 +146,32 @@ export function DictionaryModal({ initialWord = "", anchor = null, onClose, save
 
   return (
     <div
-      className={`fixed inset-0 z-[1300] flex ${isPopover ? "items-start justify-start bg-transparent" : "items-end justify-center bg-black/60 p-4 sm:items-center"}`}
+      className={`fixed inset-0 z-[1300] ${isPopover ? "bg-transparent" : "bg-black/60"} transition-colors duration-200 ${isVisible ? "opacity-100" : "opacity-0"}`}
       onClick={(event) => {
         event.stopPropagation();
-        if (event.target === event.currentTarget) onClose();
+        if (event.target === event.currentTarget) requestClose();
       }}
       role="presentation"
     >
       <section
+        ref={dialogRef}
         role="dialog"
         aria-modal={!isPopover}
         aria-label="Dictionary lookup"
         onClick={(event) => event.stopPropagation()}
-        style={isPopover && popoverPosition ? { top: popoverPosition.top, left: popoverPosition.left } : undefined}
-        className={`max-h-[calc(100dvh-2rem)] w-full overflow-y-auto rounded-xl border border-[#394252] bg-[#171d28] p-5 text-[#e8e7e4] shadow-2xl ${isPopover ? "absolute max-w-lg" : "max-w-lg"}`}
+        style={popoverPosition ? { top: popoverPosition.top, left: popoverPosition.left } : { top: "auto", right: 24, bottom: 24, left: "auto" }}
+        className={`fixed max-h-[calc(100dvh-2rem)] w-[min(28rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-[#394252] bg-[#171d28] p-5 text-[#e8e7e4] shadow-2xl transition-[opacity,transform] duration-200 ease-out ${isVisible ? "translate-y-0 scale-100 opacity-100" : "translate-y-2 scale-[0.98] opacity-0"}`}
       >
-        <div className="flex items-center justify-between border-b border-[#29303c] pb-3">
+        <div
+          onPointerDown={handleDragStart}
+          onPointerMove={handleDragMove}
+          onPointerUp={handleDragEnd}
+          onPointerCancel={handleDragEnd}
+          className="flex cursor-grab touch-none items-center justify-between border-b border-[#29303c] pb-3 active:cursor-grabbing"
+          aria-label="Drag dictionary"
+        >
           <div className="flex items-center gap-2"><BookOpen className="h-4 w-4 text-amber-400" /><h2 className="font-sans text-xl">Dictionary</h2></div>
-          <button type="button" onClick={onClose} aria-label="Close dictionary" className="text-stone-400 hover:text-white"><X className="h-4 w-4" /></button>
+          <button type="button" onClick={requestClose} aria-label="Close dictionary" className="cursor-pointer text-stone-400 hover:text-white"><X className="h-4 w-4" /></button>
         </div>
         <form onSubmit={(event) => { event.preventDefault(); void lookup(); }} className="mt-4 flex gap-2">
           <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search a word" className="min-w-0 flex-1 rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-sm outline-none focus:border-amber-500/40" />
