@@ -380,14 +380,14 @@ export function SubmissionEvaluator({
       ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
       : "border-[#394252] bg-[#171d28] text-stone-500";
   const feedbackError = submitError || (useSupabase && submissionLoadState === "missing" ? "Student has not submitted work for this lesson yet." : null);
-  const stageStepper = <div className="overflow-x-auto border-b border-[#293343]">
-    <nav className="flex w-full min-w-max justify-between gap-6 px-4" aria-label="Evaluation stages">
+  const stageStepper = <div className="w-full min-w-0 overflow-x-auto border-b border-[#293343]">
+    <nav className="flex w-full min-w-0 justify-between gap-0 px-0" aria-label="Evaluation stages">
       {stages.map((stage, index) => <button
         key={stage.id}
         type="button"
         onClick={() => changeActiveStage(stage.id)}
         aria-current={activeStageId === stage.id ? "step" : undefined}
-        className={`border-b-2 px-3 py-3 text-left text-xs transition ${activeStageId === stage.id ? "border-amber-400 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}
+        className={`shrink-0 whitespace-nowrap border-b-2 px-0 py-3 text-left text-xs transition ${activeStageId === stage.id ? "border-amber-400 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}
       >
         <span className="mr-1.5 font-mono text-[10px] text-stone-600">{String(index + 1).padStart(2, "0")}</span>{stage.title}
       </button>)}
@@ -395,7 +395,7 @@ export function SubmissionEvaluator({
         type="button"
         onClick={() => changeActiveStage(reportStageId)}
         aria-current={activeStageId === reportStageId ? "step" : undefined}
-        className={`border-b-2 px-3 py-3 text-left text-xs transition ${activeStageId === reportStageId ? "border-amber-400 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}
+        className={`shrink-0 whitespace-nowrap border-b-2 px-0 py-3 text-left text-xs transition ${activeStageId === reportStageId ? "border-amber-400 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}
       >
         <span className="mr-1.5 font-mono text-[10px] text-stone-600">07</span>Report Card
       </button>
