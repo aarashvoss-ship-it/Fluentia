@@ -77,6 +77,10 @@ function stripMarkdown(value: string) {
     .trim();
 }
 
+function normalizeAnswer(value: string) {
+  return value.trim().toLowerCase().replace(/^[a-z]\s*[).]\s*/, "").trim();
+}
+
 function isMissingDatabaseObject(error: { code?: string; message?: string; status?: number } | null) {
   if (!error) return false;
   return error.status === 404
@@ -365,7 +369,7 @@ export function SubmissionEvaluator({
 
   return <div className="space-y-5">
     <div className="overflow-x-auto border-b border-[#293343]">
-      <nav className="flex min-w-max gap-1" aria-label="Evaluation stages">
+      <nav className="mx-auto flex w-max min-w-max justify-center gap-6" aria-label="Evaluation stages">
         {stages.map((stage, index) => <button
           key={stage.id}
           type="button"
@@ -489,19 +493,40 @@ export function SubmissionEvaluator({
             </details>}
             {activeStage.tasks.length ? activeStage.tasks.map((task, index) => {
               const isTextResponse = Boolean(task.studentAnswer?.trim()) && !task.audioUrls?.length;
+              const normalizedAnswer = task.studentAnswer ? normalizeAnswer(task.studentAnswer) : "";
+              const matchesCorrectAnswer = task.modelAnswer?.split(/[\/|]/).some(
+                (candidate) => normalizeAnswer(candidate) === normalizedAnswer,
+              ) ?? false;
+              const isObjectiveAnswer = task.isCorrect !== undefined || task.autoCheck === true;
+              const isCorrect = task.isCorrect !== undefined ? task.isCorrect : task.autoCheck === true && matchesCorrectAnswer;
+              const responseBoxClass = isCorrect
+                ? "border-emerald-500/30 bg-emerald-500/5"
+                : isObjectiveAnswer
+                  ? "border-rose-500/30 bg-rose-500/5"
+                  : "border-amber-500/30 bg-amber-500/5";
+              const responseLabelClass = isCorrect
+                ? "text-emerald-300"
+                : isObjectiveAnswer
+                  ? "text-rose-300"
+                  : "text-amber-300";
+              const responseTextClass = isCorrect
+                ? "text-emerald-100"
+                : isObjectiveAnswer
+                  ? "text-rose-100"
+                  : "text-stone-100";
               return <article key={task.id} className="space-y-3 rounded-xl border border-[#293343] bg-[#111620] p-4">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Student task {index + 1}</p>
                   <h3 className="mt-1 text-sm font-medium leading-relaxed text-stone-100">{stripMarkdown(task.title)}</h3>
                 </div>
-                <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">Student response</p>
-                  <p className="mt-1 whitespace-pre-wrap break-words rounded-sm bg-amber-300/10 px-1 py-0.5 text-sm leading-relaxed text-stone-100">{stripMarkdown(task.studentAnswer) || <span className="italic text-stone-500">No response submitted.</span>}</p>
+                <div className={`rounded-lg border p-4 ${responseBoxClass}`}>
+                  <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${responseLabelClass}`}>Student response</p>
+                  <p className={`mt-2 whitespace-pre-wrap break-words rounded-sm px-2 py-3 text-sm leading-relaxed ${isCorrect ? "bg-emerald-300/10" : isObjectiveAnswer ? "bg-rose-300/10" : "bg-amber-300/10"} ${responseTextClass}`}>{stripMarkdown(task.studentAnswer) || <span className="italic text-stone-500">No response submitted.</span>}</p>
                   {task.audioUrls?.map((url, audioIndex) => <div key={`${url}-${audioIndex}`} className="mt-2"><CustomAudioPlayer src={url} label={`${task.title} student recording`} /></div>)}
                 </div>
-                {task.modelAnswer && <div className="rounded-md border border-blue-500/20 bg-blue-500/5 p-3">
+                {task.modelAnswer && <div className="rounded-md border border-blue-500/20 bg-blue-500/5 p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-blue-300">Model answer</p>
-                  <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-blue-100">{stripMarkdown(task.modelAnswer)}</p>
+                  <p className="mt-2 whitespace-pre-wrap py-2 text-sm leading-relaxed text-blue-100">{stripMarkdown(task.modelAnswer)}</p>
                 </div>}
                 {isTextResponse && <label className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">Inline correction
                   <textarea value={inlineCorrections[task.id] || ""} onChange={(event) => updateEvaluation({ inlineCorrections: { ...inlineCorrections, [task.id]: event.target.value } })} rows={3} placeholder="Provide a corrected version or mark specific edits..." className="mt-1 w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] p-3 text-xs normal-case leading-relaxed text-stone-200 outline-none focus:border-amber-500/40" />

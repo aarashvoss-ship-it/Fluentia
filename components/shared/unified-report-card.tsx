@@ -150,22 +150,39 @@ export function UnifiedReportCard({
               const matchesModelAnswer = task.modelAnswer?.split(/[\/|]/).some(
                 (candidate) => normalizeAnswer(candidate) === normalizedStudentAnswer,
               ) ?? false;
-              const isCorrect = task.isCorrect === true
-                || ((task.isCorrect !== undefined || task.autoCheck === true) && matchesModelAnswer);
-              const isIncorrect = !isCorrect && (task.isCorrect === false || task.autoCheck === true);
+              const hasObjectiveAnswer = task.isCorrect !== undefined || task.autoCheck === true;
+              const isCorrect = task.isCorrect !== undefined
+                ? task.isCorrect
+                : task.autoCheck === true && matchesModelAnswer;
+              const isIncorrect = hasObjectiveAnswer && !isCorrect;
+              const responseCardClass = isCorrect
+                ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-100"
+                : isIncorrect
+                  ? "border-rose-500/30 bg-rose-500/5 text-rose-100"
+                  : "border-blue-500/30 bg-slate-900/90 text-blue-100";
+              const responseLabelClass = isCorrect
+                ? "text-emerald-300"
+                : isIncorrect
+                  ? "text-rose-300"
+                  : "text-blue-300";
+              const responseTextClass = isCorrect
+                ? "text-emerald-100"
+                : isIncorrect
+                  ? "text-rose-100"
+                  : "text-blue-100";
               return <article key={task.id} className="w-full min-w-0 rounded-lg border border-[#293343] bg-[#0c1017] p-4">
               <div className="rounded-md border border-zinc-800 bg-zinc-900/90 p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Task Prompt</p>
                 <h4 className="mt-1 text-sm font-medium leading-relaxed text-stone-100">{index + 1}. {stripMarkdown(task.title)}</h4>
               </div>
-              <div className={`mt-3 rounded-md border p-3 ${isIncorrect ? "border-amber-500/40 bg-amber-950/40 text-amber-200" : "border-blue-500/30 bg-slate-900/90 text-blue-100"}`}>
-                <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${isIncorrect ? "text-amber-300" : "text-blue-300"}`}>Your Response</p>
-                <p className={`mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed ${isIncorrect ? "text-amber-200" : "text-blue-100"}`}>{stripMarkdown(task.studentAnswer) || <span className={`italic ${isIncorrect ? "text-amber-300" : "text-blue-300"}`}>No response submitted.</span>}</p>
+              <div className={`mt-3 rounded-md border p-4 ${responseCardClass}`}>
+                <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${responseLabelClass}`}>Your Response</p>
+                <p className={`mt-2 whitespace-pre-wrap break-words py-2 text-sm leading-relaxed ${responseTextClass}`}>{stripMarkdown(task.studentAnswer) || <span className={`italic ${responseLabelClass}`}>No response submitted.</span>}</p>
                 {task.audioUrls?.map((url, mediaIndex) => <div key={`${url}-${mediaIndex}`} className="mt-2 min-w-0 max-w-full overflow-hidden"><CustomAudioPlayer src={url} label={`${stripMarkdown(task.title)} recording`} /></div>)}
               </div>
-              {task.modelAnswer && <div className="mt-3 rounded-md border border-blue-500/30 bg-slate-900/90 p-3 text-blue-100">
+              {task.modelAnswer && <div className="mt-3 rounded-md border border-blue-500/30 bg-slate-900/90 p-4 text-blue-100">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-blue-300">Correct / Model Answer</p>
-                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-blue-100">{stripMarkdown(task.modelAnswer)}</p>
+                <p className="mt-2 whitespace-pre-wrap break-words py-2 text-sm leading-relaxed text-blue-100">{stripMarkdown(task.modelAnswer)}</p>
               </div>}
               {task.explanation && <div className="mt-3 border-t border-[#293343] pt-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Explanation</p>
