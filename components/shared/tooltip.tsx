@@ -17,7 +17,7 @@ export function Tooltip({ content, children }: TooltipProps) {
   const tooltipId = useId();
   const triggerRef = useRef<HTMLSpanElement | null>(null);
   const tooltipRef = useRef<HTMLSpanElement | null>(null);
-  const suppressFocusUntilPointerLeave = useRef(false);
+  const suppressPointerFocusUntilLeave = useRef(false);
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
 
@@ -80,25 +80,19 @@ export function Tooltip({ content, children }: TooltipProps) {
         ref={triggerRef}
         className="fluentia-tooltip-trigger"
         onPointerEnter={() => {
-          if (!suppressFocusUntilPointerLeave.current) setIsOpen(true);
+          if (!suppressPointerFocusUntilLeave.current) setIsOpen(true);
         }}
         onPointerLeave={() => {
-          suppressFocusUntilPointerLeave.current = false;
+          suppressPointerFocusUntilLeave.current = false;
           setIsOpen(false);
         }}
         onPointerDownCapture={() => {
-          suppressFocusUntilPointerLeave.current = true;
+          suppressPointerFocusUntilLeave.current = true;
           setIsOpen(false);
-        }}
-        onPointerUpCapture={() => {
-          suppressFocusUntilPointerLeave.current = false;
-        }}
-        onPointerCancel={() => {
-          suppressFocusUntilPointerLeave.current = false;
         }}
         onClickCapture={() => setIsOpen(false)}
         onFocusCapture={() => {
-          if (!suppressFocusUntilPointerLeave.current) setIsOpen(true);
+          if (!suppressPointerFocusUntilLeave.current) setIsOpen(true);
         }}
         onBlurCapture={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsOpen(false);
