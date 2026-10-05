@@ -16,8 +16,22 @@ export function getQuizQuestionPrompt(question: {
 }
 
 export function parseFillInBlanks(text: string): FillInBlank[] {
+  const plainText = /<\/?[a-z][\s\S]*>/i.test(text)
+    ? typeof DOMParser !== "undefined"
+      ? new DOMParser().parseFromString(text, "text/html").body.textContent || ""
+      : text
+        .replace(/<br\s*\/?>/gi, "\n")
+        .replace(/<\/(?:p|h[1-6]|li|blockquote|div|pre|tr)>/gi, "\n")
+        .replace(/<[^>]*>/g, " ")
+        .replace(/&nbsp;/gi, " ")
+        .replace(/&amp;/gi, "&")
+        .replace(/&lt;/gi, "<")
+        .replace(/&gt;/gi, ">")
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;|&apos;/gi, "'")
+    : text;
   const blanks: FillInBlank[] = [];
-  for (const match of text.matchAll(FILL_IN_BLANKS_PATTERN)) {
+  for (const match of plainText.matchAll(FILL_IN_BLANKS_PATTERN)) {
     const rawAnswer = match[1].trim();
     const answer = rawAnswer.replace(/^blank\s*:\s*/i, "").trim();
     if (!answer) continue;

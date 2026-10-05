@@ -84,7 +84,7 @@ function normalizeLegacyMarkdown(markdown: string) {
 }
 
 function isHtmlContent(value: string) {
-  return /<\/?(?:p|h[1-6]|ul|ol|li|blockquote|pre|code|table|thead|tbody|tr|th|td|a|strong|em|s|span|hr|br)\b/i.test(value);
+  return /<\/?(?:p|h[1-6]|ul|ol|li|blockquote|pre|code|table|thead|tbody|tr|th|td|a|strong|em|s|u|del|mark|span|div|hr|br)\b/i.test(value);
 }
 
 function isDarkPastedColor(value: string) {

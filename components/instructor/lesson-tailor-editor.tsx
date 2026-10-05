@@ -751,12 +751,11 @@ export function LessonTailorEditor({
                         />
                       </div>
                       {questionType === "fill_in_the_blanks" ? (
-                        <label className="block space-y-1.5">
+                        <div className="block space-y-1.5">
                           <span className="block text-xs font-medium text-stone-300">Question Text (Sentence with Blanks)</span>
-                          <textarea
+                          <TiptapEditor
                             value={getQuizQuestionPrompt(question)}
-                            onChange={(event) => {
-                              const text = event.target.value;
+                            onChange={(text) => {
                               updateQuestion({
                                 text,
                                 prompt: text,
@@ -764,14 +763,12 @@ export function LessonTailorEditor({
                               });
                             }}
                             placeholder="The capital of France is [Paris]."
-                            rows={4}
-                            className="w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm leading-relaxed text-stone-200 placeholder:text-stone-500 focus:border-amber-500/40 focus:outline-none"
-                            aria-label={`Question ${questionIndex + 1} text with blanks`}
+                            ariaLabel={`Question ${questionIndex + 1} text with blanks`}
                           />
                           <span className="block text-[11px] leading-relaxed text-stone-500">
                             Type your sentences here and put each correct answer in square brackets, e.g. The capital of France is [Paris].
                           </span>
-                        </label>
+                        </div>
                       ) : (
                         <TiptapEditor
                           value={getQuizQuestionPrompt(question)}
