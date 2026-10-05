@@ -348,6 +348,10 @@ export interface LessonEvaluation {
   comments: string;
   criterionFeedback?: Record<string, string>;
   stageFeedback?: Record<string, string>;
+  stageScores?: Record<string, Record<string, number>>;
+  taskFeedback?: Record<string, string>;
+  inlineCorrections?: Record<string, string>;
+  stageVoiceFeedback?: Record<string, string>;
   strengths?: string;
   areasToImprove?: string;
   studyHubPrescription?: string;

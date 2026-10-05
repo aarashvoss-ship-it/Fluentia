@@ -5144,8 +5144,36 @@ export default function InstructorWorkstationPage({
                   useSupabase
                   evaluation={workstationState.evaluation}
                   onUpdateEvaluation={(evaluation: LessonEvaluation) => setWorkstationState((previous) => ({ ...previous, evaluation }))}
+                  onSaveDraft={async (feedback: FeedbackPayload) => {
+                    const evaluation = {
+                      ...workstationState.evaluation,
+                      scores: feedback.scores,
+                      criterionFeedback: feedback.criterionFeedback,
+                      comments: feedback.comments,
+                      stageFeedback: feedback.stageFeedback,
+                      stageScores: feedback.stageScores,
+                      taskFeedback: feedback.taskFeedback,
+                      inlineCorrections: feedback.inlineCorrections,
+                      stageVoiceFeedback: feedback.stageVoiceFeedback,
+                      published: false,
+                    };
+                    const saved = await saveInstructorFeedback(selectedReviewSubmission.lessonId, selectedStudent.id, evaluation, selectedReviewSubmission.id, false);
+                    setWorkstationState((previous) => ({ ...previous, submission: saved.submission || previous.submission, evaluation: saved.evaluation }));
+                    setPublishStatus("Evaluation draft saved. It has not been sent to the student.");
+                  }}
                   onSubmitFeedback={async (feedback: FeedbackPayload) => {
-                    const evaluation = { ...workstationState.evaluation, scores: feedback.scores, criterionFeedback: feedback.criterionFeedback, comments: feedback.comments, stageFeedback: feedback.stageFeedback, published: true };
+                    const evaluation = {
+                      ...workstationState.evaluation,
+                      scores: feedback.scores,
+                      criterionFeedback: feedback.criterionFeedback,
+                      comments: feedback.comments,
+                      stageFeedback: feedback.stageFeedback,
+                      stageScores: feedback.stageScores,
+                      taskFeedback: feedback.taskFeedback,
+                      inlineCorrections: feedback.inlineCorrections,
+                      stageVoiceFeedback: feedback.stageVoiceFeedback,
+                      published: true,
+                    };
                     const saved = await saveInstructorFeedback(selectedReviewSubmission.lessonId, selectedStudent.id, evaluation, selectedReviewSubmission.id);
                     setWorkstationState((previous) => ({ ...previous, submission: saved.submission || previous.submission, evaluation: saved.evaluation }));
                     setPublishStatus("Strengths, study plan, and evaluation synced with student view!");

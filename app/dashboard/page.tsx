@@ -1972,19 +1972,22 @@ function DashboardContent() {
                   <p className="text-xs font-semibold text-stone-300">
                     Voice Feedback
                   </p>
-                  {latestReport.voiceFeedbackUrl ? (
+                  {latestReport.voiceFeedbackUrl && (
                     <Tooltip content="Open your instructor's voice feedback">
-                    <a
-                      href={latestReport.voiceFeedbackUrl}
-                      className="mt-1 block w-full truncate text-sm text-amber-400 hover:text-amber-400"
-                    >
-                      {latestReport.voiceFeedbackUrl}
-                    </a>
+                      <a href={latestReport.voiceFeedbackUrl} className="mt-1 block w-full truncate text-sm text-amber-400 hover:text-amber-300">
+                        General voice feedback
+                      </a>
                     </Tooltip>
-                  ) : (
-                    <p className="mt-1 text-sm text-stone-400">
-                      No voice feedback attached.
-                    </p>
+                  )}
+                  {Object.entries(latestReport.stageVoiceFeedback || {}).filter(([, voiceUrl]) => Boolean(voiceUrl)).map(([stageId, voiceUrl]) => (
+                    <Tooltip key={stageId} content={`Open voice feedback for ${stageId.replaceAll("_", " ")}`}>
+                      <a href={voiceUrl} className="mt-1 block w-full truncate text-sm text-amber-400 hover:text-amber-300">
+                        {stageId.replaceAll("_", " ")} feedback
+                      </a>
+                    </Tooltip>
+                  ))}
+                  {!latestReport.voiceFeedbackUrl && !Object.values(latestReport.stageVoiceFeedback || {}).some(Boolean) && (
+                    <p className="mt-1 text-sm text-stone-400">No voice feedback attached.</p>
                   )}
                 </div>
               </div>

@@ -29,6 +29,10 @@ interface UnifiedReportCardProps {
   scores: Record<string, number>;
   criterionFeedback: Record<string, string>;
   stageFeedback: Record<string, string>;
+  stageScores?: Record<string, Record<string, number>>;
+  taskFeedback?: Record<string, string>;
+  inlineCorrections?: Record<string, string>;
+  stageVoiceFeedback?: Record<string, string>;
   comments: string;
   strengths?: string;
   areasToImprove?: string;
@@ -85,6 +89,10 @@ export function UnifiedReportCard({
   scores,
   criterionFeedback,
   stageFeedback,
+  stageScores = {},
+  taskFeedback = {},
+  inlineCorrections = {},
+  stageVoiceFeedback = {},
   comments,
   strengths,
   areasToImprove,
@@ -163,6 +171,14 @@ export function UnifiedReportCard({
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Explanation</p>
                 <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-stone-400">{stripMarkdown(task.explanation)}</p>
               </div>}
+              {!isInstructorView && inlineCorrections[task.id]?.trim() && <div className="mt-3 rounded-md border border-amber-500/20 bg-amber-500/5 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">Suggested correction</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-stone-200">{inlineCorrections[task.id]}</p>
+              </div>}
+              {!isInstructorView && taskFeedback[task.id]?.trim() && <div className="mt-3 rounded-md border border-[#293343] bg-[#121721] p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Instructor comment</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-stone-300">{taskFeedback[task.id]}</p>
+              </div>}
             </article>;
             })}
           </div> : <div className="rounded-lg border border-dashed border-[#394252] bg-[#0c1017]/60 px-4 py-5 text-center">
@@ -179,6 +195,15 @@ export function UnifiedReportCard({
               className="mt-2 w-full resize-y rounded-md border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40"
             /> : stageFeedback[stage.id]?.trim() ? <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-300">{stageFeedback[stage.id]}</p> : <p className="mt-1 text-sm text-stone-500">{isEvaluated ? "No comment provided." : "Pending Instructor Review"}</p>}
           </div>
+          {!isInstructorView && Object.keys(stageScores[stage.id] || {}).length > 0 && <div className="grid gap-2 sm:grid-cols-3">
+            {Object.entries(stageScores[stage.id] || {}).map(([criterion, score]) => <div key={criterion} className="rounded-md border border-[#293343] bg-[#0c1017] px-3 py-2 text-xs text-stone-400">
+              <span className="capitalize">{criterion}</span><span className="float-right text-amber-300">{score}/5</span>
+            </div>)}
+          </div>}
+          {!isInstructorView && stageVoiceFeedback[stage.id] && <div className="rounded-lg border border-[#293343] bg-[#0c1017] p-3">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Instructor voice feedback</p>
+            <CustomAudioPlayer src={stageVoiceFeedback[stage.id]} label={`${stage.title} instructor voice feedback`} />
+          </div>}
         </section>)}
       </div>
     </section>

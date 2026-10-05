@@ -16,10 +16,12 @@ function fmtInt(s: number) {
 
 export function AudioRecorder({
   onBlob,
+  onError,
   disabled,
   label = "Record",
 }: {
   onBlob: (blob: Blob, mime: string) => void;
+  onError?: (message: string) => void;
   disabled?: boolean;
   label?: string;
 }) {
@@ -55,7 +57,10 @@ export function AudioRecorder({
   );
 
   const start = async () => {
-    if (!navigator.mediaDevices?.getUserMedia) return;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      onError?.("Audio recording is not supported in this browser.");
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -82,6 +87,7 @@ export function AudioRecorder({
       r.onerror = () => {
         stopAll();
         setRec(false);
+        onError?.("Audio recording failed. Check microphone permissions and try again.");
       };
       recRef.current = r;
       r.start(100);
@@ -108,7 +114,17 @@ export function AudioRecorder({
         };
         tick();
       } catch {}
-    } catch {}
+    } catch (error) {
+      stopAll();
+      const message = error instanceof DOMException && error.name === "NotAllowedError"
+        ? "Microphone permission was denied."
+        : error instanceof DOMException && error.name === "NotFoundError"
+          ? "No microphone was found."
+          : error instanceof Error
+            ? error.message
+            : "Unable to start audio recording.";
+      onError?.(message);
+    }
   };
 
   const stop = () => {
@@ -117,6 +133,7 @@ export function AudioRecorder({
     } catch {
       stopAll();
       setRec(false);
+      onError?.("Unable to stop the audio recording.");
     }
   };
 

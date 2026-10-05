@@ -1391,6 +1391,10 @@ export default function LessonPage() {
                 scores={evaluation?.scores || {}}
                 criterionFeedback={evaluation?.criterionFeedback || {}}
                 stageFeedback={evaluation?.stageFeedback || {}}
+                stageScores={evaluation?.stageScores || {}}
+                taskFeedback={evaluation?.taskFeedback || {}}
+                inlineCorrections={evaluation?.inlineCorrections || {}}
+                stageVoiceFeedback={evaluation?.stageVoiceFeedback || {}}
                 comments={evaluation?.comments || ""}
                 strengths={evaluation?.strengths}
                 areasToImprove={evaluation?.areasToImprove}

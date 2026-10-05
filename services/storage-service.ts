@@ -217,12 +217,17 @@ function isMissingSchemaObject(error: { code?: string; message?: string; status?
 
 function mapFeedbackRow(feedback: SupabaseRow | null): LessonEvaluation {
   const scores = feedback?.rubric_scores || {};
+  const criterionFeedback = feedback?.criterion_feedback || {};
   return {
     scores,
     totalScore: Number(feedback?.total_score ?? Object.values(scores).reduce<number>((total, score) => total + Number(score), 0)),
     comments: feedback?.comments || "",
-    criterionFeedback: feedback?.criterion_feedback?.comments || feedback?.criterion_feedback || {},
-    stageFeedback: feedback?.criterion_feedback?.stages || {},
+    criterionFeedback: criterionFeedback.comments || criterionFeedback,
+    stageFeedback: criterionFeedback.stages || {},
+    stageScores: criterionFeedback.stageScores || {},
+    taskFeedback: criterionFeedback.taskFeedback || {},
+    inlineCorrections: criterionFeedback.inlineCorrections || {},
+    stageVoiceFeedback: criterionFeedback.stageVoiceFeedback || {},
     strengths: feedback?.strengths || undefined,
     areasToImprove: feedback?.areas_to_improve || undefined,
     studyHubPrescription: feedback?.study_hub_prescription || undefined,
@@ -674,14 +679,15 @@ export async function saveInstructorFeedback(
   studentToken: string | undefined,
   evaluation: LessonEvaluation,
   submissionId?: string,
+  isPublished = true,
 ): Promise<PublishedLessonState> {
   const completedSteps: StudyStepId[] = ["warm_up", "lesson", "listening", "reading", "writing", "speaking", "results"];
   const evaluatedAt = new Date().toISOString();
   const totalScore = Object.values(evaluation.scores).reduce<number>((total, score) => total + Number(score), 0);
-  const publishedEvaluation = { ...evaluation, totalScore, published: true };
+  const savedEvaluation = { ...evaluation, totalScore, published: isPublished };
   if (isSupabaseConfigured()) {
     const studentId = studentToken?.trim() || "";
-    if (!UUID_PATTERN.test(studentId)) throw new Error("A valid selected student ID is required to publish this evaluation.");
+    if (!UUID_PATTERN.test(studentId)) throw new Error("A valid selected student ID is required to save this evaluation.");
 
     let lessonQuery = supabase.from("lessons").select("id,content,banner_url,status,instructor_id");
     lessonQuery = UUID_PATTERN.test(slug)
@@ -693,7 +699,7 @@ export async function saveInstructorFeedback(
 
     let submissionQuery = supabase
       .from("submissions")
-      .select("id,answers,submitted_at")
+      .select("id,answers,submitted_at,status")
       .eq("lesson_id", lesson.id)
       .eq("student_id", studentId);
     if (submissionId) {
@@ -705,48 +711,59 @@ export async function saveInstructorFeedback(
     if (submissionError) throw submissionError;
     if (!existingSubmission) throw new Error("No submission exists for this student and lesson.");
 
-    const answers = removeUndefinedValues({
-      ...(existingSubmission.answers || {}),
-      status: "evaluated",
-      progress: { currentStep: "results", completedSteps, completed: true, status: "evaluated" },
-    }) as Record<string, unknown>;
+    const answers = isPublished
+      ? removeUndefinedValues({
+        ...(existingSubmission.answers || {}),
+        status: "evaluated",
+        progress: { currentStep: "results", completedSteps, completed: true, status: "evaluated" },
+      }) as Record<string, unknown>
+      : existingSubmission.answers || {};
     const rubricFeedback = {
-      comments: publishedEvaluation.criterionFeedback || {},
-      scores: publishedEvaluation.scores,
-      stages: publishedEvaluation.stageFeedback || {},
+      comments: savedEvaluation.criterionFeedback || {},
+      stages: savedEvaluation.stageFeedback || {},
+      stageScores: savedEvaluation.stageScores || {},
+      taskFeedback: savedEvaluation.taskFeedback || {},
+      inlineCorrections: savedEvaluation.inlineCorrections || {},
+      stageVoiceFeedback: savedEvaluation.stageVoiceFeedback || {},
     };
     const { error: feedbackError } = await supabase.from("instructor_feedback").upsert({
       lesson_id: lesson.id,
       student_id: studentId,
-      rubric_scores: publishedEvaluation.scores,
-      total_score: publishedEvaluation.totalScore,
-      comments: publishedEvaluation.comments,
+      rubric_scores: savedEvaluation.scores,
+      total_score: savedEvaluation.totalScore,
+      comments: savedEvaluation.comments,
       criterion_feedback: rubricFeedback,
-      strengths: publishedEvaluation.strengths,
-      areas_to_improve: publishedEvaluation.areasToImprove,
-      study_hub_prescription: publishedEvaluation.studyHubPrescription,
-      voice_feedback_url: publishedEvaluation.voiceFeedbackUrl,
-      is_published: true,
+      strengths: savedEvaluation.strengths,
+      areas_to_improve: savedEvaluation.areasToImprove,
+      study_hub_prescription: savedEvaluation.studyHubPrescription,
+      voice_feedback_url: savedEvaluation.voiceFeedbackUrl,
+      is_published: isPublished,
       updated_at: evaluatedAt,
     }, { onConflict: "lesson_id,student_id" });
     if (feedbackError) throw feedbackError;
 
-    const { error: statusError } = await supabase
-      .from("submissions")
-      .update({ status: "evaluated", answers })
-      .eq("id", existingSubmission.id)
-      .eq("lesson_id", lesson.id)
-      .eq("student_id", studentId);
-    if (statusError) throw statusError;
+    if (isPublished) {
+      const { error: statusError } = await supabase
+        .from("submissions")
+        .update({ status: "evaluated", answers })
+        .eq("id", existingSubmission.id)
+        .eq("lesson_id", lesson.id)
+        .eq("student_id", studentId);
+      if (statusError) throw statusError;
+    }
 
     const current = getState(slug, studentId);
     const nextState: PublishedLessonState = {
       content: current?.content || lesson.content || defaultContent(),
       bannerUrl: current?.bannerUrl || lesson.banner_url || "",
       studentProfile: current?.studentProfile || defaultProfile(),
-      evaluation: publishedEvaluation,
+      evaluation: savedEvaluation,
       status: lesson.status === "draft" ? "draft" : "published",
-      submission: { ...mapSubmission({ answers, status: "evaluated", submitted_at: existingSubmission.submitted_at }), status: "evaluated" },
+      submission: mapSubmission({
+        answers,
+        status: isPublished ? "evaluated" : existingSubmission.status,
+        submitted_at: existingSubmission.submitted_at,
+      }),
     };
     await saveLessonState(slug, nextState, studentId);
     notifyDataUpdated({ type: "feedback", slug, studentToken: studentId });
@@ -758,17 +775,21 @@ export async function saveInstructorFeedback(
     content: current?.content || defaultContent(),
     bannerUrl: current?.bannerUrl || "",
     studentProfile: current?.studentProfile || defaultProfile(),
-    evaluation: publishedEvaluation,
+    evaluation: savedEvaluation,
     status: current?.status || "published",
-    submission: current?.submission ? { ...current.submission, status: "evaluated" } : undefined,
+    submission: current?.submission
+      ? { ...current.submission, status: isPublished ? "evaluated" : current.submission.status }
+      : undefined,
   };
   await saveLessonState(slug, nextState, studentToken);
-  await saveStudentProgress(slug, {
-    currentStep: "results",
-    completedSteps,
-    status: "evaluated",
-    updatedAt: evaluatedAt,
-  }, studentToken);
+  if (isPublished) {
+    await saveStudentProgress(slug, {
+      currentStep: "results",
+      completedSteps,
+      status: "evaluated",
+      updatedAt: evaluatedAt,
+    }, studentToken);
+  }
   notifyDataUpdated({ type: "feedback", slug, studentToken });
   return nextState;
 }
