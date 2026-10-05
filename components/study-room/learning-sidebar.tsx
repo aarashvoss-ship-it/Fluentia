@@ -38,6 +38,7 @@ interface LearningSidebarProps {
   studentId?: string;
   studentToken?: string;
   activeLessonId?: string;
+  standalone?: boolean;
   resource?: string;
   resources?: { id: string; title: string; url: string; type: string }[];
   onClose: () => void;
@@ -233,6 +234,7 @@ export function LearningSidebar({
   studentId,
   studentToken,
   activeLessonId,
+  standalone = false,
   resource,
   resources = [],
   onClose,
@@ -254,9 +256,7 @@ export function LearningSidebar({
     const lessonPath = currentLessonPath || (activeLessonId ? `/lessons/${encodeURIComponent(activeLessonId)}` : null);
     if (!lessonPath) return;
 
-    const url = new URL(lessonPath, window.location.origin);
-    url.searchParams.set("studyHub", "1");
-    window.open(url.toString(), "_blank", "noopener,noreferrer");
+    window.open(`${lessonPath}/study-hub`, "_blank", "noopener,noreferrer");
   };
 
   useEffect(() => {
@@ -414,18 +414,22 @@ export function LearningSidebar({
 
   return (
     <>
-      <button
-        type="button"
-        aria-label="Close Learning Hub"
-        aria-hidden={!open}
-        tabIndex={open ? 0 : -1}
-        onClick={onClose}
-        className={`fixed inset-0 z-[1090] bg-black/55 transition-opacity duration-200 ${open ? "opacity-100" : "pointer-events-none opacity-0"}`}
-      />
+      {!standalone && (
+        <button
+          type="button"
+          aria-label="Close Learning Hub"
+          aria-hidden={!open}
+          tabIndex={open ? 0 : -1}
+          onClick={onClose}
+          className={`fixed inset-0 z-[1090] bg-black/55 transition-opacity duration-200 ${open ? "opacity-100" : "pointer-events-none opacity-0"}`}
+        />
+      )}
       <aside
-        className={`fixed bottom-0 right-0 top-0 z-[1100] flex w-full max-w-xl flex-col border-l border-[#29303c] bg-[#121721] shadow-2xl transition-transform duration-200 ${open ? "translate-x-0" : "translate-x-full"}`}
-        id="learning-sidebar"
-        aria-hidden={!open}
+        className={standalone
+          ? "flex min-h-0 h-dvh w-full flex-col bg-[#121721] text-stone-200"
+          : `fixed bottom-0 right-0 top-0 z-[1100] flex w-full max-w-xl flex-col border-l border-[#29303c] bg-[#121721] shadow-2xl transition-transform duration-200 ${open ? "translate-x-0" : "translate-x-full"}`}
+        id={standalone ? undefined : "learning-sidebar"}
+        aria-hidden={standalone ? undefined : !open}
       >
         <div className="flex items-start justify-between border-b border-[#29303c] p-5">
           <div>
@@ -433,20 +437,20 @@ export function LearningSidebar({
             <h2 className="mt-1 font-sans text-2xl text-stone-100">Your study tools</h2>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {activeLessonId && (
+            {!standalone && activeLessonId && (
               <button
                 type="button"
                 onClick={openInNewTab}
-                title="Open Learning Hub in a new tab"
-                aria-label="Open Learning Hub in a new tab"
+                title="Open Learning Hub in a New Tab"
+                aria-label="Open Learning Hub in a New Tab"
                 tabIndex={open ? 0 : -1}
                 className="flex h-9 w-9 items-center justify-center rounded-md border border-[#394252] text-stone-400 transition hover:border-amber-500/40 hover:text-amber-400"
               >
                 <ExternalLink className="h-4 w-4" />
               </button>
             )}
-            <button type="button" onClick={onClose} aria-label="Close Learning Hub" tabIndex={open ? 0 : -1} className="flex h-9 w-9 items-center justify-center rounded-md border border-[#394252] text-stone-400 transition hover:border-amber-500/40 hover:text-amber-400">
-              <X className="h-5 w-5" />
+            <button type="button" onClick={onClose} aria-label={standalone ? "Return to lesson" : "Close Learning Hub"} tabIndex={open ? 0 : -1} className="flex h-9 w-9 items-center justify-center rounded-md border border-[#394252] text-stone-400 transition hover:border-amber-500/40 hover:text-amber-400">
+              {standalone ? <ArrowLeft className="h-5 w-5" /> : <X className="h-5 w-5" />}
             </button>
           </div>
         </div>

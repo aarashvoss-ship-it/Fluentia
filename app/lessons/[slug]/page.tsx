@@ -327,7 +327,7 @@ export default function LessonPage() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [dictionaryWord, setDictionaryWord] = useState<string | null>(null);
   const [dictionaryAnchor, setDictionaryAnchor] = useState<{ top: number; right: number; bottom: number; left: number } | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(() => searchParams.get("studyHub") === "1");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [guidanceOpen, setGuidanceOpen] = useState(false);
   const [submissionSaveError, setSubmissionSaveError] = useState<string | null>(null);
   const [bannerLoadFailed, setBannerLoadFailed] = useState(false);
