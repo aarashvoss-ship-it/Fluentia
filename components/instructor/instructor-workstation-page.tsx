@@ -3503,6 +3503,14 @@ export default function InstructorWorkstationPage({
 <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-400">Fluentia Instructor Studio</span>
 <h1 className="mt-2 font-sans text-2xl font-semibold text-[#f1eee8]">Instructor Workstation</h1>
 </div>
+          {activeTab === "evaluation" && reviewSubmissionId && <button
+            type="button"
+            onClick={clearEvaluationSelection}
+            className="inline-flex items-center gap-2 self-start rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 transition hover:border-amber-500/40 hover:text-amber-300 md:self-center"
+          >
+            <ChevronRight className="h-3.5 w-3.5 rotate-180" aria-hidden="true" />
+            Back to Submissions Queue
+          </button>}
           {activeTab === "builder" && <div className="flex min-w-0 flex-col items-stretch gap-2 md:items-end">
             <div className="flex flex-wrap items-center justify-end gap-2">
               <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold ${lessonStatus === "published" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/40 bg-amber-500/20 text-amber-400"}`}><span className={`h-1.5 w-1.5 rounded-full ${lessonStatus === "published" ? "bg-emerald-400" : "bg-amber-500/20"}`} />{lessonStatus === "published" ? "Published" : "Draft"}</span>
@@ -5000,16 +5008,6 @@ export default function InstructorWorkstationPage({
         {activeTab === "evaluation" && (
           <section className="space-y-6" aria-label="Student submission review workspace">
             <div className="space-y-4 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
-              {reviewSubmissionId && (
-                <button
-                  type="button"
-                  onClick={clearEvaluationSelection}
-                  className="inline-flex items-center gap-2 rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 transition hover:border-amber-500/40 hover:text-amber-300"
-                >
-                  <ChevronRight className="h-3.5 w-3.5 rotate-180" aria-hidden="true" />
-                  Back to Submissions Queue
-                </button>
-              )}
               <div className="grid gap-4 md:grid-cols-2">
               <label className="block text-xs font-medium text-stone-400">
                 Select Student
@@ -5103,7 +5101,7 @@ export default function InstructorWorkstationPage({
                     <ChevronDown className={`h-4 w-4 text-stone-400 transition-transform ${isPendingSubmissionsExpanded ? "rotate-180" : ""}`} aria-hidden="true" />
                   </span>
                 </button>
-                {isPendingSubmissionsExpanded && <div id="evaluation-pending-submissions-list" className="max-h-[420px] overflow-y-auto overscroll-contain">
+                {isPendingSubmissionsExpanded && <div id="evaluation-pending-submissions-list" className="pointer-events-auto max-h-[380px] overflow-y-auto overscroll-contain">
                 {pendingSubmissionError && <p role="alert" className="mt-4 text-sm text-red-300">{pendingSubmissionError}</p>}
                 {pendingSubmissions.length > 0 ? (
                   <ul className="divide-y divide-[#29303c]">
