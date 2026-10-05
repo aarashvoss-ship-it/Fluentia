@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, ChevronRight, Grid3X3, Image, List, MoreVertical, Pencil, Plus, Search, Trash2, X, Lightbulb, UploadCloud } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Eye, Grid3X3, Image, List, MoreVertical, Pencil, Plus, Search, Trash2, X, Lightbulb, UploadCloud } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { StudentContextPanel } from "@/components/instructor/student-context-panel";
 import { LessonBuilderSidebar, LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
@@ -38,6 +38,8 @@ import { DynamicLucideIcon, LucideIconPicker } from "@/components/shared/lucide-
 import { SidebarBlockCard } from "@/components/shared/sidebar-block-card";
 import { StudyHubDownloadButton, StudyHubFlashcardDeck, StudyHubResourceCard } from "@/components/shared/study-hub-resource-card";
 import { StudentStudyRoomPreview, STUDENT_PREVIEW_CHANNEL, type StudentPreviewSnapshot, type StudentPreviewStep } from "@/components/instructor/student-study-room-preview";
+import { LearningSidebar, type LearningTab } from "@/components/study-room/learning-sidebar";
+import type { StudyHubResource } from "@/components/shared/study-hub-resource-card";
 
 interface InstructorWorkstationProps {
   instructorId: string;
@@ -818,6 +820,7 @@ export default function InstructorWorkstationPage({
   const [lessonResources, setLessonResources] = useState<LessonResource[]>([]);
   const [studentResources, setStudentResources] = useState<StudentResourceEntry[]>([]);
   const [builderResourcesExpanded, setBuilderResourcesExpanded] = useState(false);
+  const [resourceStudyHubPreviewOpen, setResourceStudyHubPreviewOpen] = useState(false);
   const [editingStudentResourceId, setEditingStudentResourceId] = useState<string | null>(null);
   const [expandedStudentResourceIds, setExpandedStudentResourceIds] = useState<Set<string>>(() => new Set());
   const [resourceDraft, setResourceDraft] = useState(EMPTY_RESOURCE_DRAFT);
@@ -3239,6 +3242,61 @@ export default function InstructorWorkstationPage({
         : activeResourceType === "reading"
           ? "application/pdf,.pdf,.doc,.docx,.rtf,.odt"
           : undefined;
+  const studyHubTabByResourceType: Record<ResourceEditorType, LearningTab> = {
+    note: "notes",
+    reading: "reading",
+    flashcard: "flashcards",
+    quiz: "quizzes",
+    audio: "audio",
+    video: "video",
+    image: "image",
+    data_table: "data_table",
+    file: "files",
+  };
+  const studyHubPreviewResources: StudyHubResource[] = studentResources.map((resource) => ({
+    ...resource,
+    resource_type: resource.resource_type,
+  }));
+  const draftPreviewHref = resourceInputMode === "upload"
+    ? activeResourceType === "audio" ? audioFilePreviewUrl : resourceFilePreviewUrl
+    : getResourcePreviewHref(resourceDraft.linkUrl);
+  const draftResourceHasContent = Boolean(
+    editingStudentResourceId
+    || resourceDraft.title.trim()
+    || resourceDraft.body.trim()
+    || resourceDraft.linkUrl.trim()
+    || resourceDraft.cards.length
+    || draftPreviewHref
+    || resourceDraft.question.trim()
+    || resourceDraft.answer.trim(),
+  );
+  const currentDraftStudyHubResource: StudyHubResource | null = draftResourceHasContent ? {
+    id: editingStudentResourceId || "resource-draft-preview",
+    lesson_id: activeBuilderLessonId || null,
+    resource_type: activeResourceType,
+    title: resourceDraft.title.trim() || "Untitled resource",
+    body: resourceDraft.body.trim() ? resourceBodyHtml || resourceDraft.body : null,
+    link_url: draftPreviewHref,
+    cards: activeResourceType === "flashcard"
+      ? [
+        ...resourceDraft.cards,
+        ...(resourceDraft.question.trim() && resourceDraft.answer.trim()
+          ? [{ front: resourceQuestionHtml || resourceDraft.question, back: resourceAnswerHtml || resourceDraft.answer, explanation: resourceExplanationHtml || resourceDraft.explanation }]
+          : []),
+      ]
+      : undefined,
+    question: activeResourceType === "flashcard" ? resourceQuestionHtml || resourceDraft.question : undefined,
+    answer: activeResourceType === "flashcard" ? resourceAnswerHtml || resourceDraft.answer : undefined,
+    explanation: activeResourceType === "flashcard" ? resourceExplanationHtml || resourceDraft.explanation : undefined,
+    media_type: resourceFile ? getSupportedResourceMediaType(resourceFile) || undefined : audioFile ? getSupportedResourceMediaType(audioFile) || undefined : undefined,
+    original_filename: resourceFile?.name || audioFile?.name,
+  } : null;
+  const resourceStudyHubPreviewResources = currentDraftStudyHubResource
+    ? [
+      ...studyHubPreviewResources.filter((resource) => resource.id !== currentDraftStudyHubResource.id),
+      currentDraftStudyHubResource,
+    ]
+    : studyHubPreviewResources;
 
   useEffect(() => {
     const blockId = pendingBuilderBlockRef.current;
@@ -4310,8 +4368,20 @@ export default function InstructorWorkstationPage({
                   {studentResources.length}
                 </span>
               </button>
-              <div className="rounded-full border border-[#394252] bg-[#0c1017] px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-stone-300">
-                {activeBuilderStudent ? `${activeBuilderStudent.name} · ${activeBuilderLessonId ? "Bound" : "Lesson not saved yet"}` : "Select student in Lesson Details"}
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBuilderResourcesExpanded(true);
+                    setResourceStudyHubPreviewOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-300 transition hover:bg-amber-500/20"
+                >
+                  <Eye className="h-3.5 w-3.5" aria-hidden="true" /> Preview as Student
+                </button>
+                <div className="rounded-full border border-[#394252] bg-[#0c1017] px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-stone-300">
+                  {activeBuilderStudent ? `${activeBuilderStudent.name} · ${activeBuilderLessonId ? "Bound" : "Lesson not saved yet"}` : "Select student in Lesson Details"}
+                </div>
               </div>
             </div>
             <div
@@ -4551,7 +4621,7 @@ export default function InstructorWorkstationPage({
                     <div className="mb-4 flex items-center justify-between gap-3">
                       <div>
                         <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Deck Preview</p>
-                        <h3 className="mt-1 font-sans text-xl font-semibold text-stone-100">Live Preview</h3>
+                        <h3 className="mt-1 font-sans text-xl font-semibold text-stone-100">Live Student Card Preview</h3>
                       </div>
                       <span className="rounded-full border border-[#394252] bg-[#171d28] px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-stone-300">
                         {collectStudentFlashcards(studentResources).length} saved cards
@@ -4773,6 +4843,16 @@ export default function InstructorWorkstationPage({
               </div>
             </div>
           </section>}
+          <LearningSidebar
+            open={resourceStudyHubPreviewOpen}
+            previewResources={resourceStudyHubPreviewResources}
+            initialTab={studyHubTabByResourceType[activeResourceType]}
+            words={[]}
+            notes={[]}
+            onClose={() => setResourceStudyHubPreviewOpen(false)}
+            onSaveNote={() => undefined}
+            onRemoveWord={() => undefined}
+          />
         </>}
 
         {activeTab === "evaluation" && <>

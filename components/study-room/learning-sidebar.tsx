@@ -9,7 +9,7 @@ import { Tooltip } from "@/components/shared/tooltip";
 import { supabase } from "@/lib/supabaseClient";
 import { SavedVocabularyWord, StudentNote } from "@/types/lesson";
 
-type LearningTab = "vocab" | "notes" | "reading" | "flashcards" | "quizzes" | "audio" | "video" | "image" | "data_table" | "files";
+export type LearningTab = "vocab" | "notes" | "reading" | "flashcards" | "quizzes" | "audio" | "video" | "image" | "data_table" | "files";
 type StudentResource = StudyHubResource & { lesson_id: string | null };
 
 interface LearningSidebarProps {
@@ -21,6 +21,7 @@ interface LearningSidebarProps {
   activeLessonId?: string;
   standalone?: boolean;
   previewResources?: StudyHubResource[];
+  initialTab?: LearningTab;
   resource?: string;
   resources?: { id: string; title: string; url: string; type: string }[];
   onClose: () => void;
@@ -166,6 +167,7 @@ export function LearningSidebar({
   activeLessonId,
   standalone = false,
   previewResources,
+  initialTab,
   resource,
   resources = [],
   onClose,
@@ -330,9 +332,15 @@ export function LearningSidebar({
       tabSelectionMade.current = false;
       return;
     }
-    if (!resourcesReady || tabSelectionMade.current) return;
+    if (!resourcesReady) return;
+    if (initialTab) {
+      setTab(initialTab);
+      tabSelectionMade.current = true;
+      return;
+    }
+    if (tabSelectionMade.current) return;
     setTab(firstPopulatedTab);
-  }, [open, resourcesReady, firstPopulatedTab]);
+  }, [open, resourcesReady, firstPopulatedTab, initialTab]);
 
   return (
     <>
