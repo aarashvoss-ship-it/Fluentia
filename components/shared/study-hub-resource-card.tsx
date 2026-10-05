@@ -159,8 +159,7 @@ export function StudyHubResourceCard({
 
       {resource.resource_type === "audio" && (
         <>
-          {href ? <CustomAudioPlayer src={href} label={title} /> : <p className="text-xs text-stone-500">Audio file is not available.</p>}
-          {resource.body && <MarkdownContent value={resource.body} className="text-xs leading-relaxed text-stone-400" />}
+          {href ? <CustomAudioPlayer src={href} label={title} transcript={resource.body || undefined} /> : <p className="text-xs text-stone-500">Audio file is not available.</p>}
         </>
       )}
 

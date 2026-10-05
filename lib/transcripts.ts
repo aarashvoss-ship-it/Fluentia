@@ -7,16 +7,20 @@ export interface InteractiveTranscriptLine {
 const TIMESTAMP_MARKER = /\[?(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*[-–—]\s*\[?(\d{1,2}):(\d{2})(?::(\d{2}))?\]?)?\]?\s*/g;
 
 function formatTimestamp(totalSeconds: number) {
-  const minutes = Math.floor(totalSeconds / 60);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  if (hours > 0) {
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+  return `${String(Math.floor(totalSeconds / 60)).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
 export function parseInteractiveTranscript(rawTranscript: string): InteractiveTranscriptLine[] {
   const normalized = rawTranscript.replace(/\r/g, "").trim();
   if (!normalized) return [];
 
-  const timestampPattern = /\[?(\d{1,2}:\d{2}(?::\d{2})?)(?:[,.]\d{1,3})?\]?/g;
+  const timestampPattern = /\[?(\d{1,2}:\d{2}(?::\d{2})?)(?:[,.]\d{1,3})?(?:\s*[-–—]\s*\[?\d{1,2}:\d{2}(?::\d{2})?(?:[,.]\d{1,3})?\]?)?\]?/g;
   const parsedLines: InteractiveTranscriptLine[] = [];
 
   normalized.split("\n").forEach((rawLine) => {
