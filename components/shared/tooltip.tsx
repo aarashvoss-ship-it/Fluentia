@@ -1,6 +1,6 @@
 "use client";
 
-import { cloneElement, isValidElement, useId, useLayoutEffect, useRef, useState, type ReactElement } from "react";
+import { cloneElement, isValidElement, useEffect, useId, useLayoutEffect, useRef, useState, type ReactElement } from "react";
 import { createPortal } from "react-dom";
 
 type TooltipTriggerProps = {
@@ -17,13 +17,12 @@ export function Tooltip({ content, children }: TooltipProps) {
   const tooltipId = useId();
   const triggerRef = useRef<HTMLSpanElement | null>(null);
   const tooltipRef = useRef<HTMLSpanElement | null>(null);
-  const [isHovered, setIsHovered] = useState(false);
-  const [isFocused, setIsFocused] = useState(false);
+  const suppressFocusUntilPointerLeave = useRef(false);
+  const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
-  const isVisible = isHovered || isFocused;
 
   useLayoutEffect(() => {
-    if (!isVisible) return;
+    if (!isOpen) return;
 
     const updatePosition = () => {
       const trigger = triggerRef.current;
@@ -49,7 +48,27 @@ export function Tooltip({ content, children }: TooltipProps) {
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
-  }, [isVisible]);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const closeWhenOutside = (event: Event) => {
+      if (!triggerRef.current?.contains(event.target as Node)) setIsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsOpen(false);
+    };
+
+    document.addEventListener("pointerdown", closeWhenOutside, true);
+    document.addEventListener("focusin", closeWhenOutside, true);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeWhenOutside, true);
+      document.removeEventListener("focusin", closeWhenOutside, true);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isOpen]);
 
   if (!isValidElement<TooltipTriggerProps>(children)) return children;
 
@@ -60,16 +79,34 @@ export function Tooltip({ content, children }: TooltipProps) {
       <span
         ref={triggerRef}
         className="fluentia-tooltip-trigger"
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        onFocusCapture={() => setIsFocused(true)}
+        onPointerEnter={() => {
+          if (!suppressFocusUntilPointerLeave.current) setIsOpen(true);
+        }}
+        onPointerLeave={() => {
+          suppressFocusUntilPointerLeave.current = false;
+          setIsOpen(false);
+        }}
+        onPointerDownCapture={() => {
+          suppressFocusUntilPointerLeave.current = true;
+          setIsOpen(false);
+        }}
+        onPointerUpCapture={() => {
+          suppressFocusUntilPointerLeave.current = false;
+        }}
+        onPointerCancel={() => {
+          suppressFocusUntilPointerLeave.current = false;
+        }}
+        onClickCapture={() => setIsOpen(false)}
+        onFocusCapture={() => {
+          if (!suppressFocusUntilPointerLeave.current) setIsOpen(true);
+        }}
         onBlurCapture={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsFocused(false);
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsOpen(false);
         }}
       >
         {cloneElement(children, { "aria-describedby": describedBy, className })}
       </span>
-      {isVisible && typeof document !== "undefined" && createPortal(
+      {isOpen && typeof document !== "undefined" && createPortal(
         <span
           ref={tooltipRef}
           id={tooltipId}
