@@ -349,6 +349,7 @@ export interface LessonEvaluation {
   criterionFeedback?: Record<string, string>;
   stageFeedback?: Record<string, string>;
   stageScores?: Record<string, Record<string, number>>;
+  reportCardScoreOverrides?: Record<string, number>;
   taskFeedback?: Record<string, string>;
   inlineCorrections?: Record<string, string>;
   stageVoiceFeedback?: Record<string, string>;

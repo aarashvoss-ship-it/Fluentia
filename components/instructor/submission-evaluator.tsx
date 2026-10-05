@@ -17,6 +17,7 @@ export interface FeedbackPayload {
   criterionFeedback: Record<string, string>;
   stageFeedback: Record<string, string>;
   stageScores: Record<string, Record<string, number>>;
+  reportCardScoreOverrides: Record<string, number>;
   taskFeedback: Record<string, string>;
   inlineCorrections: Record<string, string>;
   stageVoiceFeedback: Record<string, string>;
@@ -42,11 +43,7 @@ const RUBRIC_CRITERIA = [
   { id: "lexical", label: "Lexical Precision & Range", max: 5 },
   { id: "grammar", label: "Grammatical Accuracy", max: 5 },
 ];
-const STAGE_RUBRIC_CRITERIA = [
-  { id: "grammar", label: "Grammar" },
-  { id: "fluency", label: "Fluency" },
-  { id: "vocabulary", label: "Vocabulary" },
-];
+const STAGE_RUBRIC_CRITERIA = RUBRIC_CRITERIA;
 const DEFAULT_REPORT_STAGES: UnifiedReportStage[] = [
   { id: "warm_up", title: "Warm-up", tasks: [] },
   { id: "lesson", title: "Lesson", tasks: [] },
@@ -111,11 +108,21 @@ export function SubmissionEvaluator({
     grammar: 4,
   };
 
-  const scores = evaluation?.scores || defaultScores;
   const comments = evaluation?.comments || "";
   const criterionFeedback = evaluation?.criterionFeedback || {};
   const stageFeedback = evaluation?.stageFeedback || {};
   const stageScores = evaluation?.stageScores || {};
+  const reportCardScoreOverrides = evaluation?.reportCardScoreOverrides || {};
+  const stageAverages = Object.fromEntries(RUBRIC_CRITERIA.map(({ id }) => {
+    const values = Object.values(stageScores)
+      .map((stage) => stage[id])
+      .filter((score): score is number => typeof score === "number" && Number.isFinite(score));
+    return [id, values.length ? values.reduce((sum, score) => sum + score, 0) / values.length : undefined];
+  }));
+  const scores = Object.fromEntries(RUBRIC_CRITERIA.map(({ id }) => [
+    id,
+    reportCardScoreOverrides[id] ?? stageAverages[id] ?? evaluation?.scores?.[id] ?? defaultScores[id],
+  ]));
   const taskFeedback = evaluation?.taskFeedback || {};
   const inlineCorrections = evaluation?.inlineCorrections || {};
   const stageVoiceFeedback = evaluation?.stageVoiceFeedback || {};
@@ -186,6 +193,7 @@ export function SubmissionEvaluator({
           criterionFeedback: feedback.criterion_feedback?.comments || feedback.criterion_feedback || evaluation?.criterionFeedback || {},
           stageFeedback: feedback.criterion_feedback?.stages || evaluation?.stageFeedback || {},
           stageScores: feedback.criterion_feedback?.stageScores || evaluation?.stageScores || {},
+          reportCardScoreOverrides: feedback.criterion_feedback?.reportCardScoreOverrides || evaluation?.reportCardScoreOverrides || {},
           taskFeedback: feedback.criterion_feedback?.taskFeedback || evaluation?.taskFeedback || {},
           inlineCorrections: feedback.criterion_feedback?.inlineCorrections || evaluation?.inlineCorrections || {},
           stageVoiceFeedback: feedback.criterion_feedback?.stageVoiceFeedback || evaluation?.stageVoiceFeedback || {},
@@ -208,7 +216,10 @@ export function SubmissionEvaluator({
   };
 
   const handleScoreChange = (id: string, val: number) => {
-    updateEvaluation({ scores: { ...scores, [id]: val } });
+    updateEvaluation({
+      scores: { ...scores, [id]: val },
+      reportCardScoreOverrides: { ...reportCardScoreOverrides, [id]: val },
+    });
   };
 
   const updateEvaluation = (changes: Partial<LessonEvaluation>) => {
@@ -219,6 +230,7 @@ export function SubmissionEvaluator({
       criterionFeedback,
       stageFeedback,
       stageScores,
+      reportCardScoreOverrides,
       taskFeedback,
       inlineCorrections,
       stageVoiceFeedback,
@@ -229,6 +241,7 @@ export function SubmissionEvaluator({
   };
 
   const totalScore = Object.values(scores).reduce((acc, curr) => acc + curr, 0);
+  const formatScore = (score: number) => Number.isInteger(score) ? String(score) : score.toFixed(1);
   const reportStageId = "report-card";
   const reportStageIndex = stages.length;
   const activeStageIndex = activeStageId === reportStageId
@@ -252,6 +265,7 @@ export function SubmissionEvaluator({
     criterionFeedback,
     stageFeedback,
     stageScores,
+    reportCardScoreOverrides,
     taskFeedback,
     inlineCorrections,
     stageVoiceFeedback,
@@ -449,11 +463,13 @@ export function SubmissionEvaluator({
           <section className="space-y-3 rounded-xl border border-[#202631] bg-[#171d28]/60 p-4">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-sm font-semibold text-stone-100">Overall Rubric</h3>
-              <span className="text-xs text-amber-300">Total: {totalScore}/20</span>
+              <span className="text-xs text-amber-300">Total: {formatScore(totalScore)}/20</span>
             </div>
+            <p className="text-[11px] leading-relaxed text-stone-500">Each criterion starts as the average of its ratings across stages. Adjust a score here to fine-tune the final report.</p>
             <div className="grid gap-3 sm:grid-cols-2">
               {RUBRIC_CRITERIA.map((criterion) => <div key={criterion.id} className="rounded-lg border border-[#293343] bg-[#0c1017] p-3">
-                <div className="flex justify-between gap-2 text-xs"><span className="text-stone-300">{criterion.label}</span><span className="text-amber-300">{scores[criterion.id] || 0}/5</span></div>
+                <div className="flex justify-between gap-2 text-xs"><span className="text-stone-300">{criterion.label}</span><span className="text-amber-300">{formatScore(scores[criterion.id] || 0)}/5</span></div>
+                {stageAverages[criterion.id] !== undefined && <p className="mt-1 text-[10px] text-stone-500">{reportCardScoreOverrides[criterion.id] !== undefined ? `Stage average: ${formatScore(stageAverages[criterion.id] ?? 0)}/5 · Manually adjusted` : `Average of ${Object.values(stageScores).filter((stage) => typeof stage[criterion.id] === "number").length} stage ratings`}</p>}
                 <div className="mt-2 flex gap-1">{[1, 2, 3, 4, 5].map((score) => <button key={score} type="button" onClick={() => handleScoreChange(criterion.id, score)} aria-label={`${criterion.label}: ${score} out of 5`} className={`h-7 flex-1 rounded text-xs ${scores[criterion.id] === score ? "bg-amber-500/20 text-amber-300" : "bg-[#171d28] text-stone-500 hover:text-white"}`}>{score}</button>)}</div>
                 <textarea value={criterionFeedback[criterion.id] || ""} onChange={(event) => updateEvaluation({ criterionFeedback: { ...criterionFeedback, [criterion.id]: event.target.value } })} rows={2} placeholder={`Feedback for ${criterion.label.toLowerCase()}...`} className="mt-2 w-full resize-y rounded-md border border-[#394252] bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40" />
               </div>)}
@@ -464,7 +480,7 @@ export function SubmissionEvaluator({
               <h3 className="text-sm font-semibold text-stone-100">{String(index + 1).padStart(2, "0")} · {stage.title}</h3>
               <span className={`rounded-full border px-2 py-0.5 text-[9px] ${stageStatusClass(evaluationStatus(stage.id))}`}>{evaluationStatus(stage.id)}</span>
             </div>
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
               {STAGE_RUBRIC_CRITERIA.map((criterion) => <label key={criterion.id} className="rounded-md border border-[#293343] bg-[#0c1017] p-2 text-[10px] text-stone-400">{criterion.label}<span className="float-right text-amber-300">{stageScores[stage.id]?.[criterion.id] || 0}/5</span></label>)}
             </div>
             {stageFeedback[stage.id]?.trim() && <p className="whitespace-pre-wrap rounded-md bg-[#0c1017] p-3 text-xs leading-relaxed text-stone-300">{stageFeedback[stage.id]}</p>}
