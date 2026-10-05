@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { CheckCircle, Award, AlertCircle } from "lucide-react";
 import { LessonEvaluation } from "@/types/lesson";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import { getSubmissionByLessonAndStudent } from "@/lib/evaluations";
+import { getSubmissionById, getSubmissionByLessonAndStudent } from "@/lib/evaluations";
 import { saveInstructorFeedback } from "@/services/storage-service";
 import { UnifiedReportCard, type UnifiedReportStage } from "@/components/shared/unified-report-card";
 
@@ -117,7 +117,9 @@ export function SubmissionEvaluator({
     setSubmissionLoadState("loading");
     try {
       const [submission, feedbackResult] = await Promise.all([
-        getSubmissionByLessonAndStudent(normalizedLessonId, normalizedStudentId),
+        pendingSubmissionId
+          ? getSubmissionById(pendingSubmissionId)
+          : getSubmissionByLessonAndStudent(normalizedLessonId, normalizedStudentId),
         supabase
           .from("instructor_feedback")
           .select("*")

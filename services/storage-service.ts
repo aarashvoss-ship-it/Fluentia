@@ -672,7 +672,8 @@ export function submitStudentLesson(
 export async function saveInstructorFeedback(
   slug: string,
   studentToken: string | undefined,
-  evaluation: LessonEvaluation
+  evaluation: LessonEvaluation,
+  submissionId?: string,
 ): Promise<PublishedLessonState> {
   const completedSteps: StudyStepId[] = ["warm_up", "lesson", "listening", "reading", "writing", "speaking", "results"];
   const evaluatedAt = new Date().toISOString();
@@ -690,14 +691,17 @@ export async function saveInstructorFeedback(
     if (lessonError) throw lessonError;
     if (!lesson) throw new Error(`Lesson ${slug} could not be found for evaluation.`);
 
-    const { data: existingSubmission, error: submissionError } = await supabase
+    let submissionQuery = supabase
       .from("submissions")
       .select("id,answers,submitted_at")
       .eq("lesson_id", lesson.id)
-      .eq("student_id", studentId)
-      .order("submitted_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .eq("student_id", studentId);
+    if (submissionId) {
+      submissionQuery = submissionQuery.eq("id", submissionId);
+    } else {
+      submissionQuery = submissionQuery.order("submitted_at", { ascending: false }).limit(1);
+    }
+    const { data: existingSubmission, error: submissionError } = await submissionQuery.maybeSingle();
     if (submissionError) throw submissionError;
     if (!existingSubmission) throw new Error("No submission exists for this student and lesson.");
 

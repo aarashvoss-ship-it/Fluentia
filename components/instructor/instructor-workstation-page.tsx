@@ -3,7 +3,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronRight, Eye, Grid3X3, Image, List, MoreVertical, Pencil, Plus, Search, Trash2, X, Lightbulb, UploadCloud } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
-import { StudentContextPanel } from "@/components/instructor/student-context-panel";
 import { LessonBuilderSidebar, LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
 import { InstructorBannerManager, type BannerPosition } from "@/components/instructor/banner-manager";
 import { normalizeBannerDimness } from "@/lib/banner-position";
@@ -498,6 +497,7 @@ type PendingReviewSubmission = {
   lessonId: string;
   studentId: string;
   submittedAt: string | null;
+  status: string;
   submission: StudentSubmission;
 };
 
@@ -805,6 +805,7 @@ export default function InstructorWorkstationPage({
   const [databaseLessonId, setDatabaseLessonId] = useState<string | null>(null);
   const [reviewSubmissionId, setReviewSubmissionId] = useState<string | null>(null);
   const [reviewSubmissionLessonId, setReviewSubmissionLessonId] = useState<string | null>(null);
+  const [submittedAssignments, setSubmittedAssignments] = useState<PendingReviewSubmission[]>([]);
   const [pendingSubmissionCount, setPendingSubmissionCount] = useState(0);
   const [pendingSubmissions, setPendingSubmissions] = useState<PendingReviewSubmission[]>([]);
   const [pendingSubmissionError, setPendingSubmissionError] = useState<string | null>(null);
@@ -1263,11 +1264,6 @@ export default function InstructorWorkstationPage({
     return saveMode;
   }
 
-  async function handleSaveSelectedStudentProfile(profile: StudentProfile) {
-    if (!selectedStudent) throw new Error("Select a student before saving profile changes.");
-    await saveStudentProfileEntry(selectedStudent, profile);
-  }
-
   function updateDirectoryStudentProfile(studentId: string, changes: Partial<StudentProfile>) {
     setStudents((current) => current.map((student) => student.id === studentId ? {
       ...student,
@@ -1705,33 +1701,38 @@ export default function InstructorWorkstationPage({
     });
   };
 
-  const reviewPendingSubmission = (pendingSubmission: PendingReviewSubmission) => {
+  const selectSubmissionForReview = (submission: PendingReviewSubmission) => {
     const student = students.find((candidate) =>
-      candidate.id === pendingSubmission.studentId || candidate.token === pendingSubmission.studentId,
+      candidate.id === submission.studentId || candidate.token === submission.studentId,
     );
     if (!student) {
       setPendingSubmissionError("The student for this submission could not be found.");
       return;
     }
-    const lesson = createdLessons.find((candidate) => candidate.id === pendingSubmission.lessonId);
+    setPendingSubmissionError(null);
+    const lesson = createdLessons.find((candidate) => candidate.id === submission.lessonId);
     if (lesson) {
       activateLesson(lesson);
     } else {
-      activeLessonIdRef.current = pendingSubmission.lessonId;
-      setDatabaseLessonId(pendingSubmission.lessonId);
-      setNewLesson((previous) => ({ ...previous, slug: pendingSubmission.lessonId }));
+      activeLessonIdRef.current = submission.lessonId;
+      setDatabaseLessonId(submission.lessonId);
+      setNewLesson((previous) => ({ ...previous, slug: submission.lessonId }));
     }
     setSelectedStudentId(student.id);
-    setReviewSubmissionId(pendingSubmission.id);
-    setReviewSubmissionLessonId(pendingSubmission.lessonId);
+    setReviewSubmissionId(submission.id);
+    setReviewSubmissionLessonId(submission.lessonId);
     setNewLesson((previous) => ({ ...previous, studentId: student.id }));
     setWorkstationState((previous) => ({
       ...previous,
-      submission: pendingSubmission.submission,
+      submission: submission.submission,
       studentProfile: student.profile,
       evaluation: { scores: { task: 4, coherence: 4, lexical: 3, grammar: 4 }, comments: "", criterionFeedback: {}, published: false },
     }));
     setActiveTab("evaluation");
+  };
+
+  const reviewPendingSubmission = (pendingSubmission: PendingReviewSubmission) => {
+    selectSubmissionForReview(pendingSubmission);
   };
 
   const handleAssignStudent = async (lesson: LessonWithVersion, studentId: string) => {
@@ -2478,7 +2479,7 @@ export default function InstructorWorkstationPage({
       setStudentsError(null);
       try {
         const [pendingResult, publishedResult, draftsResult] = await Promise.allSettled([
-          supabase.from("submissions").select("id, lesson_id, student_id, status, submitted_at, answers").in("status", ["submitted", "pending_evaluation", "completed"]).order("submitted_at", { ascending: false }),
+          supabase.from("submissions").select("id, lesson_id, student_id, status, submitted_at, answers").in("status", ["submitted", "pending_evaluation", "completed", "reviewed", "evaluated"]).order("submitted_at", { ascending: false }),
           supabase.from("lessons").select("id", { count: "exact", head: true }).eq("status", "published"),
           supabase.from("lessons").select("id", { count: "exact", head: true }).eq("status", "draft"),
         ]);
@@ -2499,6 +2500,9 @@ export default function InstructorWorkstationPage({
         if (pendingResult.status === "rejected") {
           console.error("Failed to load pending submissions:", pendingResult.reason);
           setPendingSubmissionError("Pending submissions could not be loaded.");
+          setSubmittedAssignments([]);
+          setPendingSubmissions([]);
+          setPendingSubmissionCount(0);
         } else if (pendingResult.value.error) {
           console.error("Failed to load pending submissions:", {
             code: pendingResult.value.error.code,
@@ -2507,22 +2511,25 @@ export default function InstructorWorkstationPage({
             hint: pendingResult.value.error.hint,
           });
           setPendingSubmissionError(pendingResult.value.error.message);
+          setSubmittedAssignments([]);
+          setPendingSubmissions([]);
+          setPendingSubmissionCount(0);
         } else {
-          const latestByStudentLesson = new Map<string, PendingReviewSubmission>();
+          const allAssignments: PendingReviewSubmission[] = [];
           for (const row of pendingResult.value.data || []) {
-            const key = `${row.student_id}:${row.lesson_id}`;
-            if (latestByStudentLesson.has(key)) continue;
             const answers = row.answers && typeof row.answers === "object"
               ? row.answers as Partial<StudentSubmission>
               : {};
             if (answers.status === "in_progress") continue;
-            latestByStudentLesson.set(key, {
+            const submissionStatus = row.status === "completed" ? "pending_evaluation" : row.status;
+            allAssignments.push({
               id: row.id,
               lessonId: row.lesson_id,
               studentId: row.student_id,
               submittedAt: row.submitted_at,
+              status: row.status,
               submission: {
-                status: answers.status === "pending_evaluation" || row.status === "pending_evaluation" || row.status === "completed" ? "pending_evaluation" : "submitted",
+                status: submissionStatus as StudentSubmission["status"],
                 listeningAnswers: answers.listeningAnswers || {},
                 readingAnswers: answers.readingAnswers || {},
                 writingText: answers.writingText || "",
@@ -2535,7 +2542,10 @@ export default function InstructorWorkstationPage({
               },
             });
           }
-          const nextPendingSubmissions = [...latestByStudentLesson.values()];
+          setSubmittedAssignments(allAssignments);
+          const nextPendingSubmissions = allAssignments.filter((submission) =>
+            submission.status === "submitted" || submission.status === "pending_evaluation" || submission.status === "completed",
+          );
           setPendingSubmissions(nextPendingSubmissions);
           setPendingSubmissionCount(nextPendingSubmissions.length);
           setPendingSubmissionError(null);
@@ -3364,6 +3374,10 @@ export default function InstructorWorkstationPage({
       },
     }] : []),
   ].sort((first, second) => second.timestamp - first.timestamp).slice(0, 5);
+  const selectedStudentSubmissions = submittedAssignments.filter((submission) =>
+    selectedStudent && (submission.studentId === selectedStudent.id || submission.studentId === selectedStudent.token),
+  );
+  const selectedReviewSubmission = submittedAssignments.find((submission) => submission.id === reviewSubmissionId) || null;
 
   useEffect(() => {
     const blockId = pendingBuilderBlockRef.current;
@@ -4968,49 +4982,138 @@ export default function InstructorWorkstationPage({
           />
         </>}
 
-        {activeTab === "evaluation" && <>
-<div className="mb-6">
-<StudentContextPanel
-  studentName={selectedStudent?.name || "Selected Student"}
-  studentId={selectedStudent?.id}
-  studentToken={selectedStudent?.token}
-  profile={workstationState.studentProfile}
-  onUpdateProfile={(studentProfile: StudentProfile) => setWorkstationState((previous) => ({ ...previous, studentProfile }))}
-  onSaveProfile={handleSaveSelectedStudentProfile}
-/>
-</div>
-<section className="mt-8 space-y-8" aria-label="Student submission review workspace">
-<div className="flex flex-wrap items-end justify-between gap-4 border-b border-[#202631] pb-4">
-<div>
-<p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Submission Review Workspace</p>
-<h2 className="mt-1 font-sans text-xl font-semibold text-stone-100">{selectedStudent?.name || "Selected Student"}&apos;s answers</h2>
-<p className="mt-1 text-xs text-amber-400">{selectedStudent?.profile.targetLevel || selectedStudent?.profile.level || "Level not set"}</p>
-</div>
-<span className={`w-fit rounded-sm border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${submissionStateClass}`}>{submissionState}</span>
-</div>
-<div>
-<SubmissionEvaluator
-  key={`${reviewSubmissionLessonId || databaseLessonId || newLesson.slug || lessonId}:${selectedStudentId || "no-student"}`}
-  lessonId={reviewSubmissionLessonId || databaseLessonId || newLesson.slug || lessonId}
-  studentId={selectedStudentId || undefined}
-  pendingSubmissionId={reviewSubmissionId || undefined}
-  instructorId={instructorId}
-  studentName={selectedStudent?.name || "Selected Student"}
-  reportCardStages={reviewStages}
-  useSupabase
-  evaluation={workstationState.evaluation}
-  onUpdateEvaluation={(evaluation: LessonEvaluation) => setWorkstationState((previous) => ({ ...previous, evaluation }))}
-  onSubmitFeedback={async (feedback: FeedbackPayload) => {
-    if (!selectedStudentId) throw new Error("Select a student before publishing an evaluation.");
-    const evaluation = { ...workstationState.evaluation, scores: feedback.scores, comments: feedback.comments, criterionFeedback: feedback.criterionFeedback, stageFeedback: feedback.stageFeedback, published: true };
-    const saved = await saveInstructorFeedback(reviewSubmissionLessonId || databaseLessonId || newLesson.slug || lessonId, selectedStudentId, evaluation);
-    setWorkstationState((previous) => ({ ...previous, submission: saved.submission || previous.submission, evaluation: saved.evaluation }));
-    setPublishStatus("Strengths, study plan, and evaluation synced with student view!");
-  }}
-/>
-</div>
-</section>
-</>}
+        {activeTab === "evaluation" && (
+          <section className="space-y-6" aria-label="Student submission review workspace">
+            <div className="grid gap-4 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 md:grid-cols-2">
+              <label className="block text-xs font-medium text-stone-400">
+                Select Student
+                <select
+                  value={selectedStudentId || ""}
+                  onChange={(event) => {
+                    const student = students.find((candidate) => candidate.id === event.target.value);
+                    setSelectedStudentId(student?.id || null);
+                    setReviewSubmissionId(null);
+                    setReviewSubmissionLessonId(null);
+                    setDatabaseLessonId(null);
+                    setWorkstationState((previous) => ({
+                      ...previous,
+                      submission: undefined,
+                      studentProfile: student?.profile || previous.studentProfile,
+                      evaluation: { scores: { task: 4, coherence: 4, lexical: 3, grammar: 4 }, comments: "", criterionFeedback: {}, published: false },
+                    }));
+                  }}
+                  className="mt-2 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2.5 text-sm text-stone-200 [color-scheme:dark]"
+                  aria-label="Select student for evaluation"
+                >
+                  <option value="">Select a student</option>
+                  {students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}
+                </select>
+              </label>
+              <label className="block text-xs font-medium text-stone-400">
+                Select Submission / Lesson
+                <select
+                  value={reviewSubmissionId || ""}
+                  onChange={(event) => {
+                    const submission = submittedAssignments.find((candidate) => candidate.id === event.target.value);
+                    if (submission) {
+                      selectSubmissionForReview(submission);
+                    } else {
+                      setReviewSubmissionId(null);
+                      setReviewSubmissionLessonId(null);
+                      setDatabaseLessonId(null);
+                      setWorkstationState((previous) => ({ ...previous, submission: undefined }));
+                    }
+                  }}
+                  disabled={!selectedStudent}
+                  className="mt-2 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2.5 text-sm text-stone-200 [color-scheme:dark] disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-label="Select submitted assignment"
+                >
+                  <option value="">{selectedStudentSubmissions.length ? "Select a submission" : "No submissions for this student"}</option>
+                  {selectedStudentSubmissions.map((submission) => {
+                    const lessonTitle = createdLessons.find((lesson) => lesson.id === submission.lessonId)?.title || "Lesson";
+                    const submittedDate = submission.submittedAt ? new Date(submission.submittedAt).toLocaleString() : "Date unavailable";
+                    const statusLabel = submission.status.replace(/_/g, " ");
+                    return <option key={submission.id} value={submission.id}>{lessonTitle} ({submittedDate}) · {statusLabel}</option>;
+                  })}
+                </select>
+              </label>
+            </div>
+
+            {selectedStudent && (
+              <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[#202631] bg-[#171d28]/40 px-4 py-3" aria-label="Read-only student context">
+                <span className="text-sm font-semibold text-stone-200">{selectedStudent.name}</span>
+                <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-300">Level: {selectedStudent.profile.targetLevel || selectedStudent.profile.level || "Not set"}</span>
+                <span className="text-xs text-stone-400">Core Goal: {selectedStudent.profile.targetGoal?.trim() || "Not set"}</span>
+                <span className="flex flex-wrap items-center gap-1.5 text-xs text-stone-400">
+                  Weaknesses:
+                  {selectedStudent.profile.weaknesses.length
+                    ? selectedStudent.profile.weaknesses.map((weakness) => <span key={weakness} className="rounded-md border border-[#394252] bg-[#0c1017] px-2 py-0.5 text-stone-300">{weakness}</span>)
+                    : <span>Not set</span>}
+                </span>
+              </div>
+            )}
+
+            {!reviewSubmissionId ? (
+              <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#202631] pb-4">
+                  <div>
+                    <h2 className="font-sans text-xl font-semibold text-stone-100">Pending Submissions Queue</h2>
+                    <p className="mt-1 text-sm text-stone-400">Select a student submission to open its evaluation workspace.</p>
+                  </div>
+                  <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-300">{pendingSubmissions.length} pending</span>
+                </div>
+                {pendingSubmissionError && <p role="alert" className="mt-4 text-sm text-red-300">{pendingSubmissionError}</p>}
+                {pendingSubmissions.length > 0 ? (
+                  <ul className="divide-y divide-[#29303c]">
+                    {pendingSubmissions.map((submission) => {
+                      const studentName = students.find((student) => student.id === submission.studentId || student.token === submission.studentId)?.name || "Student";
+                      const lessonTitle = createdLessons.find((lesson) => lesson.id === submission.lessonId)?.title || "Lesson submission";
+                      return (
+                        <li key={submission.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-stone-200">{studentName}</p>
+                            <p className="truncate text-xs text-stone-400">{lessonTitle}</p>
+                            <p className="mt-1 text-[10px] text-stone-500">{submission.submittedAt ? new Date(submission.submittedAt).toLocaleString() : "Submission date unavailable"}</p>
+                          </div>
+                          <button type="button" onClick={() => selectSubmissionForReview(submission)} className="shrink-0 rounded-md border border-amber-500/40 px-3 py-2 text-xs text-amber-400 transition hover:bg-amber-500/20">Review</button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : !pendingSubmissionError ? <p className="mt-4 text-sm text-stone-500">There are no pending submissions to review.</p> : null}
+              </div>
+            ) : selectedReviewSubmission && selectedStudent && (
+              <div className="space-y-6">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#202631] pb-4">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Submission Review Workspace</p>
+                    <h2 className="mt-1 font-sans text-xl font-semibold text-stone-100">{selectedStudent.name}&apos;s answers</h2>
+                    <p className="mt-1 text-xs text-stone-400">{createdLessons.find((lesson) => lesson.id === selectedReviewSubmission.lessonId)?.title || "Lesson"} · {selectedReviewSubmission.submittedAt ? new Date(selectedReviewSubmission.submittedAt).toLocaleString() : "Submission date unavailable"}</p>
+                  </div>
+                  <span className={`w-fit rounded-sm border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${submissionStateClass}`}>{submissionState}</span>
+                </div>
+                <SubmissionEvaluator
+                  key={`${reviewSubmissionId}:${selectedStudent.id}`}
+                  lessonId={selectedReviewSubmission.lessonId}
+                  studentId={selectedStudent.id}
+                  pendingSubmissionId={selectedReviewSubmission.id}
+                  instructorId={instructorId}
+                  studentName={selectedStudent.name}
+                  reportCardStages={reviewStages}
+                  useSupabase
+                  evaluation={workstationState.evaluation}
+                  onUpdateEvaluation={(evaluation: LessonEvaluation) => setWorkstationState((previous) => ({ ...previous, evaluation }))}
+                  onSubmitFeedback={async (feedback: FeedbackPayload) => {
+                    const evaluation = { ...workstationState.evaluation, scores: feedback.scores, criterionFeedback: feedback.criterionFeedback, comments: feedback.comments, stageFeedback: feedback.stageFeedback, published: true };
+                    const saved = await saveInstructorFeedback(selectedReviewSubmission.lessonId, selectedStudent.id, evaluation, selectedReviewSubmission.id);
+                    setWorkstationState((previous) => ({ ...previous, submission: saved.submission || previous.submission, evaluation: saved.evaluation }));
+                    setPublishStatus("Strengths, study plan, and evaluation synced with student view!");
+                  }}
+                />
+              </div>
+            )}
+          </section>
+        )}
       </div>
       {activeTab === "builder" && isSaveBarVisible && <div className="animate-save-bar fixed bottom-6 left-1/2 z-40 -translate-x-1/2 rounded-full border border-slate-800 bg-slate-900/90 px-5 py-2.5 shadow-2xl backdrop-blur">
         {showSuccessCheck && !isDraftDirty ? (
