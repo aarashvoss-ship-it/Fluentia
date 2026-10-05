@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, BookMarked, Check, Copy, Download, ExternalLink, FileDown, FileText, Headphones, Image as ImageIcon, Layers3, Library, Table, Trash2, Video, X } from "lucide-react";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { DataTableResource, getDataTableResourceTitle, isDataTableResourceTitle } from "@/components/shared/data-table-resource";
@@ -242,6 +242,7 @@ export function LearningSidebar({
   onRemoveWord,
 }: LearningSidebarProps) {
   const [tab, setTab] = useState<LearningTab>("vocab");
+  const [resourcesReady, setResourcesReady] = useState(false);
   const [assignedResources, setAssignedResources] = useState<StudentResource[]>([]);
   const [resourcesLoading, setResourcesLoading] = useState(false);
   const [resourcesError, setResourcesError] = useState<string | null>(null);
@@ -250,6 +251,7 @@ export function LearningSidebar({
   const [showAnswer, setShowAnswer] = useState(false);
   const [rightCount, setRightCount] = useState(0);
   const [wrongCount, setWrongCount] = useState(0);
+  const tabSelectionMade = useRef(false);
 
   const openInNewTab = () => {
     const currentLessonPath = window.location.pathname.match(/^\/lessons\/[^/]+/)?.[0];
@@ -277,9 +279,11 @@ export function LearningSidebar({
       setAssignedResources([]);
       setResourcesLoading(false);
       setResourcesError(null);
+      setResourcesReady(true);
       return;
     }
 
+    setResourcesReady(false);
     setResourcesLoading(true);
     setResourcesError(null);
     const loadResources = async () => {
@@ -296,6 +300,7 @@ export function LearningSidebar({
         setAssignedResources((result.data || []) as StudentResource[]);
       }
       setResourcesLoading(false);
+      setResourcesReady(true);
     };
 
     void loadResources().catch((error) => {
@@ -303,6 +308,7 @@ export function LearningSidebar({
       setResourcesError("Your assigned materials could not be loaded.");
       setAssignedResources([]);
       setResourcesLoading(false);
+      setResourcesReady(true);
       console.error("Unable to load assigned student resources:", error);
     });
 
@@ -411,6 +417,29 @@ export function LearningSidebar({
   const imageResources = assignedResources.filter((item) => item.resource_type === "image");
   const dataTableResources = assignedResources.filter((item) => item.resource_type === "data_table" || isDataTableResourceTitle(item.title));
   const fileResources = assignedResources.filter((item) => item.resource_type === "file");
+  const tabItemCounts: Record<LearningTab, number> = {
+    vocab: words.length,
+    notes: noteResources.length + (resource?.trim() ? 1 : 0) + notes.filter((note) => note.text.trim()).length,
+    reading: readingResources.length + resources.filter((item) => getSafeResourceHref(item.url)).length,
+    flashcards: flashcards.length || words.length,
+    quizzes: quizResources.length,
+    audio: audioResources.length,
+    video: videoResources.length,
+    image: imageResources.length,
+    data_table: dataTableResources.length,
+    files: fileResources.length,
+  };
+  const firstPopulatedTab = (Object.keys(tabItemCounts) as LearningTab[])
+    .find((candidate) => tabItemCounts[candidate] > 0) || "vocab";
+
+  useEffect(() => {
+    if (!open) {
+      tabSelectionMade.current = false;
+      return;
+    }
+    if (!resourcesReady || tabSelectionMade.current) return;
+    setTab(firstPopulatedTab);
+  }, [open, resourcesReady, firstPopulatedTab]);
 
   return (
     <>
@@ -456,12 +485,30 @@ export function LearningSidebar({
         </div>
 
         <div className="grid grid-cols-2 gap-2 border-b border-[#29303c] p-3 min-[380px]:grid-cols-3 sm:grid-cols-5">
-          {tabs.map(([id, label, Icon]) => (
-            <button key={id} type="button" onClick={() => setTab(id)} aria-pressed={tab === id} className={`flex min-h-16 min-w-0 w-full flex-col items-center justify-center gap-1 rounded-md border px-1.5 py-2 text-[10px] transition-colors ${tab === id ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-transparent text-stone-500 hover:border-[#394252] hover:bg-[#171d28] hover:text-stone-300"}`}>
-              <Icon className="h-4 w-4" />
-              <span className="w-full truncate text-center">{label}</span>
-            </button>
-          ))}
+          {tabs.map(([id, label, Icon]) => {
+            const itemCount = tabItemCounts[id];
+            const hasContent = itemCount > 0;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => {
+                  tabSelectionMade.current = true;
+                  setTab(id);
+                }}
+                aria-pressed={tab === id}
+                aria-label={`${label}${hasContent ? `, ${itemCount} items` : ", no materials assigned for this lesson"}`}
+                title={hasContent ? `${itemCount} ${itemCount === 1 ? "item" : "items"}` : "No materials assigned for this lesson"}
+                className={`flex min-h-16 min-w-0 w-full flex-col items-center justify-center gap-1 rounded-md border px-1.5 py-2 text-[10px] transition-all ${tab === id ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-transparent text-stone-500 hover:border-[#394252] hover:bg-[#171d28] hover:text-stone-300"} ${hasContent ? "" : "opacity-40 hover:opacity-70"}`}
+              >
+                <span className="relative inline-flex">
+                  <Icon className="h-4 w-4" />
+                  {hasContent && <span aria-hidden="true" className="absolute -right-2 -top-1 min-w-3 rounded-full bg-amber-400 px-1 text-center text-[8px] font-bold leading-3 text-[#171d28]">{itemCount > 99 ? "99+" : itemCount}</span>}
+                </span>
+                <span className="w-full truncate text-center">{label}</span>
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
