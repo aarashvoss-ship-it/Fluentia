@@ -135,7 +135,6 @@ function ToolbarButton({
   compact = false,
   onClick,
   children,
-  title,
   disabled = false,
 }: {
   label: string;
@@ -143,7 +142,6 @@ function ToolbarButton({
   compact?: boolean;
   onClick: () => void;
   children: React.ReactNode;
-  title?: string;
   disabled?: boolean;
 }) {
   return (
@@ -153,7 +151,6 @@ function ToolbarButton({
         onMouseDown={(event) => event.preventDefault()}
         onClick={onClick}
         aria-label={label}
-        title={title || label}
         aria-pressed={active}
         disabled={disabled}
         className={`flex items-center justify-center rounded transition disabled:cursor-not-allowed disabled:opacity-40 ${compact ? "h-6 min-w-6 px-1 text-[10px]" : "h-7 min-w-7 px-1.5 text-[11px]"} ${active ? "bg-amber-500/20 text-amber-400" : "text-stone-300 hover:bg-[#293343] hover:text-white"}`}
@@ -271,11 +268,10 @@ function TiptapIconPicker({ editor, compact }: { editor: Editor | null; compact:
             />
             <div className="mt-2 grid max-h-48 grid-cols-6 gap-1 overflow-y-auto" aria-label="Available icons">
               {safeFilteredIcons.map((name) => isLucideIconName(name) ? (
-                <button
-                  key={name}
+                <Tooltip key={name} content={name}>
+                  <button
                   type="button"
                   aria-label={name}
-                  title={name}
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={(event) => {
                     event.preventDefault();
@@ -294,9 +290,10 @@ function TiptapIconPicker({ editor, compact }: { editor: Editor | null; compact:
                     restoreWindowScrollPosition(scrollX, scrollY);
                   }}
                   className="flex h-8 items-center justify-center rounded border border-transparent text-stone-300 hover:border-amber-500/40 hover:bg-amber-500/20 hover:text-amber-400"
-                >
-                  <DynamicLucideIcon name={name} className="h-4 w-4" aria-hidden="true" />
-                </button>
+                  >
+                    <DynamicLucideIcon name={name} className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </Tooltip>
               ) : null)}
               {safeFilteredIcons.length === 0 && <p className="col-span-full py-4 text-center text-xs text-stone-500">No icons found.</p>}
             </div>
@@ -546,8 +543,8 @@ export function TiptapEditor({
             {isHighlightPaletteOpen && (
               <div className="absolute left-0 top-full z-40 mt-2 flex gap-2 rounded-md border border-[#394252] bg-[#171d28] p-2 shadow-xl" role="dialog" aria-label="Choose highlight color">
                 {highlightColors.map(({ label, color }) => (
-                  <button
-                    key={label}
+                  <Tooltip key={label} content={`${label} highlight`}>
+                    <button
                     type="button"
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => {
@@ -557,8 +554,8 @@ export function TiptapEditor({
                     className="h-6 w-6 rounded-full border border-white/40 transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
                     style={{ backgroundColor: color }}
                     aria-label={`${label} highlight`}
-                    title={`${label} highlight`}
                   />
+                  </Tooltip>
                 ))}
               </div>
             )}
@@ -601,8 +598,8 @@ export function TiptapEditor({
             {isColorPaletteOpen && (
               <div className="absolute right-0 top-full z-40 mt-2 grid w-36 grid-cols-4 gap-2 rounded-md border border-[#394252] bg-[#171d28] p-3 shadow-xl" role="dialog" aria-label="Choose text color">
                 {textColors.map((color) => (
-                  <button
-                    key={color}
+                  <Tooltip key={color} content={`Set text color ${color}`}>
+                    <button
                     type="button"
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => {
@@ -612,8 +609,8 @@ export function TiptapEditor({
                     className="h-6 w-6 rounded-full border border-white/30 transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
                     style={{ backgroundColor: color }}
                     aria-label={`Set text color ${color}`}
-                    title={color}
                   />
+                  </Tooltip>
                 ))}
                 <button
                   type="button"

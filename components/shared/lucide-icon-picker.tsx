@@ -6,6 +6,7 @@ import * as LucideIcons from "lucide-react";
 import { CircleHelp, Search } from "lucide-react";
 import type { LucideIcon, LucideProps } from "lucide-react";
 import type { ErrorInfo, ReactNode } from "react";
+import { Tooltip } from "@/components/shared/tooltip";
 
 const ICON_COMPONENTS: Record<string, unknown> = LucideIcons.icons;
 
@@ -185,6 +186,7 @@ export function LucideIconPicker({
 
   return (
     <div ref={rootRef} className="relative inline-block">
+      <Tooltip content={triggerLabel || (selectedName ? `Selected icon: ${selectedName}` : "Choose icon")}>
       <button
         ref={triggerRef}
         type="button"
@@ -200,7 +202,6 @@ export function LucideIconPicker({
         aria-expanded={isOpen}
         aria-haspopup="dialog"
         aria-label={triggerLabel || (selectedName ? `Selected icon: ${selectedName}` : "Choose icon")}
-        title={triggerLabel || (selectedName ? `Selected icon: ${selectedName}` : "Choose icon")}
         className={compact
           ? "flex h-6 min-w-6 items-center justify-center rounded p-1 text-stone-300 transition hover:bg-[#293343] hover:text-white"
           : "inline-flex min-h-9 min-w-28 items-center justify-center gap-2 rounded border border-amber-500/40 bg-[#0c1017] px-3 text-xs  text-stone-200 hover:border-amber-500/40"}
@@ -208,6 +209,7 @@ export function LucideIconPicker({
         <TriggerIcon className={`${compact ? "h-4 w-4" : "h-4 w-4 text-amber-400"} shrink-0`} aria-hidden="true" />
         {!compact && (triggerLabel || selectedName || "Choose icon")}
       </button>
+      </Tooltip>
       {isOpen && typeof document !== "undefined" && createPortal(
         <IconPickerErrorBoundary>
           <div
@@ -247,26 +249,26 @@ export function LucideIconPicker({
           </div>
           <div className="mt-2 grid max-h-52 grid-cols-5 gap-1 overflow-y-auto sm:grid-cols-6" role="listbox" aria-label="Available icons">
             {(Array.isArray(safeFilteredIcons) ? safeFilteredIcons : []).map((iconName) => (
-              <button
-                key={iconName}
-                type="button"
-                role="option"
-                aria-selected={selectedName === iconName}
-                title={iconName}
-                aria-label={iconName}
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={(event) => {
-                  event.preventDefault();
-                  const scrollX = window.scrollX;
-                  const scrollY = window.scrollY;
-                  onChange(iconName);
-                  setIsOpen(false);
-                  restoreWindowScrollPosition(scrollX, scrollY);
-                }}
-                className={`flex aspect-square items-center justify-center rounded border transition hover:border-amber-500/40 hover:bg-amber-500/20 ${selectedName === iconName ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-transparent text-stone-300"}`}
-              >
-                <DynamicLucideIcon name={iconName} className="h-4 w-4" aria-hidden="true" />
-              </button>
+              <Tooltip key={iconName} content={iconName}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={selectedName === iconName}
+                  aria-label={iconName}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    const scrollX = window.scrollX;
+                    const scrollY = window.scrollY;
+                    onChange(iconName);
+                    setIsOpen(false);
+                    restoreWindowScrollPosition(scrollX, scrollY);
+                  }}
+                  className={`flex aspect-square items-center justify-center rounded border transition hover:border-amber-500/40 hover:bg-amber-500/20 ${selectedName === iconName ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-transparent text-stone-300"}`}
+                >
+                  <DynamicLucideIcon name={iconName} className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </Tooltip>
             ))}
             {safeFilteredIcons.length === 0 && <p className="col-span-full py-6 text-center text-xs text-stone-500">No icons found.</p>}
           </div>

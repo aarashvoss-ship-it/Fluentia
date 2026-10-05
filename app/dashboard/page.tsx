@@ -1195,6 +1195,7 @@ function DashboardContent() {
                   {studentLevel}
                 </p>
               </div>
+              <Tooltip content="Profile settings">
               <button
                 type="button"
                 onClick={() => {
@@ -1202,11 +1203,11 @@ function DashboardContent() {
                   setProfileTab("profile");
                 }}
                 aria-label="Profile settings"
-                title="Profile settings"
                 className="text-stone-500 transition hover:text-amber-400"
               >
                 <Settings2 className="h-4 w-4" />
               </button>
+              </Tooltip>
               {profileOpen && (
                 <div
                   id="legacy-student-profile-flyout"

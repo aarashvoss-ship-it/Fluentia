@@ -217,17 +217,18 @@ function AudioResponseBlock({ value, onChange, studentId }: { value?: string; on
           <div className="min-w-0 flex-1">
             <CustomAudioPlayer src={value} label="Your recording" />
           </div>
+          <Tooltip content="Clear recording">
           <button
             type="button"
             onClick={() => { setError(null); onChange(""); }}
             disabled={isUploading || isRecording}
             aria-label="Clear recording"
-            title="Clear recording"
             className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[#394252] bg-[#171d28] px-2.5 py-2 text-xs text-stone-400 transition hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-40"
           >
             <Trash2 className="h-3.5 w-3.5" />
             Clear
           </button>
+          </Tooltip>
         </div>
       )}
     </div>

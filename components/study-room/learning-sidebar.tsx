@@ -6,6 +6,7 @@ import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { DataTableResource, getDataTableResourceTitle, isDataTableResourceTitle } from "@/components/shared/data-table-resource";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
+import { Tooltip } from "@/components/shared/tooltip";
 import { supabase } from "@/lib/supabaseClient";
 import { SavedVocabularyWord, StudentNote } from "@/types/lesson";
 
@@ -467,16 +468,17 @@ export function LearningSidebar({
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {!standalone && activeLessonId && (
+              <Tooltip content="Open Learning Hub in a New Tab">
               <button
                 type="button"
                 onClick={openInNewTab}
-                title="Open Learning Hub in a New Tab"
                 aria-label="Open Learning Hub in a New Tab"
                 tabIndex={open ? 0 : -1}
                 className="flex h-9 w-9 items-center justify-center rounded-md border border-[#394252] text-stone-400 transition hover:border-amber-500/40 hover:text-amber-400"
               >
                 <ExternalLink className="h-4 w-4" />
               </button>
+              </Tooltip>
             )}
             <button type="button" onClick={onClose} aria-label={standalone ? "Return to lesson" : "Close Learning Hub"} tabIndex={open ? 0 : -1} className="flex h-9 w-9 items-center justify-center rounded-md border border-[#394252] text-stone-400 transition hover:border-amber-500/40 hover:text-amber-400">
               {standalone ? <ArrowLeft className="h-5 w-5" /> : <X className="h-5 w-5" />}
@@ -489,8 +491,8 @@ export function LearningSidebar({
             const itemCount = tabItemCounts[id];
             const hasContent = itemCount > 0;
             return (
+              <Tooltip key={id} content={hasContent ? `${itemCount} ${itemCount === 1 ? "item" : "items"}` : "No materials assigned for this lesson"}>
               <button
-                key={id}
                 type="button"
                 onClick={() => {
                   tabSelectionMade.current = true;
@@ -498,7 +500,6 @@ export function LearningSidebar({
                 }}
                 aria-pressed={tab === id}
                 aria-label={`${label}${hasContent ? `, ${itemCount} items` : ", no materials assigned for this lesson"}`}
-                title={hasContent ? `${itemCount} ${itemCount === 1 ? "item" : "items"}` : "No materials assigned for this lesson"}
                 className={`flex min-h-16 min-w-0 w-full flex-col items-center justify-center gap-1 rounded-md border px-1.5 py-2 text-[10px] transition-all ${tab === id ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-transparent text-stone-500 hover:border-[#394252] hover:bg-[#171d28] hover:text-stone-300"} ${hasContent ? "" : "opacity-40 hover:opacity-70"}`}
               >
                 <span className="relative inline-flex">
@@ -507,6 +508,7 @@ export function LearningSidebar({
                 </span>
                 <span className="w-full truncate text-center">{label}</span>
               </button>
+              </Tooltip>
             );
           })}
         </div>
