@@ -8,6 +8,8 @@ import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import Color from "@tiptap/extension-color";
+import Highlight from "@tiptap/extension-highlight";
+import Underline from "@tiptap/extension-underline";
 import { TextStyle } from "@tiptap/extension-text-style";
 import { Markdown } from "@tiptap/markdown";
 import { Table } from "@tiptap/extension-table";
@@ -18,6 +20,8 @@ import {
   Bold,
   Code2,
   ChevronDown,
+  Eraser,
+  Highlighter,
   Italic,
   Link2,
   List,
@@ -28,6 +32,7 @@ import {
   PlusCircle,
   Quote,
   Strikethrough,
+  Underline as UnderlineIcon,
 } from "lucide-react";
 import { Tooltip } from "@/components/shared/tooltip";
 import {
@@ -61,6 +66,37 @@ function normalizeLegacyMarkdown(markdown: string) {
 
 function isHtmlContent(value: string) {
   return /<\/?(?:p|h[1-6]|ul|ol|li|blockquote|pre|code|table|thead|tbody|tr|th|td|a|strong|em|s|span|hr|br)\b/i.test(value);
+}
+
+function isDarkPastedColor(value: string) {
+  const probe = document.createElement("span");
+  probe.style.color = value;
+  if (!probe.style.color) return false;
+  document.body.appendChild(probe);
+  const computedColor = window.getComputedStyle(probe).color;
+  probe.remove();
+  const channels = computedColor.match(/[\d.]+/g)?.slice(0, 3).map(Number);
+  if (!channels || channels.length !== 3) return false;
+  const [red, green, blue] = channels.map((channel) => {
+    const normalized = channel / 255;
+    return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue < 0.18;
+}
+
+function stripDarkPastedTextColors(html: string) {
+  const container = document.createElement("div");
+  container.innerHTML = html;
+  container.querySelectorAll<HTMLElement>("[style]").forEach((element) => {
+    const color = element.style.color;
+    if (color && isDarkPastedColor(color)) element.style.removeProperty("color");
+    if (!element.getAttribute("style")?.trim()) element.removeAttribute("style");
+  });
+  container.querySelectorAll<HTMLElement>("font[color]").forEach((element) => {
+    const color = element.getAttribute("color");
+    if (color && isDarkPastedColor(color)) element.removeAttribute("color");
+  });
+  return container.innerHTML;
 }
 
 type TiptapEditorProps = {
@@ -276,10 +312,14 @@ export function TiptapEditor({
   const defaultBoldEditorRef = useRef<Editor | null>(null);
   const valueIsHtml = isHtmlContent(value);
   const normalizedValue = valueIsHtml ? value : normalizeLegacyMarkdown(value);
+  const lastPropValueRef = useRef(normalizedValue);
+  const lastEditorHtmlRef = useRef<string | null>(null);
 
   const extensions = useMemo(() => [
-    StarterKit.configure({ link: false, heading: { levels: [1, 2, 3, 4] } }),
+    StarterKit.configure({ link: false, underline: false, heading: { levels: [1, 2, 3, 4] } }),
     Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true }),
+    Underline,
+    Highlight.configure({ multicolor: true }),
     Table.configure({ resizable: true }),
     TableRow,
     TableHeader,
@@ -299,11 +339,13 @@ export function TiptapEditor({
     editorProps: {
       attributes: {
         "aria-label": ariaLabel,
-        class: "min-h-[100px] outline-none",
+        class: "prose prose-invert max-w-none min-h-[100px] outline-none [&_p]:mb-3 [&_h1]:mb-4 [&_h2]:mb-3 [&_h3]:mb-2 [&_ul]:mb-3 [&_ol]:mb-3",
       },
+      transformPastedHTML: stripDarkPastedTextColors,
     },
     onUpdate: ({ editor: updatedEditor }) => {
       const html = updatedEditor.isEmpty ? "" : updatedEditor.getHTML();
+      lastEditorHtmlRef.current = html;
       onChangeRef.current(html);
       onHtmlChangeRef.current?.(html);
     },
@@ -311,6 +353,16 @@ export function TiptapEditor({
 
   useEffect(() => {
     if (!editor) return;
+    if (lastPropValueRef.current === normalizedValue) {
+      const html = editor.isEmpty ? "" : editor.getHTML();
+      onHtmlChangeRef.current?.(html);
+      return;
+    }
+    lastPropValueRef.current = normalizedValue;
+    if (lastEditorHtmlRef.current === normalizedValue) {
+      lastEditorHtmlRef.current = null;
+      return;
+    }
     if (valueIsHtml) {
       if (editor.getHTML() !== normalizedValue) {
         editor.commands.setContent(normalizedValue, { contentType: "html", emitUpdate: false });
@@ -320,7 +372,7 @@ export function TiptapEditor({
     }
     const html = editor.isEmpty ? "" : editor.getHTML();
     onHtmlChangeRef.current?.(html);
-  }, [editor, normalizedValue, value, valueIsHtml]);
+  }, [editor, normalizedValue, valueIsHtml]);
 
   useEffect(() => {
     if (!defaultBold || !editor || defaultBoldEditorRef.current === editor) return;
@@ -339,6 +391,8 @@ export function TiptapEditor({
       bold: currentEditor?.isActive("bold") ?? false,
       italic: currentEditor?.isActive("italic") ?? false,
       strike: currentEditor?.isActive("strike") ?? false,
+      underline: currentEditor?.isActive("underline") ?? false,
+      highlight: currentEditor?.isActive("highlight") ?? false,
       bulletList: currentEditor?.isActive("bulletList") ?? false,
       orderedList: currentEditor?.isActive("orderedList") ?? false,
       blockquote: currentEditor?.isActive("blockquote") ?? false,
@@ -357,6 +411,8 @@ export function TiptapEditor({
     bold: false,
     italic: false,
     strike: false,
+    underline: false,
+    highlight: false,
     bulletList: false,
     orderedList: false,
     blockquote: false,
@@ -441,6 +497,9 @@ export function TiptapEditor({
           <ToolbarButton compact={compact} label="Bold" active={active.bold} onClick={() => editor?.chain().focus().toggleBold().run()}><Bold className="h-3.5 w-3.5" /></ToolbarButton>
           <ToolbarButton compact={compact} label="Italic" active={active.italic} onClick={() => editor?.chain().focus().toggleItalic().run()}><Italic className="h-3.5 w-3.5" /></ToolbarButton>
           <ToolbarButton compact={compact} label="Strikethrough" active={active.strike} onClick={() => editor?.chain().focus().toggleStrike().run()}><Strikethrough className="h-3.5 w-3.5" /></ToolbarButton>
+          <ToolbarButton compact={compact} label="Underline (Ctrl/Cmd+U)" active={active.underline} onClick={() => editor?.chain().focus().toggleUnderline().run()}><UnderlineIcon className="h-3.5 w-3.5" /></ToolbarButton>
+          <ToolbarButton compact={compact} label="Highlight" active={active.highlight} onClick={() => editor?.chain().focus().toggleHighlight({ color: "#facc15" }).run()}><Highlighter className="h-3.5 w-3.5" /></ToolbarButton>
+          <ToolbarButton compact={compact} label="Clear formatting" onClick={() => editor?.chain().focus().unsetAllMarks().clearNodes().run()}><Eraser className="h-3.5 w-3.5" /></ToolbarButton>
           {!compact && <span className="mx-1 h-4 w-px shrink-0 bg-[#394252]" aria-hidden="true" />}
           <ToolbarButton compact={compact} label="Bullet list" active={active.bulletList} onClick={() => editor?.chain().focus().toggleBulletList().run()}><List className="h-3.5 w-3.5" /></ToolbarButton>
           <ToolbarButton compact={compact} label="Numbered list" active={active.orderedList} onClick={() => editor?.chain().focus().toggleOrderedList().run()}><ListOrdered className="h-3.5 w-3.5" /></ToolbarButton>
@@ -545,7 +604,7 @@ export function TiptapEditor({
         </div>,
         document.body,
       )}
-      <div className="overflow-x-auto rounded border border-[#202631] bg-[#0c1017] px-3 py-2 text-xs text-stone-200 outline-none transition focus-within:border-amber-500/40 [&_.ProseMirror]:min-h-[100px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:leading-relaxed [&_.ProseMirror_h1]:my-3 [&_.ProseMirror_h1]:text-xl [&_.ProseMirror_h1]:font-semibold [&_.ProseMirror_h2]:my-2 [&_.ProseMirror_h2]:text-lg [&_.ProseMirror_h2]:font-semibold [&_.ProseMirror_h3]:my-2 [&_.ProseMirror_h3]:text-base [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h4]:my-2 [&_.ProseMirror_h4]:text-sm [&_.ProseMirror_h4]:font-semibold [&_.ProseMirror_h4]:leading-7 [&_.ProseMirror_blockquote]:my-2 [&_.ProseMirror_blockquote]:border-l-2 [&_.ProseMirror_blockquote]:border-amber-500/40 [&_.ProseMirror_blockquote]:pl-3 [&_.ProseMirror_pre]:my-2 [&_.ProseMirror_pre]:overflow-x-auto [&_.ProseMirror_pre]:rounded [&_.ProseMirror_pre]:bg-[#171d28] [&_.ProseMirror_pre]:p-3 [&_.ProseMirror_code]:rounded [&_.ProseMirror_code]:bg-[#171d28] [&_.ProseMirror_code]:px-1 [&_.ProseMirror_ul]:my-2 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5 [&_.ProseMirror_ol]:my-2 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-5 [&_.ProseMirror_hr]:my-3 [&_.ProseMirror_a]:text-amber-400 [&_.ProseMirror_a]:underline [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_table_th]:border [&_.ProseMirror_table_th]:border-[#394252] [&_.ProseMirror_table_th]:bg-[#171d28] [&_.ProseMirror_table_th]:p-2 [&_.ProseMirror_table_td]:border [&_.ProseMirror_table_td]:border-[#394252] [&_.ProseMirror_table_td]:p-2">
+      <div className="overflow-x-auto rounded border border-[#202631] bg-[#0c1017] px-3 py-2 text-xs text-stone-200 outline-none transition focus-within:border-amber-500/40 [&_.ProseMirror]:min-h-[100px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:leading-relaxed [&_.ProseMirror_p]:mb-3 [&_.ProseMirror_h1]:my-3 [&_.ProseMirror_h1]:mb-4 [&_.ProseMirror_h1]:text-xl [&_.ProseMirror_h1]:font-semibold [&_.ProseMirror_h2]:my-2 [&_.ProseMirror_h2]:mb-3 [&_.ProseMirror_h2]:text-lg [&_.ProseMirror_h2]:font-semibold [&_.ProseMirror_h3]:my-2 [&_.ProseMirror_h3]:mb-2 [&_.ProseMirror_h3]:text-base [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h4]:my-2 [&_.ProseMirror_h4]:text-sm [&_.ProseMirror_h4]:font-semibold [&_.ProseMirror_h4]:leading-7 [&_.ProseMirror_blockquote]:my-2 [&_.ProseMirror_blockquote]:border-l-2 [&_.ProseMirror_blockquote]:border-amber-500/40 [&_.ProseMirror_blockquote]:pl-3 [&_.ProseMirror_pre]:my-2 [&_.ProseMirror_pre]:overflow-x-auto [&_.ProseMirror_pre]:rounded [&_.ProseMirror_pre]:bg-[#171d28] [&_.ProseMirror_pre]:p-3 [&_.ProseMirror_code]:rounded [&_.ProseMirror_code]:bg-[#171d28] [&_.ProseMirror_code]:px-1 [&_.ProseMirror_ul]:my-2 [&_.ProseMirror_ul]:mb-3 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5 [&_.ProseMirror_ol]:my-2 [&_.ProseMirror_ol]:mb-3 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-5 [&_.ProseMirror_hr]:my-3 [&_.ProseMirror_a]:text-amber-400 [&_.ProseMirror_a]:underline [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_table_th]:border [&_.ProseMirror_table_th]:border-[#394252] [&_.ProseMirror_table_th]:bg-[#171d28] [&_.ProseMirror_table_th]:p-2 [&_.ProseMirror_table_td]:border [&_.ProseMirror_table_td]:border-[#394252] [&_.ProseMirror_table_td]:p-2">
         <EditorContent editor={editor} />
       </div>
     </div>

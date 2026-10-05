@@ -50,7 +50,7 @@ function renderLucideIconTokens(value: string) {
 export function MarkdownContent({ value, className = "", plainCode = false, dataTables = false }: { value: string; className?: string; plainCode?: boolean; dataTables?: boolean }) {
   const renderPlainCode = plainCode || className.includes("text-slate-300");
   return (
-    <div className={className} data-reading-content>
+    <div className={`prose prose-invert max-w-none [&_p]:mb-3 [&_h1]:mb-4 [&_h2]:mb-3 [&_h3]:mb-2 [&_ul]:mb-3 [&_ol]:mb-3 ${className}`} data-reading-content>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw]}
