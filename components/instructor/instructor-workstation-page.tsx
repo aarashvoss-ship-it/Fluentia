@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronRight, Grid3X3, Image, List, MoreVertical, Pencil, Plus, Search, Trash2, X, Lightbulb, UploadCloud } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { StudentContextPanel } from "@/components/instructor/student-context-panel";
@@ -895,6 +895,10 @@ export default function InstructorWorkstationPage({
   const [isPublishing, setIsPublishing] = useState(false);
   const [isSplitPreviewOpen, setIsSplitPreviewOpen] = useState(false);
   const [isInlineStudentViewOpen, setIsInlineStudentViewOpen] = useState(false);
+  const addBlockMenuOpenerRef = useRef<() => void>(() => undefined);
+  const registerAddBlockMenuOpener = useCallback((openMenu: () => void) => {
+    addBlockMenuOpenerRef.current = openMenu;
+  }, []);
   const [previewStep, setPreviewStep] = useState<"warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking" | "results">("warm_up");
   const previewChannelRef = useRef<BroadcastChannel | null>(null);
   const [saveIndicator, setSaveIndicator] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -3273,6 +3277,7 @@ export default function InstructorWorkstationPage({
       activeStepOverride={sidebarStep}
       onActiveStepChange={setSidebarStep}
       hideStageNavigation
+      onAddBlockMenuReady={registerAddBlockMenuOpener}
       onChange={(content: StrictStepContent) => setWorkstationState((previous) => ({ ...previous, content }))}
     />
   );
@@ -3281,6 +3286,7 @@ export default function InstructorWorkstationPage({
       content={workstationState.content}
       activeStep={sidebarStep}
       onStepChange={setSidebarStep}
+      onAddContentBlock={() => addBlockMenuOpenerRef.current()}
       onPreview={() => {
         setIsSplitPreviewOpen(false);
         setIsInlineStudentViewOpen((open) => !open);
@@ -3288,6 +3294,14 @@ export default function InstructorWorkstationPage({
       onPopOut={() => {
         window.open("/instructor/preview", "_blank", "noopener,noreferrer");
       }}
+      onSaveChanges={handleSaveDraft}
+      onPublish={handleConfirmPublish}
+      onUnpublish={handleUnpublish}
+      lessonStatus={lessonStatus}
+      isPublishing={isPublishing}
+      saveStatus={databaseLessonId ? saveIndicator === "saving" ? "Saving" : saveIndicator === "saved" ? "Saved" : saveIndicator === "error" ? "Save failed" : "Ready" : undefined}
+      publishStatus={publishStatus || undefined}
+      canUnpublish={Boolean(databaseLessonId)}
       collapsed={isBuilderSidebarCollapsed}
       onToggleCollapsed={() => setIsBuilderSidebarCollapsed((collapsed) => !collapsed)}
       onNavigateToBlock={navigateToBuilderBlock}

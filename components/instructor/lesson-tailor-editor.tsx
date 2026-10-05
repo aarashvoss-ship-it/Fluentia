@@ -13,7 +13,8 @@ import { uploadLessonAsset, uploadLessonMedia } from "@/services/storage-service
 import { DynamicLucideIcon, LucideIconPicker } from "@/components/shared/lucide-icon-picker";
 import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import { parseInteractiveTranscript } from "@/lib/transcripts";
-import { ExternalLink, Eye, FileText, Layers, LoaderCircle, MoveDown, MoveUp, Plus, Trash2, UploadCloud, X, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Mic, Square } from "lucide-react";
+import { ExternalLink, Eye, FileText, Layers, LoaderCircle, MoveDown, MoveUp, Plus, Rocket, Save, Trash2, UploadCloud, X, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Mic, Square } from "lucide-react";
+import { Tooltip } from "@/components/shared/tooltip";
 
 interface LessonTailorEditorProps {
   content: StrictStepContent;
@@ -23,14 +24,24 @@ interface LessonTailorEditorProps {
   sidebarBlocksByStep?: Partial<Record<StudyStepId, { id: string; title: string; body: string }[]>>;
   activeStepOverride?: StudyStepId;
   hideStageNavigation?: boolean;
+  onAddBlockMenuReady?: (openMenu: () => void) => void;
 }
 
 interface LessonBuilderSidebarProps {
   content: StrictStepContent;
   activeStep: StudyStepId;
   onStepChange: (step: Exclude<StudyStepId, "results">) => void;
+  onAddContentBlock?: () => void;
   onPreview?: () => void;
   onPopOut?: () => void;
+  onSaveChanges?: () => void;
+  onPublish?: () => void;
+  onUnpublish?: () => void;
+  lessonStatus: "draft" | "published";
+  isPublishing?: boolean;
+  saveStatus?: string;
+  publishStatus?: string;
+  canUnpublish?: boolean;
   collapsed: boolean;
   onToggleCollapsed: () => void;
   onNavigateToBlock: (step: Exclude<StudyStepId, "results">, blockId: string) => void;
@@ -40,8 +51,17 @@ export function LessonBuilderSidebar({
   content,
   activeStep,
   onStepChange,
+  onAddContentBlock,
   onPreview,
   onPopOut,
+  onSaveChanges,
+  onPublish,
+  onUnpublish,
+  lessonStatus,
+  isPublishing = false,
+  saveStatus,
+  publishStatus,
+  canUnpublish = true,
   collapsed,
   onToggleCollapsed,
   onNavigateToBlock,
@@ -56,8 +76,8 @@ export function LessonBuilderSidebar({
 
   return (
     <aside className={`sticky top-0 hidden h-screen shrink-0 transition-[width] duration-300 ease-in-out md:block ${collapsed ? "w-14" : "w-64"}`}>
-      <div className="h-full overflow-y-auto rounded-xl border border-[#202631] bg-[#171d28]/80">
-        <div className={`flex items-center border-b border-[#202631] p-3 ${collapsed ? "justify-center" : "justify-between"}`}>
+      <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-[#202631] bg-[#171d28]/80">
+        <div className={`flex shrink-0 items-center border-b border-[#202631] p-3 ${collapsed ? "justify-center" : "justify-between"}`}>
           {!collapsed && <p className="truncate text-xs font-semibold uppercase tracking-[0.12em] text-amber-400">Builder Navigation</p>}
           <button
             type="button"
@@ -71,10 +91,19 @@ export function LessonBuilderSidebar({
         </div>
 
         {!collapsed && (
-          <div className="space-y-4 p-3">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
             <section aria-label="Primary actions">
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Quick Actions</p>
               <div className="space-y-2">
+                {onAddContentBlock && (
+                  <button
+                    type="button"
+                    onClick={onAddContentBlock}
+                    className="flex w-full items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-left text-xs font-semibold text-amber-300 transition hover:bg-amber-500/20 hover:text-amber-200"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add Content Block
+                  </button>
+                )}
                 {onPreview && (
                   <button
                     type="button"
@@ -153,15 +182,40 @@ export function LessonBuilderSidebar({
               </div>
             </nav>
 
-            <section className="border-t border-[#202631] pt-3" aria-label="Lesson status">
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Lesson Status</p>
-              <div className="space-y-1 text-[11px]">
-                <p className="flex justify-between gap-2 text-stone-400"><span>Stages with content</span><span className="text-stone-200">{editableSteps.filter((stage) => getBlocks(stage.id).length > 0).length}/6</span></p>
-                <p className="flex justify-between gap-2 text-stone-400"><span>Active blocks</span><span className="text-emerald-300">{activeBlockCount}/{allLessonBlocks.length}</span></p>
-              </div>
-            </section>
           </div>
         )}
+        <footer className="mt-auto shrink-0 border-t border-[#293343] bg-[#121721] p-3">
+          {collapsed ? (
+            <div className="flex flex-col items-center gap-2">
+              <Tooltip content={`Stages with content: ${editableSteps.filter((stage) => getBlocks(stage.id).length > 0).length}/6 · Active blocks: ${activeBlockCount}/${allLessonBlocks.length}`}>
+                <span className="flex h-8 w-8 items-center justify-center rounded border border-[#394252] text-[9px] font-semibold text-stone-300" aria-label={`Active blocks ${activeBlockCount} of ${allLessonBlocks.length}`}>
+                  {activeBlockCount}/{allLessonBlocks.length}
+                </span>
+              </Tooltip>
+              {onSaveChanges && <Tooltip content="Save changes"><button type="button" onClick={onSaveChanges} aria-label="Save changes" className="flex h-8 w-8 items-center justify-center rounded border border-[#394252] text-amber-300 hover:bg-amber-500/10"><Save className="h-3.5 w-3.5" /></button></Tooltip>}
+              {lessonStatus === "published"
+                ? onUnpublish && <Tooltip content="Unpublish lesson"><button type="button" onClick={onUnpublish} disabled={isPublishing || !canUnpublish} aria-label="Unpublish lesson" className="flex h-8 w-8 items-center justify-center rounded border border-[#394252] text-stone-300 hover:bg-white/5 disabled:opacity-50"><Rocket className="h-3.5 w-3.5" /></button></Tooltip>
+                : onPublish && <Tooltip content="Publish lesson"><button type="button" onClick={onPublish} disabled={isPublishing} aria-label="Publish lesson" className="flex h-8 w-8 items-center justify-center rounded border border-amber-500/40 text-amber-300 hover:bg-amber-500/10 disabled:opacity-50"><Rocket className="h-3.5 w-3.5" /></button></Tooltip>}
+            </div>
+          ) : (
+            <section aria-label="Lesson status and actions">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Lesson Status</p>
+              <div className="mb-3 space-y-1 text-[11px]">
+                <p className="flex justify-between gap-2 text-stone-400"><span>Stages with content</span><span className="text-stone-200">{editableSteps.filter((stage) => getBlocks(stage.id).length > 0).length}/6</span></p>
+                <p className="flex justify-between gap-2 text-stone-400"><span>Active blocks</span><span className="text-emerald-300">{activeBlockCount}/{allLessonBlocks.length}</span></p>
+                <p className="flex justify-between gap-2 text-stone-400"><span>Visibility</span><span className={lessonStatus === "published" ? "text-emerald-300" : "text-amber-300"}>{lessonStatus === "published" ? "Published" : "Draft"}</span></p>
+                {saveStatus && <p className="truncate text-stone-500" role="status">{saveStatus}</p>}
+                {publishStatus && <p className="line-clamp-2 text-amber-300" role="status">{publishStatus}</p>}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {onSaveChanges && <button type="button" onClick={onSaveChanges} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-md bg-amber-500/20 px-2 py-2 text-[11px] font-semibold text-amber-300 transition hover:bg-amber-500/30"><Save className="h-3.5 w-3.5 shrink-0" />Save Changes</button>}
+                {lessonStatus === "published"
+                  ? onUnpublish && <button type="button" onClick={onUnpublish} disabled={isPublishing || !canUnpublish} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-md border border-[#394252] px-2 py-2 text-[11px] text-stone-300 transition hover:border-red-400 hover:text-red-300 disabled:opacity-50"><Rocket className="h-3.5 w-3.5 shrink-0" />Unpublish</button>
+                  : onPublish && <button type="button" onClick={onPublish} disabled={isPublishing} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-md border border-[#394252] px-2 py-2 text-[11px] text-stone-300 transition hover:border-amber-500/40 hover:text-amber-300 disabled:opacity-50"><Rocket className="h-3.5 w-3.5 shrink-0" />Publish</button>}
+              </div>
+            </section>
+          )}
+        </footer>
       </div>
     </aside>
   );
@@ -267,9 +321,11 @@ export function LessonTailorEditor({
   sidebarBlocksByStep = {},
   activeStepOverride,
   hideStageNavigation = false,
+  onAddBlockMenuReady,
 }: LessonTailorEditorProps) {
   const [localActiveStep, setLocalActiveStep] = useState<StudyStepId>("warm_up");
   const activeStep = activeStepOverride ?? localActiveStep;
+  const addBlockSelectRef = useRef<HTMLSelectElement | null>(null);
   const [draftContent, setDraftContent] = useState(content);
   const draftContentRef = useRef(content);
   const lastEmittedContentRef = useRef(JSON.stringify(content));
@@ -288,6 +344,17 @@ export function LessonTailorEditor({
   const ctxById = useRef<Map<string, AudioContext>>(new Map());
   const animById = useRef<Map<string, number>>(new Map());
   const startAtById = useRef<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    onAddBlockMenuReady?.(() => {
+      const select = addBlockSelectRef.current;
+      if (!select) return;
+      select.scrollIntoView({ behavior: "smooth", block: "center" });
+      select.focus({ preventScroll: true });
+      if (typeof select.showPicker === "function") select.showPicker();
+      else select.click();
+    });
+  }, [onAddBlockMenuReady]);
   
   // Zustand store integration
   const {
@@ -660,6 +727,7 @@ export function LessonTailorEditor({
             <p className="mt-1 text-xs text-stone-500">Arrange reusable blocks in the exact order students should see them.</p>
           </div>
           <select
+            ref={addBlockSelectRef}
             value=""
             onChange={(event) => {
               handleAddBlock(event.target.value as ContentBlockType);
