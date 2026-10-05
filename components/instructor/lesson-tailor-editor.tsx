@@ -13,7 +13,7 @@ import { uploadLessonAsset, uploadLessonMedia } from "@/services/storage-service
 import { DynamicLucideIcon, LucideIconPicker } from "@/components/shared/lucide-icon-picker";
 import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import { parseInteractiveTranscript } from "@/lib/transcripts";
-import { Eye, FileText, Layers, LoaderCircle, MoveDown, MoveUp, Plus, Trash2, UploadCloud, X, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Mic, Square } from "lucide-react";
+import { ExternalLink, Eye, FileText, Layers, LoaderCircle, MoveDown, MoveUp, Plus, Trash2, UploadCloud, X, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Mic, Square } from "lucide-react";
 
 interface LessonTailorEditorProps {
   content: StrictStepContent;
@@ -30,6 +30,7 @@ interface LessonBuilderSidebarProps {
   activeStep: StudyStepId;
   onStepChange: (step: Exclude<StudyStepId, "results">) => void;
   onPreview?: () => void;
+  onPopOut?: () => void;
   collapsed: boolean;
   onToggleCollapsed: () => void;
   onNavigateToBlock: (step: Exclude<StudyStepId, "results">, blockId: string) => void;
@@ -40,6 +41,7 @@ export function LessonBuilderSidebar({
   activeStep,
   onStepChange,
   onPreview,
+  onPopOut,
   collapsed,
   onToggleCollapsed,
   onNavigateToBlock,
@@ -53,7 +55,7 @@ export function LessonBuilderSidebar({
   const activeBlockCount = allLessonBlocks.filter((block) => block.is_active !== false && block.enabled !== false).length;
 
   return (
-    <aside className={`sticky top-24 hidden h-[calc(100vh-7rem)] shrink-0 transition-[width] duration-300 ease-in-out md:block ${collapsed ? "w-14" : "w-64"}`}>
+    <aside className={`sticky top-0 hidden h-screen shrink-0 transition-[width] duration-300 ease-in-out md:block ${collapsed ? "w-14" : "w-64"}`}>
       <div className="h-full overflow-y-auto rounded-xl border border-[#202631] bg-[#171d28]/80">
         <div className={`flex items-center border-b border-[#202631] p-3 ${collapsed ? "justify-center" : "justify-between"}`}>
           {!collapsed && <p className="truncate text-xs font-semibold uppercase tracking-[0.12em] text-amber-400">Builder Navigation</p>}
@@ -72,15 +74,26 @@ export function LessonBuilderSidebar({
           <div className="space-y-4 p-3">
             <section aria-label="Primary actions">
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Quick Actions</p>
-              {onPreview && (
-                <button
-                  type="button"
-                  onClick={onPreview}
-                  className="flex w-full items-center gap-2 rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-left text-xs text-stone-300 transition hover:border-amber-500/40 hover:text-white"
-                >
-                  <Eye className="h-3.5 w-3.5 text-amber-400" /> Preview Student View
-                </button>
-              )}
+              <div className="space-y-2">
+                {onPreview && (
+                  <button
+                    type="button"
+                    onClick={onPreview}
+                    className="flex w-full items-center gap-2 rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-left text-xs text-stone-300 transition hover:border-amber-500/40 hover:text-white"
+                  >
+                    <Eye className="h-3.5 w-3.5 text-amber-400" /> Student View
+                  </button>
+                )}
+                {onPopOut && (
+                  <button
+                    type="button"
+                    onClick={onPopOut}
+                    className="flex w-full items-center gap-2 rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-left text-xs text-stone-300 transition hover:border-amber-500/40 hover:text-white"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5 text-amber-400" /> Pop-out View
+                  </button>
+                )}
+              </div>
             </section>
 
             <nav aria-label="Lesson stage navigator">
@@ -1003,7 +1016,7 @@ export function LessonTailorEditor({
             onClick={onPreview}
             className="flex items-center gap-1.5 rounded-lg border border-[#202631] bg-[#0c1017] px-3 py-1.5 text-xs text-stone-300 transition hover:text-white"
           >
-            <Eye className="h-3.5 w-3.5" /> Preview Student View
+            <Eye className="h-3.5 w-3.5" /> Student View
           </button>
         )}
       </div>

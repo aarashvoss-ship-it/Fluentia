@@ -894,6 +894,7 @@ export default function InstructorWorkstationPage({
 
   const [isPublishing, setIsPublishing] = useState(false);
   const [isSplitPreviewOpen, setIsSplitPreviewOpen] = useState(false);
+  const [isInlineStudentViewOpen, setIsInlineStudentViewOpen] = useState(false);
   const [previewStep, setPreviewStep] = useState<"warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking" | "results">("warm_up");
   const previewChannelRef = useRef<BroadcastChannel | null>(null);
   const [saveIndicator, setSaveIndicator] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -3280,7 +3281,13 @@ export default function InstructorWorkstationPage({
       content={workstationState.content}
       activeStep={sidebarStep}
       onStepChange={setSidebarStep}
-      onPreview={() => setIsSplitPreviewOpen(true)}
+      onPreview={() => {
+        setIsSplitPreviewOpen(false);
+        setIsInlineStudentViewOpen((open) => !open);
+      }}
+      onPopOut={() => {
+        window.open("/instructor/preview", "_blank", "noopener,noreferrer");
+      }}
       collapsed={isBuilderSidebarCollapsed}
       onToggleCollapsed={() => setIsBuilderSidebarCollapsed((collapsed) => !collapsed)}
       onNavigateToBlock={navigateToBuilderBlock}
@@ -4170,7 +4177,7 @@ export default function InstructorWorkstationPage({
         {activeTab === "music" && <MusicLibraryManager />}
 
         {activeTab === "builder" && <>
-          <section className="mb-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" aria-labelledby="lesson-details-title">
+          {!isInlineStudentViewOpen && <section className="mb-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" aria-labelledby="lesson-details-title">
                 {Object.keys(validationErrors).length > 0 && <div className="mb-4 space-y-1 rounded-md border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300" role="alert">{Object.entries(validationErrors).map(([field, message]) => <p key={field}>{message}</p>)}</div>}
             <div className="mb-4">
 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Lesson Builder</p>
@@ -4222,11 +4229,28 @@ export default function InstructorWorkstationPage({
               </button>
               {isLessonGuidanceExpanded && <div className="border-t border-[#29303c] p-3"><TiptapEditor value={newLesson.instructorGuidance} onChange={(instructorGuidance) => setNewLesson((previous) => ({ ...previous, instructorGuidance }))} placeholder="Guidance shown inside this lesson's Study Room" ariaLabel="Lesson-specific guidance" compact /></div>}
             </div>
-          </section>
-          <div className="flex min-w-0 items-start gap-3">
-            {lessonBuilderSidebar}
-            <div className="min-w-0 flex-1 transition-[width] duration-300 ease-in-out">
-              {isSplitPreviewOpen ? (
+          </section>}
+          {isInlineStudentViewOpen ? (
+            <section className="min-w-0" aria-label="Student lesson preview">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-400">Student View</p>
+                <button
+                  type="button"
+                  onClick={() => setIsInlineStudentViewOpen(false)}
+                  className="inline-flex items-center gap-2 rounded-md border border-[#394252] bg-[#171d28] px-3 py-2 text-xs text-stone-200 transition hover:border-amber-500/40 hover:text-amber-300"
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden="true" /> Return to Lesson Builder
+                </button>
+              </div>
+              <div className="min-w-0 overflow-hidden rounded-xl border border-[#202631]">
+                <StudentStudyRoomPreview {...livePreviewSnapshot} onStepChange={setPreviewStep} />
+              </div>
+            </section>
+          ) : (
+            <div className="flex min-w-0 items-start gap-3">
+              {lessonBuilderSidebar}
+              <div className="min-w-0 flex-1 transition-[width] duration-300 ease-in-out">
+                {isSplitPreviewOpen ? (
                 <main className="grid min-w-0 grid-cols-1 items-stretch gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
                   <div className="h-[calc(100dvh-20rem)] min-h-[480px] min-w-0 space-y-6 overflow-y-auto overscroll-contain pr-1">
                     <div className="min-w-0 space-y-5" style={{ zoom: 0.85 }}>
@@ -4241,19 +4265,20 @@ export default function InstructorWorkstationPage({
                     </div>
                   </div>
                 </main>
-              ) : (
-                <main className="grid min-w-0 grid-cols-1 items-stretch gap-6 lg:grid-cols-12">
-                  <div className="h-full min-w-0 lg:col-span-8">{lessonEditorPanel}</div>
-                  <aside className="h-full min-w-0 space-y-6 lg:col-span-4">
-                    {heroBannerPanel}
-                    {sidebarEditorPanel}
-                  </aside>
-                </main>
-              )}
+                ) : (
+                  <main className="grid min-w-0 grid-cols-1 items-stretch gap-6 lg:grid-cols-12">
+                    <div className="h-full min-w-0 lg:col-span-8">{lessonEditorPanel}</div>
+                    <aside className="h-full min-w-0 space-y-6 lg:col-span-4">
+                      {heroBannerPanel}
+                      {sidebarEditorPanel}
+                    </aside>
+                  </main>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
-          <section className="mt-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" aria-label="Lesson builder resource panel">
+          {!isInlineStudentViewOpen && <section className="mt-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" aria-label="Lesson builder resource panel">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <button
                 type="button"
@@ -4733,7 +4758,7 @@ export default function InstructorWorkstationPage({
             )}
               </div>
             </div>
-          </section>
+          </section>}
         </>}
 
         {activeTab === "evaluation" && <>
