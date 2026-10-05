@@ -809,7 +809,7 @@ export default function InstructorWorkstationPage({
   const [pendingSubmissionCount, setPendingSubmissionCount] = useState(0);
   const [pendingSubmissions, setPendingSubmissions] = useState<PendingReviewSubmission[]>([]);
   const [pendingSubmissionError, setPendingSubmissionError] = useState<string | null>(null);
-  const [isPendingSubmissionsExpanded, setIsPendingSubmissionsExpanded] = useState(false);
+  const [isPendingSubmissionsExpanded, setIsPendingSubmissionsExpanded] = useState(true);
   const [isRecentActivitiesExpanded, setIsRecentActivitiesExpanded] = useState(false);
   const [publishedLessonCount, setPublishedLessonCount] = useState(0);
   const [draftLessonCount, setDraftLessonCount] = useState(0);
@@ -1728,7 +1728,22 @@ export default function InstructorWorkstationPage({
       studentProfile: student.profile,
       evaluation: { scores: { task: 4, coherence: 4, lexical: 3, grammar: 4 }, comments: "", criterionFeedback: {}, published: false },
     }));
+    setIsPendingSubmissionsExpanded(false);
     setActiveTab("evaluation");
+  };
+
+  const clearEvaluationSelection = () => {
+    setSelectedStudentId(null);
+    setReviewSubmissionId(null);
+    setReviewSubmissionLessonId(null);
+    setDatabaseLessonId(null);
+    setNewLesson((previous) => ({ ...previous, studentId: "" }));
+    setWorkstationState((previous) => ({
+      ...previous,
+      submission: undefined,
+      evaluation: { scores: { task: 4, coherence: 4, lexical: 3, grammar: 4 }, comments: "", criterionFeedback: {}, published: false },
+    }));
+    setIsPendingSubmissionsExpanded(true);
   };
 
   const reviewPendingSubmission = (pendingSubmission: PendingReviewSubmission) => {
@@ -4984,23 +4999,39 @@ export default function InstructorWorkstationPage({
 
         {activeTab === "evaluation" && (
           <section className="space-y-6" aria-label="Student submission review workspace">
-            <div className="grid gap-4 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 md:grid-cols-2">
+            <div className="space-y-4 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
+              {reviewSubmissionId && (
+                <button
+                  type="button"
+                  onClick={clearEvaluationSelection}
+                  className="inline-flex items-center gap-2 rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 transition hover:border-amber-500/40 hover:text-amber-300"
+                >
+                  <ChevronRight className="h-3.5 w-3.5 rotate-180" aria-hidden="true" />
+                  Back to Submissions Queue
+                </button>
+              )}
+              <div className="grid gap-4 md:grid-cols-2">
               <label className="block text-xs font-medium text-stone-400">
                 Select Student
                 <select
                   value={selectedStudentId || ""}
                   onChange={(event) => {
                     const student = students.find((candidate) => candidate.id === event.target.value);
-                    setSelectedStudentId(student?.id || null);
-                    setReviewSubmissionId(null);
-                    setReviewSubmissionLessonId(null);
-                    setDatabaseLessonId(null);
-                    setWorkstationState((previous) => ({
-                      ...previous,
-                      submission: undefined,
-                      studentProfile: student?.profile || previous.studentProfile,
-                      evaluation: { scores: { task: 4, coherence: 4, lexical: 3, grammar: 4 }, comments: "", criterionFeedback: {}, published: false },
-                    }));
+                    if (!student) {
+                      clearEvaluationSelection();
+                    } else {
+                      setSelectedStudentId(student.id);
+                      setReviewSubmissionId(null);
+                      setReviewSubmissionLessonId(null);
+                      setDatabaseLessonId(null);
+                      setWorkstationState((previous) => ({
+                        ...previous,
+                        submission: undefined,
+                        studentProfile: student.profile,
+                        evaluation: { scores: { task: 4, coherence: 4, lexical: 3, grammar: 4 }, comments: "", criterionFeedback: {}, published: false },
+                      }));
+                      setIsPendingSubmissionsExpanded(true);
+                    }
                   }}
                   className="mt-2 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2.5 text-sm text-stone-200 [color-scheme:dark]"
                   aria-label="Select student for evaluation"
@@ -5037,6 +5068,7 @@ export default function InstructorWorkstationPage({
                   })}
                 </select>
               </label>
+              </div>
             </div>
 
             {selectedStudent && (
@@ -5055,13 +5087,23 @@ export default function InstructorWorkstationPage({
 
             {!reviewSubmissionId ? (
               <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#202631] pb-4">
+                <button
+                  type="button"
+                  onClick={() => setIsPendingSubmissionsExpanded((expanded) => !expanded)}
+                  aria-expanded={isPendingSubmissionsExpanded}
+                  aria-controls="evaluation-pending-submissions-list"
+                  className="flex w-full flex-wrap items-center justify-between gap-3 border-b border-[#202631] pb-4 text-left"
+                >
                   <div>
                     <h2 className="font-sans text-xl font-semibold text-stone-100">Pending Submissions Queue</h2>
                     <p className="mt-1 text-sm text-stone-400">Select a student submission to open its evaluation workspace.</p>
                   </div>
-                  <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-300">{pendingSubmissions.length} pending</span>
-                </div>
+                  <span className="flex shrink-0 items-center gap-3">
+                    <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-300">{pendingSubmissions.length} pending</span>
+                    <ChevronDown className={`h-4 w-4 text-stone-400 transition-transform ${isPendingSubmissionsExpanded ? "rotate-180" : ""}`} aria-hidden="true" />
+                  </span>
+                </button>
+                {isPendingSubmissionsExpanded && <div id="evaluation-pending-submissions-list" className="max-h-[420px] overflow-y-auto overscroll-contain">
                 {pendingSubmissionError && <p role="alert" className="mt-4 text-sm text-red-300">{pendingSubmissionError}</p>}
                 {pendingSubmissions.length > 0 ? (
                   <ul className="divide-y divide-[#29303c]">
@@ -5081,6 +5123,7 @@ export default function InstructorWorkstationPage({
                     })}
                   </ul>
                 ) : !pendingSubmissionError ? <p className="mt-4 text-sm text-stone-500">There are no pending submissions to review.</p> : null}
+                </div>}
               </div>
             ) : selectedReviewSubmission && selectedStudent && (
               <div className="space-y-6">
