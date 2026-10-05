@@ -809,7 +809,7 @@ export default function InstructorWorkstationPage({
   const [pendingSubmissionCount, setPendingSubmissionCount] = useState(0);
   const [pendingSubmissions, setPendingSubmissions] = useState<PendingReviewSubmission[]>([]);
   const [pendingSubmissionError, setPendingSubmissionError] = useState<string | null>(null);
-  const [isPendingSubmissionsExpanded, setIsPendingSubmissionsExpanded] = useState(true);
+  const [isPendingSubmissionsExpanded, setIsPendingSubmissionsExpanded] = useState(false);
   const [isRecentActivitiesExpanded, setIsRecentActivitiesExpanded] = useState(false);
   const [publishedLessonCount, setPublishedLessonCount] = useState(0);
   const [draftLessonCount, setDraftLessonCount] = useState(0);
