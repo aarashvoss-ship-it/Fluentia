@@ -809,6 +809,7 @@ export default function InstructorWorkstationPage({
   const [pendingSubmissions, setPendingSubmissions] = useState<PendingReviewSubmission[]>([]);
   const [pendingSubmissionError, setPendingSubmissionError] = useState<string | null>(null);
   const [isPendingSubmissionsExpanded, setIsPendingSubmissionsExpanded] = useState(false);
+  const [isRecentActivitiesExpanded, setIsRecentActivitiesExpanded] = useState(false);
   const [publishedLessonCount, setPublishedLessonCount] = useState(0);
   const [draftLessonCount, setDraftLessonCount] = useState(0);
   const [lessonStatus, setLessonStatus] = useState<"draft" | "published">("published");
@@ -3532,8 +3533,8 @@ export default function InstructorWorkstationPage({
               </div>
             </details>
           </div>
-          <div className="grid gap-6 lg:grid-cols-2">
-<div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
+          <div className="grid items-start gap-6 lg:grid-cols-2">
+<div className="h-fit rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
           <button
             type="button"
             onClick={() => setIsPendingSubmissionsExpanded((expanded) => !expanded)}
@@ -3569,9 +3570,24 @@ export default function InstructorWorkstationPage({
 </ul>}
 </div>}
 </div>
-<div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
-<h2 className="font-sans text-xl font-semibold text-stone-100">Recent Activities</h2>
-<p className="mt-2 text-sm text-stone-400">Quick access to your recent workspace actions and student reviews.</p>
+<div className="h-fit rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
+<button
+  type="button"
+  onClick={() => setIsRecentActivitiesExpanded((expanded) => !expanded)}
+  aria-expanded={isRecentActivitiesExpanded}
+  aria-controls="recent-activities-list"
+  className="flex w-full items-center justify-between gap-4 text-left"
+>
+  <span className="min-w-0">
+    <h2 className="font-sans text-xl font-semibold text-stone-100">Recent Activities</h2>
+    <span className="mt-2 block text-sm text-stone-400">Quick access to your recent workspace actions and student reviews.</span>
+  </span>
+  <span className="flex shrink-0 items-center gap-3">
+    <span className="rounded-full border border-[#394252] bg-[#0c1017] px-2.5 py-1 text-xs font-medium text-stone-300">{recentActivities.length} {recentActivities.length === 1 ? "activity" : "activities"}</span>
+    <ChevronDown className={`h-4 w-4 text-stone-400 transition-transform ${isRecentActivitiesExpanded ? "rotate-180" : ""}`} aria-hidden="true" />
+  </span>
+</button>
+{isRecentActivitiesExpanded && <div id="recent-activities-list">
 {recentActivities.length > 0 ? (
   <ul className="mt-4 divide-y divide-[#29303c]">
     {recentActivities.map((activity) => (
@@ -3586,6 +3602,7 @@ export default function InstructorWorkstationPage({
     ))}
   </ul>
 ) : <p className="mt-4 text-sm text-stone-500">No recent activity yet.</p>}
+</div>}
 </div>
 </div>
           {false && <section className="overflow-visible rounded-xl border border-[#202631] bg-[#171d28]/60" aria-labelledby="lesson-management-title">
