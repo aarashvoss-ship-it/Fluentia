@@ -501,9 +501,32 @@ type PendingReviewSubmission = {
   submission: StudentSubmission;
 };
 
+type DashboardActivity = {
+  id: string;
+  type: "Evaluation" | "Active Workspace" | "Lesson Edit" | "Lesson Created";
+  description: string;
+  timestamp: number;
+  actionLabel: string;
+  onAction: () => void;
+};
+
 type InstructorReviewStageId = "warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking";
 
 type InstructorReviewStage = UnifiedReportStage & { id: InstructorReviewStageId };
+
+function formatRelativeActivityTime(timestamp: number) {
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return "Time unavailable";
+  const elapsed = Math.max(0, Date.now() - timestamp);
+  const minutes = Math.floor(elapsed / 60_000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes} ${minutes === 1 ? "minute" : "minutes"} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  if (hours < 48) return "Yesterday";
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} ${days === 1 ? "day" : "days"} ago`;
+  return new Date(timestamp).toLocaleDateString();
+}
 
 function stripReviewMarkdown(value: string) {
   return value
@@ -3298,6 +3321,48 @@ export default function InstructorWorkstationPage({
       currentDraftStudyHubResource,
     ]
     : studyHubPreviewResources;
+  const recentActivities: DashboardActivity[] = [
+    ...pendingSubmissions.map((pendingSubmission) => {
+      const studentName = students.find((student) =>
+        student.id === pendingSubmission.studentId || student.token === pendingSubmission.studentId,
+      )?.name || "Student";
+      const lessonTitle = createdLessons.find((lesson) => lesson.id === pendingSubmission.lessonId)?.title || "Lesson";
+      return {
+        id: `submission-${pendingSubmission.id}`,
+        type: "Evaluation" as const,
+        description: `Review ${lessonTitle} for ${studentName}`,
+        timestamp: pendingSubmission.submittedAt ? new Date(pendingSubmission.submittedAt).getTime() : 0,
+        actionLabel: "Review",
+        onAction: () => reviewPendingSubmission(pendingSubmission),
+      };
+    }),
+    ...createdLessons.flatMap((lesson) => {
+      const updatedAt = new Date(lesson.updated_at).getTime();
+      const createdAt = new Date(lesson.created_at).getTime();
+      const timestamp = Number.isFinite(updatedAt) && updatedAt > createdAt ? updatedAt : createdAt;
+      if (!Number.isFinite(timestamp) || timestamp <= 0) return [];
+      const wasEdited = Number.isFinite(updatedAt) && updatedAt > createdAt;
+      return [{
+        id: `lesson-${lesson.id}`,
+        type: wasEdited ? "Lesson Edit" as const : "Lesson Created" as const,
+        description: `${lesson.title} ${wasEdited ? "lesson updated" : "lesson created"}`,
+        timestamp,
+        actionLabel: "Edit",
+        onAction: () => handleEditLesson(lesson),
+      }];
+    }),
+    ...(selectedStudent ? [{
+      id: `workspace-${selectedStudent.id}`,
+      type: "Active Workspace" as const,
+      description: `${selectedStudent.name} workspace open`,
+      timestamp: Date.now(),
+      actionLabel: "Resume",
+      onAction: () => {
+        void handleStudentChange(selectedStudent);
+        setActiveTab("students");
+      },
+    }] : []),
+  ].sort((first, second) => second.timestamp - first.timestamp).slice(0, 5);
 
   useEffect(() => {
     const blockId = pendingBuilderBlockRef.current;
@@ -3505,9 +3570,22 @@ export default function InstructorWorkstationPage({
 </div>}
 </div>
 <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
-<h2 className="font-sans text-xl font-semibold text-stone-100">Recent Activity</h2>
-<p className="mt-3 text-sm text-stone-400">{selectedStudent ? `${selectedStudent.name} is the active student workspace.` : "Choose a student to open a workspace."}</p>
-<button type="button" onClick={() => setActiveTab("evaluation")} className="mt-4 text-xs  text-amber-400 hover:text-amber-400">Review student work</button>
+<h2 className="font-sans text-xl font-semibold text-stone-100">Recent Activities</h2>
+<p className="mt-2 text-sm text-stone-400">Quick access to your recent workspace actions and student reviews.</p>
+{recentActivities.length > 0 ? (
+  <ul className="mt-4 divide-y divide-[#29303c]">
+    {recentActivities.map((activity) => (
+      <li key={activity.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+        <div className="min-w-0">
+          <span className="inline-flex rounded-full border border-[#394252] bg-[#0c1017] px-2 py-0.5 text-[10px] font-medium text-amber-300">{activity.type}</span>
+          <p className="mt-1 truncate text-sm text-stone-200">{activity.description}</p>
+          <p className="mt-1 text-[10px] text-stone-500">{formatRelativeActivityTime(activity.timestamp)}</p>
+        </div>
+        <button type="button" onClick={activity.onAction} className="shrink-0 rounded-md border border-amber-500/40 px-3 py-2 text-xs text-amber-400 transition hover:bg-amber-500/20">{activity.actionLabel}</button>
+      </li>
+    ))}
+  </ul>
+) : <p className="mt-4 text-sm text-stone-500">No recent activity yet.</p>}
 </div>
 </div>
           {false && <section className="overflow-visible rounded-xl border border-[#202631] bg-[#171d28]/60" aria-labelledby="lesson-management-title">
