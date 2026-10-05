@@ -785,6 +785,7 @@ export default function InstructorWorkstationPage({
   const [pendingSubmissionCount, setPendingSubmissionCount] = useState(0);
   const [pendingSubmissions, setPendingSubmissions] = useState<PendingReviewSubmission[]>([]);
   const [pendingSubmissionError, setPendingSubmissionError] = useState<string | null>(null);
+  const [isPendingSubmissionsExpanded, setIsPendingSubmissionsExpanded] = useState(false);
   const [publishedLessonCount, setPublishedLessonCount] = useState(0);
   const [draftLessonCount, setDraftLessonCount] = useState(0);
   const [lessonStatus, setLessonStatus] = useState<"draft" | "published">("published");
@@ -3468,13 +3469,29 @@ export default function InstructorWorkstationPage({
           </div>
           <div className="grid gap-6 lg:grid-cols-2">
 <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
-<h2 className="font-sans text-xl font-semibold text-stone-100">Pending Submissions</h2>
-<p className="mt-3 text-sm text-stone-400">{pendingSubmissionCount > 0 ? "Submissions are awaiting review." : "No submissions are currently awaiting feedback."}</p>
-{pendingSubmissionError && <p role="alert" className="mt-3 text-xs text-red-300">{pendingSubmissionError}</p>}
-{pendingSubmissions.length > 0 && <ul className="mt-4 divide-y divide-[#29303c]">
-  {pendingSubmissions.map((pendingSubmission) => {
-    const studentName = students.find((student) => student.id === pendingSubmission.studentId || student.token === pendingSubmission.studentId)?.name || "Student";
-    const lessonTitle = createdLessons.find((lesson) => lesson.id === pendingSubmission.lessonId)?.title || "Lesson submission";
+          <button
+            type="button"
+            onClick={() => setIsPendingSubmissionsExpanded((expanded) => !expanded)}
+            aria-expanded={isPendingSubmissionsExpanded}
+            aria-controls="pending-submissions-list"
+            className="flex w-full items-center justify-between gap-4 text-left"
+          >
+            <span className="min-w-0">
+              <h2 className="font-sans text-xl font-semibold text-stone-100">Pending Submissions</h2>
+              <span className="mt-1 block text-sm text-stone-400">Submissions are awaiting review.</span>
+            </span>
+            <span className="flex shrink-0 items-center gap-3">
+              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-300">{pendingSubmissionCount} pending</span>
+              <ChevronDown className={`h-4 w-4 text-stone-400 transition-transform ${isPendingSubmissionsExpanded ? "rotate-180" : ""}`} aria-hidden="true" />
+            </span>
+          </button>
+          {pendingSubmissionError && <p role="alert" className="mt-3 text-xs text-red-300">{pendingSubmissionError}</p>}
+          {isPendingSubmissionsExpanded && <div id="pending-submissions-list">
+          {pendingSubmissionCount === 0 && !pendingSubmissionError && <p className="mt-4 text-sm text-stone-500">No submissions are currently awaiting feedback.</p>}
+          {pendingSubmissions.length > 0 && <ul className="mt-4 divide-y divide-[#29303c]">
+            {pendingSubmissions.map((pendingSubmission) => {
+              const studentName = students.find((student) => student.id === pendingSubmission.studentId || student.token === pendingSubmission.studentId)?.name || "Student";
+              const lessonTitle = createdLessons.find((lesson) => lesson.id === pendingSubmission.lessonId)?.title || "Lesson submission";
     return <li key={pendingSubmission.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
       <div className="min-w-0">
         <p className="truncate text-sm font-medium text-stone-200">{studentName}</p>
@@ -3485,6 +3502,7 @@ export default function InstructorWorkstationPage({
     </li>;
   })}
 </ul>}
+</div>}
 </div>
 <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
 <h2 className="font-sans text-xl font-semibold text-stone-100">Recent Activity</h2>
