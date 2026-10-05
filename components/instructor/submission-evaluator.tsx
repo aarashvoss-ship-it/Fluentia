@@ -514,6 +514,11 @@ export function SubmissionEvaluator({
                 : isObjectiveAnswer
                   ? "text-rose-100"
                   : "text-stone-200";
+              const modelBoxClass = isObjectiveAnswer
+                ? "border-emerald-500/30 bg-emerald-500/5"
+                : "border-blue-500/20 bg-blue-500/5";
+              const modelLabelClass = isObjectiveAnswer ? "text-emerald-300" : "text-blue-300";
+              const modelTextClass = isObjectiveAnswer ? "text-emerald-100" : "text-blue-100";
               return <article key={task.id} className="space-y-3 rounded-xl border border-[#293343] bg-[#111620] p-4">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Student task {index + 1}</p>
@@ -524,9 +529,9 @@ export function SubmissionEvaluator({
                   <p className={`mt-2 whitespace-pre-wrap break-words rounded-sm px-2 py-3 text-sm leading-relaxed ${isCorrect ? "bg-emerald-300/10" : isObjectiveAnswer ? "bg-rose-300/10" : "bg-[#171d28]"} ${responseTextClass}`}>{stripMarkdown(task.studentAnswer) || <span className="italic text-stone-500">No response submitted.</span>}</p>
                   {task.audioUrls?.map((url, audioIndex) => <div key={`${url}-${audioIndex}`} className="mt-2"><CustomAudioPlayer src={url} label={`${task.title} student recording`} /></div>)}
                 </div>
-                {task.modelAnswer && <div className="rounded-md border border-blue-500/20 bg-blue-500/5 p-4">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-blue-300">Model answer</p>
-                  <p className="mt-2 whitespace-pre-wrap py-2 text-sm leading-relaxed text-blue-100">{stripMarkdown(task.modelAnswer)}</p>
+                {task.modelAnswer && <div className={`rounded-md border p-4 ${modelBoxClass}`}>
+                  <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${modelLabelClass}`}>Model answer</p>
+                  <p className={`mt-2 whitespace-pre-wrap py-2 text-sm leading-relaxed ${modelTextClass}`}>{stripMarkdown(task.modelAnswer)}</p>
                 </div>}
                 {isTextResponse && <label className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">Inline correction
                   <textarea value={inlineCorrections[task.id] || ""} onChange={(event) => updateEvaluation({ inlineCorrections: { ...inlineCorrections, [task.id]: event.target.value } })} rows={3} placeholder="Provide a corrected version or mark specific edits..." className="mt-1 w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] p-3 text-xs normal-case leading-relaxed text-stone-200 outline-none focus:border-amber-500/40" />

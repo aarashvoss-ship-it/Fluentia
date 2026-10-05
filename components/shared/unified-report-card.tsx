@@ -170,6 +170,11 @@ export function UnifiedReportCard({
                 : isIncorrect
                   ? "text-rose-100"
                   : "text-stone-200";
+              const modelCardClass = hasObjectiveAnswer
+                ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-100"
+                : "border-blue-500/30 bg-slate-900/90 text-blue-100";
+              const modelLabelClass = hasObjectiveAnswer ? "text-emerald-300" : "text-blue-300";
+              const modelTextClass = hasObjectiveAnswer ? "text-emerald-100" : "text-blue-100";
               return <article key={task.id} className="w-full min-w-0 rounded-lg border border-[#293343] bg-[#0c1017] p-4">
               <div className="rounded-md border border-zinc-800 bg-zinc-900/90 p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Task Prompt</p>
@@ -180,9 +185,9 @@ export function UnifiedReportCard({
                 <p className={`mt-2 whitespace-pre-wrap break-words rounded-sm px-2 py-3 text-sm leading-relaxed ${isCorrect ? "bg-emerald-300/10" : isIncorrect ? "bg-rose-300/10" : "bg-[#171d28]"} ${responseTextClass}`}>{stripMarkdown(task.studentAnswer) || <span className={`italic ${responseLabelClass}`}>No response submitted.</span>}</p>
                 {task.audioUrls?.map((url, mediaIndex) => <div key={`${url}-${mediaIndex}`} className="mt-2 min-w-0 max-w-full overflow-hidden"><CustomAudioPlayer src={url} label={`${stripMarkdown(task.title)} recording`} /></div>)}
               </div>
-              {task.modelAnswer && <div className="mt-3 rounded-md border border-blue-500/30 bg-slate-900/90 p-4 text-blue-100">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-blue-300">Correct / Model Answer</p>
-                <p className="mt-2 whitespace-pre-wrap break-words py-2 text-sm leading-relaxed text-blue-100">{stripMarkdown(task.modelAnswer)}</p>
+              {task.modelAnswer && <div className={`mt-3 rounded-md border p-4 ${modelCardClass}`}>
+                <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${modelLabelClass}`}>Correct / Model Answer</p>
+                <p className={`mt-2 whitespace-pre-wrap break-words py-2 text-sm leading-relaxed ${modelTextClass}`}>{stripMarkdown(task.modelAnswer)}</p>
               </div>}
               {task.explanation && <div className="mt-3 border-t border-[#293343] pt-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Explanation</p>
