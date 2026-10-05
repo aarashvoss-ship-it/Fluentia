@@ -53,19 +53,25 @@ const MarkdownTextStyle = TextStyle.extend({
   },
 });
 
-const ParagraphFontSize = Extension.create({
-  name: "paragraphFontSize",
+const ParagraphVariant = Extension.create({
+  name: "paragraphVariant",
 
   addGlobalAttributes() {
     return [{
       types: ["paragraph"],
       attributes: {
-        fontSize: {
+        textVariant: {
           default: null,
-          parseHTML: (element) => element.style.fontSize || null,
-          renderHTML: (attributes) => attributes.fontSize
-            ? { style: `font-size: ${attributes.fontSize}` }
-            : {},
+          parseHTML: (element) => element.classList.contains("lead")
+            ? "lead"
+            : element.classList.contains("sub")
+              ? "sub"
+              : null,
+          renderHTML: (attributes) => attributes.textVariant === "lead"
+            ? { class: "lead" }
+            : attributes.textVariant === "sub"
+              ? { class: "sub" }
+              : {},
         },
       },
     }];
@@ -343,7 +349,7 @@ export function TiptapEditor({
     TableHeader,
     TableCell,
     Placeholder.configure({ placeholder }),
-    ParagraphFontSize,
+    ParagraphVariant,
     MarkdownTextStyle,
     Color.configure({ types: ["textStyle"] }),
     InlineLucideIcon,
@@ -403,7 +409,7 @@ export function TiptapEditor({
     editor,
     selector: ({ editor: currentEditor }) => ({
       paragraph: currentEditor?.isActive("paragraph") ?? false,
-      paragraphFontSize: currentEditor?.getAttributes("paragraph").fontSize as string | null,
+      paragraphVariant: currentEditor?.getAttributes("paragraph").textVariant as string | null,
       heading1: currentEditor?.isActive("heading", { level: 1 }) ?? false,
       heading2: currentEditor?.isActive("heading", { level: 2 }) ?? false,
       heading3: currentEditor?.isActive("heading", { level: 3 }) ?? false,
@@ -424,7 +430,7 @@ export function TiptapEditor({
   });
   const active = activeStates ?? {
     paragraph: false,
-    paragraphFontSize: null,
+    paragraphVariant: null,
     heading1: false,
     heading2: false,
     heading3: false,
@@ -526,12 +532,12 @@ export function TiptapEditor({
     <div className="tiptap-editor w-full min-w-0 space-y-2">
       <div className="w-full min-w-0">
         <div className={`box-border flex w-full min-w-0 items-center justify-start rounded border border-[#202631] bg-[#0c1017] p-1 ${wrapToolbar ? "flex-wrap" : ""} ${compact ? "gap-0.5" : "gap-1.5"}`} role="toolbar" aria-label="Rich text formatting">
-          <ToolbarButton compact={compact} label="Normal (16px)" active={active.paragraph && !active.paragraphFontSize} onClick={() => editor?.chain().focus().setParagraph().updateAttributes("paragraph", { fontSize: null }).run()}>P</ToolbarButton>
-          <ToolbarButton compact={compact} label="Lead (18px)" active={active.paragraph && active.paragraphFontSize === "18px"} onClick={() => editor?.chain().focus().setParagraph().updateAttributes("paragraph", { fontSize: "18px" }).run()}>P1</ToolbarButton>
-          <ToolbarButton compact={compact} label="Sub-heading (20px)" active={active.paragraph && active.paragraphFontSize === "20px"} onClick={() => editor?.chain().focus().setParagraph().updateAttributes("paragraph", { fontSize: "20px" }).run()}>P2</ToolbarButton>
-          <ToolbarButton compact={compact} label="Heading 4 (24px)" active={active.heading4} onClick={() => editor?.chain().focus().setHeading({ level: 4 }).run()}>H4</ToolbarButton>
-          <ToolbarButton compact={compact} label="Heading 3 (28px)" active={active.heading3} onClick={() => editor?.chain().focus().setHeading({ level: 3 }).run()}>H3</ToolbarButton>
-          <ToolbarButton compact={compact} label="Heading 2 (32px)" active={active.heading2} onClick={() => editor?.chain().focus().setHeading({ level: 2 }).run()}>H2</ToolbarButton>
+          <ToolbarButton compact={compact} label="Normal paragraph" active={active.paragraph && !active.paragraphVariant} onClick={() => editor?.chain().focus().setParagraph().updateAttributes("paragraph", { textVariant: null }).run()}>P</ToolbarButton>
+          <ToolbarButton compact={compact} label="Lead paragraph (18px)" active={active.paragraph && active.paragraphVariant === "lead"} onClick={() => editor?.chain().focus().setParagraph().updateAttributes("paragraph", { textVariant: "lead" }).run()}>P1</ToolbarButton>
+          <ToolbarButton compact={compact} label="Sub-heading paragraph (16.8px)" active={active.paragraph && active.paragraphVariant === "sub"} onClick={() => editor?.chain().focus().setParagraph().updateAttributes("paragraph", { textVariant: "sub" }).run()}>P2</ToolbarButton>
+          <ToolbarButton compact={compact} label="Heading 4 (18.4px)" active={active.heading4} onClick={() => editor?.chain().focus().setHeading({ level: 4 }).run()}>H4</ToolbarButton>
+          <ToolbarButton compact={compact} label="Heading 3 (21.6px)" active={active.heading3} onClick={() => editor?.chain().focus().setHeading({ level: 3 }).run()}>H3</ToolbarButton>
+          <ToolbarButton compact={compact} label="Heading 2 (28px)" active={active.heading2} onClick={() => editor?.chain().focus().setHeading({ level: 2 }).run()}>H2</ToolbarButton>
           <ToolbarButton compact={compact} label="Heading 1 (36px)" active={active.heading1} onClick={() => editor?.chain().focus().setHeading({ level: 1 }).run()}>H1</ToolbarButton>
           {!compact && <span className="mx-1 h-4 w-px shrink-0 bg-[#394252]" aria-hidden="true" />}
           <ToolbarButton compact={compact} label="Bold" active={active.bold} onClick={() => editor?.chain().focus().toggleBold().run()}><Bold className="h-3.5 w-3.5" /></ToolbarButton>
@@ -665,7 +671,7 @@ export function TiptapEditor({
         </div>,
         document.body,
       )}
-      <div className="overflow-x-auto rounded border border-[#202631] bg-[#0c1017] px-3 py-2 text-xs text-stone-200 outline-none transition focus-within:border-amber-500/40 [&_.ProseMirror]:min-h-[100px] [&_.ProseMirror]:outline-none [&_.ProseMirror_p]:mb-[0.85em] [&_.ProseMirror_p]:text-base [&_.ProseMirror_p]:leading-[1.7] [&_.ProseMirror_h1]:mt-[1em] [&_.ProseMirror_h1]:mb-[0.5em] [&_.ProseMirror_h1]:text-[36px] [&_.ProseMirror_h1]:leading-[1.4] [&_.ProseMirror_h1]:font-semibold [&_.ProseMirror_h2]:mt-[1em] [&_.ProseMirror_h2]:mb-[0.5em] [&_.ProseMirror_h2]:text-[32px] [&_.ProseMirror_h2]:leading-[1.4] [&_.ProseMirror_h2]:font-semibold [&_.ProseMirror_h3]:mt-[1em] [&_.ProseMirror_h3]:mb-[0.5em] [&_.ProseMirror_h3]:text-[28px] [&_.ProseMirror_h3]:leading-[1.4] [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h4]:mt-[1em] [&_.ProseMirror_h4]:mb-[0.5em] [&_.ProseMirror_h4]:text-[24px] [&_.ProseMirror_h4]:leading-[1.4] [&_.ProseMirror_h4]:font-semibold [&_.ProseMirror_blockquote]:my-2 [&_.ProseMirror_blockquote]:border-l-2 [&_.ProseMirror_blockquote]:border-amber-500/40 [&_.ProseMirror_blockquote]:pl-3 [&_.ProseMirror_pre]:my-2 [&_.ProseMirror_pre]:overflow-x-auto [&_.ProseMirror_pre]:rounded [&_.ProseMirror_pre]:bg-[#171d28] [&_.ProseMirror_pre]:p-3 [&_.ProseMirror_code]:rounded [&_.ProseMirror_code]:bg-[#171d28] [&_.ProseMirror_code]:px-1 [&_.ProseMirror_ul]:my-2 [&_.ProseMirror_ul]:mb-3 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5 [&_.ProseMirror_ol]:my-2 [&_.ProseMirror_ol]:mb-3 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-5 [&_.ProseMirror_hr]:my-3 [&_.ProseMirror_a]:text-amber-400 [&_.ProseMirror_a]:underline [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_table_th]:border [&_.ProseMirror_table_th]:border-[#394252] [&_.ProseMirror_table_th]:bg-[#171d28] [&_.ProseMirror_table_th]:p-2 [&_.ProseMirror_table_td]:border [&_.ProseMirror_table_td]:border-[#394252] [&_.ProseMirror_table_td]:p-2 [&_.ProseMirror_mark]:text-inherit">
+      <div className="overflow-x-auto rounded border border-[#202631] bg-[#0c1017] px-3 py-2 text-xs text-stone-200 outline-none transition focus-within:border-amber-500/40 [&_.ProseMirror]:min-h-[100px] [&_.ProseMirror]:outline-none [&_.ProseMirror_blockquote]:my-2 [&_.ProseMirror_blockquote]:border-l-2 [&_.ProseMirror_blockquote]:border-amber-500/40 [&_.ProseMirror_blockquote]:pl-3 [&_.ProseMirror_pre]:my-2 [&_.ProseMirror_pre]:overflow-x-auto [&_.ProseMirror_pre]:rounded [&_.ProseMirror_pre]:bg-[#171d28] [&_.ProseMirror_pre]:p-3 [&_.ProseMirror_code]:rounded [&_.ProseMirror_code]:bg-[#171d28] [&_.ProseMirror_code]:px-1 [&_.ProseMirror_ul]:my-2 [&_.ProseMirror_ul]:mb-3 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5 [&_.ProseMirror_ol]:my-2 [&_.ProseMirror_ol]:mb-3 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-5 [&_.ProseMirror_hr]:my-3 [&_.ProseMirror_a]:text-amber-400 [&_.ProseMirror_a]:underline [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_table_th]:border [&_.ProseMirror_table_th]:border-[#394252] [&_.ProseMirror_table_th]:bg-[#171d28] [&_.ProseMirror_table_th]:p-2 [&_.ProseMirror_table_td]:border [&_.ProseMirror_table_td]:border-[#394252] [&_.ProseMirror_table_td]:p-2 [&_.ProseMirror_mark]:text-inherit">
         <EditorContent editor={editor} />
       </div>
     </div>
