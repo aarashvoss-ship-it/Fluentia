@@ -12,9 +12,9 @@ import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player";
 import { StudyRoomBlockRow } from "@/components/study-room/study-room-block-row";
 import { Stepper } from "@/components/study-room/stepper";
+import { HeroBanner } from "@/components/shared/hero-banner";
 import { SidebarBlockCard } from "@/components/shared/sidebar-block-card";
 import type { BannerPosition } from "@/components/instructor/banner-manager";
-import { getBannerPositionStyles } from "@/lib/banner-position";
 import { LearningSidebar } from "@/components/study-room/learning-sidebar";
 import type { StudyHubResource } from "@/components/shared/study-hub-resource-card";
 import type { StudentNote } from "@/types/lesson";
@@ -169,22 +169,26 @@ export function StudentStudyRoomPreview({
   return (
     <div className={`fluentia-study-room bg-[#0c1017] text-[#e8e7e4] ${embedded ? "h-full min-h-full" : "min-h-screen"}`}>
       <div className="mx-auto max-w-7xl px-4 py-5 md:px-6">
-        <header className="overflow-hidden rounded-2xl border border-[#202631] bg-[#121721]">
-          <div className="relative flex h-[280px] w-full items-center overflow-hidden bg-slate-950 md:h-[320px]">
-            {bannerUrl ? <img src={bannerUrl} alt="" style={getBannerPositionStyles(bannerPosition)} className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-0 bg-slate-950" aria-hidden="true" />}
-            <div style={{ opacity: bannerDimness / 100 }} className="absolute inset-0 bg-[linear-gradient(90deg,rgba(12,16,23,.72),rgba(12,16,23,.24)),linear-gradient(0deg,rgba(12,16,23,.92),transparent_65%)]" aria-hidden="true" />
-            <div className="relative z-10 space-y-2.5 p-5">
-              <p className="w-fit rounded-md border border-amber-500/40 bg-amber-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 md:text-sm">English - Module {moduleNumber || 1}</p>
-              <h1 className="text-3xl font-bold tracking-tight text-stone-100 md:text-4xl lg:text-[36px]">{title || "Untitled Lesson"}</h1>
-              {subtitle && <p className="text-sm text-stone-300 opacity-90 md:text-base">{subtitle}</p>}
-            </div>
+        <HeroBanner imageUrl={bannerUrl} position={bannerPosition} dimness={bannerDimness}>
+          <div className="space-y-2.5">
+            <p className="w-fit rounded-md border border-amber-500/40 bg-amber-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 md:text-sm">English - Module {moduleNumber || 1}</p>
+            <h1 className="text-3xl font-bold tracking-tight text-stone-100 md:text-4xl lg:text-[36px]">{title || "Untitled Lesson"}</h1>
+            {subtitle && <p className="text-sm text-stone-300 opacity-90 md:text-base">{subtitle}</p>}
           </div>
-          {content.ambientMusicUrl && <div className="border-t border-[#293343] p-4"><AmbientMusicPlayer src={content.ambientMusicUrl} /></div>}
-          <div className="border-t border-[#293343] px-4 py-4"><Stepper currentStep={step} completedSteps={[]} lockedSteps={[]} onStepClick={onStepChange} /></div>
-        </header>
-        <div className="mt-3 flex justify-end">
-          <button type="button" onClick={() => setIsStudyHubOpen(true)} aria-expanded={isStudyHubOpen} className="rounded-md border border-amber-500/40 px-3 py-2 text-xs font-medium text-amber-400 transition hover:bg-amber-500/20">Open Study Hub</button>
+        </HeroBanner>
+        <div className="py-8">
+          <header>
+            <div className="flex flex-wrap items-center justify-end gap-2 text-[12px]">
+              {content.ambientMusicUrl && <AmbientMusicPlayer src={content.ambientMusicUrl} />}
+              <button type="button" onClick={() => setIsStudyHubOpen(true)} aria-expanded={isStudyHubOpen} className="rounded-md border border-amber-500/40 px-3 py-2 text-xs font-medium text-amber-400 transition hover:bg-amber-500/20">Open Study Hub</button>
+            </div>
+            <div className="mt-8">
+              <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#556078]">Your journey</p>
+              <Stepper currentStep={step} completedSteps={[]} lockedSteps={[]} onStepClick={onStepChange} />
+            </div>
+          </header>
         </div>
+        <div className="border-t border-[#202631]" />
         <main className="min-h-[560px] py-5">{renderStep()}</main>
       </div>
       <LearningSidebar
