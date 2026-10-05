@@ -50,7 +50,7 @@ function renderLucideIconTokens(value: string) {
 export function MarkdownContent({ value, className = "", plainCode = false, dataTables = false }: { value: string; className?: string; plainCode?: boolean; dataTables?: boolean }) {
   const renderPlainCode = plainCode || className.includes("text-slate-300");
   return (
-    <div className={`prose prose-invert max-w-none [&_p]:mb-3 [&_h1]:mb-4 [&_h2]:mb-3 [&_h3]:mb-2 [&_ul]:mb-3 [&_ol]:mb-3 ${className}`} data-reading-content>
+    <div className={`prose prose-invert max-w-none [&_p]:mb-[0.85em] [&_p]:leading-[1.7] [&_h1]:mt-[1em] [&_h1]:mb-[0.5em] [&_h1]:leading-[1.4] [&_h2]:mt-[1em] [&_h2]:mb-[0.5em] [&_h2]:leading-[1.4] [&_h3]:mt-[1em] [&_h3]:mb-[0.5em] [&_h3]:leading-[1.4] [&_h4]:mt-[1em] [&_h4]:mb-[0.5em] [&_h4]:leading-[1.4] [&_ul]:mb-3 [&_ol]:mb-3 ${className}`} data-reading-content>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw]}
@@ -61,18 +61,18 @@ export function MarkdownContent({ value, className = "", plainCode = false, data
             return <span {...props}>{children}</span>;
           },
           mark: ({ children, ...props }) => <mark {...props} className="rounded-sm px-0.5 text-inherit">{children}</mark>,
-          h1: ({ children }) => <h1 className="mb-4 mt-6 text-2xl font-semibold leading-tight text-stone-100">{children}</h1>,
-          h2: ({ children }) => <h2 className="mb-3 mt-5 text-xl font-semibold leading-tight text-stone-100">{children}</h2>,
-          h3: ({ children }) => <h3 className="mb-3 mt-4 text-lg font-semibold leading-tight text-stone-100">{children}</h3>,
-          h4: ({ children }) => <h4 className="mb-2 mt-4 text-[1.0625rem] font-semibold leading-7 text-stone-100">{children}</h4>,
+          h1: ({ children }) => <h1 className="mb-[0.5em] mt-[1em] text-[36px] font-semibold leading-[1.4] text-stone-100">{children}</h1>,
+          h2: ({ children }) => <h2 className="mb-[0.5em] mt-[1em] text-[32px] font-semibold leading-[1.4] text-stone-100">{children}</h2>,
+          h3: ({ children }) => <h3 className="mb-[0.5em] mt-[1em] text-[28px] font-semibold leading-[1.4] text-stone-100">{children}</h3>,
+          h4: ({ children }) => <h4 className="mb-[0.5em] mt-[1em] text-[24px] font-semibold leading-[1.4] text-stone-100">{children}</h4>,
           h5: ({ children }) => <h5 className="mb-2 mt-3 text-sm font-semibold leading-snug text-stone-200">{children}</h5>,
           h6: ({ children }) => <h6 className="mb-2 mt-3 text-xs font-semibold leading-snug text-stone-300">{children}</h6>,
           strong: ({ children }) => <strong>{children}</strong>,
-          p: ({ children }) => {
+          p: ({ children, style }) => {
             const comparison = renderComparison(children);
-            if (!comparison) return <p className="mb-4 whitespace-pre-wrap leading-7 last:mb-0">{children}</p>;
+            if (!comparison) return <p style={style} className="mb-[0.85em] whitespace-pre-wrap text-base leading-[1.7] last:mb-0">{children}</p>;
             const text = getTextContent(children);
-            return <p className="mb-4 whitespace-pre-wrap leading-7 last:mb-0"><span className={`mr-2 inline-flex rounded px-2 py-0.5 text-xs font-semibold ${comparison.badgeClass}`}>{comparison.label}</span>{text.slice(comparison.prefixLength)}</p>;
+            return <p style={style} className="mb-[0.85em] whitespace-pre-wrap text-base leading-[1.7] last:mb-0"><span className={`mr-2 inline-flex rounded px-2 py-0.5 text-xs font-semibold ${comparison.badgeClass}`}>{comparison.label}</span>{text.slice(comparison.prefixLength)}</p>;
           },
           ul: ({ children }) => <ul className="mb-4 mt-2 list-disc space-y-1 pl-5 leading-7">{children}</ul>,
           ol: ({ children }) => <ol className="mb-4 mt-2 list-decimal space-y-1 pl-5 leading-7">{children}</ol>,
