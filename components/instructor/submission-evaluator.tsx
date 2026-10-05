@@ -380,30 +380,36 @@ export function SubmissionEvaluator({
       ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
       : "border-[#394252] bg-[#171d28] text-stone-500";
   const feedbackError = submitError || (useSupabase && submissionLoadState === "missing" ? "Student has not submitted work for this lesson yet." : null);
+  const stageStepper = <div className="overflow-x-auto border-b border-[#293343]">
+    <nav className="flex w-full min-w-max justify-between gap-6 px-4" aria-label="Evaluation stages">
+      {stages.map((stage, index) => <button
+        key={stage.id}
+        type="button"
+        onClick={() => changeActiveStage(stage.id)}
+        aria-current={activeStageId === stage.id ? "step" : undefined}
+        className={`border-b-2 px-3 py-3 text-left text-xs transition ${activeStageId === stage.id ? "border-amber-400 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}
+      >
+        <span className="mr-1.5 font-mono text-[10px] text-stone-600">{String(index + 1).padStart(2, "0")}</span>{stage.title}
+      </button>)}
+      <button
+        type="button"
+        onClick={() => changeActiveStage(reportStageId)}
+        aria-current={activeStageId === reportStageId ? "step" : undefined}
+        className={`border-b-2 px-3 py-3 text-left text-xs transition ${activeStageId === reportStageId ? "border-amber-400 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}
+      >
+        <span className="mr-1.5 font-mono text-[10px] text-stone-600">07</span>Report Card
+      </button>
+    </nav>
+  </div>;
+  const stageHeading = <header className="flex flex-wrap items-end justify-between gap-3 border-b border-[#202631] pb-4">
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-amber-400">{activeStageId === reportStageId ? "Final review" : `Stage ${String(activeStageIndex + 1).padStart(2, "0")} of 07`}</p>
+      <h2 className="mt-1 text-xl font-semibold text-stone-100">{activeStageTitle}</h2>
+    </div>
+    {activeStageId !== reportStageId && activeStage && <span className={`rounded-full border px-2.5 py-1 text-[10px] ${stageStatusClass(evaluationStatus(activeStage.id))}`}>{evaluationStatus(activeStage.id)}</span>}
+  </header>;
 
   return <div className="space-y-5">
-    <div className="overflow-x-auto border-b border-[#293343]">
-      <nav className="flex w-full min-w-max justify-between gap-6 px-4" aria-label="Evaluation stages">
-        {stages.map((stage, index) => <button
-          key={stage.id}
-          type="button"
-          onClick={() => changeActiveStage(stage.id)}
-          aria-current={activeStageId === stage.id ? "step" : undefined}
-          className={`border-b-2 px-3 py-3 text-left text-xs transition ${activeStageId === stage.id ? "border-amber-400 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}
-        >
-          <span className="mr-1.5 font-mono text-[10px] text-stone-600">{String(index + 1).padStart(2, "0")}</span>{stage.title}
-        </button>)}
-        <button
-          type="button"
-          onClick={() => changeActiveStage(reportStageId)}
-          aria-current={activeStageId === reportStageId ? "step" : undefined}
-          className={`border-b-2 px-3 py-3 text-left text-xs transition ${activeStageId === reportStageId ? "border-amber-400 text-amber-300" : "border-transparent text-stone-500 hover:text-stone-200"}`}
-        >
-          <span className="mr-1.5 font-mono text-[10px] text-stone-600">07</span>Report Card
-        </button>
-      </nav>
-    </div>
-
     <div className="grid items-start gap-5 lg:grid-cols-[250px_minmax(0,1fr)]">
       <aside className="space-y-4 rounded-xl border border-[#202631] bg-[#111620] p-4" aria-label="Evaluation tools">
         <div>
@@ -447,15 +453,9 @@ export function SubmissionEvaluator({
       </aside>
 
       <section className="min-w-0 space-y-5" aria-label={`${activeStageTitle} evaluation`}>
-        <header className="flex flex-wrap items-end justify-between gap-3 border-b border-[#202631] pb-4">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-amber-400">{activeStageId === reportStageId ? "Final review" : `Stage ${String(activeStageIndex + 1).padStart(2, "0")} of 07`}</p>
-            <h2 className="mt-1 text-xl font-semibold text-stone-100">{activeStageTitle}</h2>
-          </div>
-          {activeStageId !== reportStageId && activeStage && <span className={`rounded-full border px-2.5 py-1 text-[10px] ${stageStatusClass(evaluationStatus(activeStage.id))}`}>{evaluationStatus(activeStage.id)}</span>}
-        </header>
-
         {activeStageId === reportStageId ? <div className="space-y-5">
+          {stageStepper}
+          {stageHeading}
           <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
             <p className="text-sm font-medium text-amber-200">Compiled Report Card Preview</p>
             <p className="mt-1 text-xs leading-relaxed text-stone-400">Review the scores, comments, corrections, and voice notes collected across all six lesson stages before publishing to {studentName}.</p>
@@ -501,7 +501,9 @@ export function SubmissionEvaluator({
             <textarea value={evaluation?.studyHubPrescription || ""} onChange={(event) => updateEvaluation({ studyHubPrescription: event.target.value })} rows={2} placeholder="Recommended study resource or topic..." className="w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] p-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" aria-label="Study Hub prescription" />
           </section>
         </div> : activeStage ? <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_330px]">
-          <div className="min-w-0 space-y-4">
+          <div className="min-w-0 space-y-5">
+            {stageStepper}
+            {stageHeading}
             {(activeStage.id === "reading" || activeStage.id === "listening") && (activeStage.referenceText || activeStage.referenceAudioUrl) && <details className="rounded-lg border border-[#293343] bg-[#111620] p-3">
               <summary className="cursor-pointer text-xs font-medium text-stone-300">Show lesson reference</summary>
               {activeStage.referenceText && <p className="mt-3 whitespace-pre-wrap text-xs leading-relaxed text-stone-400">{stripMarkdown(activeStage.referenceText)}</p>}
