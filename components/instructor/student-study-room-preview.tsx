@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ContentBlock, StrictStepContent, StudyStepId } from "@/types/lesson";
 import { DynamicLucideIcon } from "@/components/shared/lucide-icon-picker";
 import { WritingBlockRenderer } from "@/components/shared/writing-block";
@@ -14,6 +15,9 @@ import { Stepper } from "@/components/study-room/stepper";
 import { SidebarBlockCard } from "@/components/shared/sidebar-block-card";
 import type { BannerPosition } from "@/components/instructor/banner-manager";
 import { getBannerPositionStyles } from "@/lib/banner-position";
+import { LearningSidebar } from "@/components/study-room/learning-sidebar";
+import type { StudyHubResource } from "@/components/shared/study-hub-resource-card";
+import type { StudentNote } from "@/types/lesson";
 
 export type StudentPreviewStep = StudyStepId;
 export type PreviewSidebarBlock = { id: string; title: string; body: string; icon?: string; parentMainBlockId?: string; imageUrl?: string; altText?: string };
@@ -23,6 +27,7 @@ export const STUDENT_PREVIEW_CHANNEL = "fluentia:student-live-preview";
 export interface StudentPreviewSnapshot {
   content: StrictStepContent;
   sidebarBlocksByStep: PreviewSidebarBlocksByStep;
+  studyHubResources: StudyHubResource[];
   step: StudentPreviewStep;
   title: string;
   subtitle: string;
@@ -45,6 +50,7 @@ const PREVIEW_STEPS = [
 export interface StudentStudyRoomPreviewProps {
   content: StrictStepContent;
   sidebarBlocksByStep: PreviewSidebarBlocksByStep;
+  studyHubResources?: StudyHubResource[];
   step: StudentPreviewStep;
   onStepChange: (step: StudentPreviewStep) => void;
   title: string;
@@ -59,6 +65,7 @@ export interface StudentStudyRoomPreviewProps {
 export function StudentStudyRoomPreview({
   content,
   sidebarBlocksByStep,
+  studyHubResources = [],
   step,
   onStepChange,
   title,
@@ -69,6 +76,8 @@ export function StudentStudyRoomPreview({
   moduleNumber,
   embedded = false,
 }: StudentStudyRoomPreviewProps) {
+  const [isStudyHubOpen, setIsStudyHubOpen] = useState(false);
+  const [previewNotes, setPreviewNotes] = useState<StudentNote[]>([]);
   const stepContent = step === "results" ? undefined : content[step] as { blocks?: ContentBlock[] } | undefined;
   const blocks = step === "results"
     ? []
@@ -173,8 +182,20 @@ export function StudentStudyRoomPreview({
           {content.ambientMusicUrl && <div className="border-t border-[#293343] p-4"><AmbientMusicPlayer src={content.ambientMusicUrl} /></div>}
           <div className="border-t border-[#293343] px-4 py-4"><Stepper currentStep={step} completedSteps={[]} lockedSteps={[]} onStepClick={onStepChange} /></div>
         </header>
+        <div className="mt-3 flex justify-end">
+          <button type="button" onClick={() => setIsStudyHubOpen(true)} aria-expanded={isStudyHubOpen} className="rounded-md border border-amber-500/40 px-3 py-2 text-xs font-medium text-amber-400 transition hover:bg-amber-500/20">Open Study Hub</button>
+        </div>
         <main className="min-h-[560px] py-5">{renderStep()}</main>
       </div>
+      <LearningSidebar
+        open={isStudyHubOpen}
+        previewResources={studyHubResources}
+        words={[]}
+        notes={previewNotes}
+        onClose={() => setIsStudyHubOpen(false)}
+        onSaveNote={(note) => setPreviewNotes((current) => current.length ? [note, ...current.slice(1)] : [note])}
+        onRemoveWord={() => undefined}
+      />
     </div>
   );
 }

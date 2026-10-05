@@ -36,6 +36,7 @@ import { DisplaySettingsControl } from "@/components/shared/display-settings";
 import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import { DynamicLucideIcon, LucideIconPicker } from "@/components/shared/lucide-icon-picker";
 import { SidebarBlockCard } from "@/components/shared/sidebar-block-card";
+import { StudyHubDownloadButton, StudyHubFlashcardDeck, StudyHubResourceCard } from "@/components/shared/study-hub-resource-card";
 import { StudentStudyRoomPreview, STUDENT_PREVIEW_CHANNEL, type StudentPreviewSnapshot, type StudentPreviewStep } from "@/components/instructor/student-study-room-preview";
 
 interface InstructorWorkstationProps {
@@ -478,6 +479,9 @@ type StudentResourceEntry = {
   question?: string | null;
   answer?: string | null;
   explanation?: string | null;
+  subtitle?: string | null;
+  sub_title?: string | null;
+  example?: string | null;
   cards?: FlashcardItem[] | null;
   original_filename?: string | null;
   media_type?: string | null;
@@ -597,63 +601,71 @@ function FlashcardDraftList({ cards, onRemove }: { cards: FlashcardItem[]; onRem
 
 function SavedResourcePreview({ resource, title }: { resource: StudentResourceEntry; title: string }) {
   const cards = getResourceFlashcards(resource);
-  const href = getResourcePreviewHref(resource.link_url);
   const isDataTable = resource.resource_type === "data_table" || isDataTableResourceTitle(resource.title);
 
   if (resource.resource_type === "flashcard" || resource.resource_type === "flashcards") {
-    return cards.length > 0
-      ? <FlashcardDraftList cards={cards} />
+    const studyCards = cards.map((card) => ({
+      id: card.id,
+      question: card.front,
+      answer: card.back,
+      explanation: card.explanation,
+    }));
+    return studyCards.length > 0
+      ? <StudyHubFlashcardDeck cards={studyCards} active renderDownloadButton={(card) => <StudyHubDownloadButton title={card.question} content={`${card.question}\n\n${card.answer}${card.explanation ? `\n\n${card.explanation}` : ""}`} />} />
       : <p className="text-sm text-stone-500">This deck does not contain any saved cards.</p>;
   }
 
   return (
-    <div className="space-y-3">
-      {resource.resource_type === "audio" && (
-        <>
-          {href ? <CustomAudioPlayer src={href} label={title} /> : <p className="text-sm text-stone-500">No audio file is available.</p>}
-          {resource.body && <MarkdownContent value={resource.body} className="text-sm leading-relaxed text-stone-300" />}
-          {href && <a href={href} target="_blank" rel="noreferrer" className="break-all text-xs text-sky-300 underline">Open audio file</a>}
-        </>
-      )}
-      {resource.resource_type === "video" && (
-        href ? <InteractiveVideoBlock videoUrl={href} title={title} /> : <p className="text-sm text-stone-500">No video is available.</p>
-      )}
-      {resource.resource_type === "image" && (
-        href ? <img src={href} alt={resource.original_filename || title} className="max-h-[520px] w-full rounded-lg border border-[#293343] object-contain" /> : <p className="text-sm text-stone-500">No image is available.</p>
-      )}
-      {resource.resource_type === "file" && (
-        <>
-          <p className="text-xs text-stone-400">{resource.original_filename || title}</p>
-          {href && resource.media_type?.startsWith("image/") && <img src={href} alt={resource.original_filename || title} className="max-h-[520px] w-full rounded-lg border border-[#293343] object-contain" />}
-          {href && resource.media_type === "application/pdf" && <iframe src={href} title={`Preview of ${resource.original_filename || title}`} className="h-80 w-full rounded-md border border-[#293343] bg-white" />}
-          {href && resource.media_type?.startsWith("audio/") && <CustomAudioPlayer src={href} label={title} />}
-          {href && resource.media_type?.startsWith("video/") && <video src={href} controls preload="metadata" className="max-h-80 w-full rounded-md bg-black" aria-label={`Preview of ${resource.original_filename || title}`} />}
-          {href && <a href={href} target="_blank" rel="noreferrer" download={resource.original_filename || undefined} className="inline-flex text-xs text-sky-300 underline">Open or download file</a>}
-          {!href && <p className="text-sm text-stone-500">No file is available.</p>}
-        </>
-      )}
-      {resource.resource_type === "reading" && (
-        <>
-          {href && <a href={href} target="_blank" rel="noreferrer" className="break-all text-xs text-sky-300 underline">Open reading attachment</a>}
-          {resource.body && <MarkdownContent value={resource.body} className="text-sm leading-relaxed text-stone-300" />}
-          {!href && !resource.body && <p className="text-sm text-stone-500">This reading has no saved text or attachment.</p>}
-        </>
-      )}
-      {(resource.resource_type === "note" || resource.resource_type === "quiz" || isDataTable) && (
-        resource.body
-          ? isDataTable
-            ? <DataTableResource title={title} markdown={resource.body} />
-            : <MarkdownContent value={resource.body} className="text-sm leading-relaxed text-stone-300" />
-          : <p className="text-sm text-stone-500">This resource has no saved text.</p>
-      )}
-    </div>
+    <StudyHubResourceCard
+      resource={{ ...resource, resource_type: isDataTable ? "data_table" : resource.resource_type, title }}
+      downloadButton={resource.resource_type === "note" || resource.resource_type === "reading" || resource.resource_type === "quiz" || resource.resource_type === "audio" || resource.resource_type === "video" || resource.resource_type === "image"
+        ? <div className="mt-3"><StudyHubDownloadButton title={title} href={resource.link_url} content={resource.body} /></div>
+        : undefined}
+    />
+  );
+}
+
+function DraftResourcePreview({
+  type,
+  title,
+  body,
+  bodyHtml,
+  href,
+  mediaType,
+  filename,
+}: {
+  type: ResourceEditorType;
+  title: string;
+  body: string;
+  bodyHtml: string;
+  href: string | null;
+  mediaType?: string;
+  filename?: string;
+}) {
+  const resource = {
+    id: "draft-preview",
+    resource_type: type,
+    title: title || "Untitled resource",
+    body: body || null,
+    bodyHtml: bodyHtml || null,
+    link_url: href,
+    media_type: mediaType,
+    original_filename: filename,
+  };
+  return (
+    <StudyHubResourceCard
+      resource={resource}
+      downloadButton={type === "note" || type === "reading" || type === "quiz" || type === "audio" || type === "video" || type === "image"
+        ? <div className="mt-3"><StudyHubDownloadButton title={resource.title} href={href} content={body} /></div>
+        : undefined}
+    />
   );
 }
 
 function ResourceRichTextPreview({ html, fallback, className = "" }: { html: string; fallback: string; className?: string }) {
   const hasContent = html.trim() !== "" && html.trim() !== "<p></p>";
   return hasContent ? (
-    <div className={`resource-rich-text ${className}`} dangerouslySetInnerHTML={{ __html: html }} />
+    <MarkdownContent value={html} className={className} dataTables />
   ) : (
     <p className={className}>{fallback}</p>
   );
@@ -922,6 +934,23 @@ export default function InstructorWorkstationPage({
   const livePreviewSnapshot: StudentPreviewSnapshot = {
     content: workstationState.content,
     sidebarBlocksByStep,
+    studyHubResources: studentResources.map(({ id, lesson_id, resource_type, title, body, link_url, question, answer, explanation, subtitle, sub_title, example, cards, original_filename, media_type }) => ({
+      id,
+      lesson_id,
+      resource_type,
+      title,
+      body,
+      link_url,
+      question,
+      answer,
+      explanation,
+      subtitle,
+      sub_title,
+      example,
+      cards,
+      original_filename,
+      media_type,
+    })),
     step: previewStep,
     title: newLesson.title,
     subtitle: newLesson.subtitle,
@@ -953,7 +982,7 @@ export default function InstructorWorkstationPage({
 
   useEffect(() => {
     previewChannelRef.current?.postMessage({ type: "preview-state", snapshot: livePreviewSnapshot });
-  }, [workstationState.content, sidebarBlocksByStep, previewStep, newLesson.title, newLesson.subtitle, newLesson.moduleNumber, workstationState.bannerUrl, workstationState.bannerPosition, workstationState.bannerDimness]);
+  }, [workstationState.content, sidebarBlocksByStep, studentResources, previewStep, newLesson.title, newLesson.subtitle, newLesson.moduleNumber, workstationState.bannerUrl, workstationState.bannerPosition, workstationState.bannerDimness]);
 
   useEffect(() => {
     resizeTextareaToContent(lessonTitleTextareaRef.current);
@@ -4563,57 +4592,17 @@ export default function InstructorWorkstationPage({
                     })()}
                   </div>
                   ) : (
-                    <div className="w-full min-w-0 rounded-2xl border border-[#202631] bg-[#0b1018] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
-                      <div className="mb-4 border-b border-[#202631] pb-3">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">{activeResourceType === "note" ? "Note Preview" : activeResourceType === "reading" ? "Reading Preview" : activeResourceType === "quiz" ? "Quiz Preview" : activeResourceType === "audio" ? "Audio Preview" : activeResourceType === "video" ? "Video Preview" : activeResourceType === "image" ? "Image Preview" : activeResourceType === "file" ? "File Preview" : "Data Table Preview"}</p>
-                        <h3 className="mt-1 font-sans text-xl font-semibold text-stone-100">{resourceDraft.title.trim() || "Untitled resource"}</h3>
-                      </div>
-                      {activeResourceType === "note" && (
-                        <ResourceRichTextPreview html={resourceBodyHtml} fallback="Your note preview will appear here as you type." className="text-sm leading-relaxed text-stone-300" />
-                      )}
-                      {activeResourceType === "reading" && (
-                        <div className="space-y-3">
-                          <ResourceRichTextPreview html={resourceBodyHtml} fallback="Add reading notes to preview them here." className="text-sm leading-relaxed text-stone-300" />
-                          {resourceInputMode === "upload" && resourceFilePreviewUrl ? <a href={resourceFilePreviewUrl} target="_blank" rel="noreferrer" className="inline-flex rounded-md border border-amber-500/40 px-3 py-2 text-xs  text-amber-400 hover:border-amber-500/40">Open uploaded attachment: {resourceFile?.name}</a> : resourceInputMode === "url" && getResourcePreviewHref(resourceDraft.linkUrl) ? <a href={getResourcePreviewHref(resourceDraft.linkUrl) || undefined} target="_blank" rel="noreferrer" className="inline-flex rounded-md border border-amber-500/40 px-3 py-2 text-xs  text-amber-400 hover:border-amber-500/40">Open or download</a> : resourceDraft.linkUrl.trim() ? <p className="break-all text-xs text-stone-500">{resourceDraft.linkUrl}</p> : <p className="text-xs text-stone-500">Add a reading link or file to preview it here.</p>}
-                        </div>
-                      )}
-                      {activeResourceType === "quiz" && (
-                        <div className="rounded-lg border border-[#293343] bg-[#10181f] p-4">
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Practice prompt</p>
-                          <ResourceRichTextPreview html={resourceBodyHtml} fallback="Your practice prompt will appear here as you type." className="mt-3 text-sm leading-relaxed text-stone-200" />
-                        </div>
-                      )}
-                      {activeResourceType === "audio" && (
-                        <div className="space-y-3">
-                          {resourceInputMode === "upload" && audioFilePreviewUrl ? <CustomAudioPlayer src="" blob={audioFile || undefined} label={resourceDraft.title.trim() || audioFile?.name || "Audio preview"} /> : resourceInputMode === "url" && getResourcePreviewHref(resourceDraft.linkUrl) ? <CustomAudioPlayer src={getResourcePreviewHref(resourceDraft.linkUrl) || ""} label={resourceDraft.title.trim() || "Audio preview"} /> : <p className="text-sm text-stone-500">Add audio using the selected input method to preview it here.</p>}
-                          {resourceDraft.body.trim() && <ResourceRichTextPreview html={resourceBodyHtml} fallback="" className="text-sm leading-relaxed text-stone-400" />}
-                        </div>
-                      )}
-                      {activeResourceType === "image" && (
-                        <div className="space-y-3">
-                          {resourceInputMode === "upload" && resourceFilePreviewUrl ? <img src={resourceFilePreviewUrl} alt={resourceFile?.name || resourceDraft.title || "Image resource preview"} className="max-h-[520px] w-full rounded-lg border border-[#293343] object-contain" /> : resourceInputMode === "url" && getResourcePreviewHref(resourceDraft.linkUrl) ? <img src={getResourcePreviewHref(resourceDraft.linkUrl) || ""} alt={resourceDraft.title || "Image resource preview"} className="max-h-[520px] w-full rounded-lg border border-[#293343] object-contain" /> : <p className="text-sm text-stone-500">Add an image using the selected input method to preview it here.</p>}
-                        </div>
-                      )}
-                      {activeResourceType === "video" && (
-                        <InteractiveVideoBlock
-                          videoUrl={resourceInputMode === "upload" ? resourceFilePreviewUrl || "" : resourceDraft.linkUrl}
-                          title={resourceDraft.title || "Video resource"}
-                        />
-                      )}
-                      {activeResourceType === "data_table" && (
-                        resourceDraft.body.trim() ? <DataTableResource title={resourceDraft.title.trim() || "Data Table"} markdown={resourceDraft.body} html={resourceBodyHtml} /> : <p className="text-sm text-stone-500">Write content or insert a table to preview it here.</p>
-                      )}
-                      {activeResourceType === "file" && (
-                        resourceInputMode === "upload" && resourceFile && resourceFilePreviewUrl ? (() => {
-                          const mediaType = getSupportedResourceMediaType(resourceFile);
-                          if (mediaType?.startsWith("image/")) return <img src={resourceFilePreviewUrl} alt={resourceFile.name} className="max-h-[520px] w-full rounded-lg border border-[#293343] object-contain" />;
-                          if (mediaType === "application/pdf" || mediaType?.startsWith("text/")) return <iframe src={resourceFilePreviewUrl} title={`Preview of ${resourceFile.name}`} className="h-[560px] w-full rounded-lg border border-[#293343] bg-white" />;
-                          if (mediaType?.startsWith("audio/")) return <CustomAudioPlayer src="" blob={resourceFile} label={resourceFile.name} />;
-                          if (mediaType?.startsWith("video/")) return <video src={resourceFilePreviewUrl} controls preload="metadata" className="max-h-[560px] w-full rounded-lg bg-black" aria-label={`Preview of ${resourceFile.name}`} />;
-                          return <div className="space-y-3"><p className="text-sm text-stone-400">This document format opens or downloads instead of displaying inline.</p><a href={resourceFilePreviewUrl} download={resourceFile.name} className="inline-flex rounded-md border border-amber-500/40 px-3 py-2 text-xs  text-amber-400 hover:border-amber-500/40">Open or download {resourceFile.name}</a></div>;
-                        })() : resourceInputMode === "url" && getResourcePreviewHref(resourceDraft.linkUrl) ? <a href={getResourcePreviewHref(resourceDraft.linkUrl) || undefined} target="_blank" rel="noreferrer" className="inline-flex rounded-md border border-amber-500/40 px-3 py-2 text-xs  text-amber-400 hover:border-amber-500/40">Open external file</a> : <p className="rounded-lg border border-dashed border-[#394252] p-6 text-center text-sm text-stone-500">Add a file using the selected input method to preview it here.</p>
-                      )}
-                    </div>
+                    <DraftResourcePreview
+                      type={activeResourceType}
+                      title={resourceDraft.title.trim()}
+                      body={resourceDraft.body.trim() ? resourceBodyHtml : ""}
+                      bodyHtml={resourceBodyHtml}
+                      href={resourceInputMode === "upload"
+                        ? activeResourceType === "audio" ? audioFilePreviewUrl : resourceFilePreviewUrl
+                        : getResourcePreviewHref(resourceDraft.linkUrl)}
+                      mediaType={resourceFile ? getSupportedResourceMediaType(resourceFile) || undefined : audioFile ? getSupportedResourceMediaType(audioFile) || undefined : undefined}
+                      filename={resourceFile?.name || audioFile?.name}
+                    />
                   )}
                 </div>
 
