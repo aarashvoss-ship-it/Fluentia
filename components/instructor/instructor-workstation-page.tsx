@@ -802,6 +802,7 @@ export default function InstructorWorkstationPage({
   const [sidebarBlocksByStep, setSidebarBlocksByStep] = useState<SidebarBlocksByStep>({});
   const [lessonResources, setLessonResources] = useState<LessonResource[]>([]);
   const [studentResources, setStudentResources] = useState<StudentResourceEntry[]>([]);
+  const [builderResourcesExpanded, setBuilderResourcesExpanded] = useState(false);
   const [editingStudentResourceId, setEditingStudentResourceId] = useState<string | null>(null);
   const [expandedStudentResourceIds, setExpandedStudentResourceIds] = useState<Set<string>>(() => new Set());
   const [resourceDraft, setResourceDraft] = useState(EMPTY_RESOURCE_DRAFT);
@@ -4177,33 +4178,50 @@ export default function InstructorWorkstationPage({
           )}
 
           <section className="mt-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" aria-label="Lesson builder resource panel">
-            <div className="space-y-4">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <button
+                type="button"
+                onClick={() => setBuilderResourcesExpanded((expanded) => !expanded)}
+                aria-expanded={builderResourcesExpanded}
+                aria-controls="lesson-builder-resources-content"
+                className="flex min-w-0 items-center gap-3 text-left"
+              >
+                <ChevronDown className={`h-4 w-4 shrink-0 text-amber-400 transition-transform duration-200 ${builderResourcesExpanded ? "rotate-180" : "-rotate-90"}`} aria-hidden="true" />
+                <span>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Student Materials</p>
                   <h3 className="mt-1 font-sans text-xl font-semibold text-stone-100">Resources</h3>
-                </div>
-                <div className="rounded-full border border-[#394252] bg-[#0c1017] px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-stone-300">
-                  {activeBuilderStudent ? `${activeBuilderStudent.name} · ${activeBuilderLessonId ? "Bound" : "Lesson not saved yet"}` : "Select student in Lesson Details"}
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2" role="group" aria-label="Resource type">
-                {([['note', 'Notes'], ['reading', 'Reading'], ['flashcard', 'Flashcards'], ['quiz', 'Quiz'], ['audio', 'Audio'], ['video', 'Video'], ['image', 'Image'], ['data_table', 'Data Table'], ['file', 'File Upload']] as const).map(([type, label]) => (
-                  <button
-                    key={type}
-                    type="button"
-                    disabled={Boolean(editingStudentResourceId && activeResourceType !== type)}
-                    aria-pressed={activeResourceType === type}
-                    onClick={() => setResourceDraft((previous) => ({ ...previous, type }))}
-                    className={`rounded-md border px-3 py-2 text-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${activeResourceType === type ? 'border-amber-500/40 bg-amber-500/20 text-amber-400 shadow-sm' : 'border-[#394252] bg-[#0c1017] text-stone-400 hover:border-amber-500/40 hover:text-stone-100'}`}
-                  >
-                    {label}
-                  </button>
-                ))}
+                </span>
+                <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-300">
+                  {studentResources.length}
+                </span>
+              </button>
+              <div className="rounded-full border border-[#394252] bg-[#0c1017] px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-stone-300">
+                {activeBuilderStudent ? `${activeBuilderStudent.name} · ${activeBuilderLessonId ? "Bound" : "Lesson not saved yet"}` : "Select student in Lesson Details"}
               </div>
             </div>
-
-            {!activeBuilderStudent || !activeBuilderLessonId ? (
+            <div
+              id="lesson-builder-resources-content"
+              aria-hidden={!builderResourcesExpanded}
+              inert={!builderResourcesExpanded}
+              className="grid transition-[grid-template-rows] duration-300 ease-in-out"
+              style={{ gridTemplateRows: builderResourcesExpanded ? "1fr" : "0fr" }}
+            >
+              <div className="min-h-0 overflow-hidden">
+                <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Resource type">
+                  {([['note', 'Notes'], ['reading', 'Reading'], ['flashcard', 'Flashcards'], ['quiz', 'Quiz'], ['audio', 'Audio'], ['video', 'Video'], ['image', 'Image'], ['data_table', 'Data Table'], ['file', 'File Upload']] as const).map(([type, label]) => (
+                    <button
+                      key={type}
+                      type="button"
+                      disabled={Boolean(editingStudentResourceId && activeResourceType !== type)}
+                      aria-pressed={activeResourceType === type}
+                      onClick={() => setResourceDraft((previous) => ({ ...previous, type }))}
+                      className={`rounded-md border px-3 py-2 text-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${activeResourceType === type ? 'border-amber-500/40 bg-amber-500/20 text-amber-400 shadow-sm' : 'border-[#394252] bg-[#0c1017] text-stone-400 hover:border-amber-500/40 hover:text-stone-100'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {!activeBuilderStudent || !activeBuilderLessonId ? (
               <div className="mt-4 rounded-lg border border-dashed border-[#202631] bg-[#0c1017] px-4 py-5 text-sm text-stone-400">
                 Choose a student and save the lesson draft in Lesson Details to bind resource uploads to the active lesson context.
               </div>
@@ -4677,6 +4695,8 @@ export default function InstructorWorkstationPage({
                 </div>
               </div>
             )}
+              </div>
+            </div>
           </section>
         </>}
 
