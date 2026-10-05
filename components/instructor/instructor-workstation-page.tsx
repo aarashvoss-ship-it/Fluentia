@@ -123,7 +123,7 @@ function StepSidebarEditorPanel({
   setSidebarBlocksByStep: React.Dispatch<React.SetStateAction<SidebarBlocksByStep>>;
   mainBlocks: ContentBlock[];
 }) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const [imageUploadStatus, setImageUploadStatus] = useState<Record<string, string>>({});
   const contentId = "step-sidebar-editor-content";
   const updateSidebarBlock = (blockId: string, patch: Partial<SidebarBlock>) => {
@@ -796,7 +796,7 @@ export default function InstructorWorkstationPage({
   const [quickTagError, setQuickTagError] = useState<string | null>(null);
   const [heroBannerOpen, setHeroBannerOpen] = useState(false);
   const [guidanceOpen, setGuidanceOpen] = useState(false);
-  const [isLessonGuidanceExpanded, setIsLessonGuidanceExpanded] = useState(true);
+  const [isLessonGuidanceExpanded, setIsLessonGuidanceExpanded] = useState(false);
   const [activeStudentsOpen, setActiveStudentsOpen] = useState(false);
   const [sidebarStep, setSidebarStep] = useState<keyof SidebarBlocksByStep>("warm_up");
   const [sidebarBlocksByStep, setSidebarBlocksByStep] = useState<SidebarBlocksByStep>({});

@@ -129,7 +129,7 @@ export function LessonTailorEditor({
   const localUpdatePendingRef = useRef(false);
   const [openTranscript, setOpenTranscript] = useState<Record<string, boolean>>({});
   const [openReflectionSettings, setOpenReflectionSettings] = useState<Record<string, boolean>>({});
-  const [collapsedBlocks, setCollapsedBlocks] = useState<Record<string, boolean>>({});
+  const [expandedBlocks, setExpandedBlocks] = useState<Record<string, boolean>>({});
   const [fillBlankModes, setFillBlankModes] = useState<Record<string, "edit" | "preview">>({});
   const [fillBlankPreviewValues, setFillBlankPreviewValues] = useState<Record<string, string>>({});
   const [recordingByBlockId, setRecordingByBlockId] = useState<Record<string, { status: "recording" | "uploading" | "error"; error?: string; elapsed?: number; levels?: number[] }>>({});
@@ -160,6 +160,9 @@ export function LessonTailorEditor({
       draftContentRef.current = content;
       setDraftContent(content);
       lastEmittedContentRef.current = serializedContent;
+      setExpandedBlocks({});
+      setOpenTranscript({});
+      setOpenReflectionSettings({});
     }
   }, [content]);
 
@@ -406,7 +409,7 @@ export function LessonTailorEditor({
   }, []);
 
   const renderTranscriptField = (step: StudyStepId, index: number, block: ContentBlock & { transcript?: string }) => {
-    const isOpen = openTranscript[block.id] ?? true;
+    const isOpen = openTranscript[block.id] ?? false;
     const transcriptLines = parseInteractiveTranscript(block.transcript || "");
     const preview = (block.transcript || "").trim();
     return (
@@ -415,7 +418,7 @@ export function LessonTailorEditor({
           type="button"
           onClick={(event) => {
             event.stopPropagation();
-            setOpenTranscript((current) => ({ ...current, [block.id]: !(current[block.id] ?? true) }));
+            setOpenTranscript((current) => ({ ...current, [block.id]: !(current[block.id] ?? false) }));
           }}
           aria-expanded={isOpen}
           aria-controls={`transcript-${block.id}`}
@@ -443,7 +446,7 @@ export function LessonTailorEditor({
   const renderDynamicBuilder = (step: StudyStepId) => {
     const blocks = getBlocks(step);
     const toggleBlockCollapse = (blockId: string) => {
-      setCollapsedBlocks((current) => ({ ...current, [blockId]: !current[blockId] }));
+      setExpandedBlocks((current) => ({ ...current, [blockId]: !(current[blockId] ?? false) }));
     };
     const moveBlock = (index: number, direction: -1 | 1) => {
       const nextIndex = index + direction;
@@ -526,7 +529,7 @@ export function LessonTailorEditor({
 
         {blocks.length === 0 && <p className="py-3 text-xs text-stone-500">No content blocks yet. Add a block to begin building this step.</p>}
         {blocks.map((block, index) => {
-          const isExpanded = !collapsedBlocks[block.id];
+          const isExpanded = expandedBlocks[block.id] ?? false;
           const isActive = block.is_active ?? block.enabled !== false;
           return (
           <div key={block.id} className={`rounded-md border border-[#202631] bg-[#171d28] p-3 transition-opacity ${isActive ? "opacity-100" : "opacity-55"}`}>
@@ -622,7 +625,7 @@ export function LessonTailorEditor({
             {block.type === "question" && <QuestionSettings value={block.optionIndexingStyle} onChange={(value) => updateDynamicBlock(step, index, { optionIndexingStyle: value })} />}
             {block.type === "fill-in-the-blanks" && <div className="space-y-3"><div className="flex w-fit rounded border border-[#394252] p-0.5" role="tablist" aria-label="Fill in the blanks editor mode"><button type="button" role="tab" aria-selected={fillBlankModes[block.id] !== "preview"} onClick={() => setFillBlankModes((current) => ({ ...current, [block.id]: "edit" }))} className={`px-3 py-1 text-xs ${fillBlankModes[block.id] !== "preview" ? "bg-amber-500/20 text-amber-400" : "text-stone-400 hover:text-stone-200"}`}>Edit</button><button type="button" role="tab" aria-selected={fillBlankModes[block.id] === "preview"} onClick={() => setFillBlankModes((current) => ({ ...current, [block.id]: "preview" }))} className={`px-3 py-1 text-xs ${fillBlankModes[block.id] === "preview" ? "bg-amber-500/20 text-amber-400" : "text-stone-400 hover:text-stone-200"}`}>Preview</button></div>{fillBlankModes[block.id] === "preview" ? <FillInBlanksMarkdown blockId={block.id} text={block.textWithBlanks} acceptableAnswers={block.acceptableAnswers} wordBank={block.wordBank} caseSensitive={block.caseSensitive} values={fillBlankPreviewValues} readOnly onChange={(blankIndex, value) => setFillBlankPreviewValues((current) => ({ ...current, [`${block.id}-blank-${blankIndex}`]: value }))} className="rounded border border-[#202631] bg-[#0c1017]/50 p-3 text-sm leading-relaxed text-stone-300" /> : <><label className="block text-xs font-semibold text-stone-300">Exercise Content (put each answer in brackets, e.g. [answer]):<TiptapEditor value={block.textWithBlanks} onChange={(textWithBlanks) => { const acceptableAnswers = parseFillInBlanks(textWithBlanks).map((blank) => [blank.answer]); updateDynamicBlock(step, index, { textWithBlanks, acceptableAnswers }); }} placeholder="The capital of France is [Paris]." ariaLabel="Fill in the blanks exercise content" /></label><label className="block text-xs font-semibold text-stone-300">Word Bank Options (Optional - separate words with commas or new lines):<textarea value={(block.wordBank || []).join("\n")} onChange={(event) => updateDynamicBlock(step, index, { wordBank: event.target.value.split(/[\n,]/).map((word) => word.trim()).filter(Boolean) })} placeholder="Paris\nFrance\nLondon" rows={3} className="mt-1 w-full resize-y rounded border border-[#202631] bg-[#0c1017] p-2 text-xs font-normal text-stone-200 outline-none focus:border-amber-500/40" aria-label="Fill in the blanks word bank" /></label><p className="text-[11px] leading-relaxed text-stone-500">Add one draggable word per line, or separate words with commas.</p></>}<p className="text-[11px] leading-relaxed text-stone-500">Use the toolbar to format text. Put each correct answer in square brackets.</p><label className="flex cursor-pointer items-center gap-2 text-xs text-stone-300"><input type="checkbox" checked={block.caseSensitive === true} onChange={(event) => updateDynamicBlock(step, index, { caseSensitive: event.target.checked })} className="h-4 w-4 accent-amber-500" />Case-sensitive answers</label></div>}
             {block.type === "video" && (() => {
-              const reflectionExpanded = openReflectionSettings[block.id] ?? true;
+              const reflectionExpanded = openReflectionSettings[block.id] ?? false;
               return (
                 <div className="space-y-3">
                   <MediaAssetInput kind="video" value={block.videoUrl} onChange={(value) => updateDynamicBlock(step, index, { videoUrl: value })} />
