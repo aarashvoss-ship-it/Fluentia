@@ -719,7 +719,7 @@ function getSupportedResourceMediaType(file: File) {
 
 function AudioTranscriptAccordion({ resourceId, transcript }: { resourceId: string; transcript: string }) {
   const [isExpanded, setIsExpanded] = useState(true);
-  const richTextTranscript = /<\/?(?:p|h[1-6]|ul|ol|li|blockquote|table|span)\b/i.test(transcript);
+  const richTextTranscript = /<\/?(?:p|h[1-6]|ul|ol|li|blockquote|table|thead|tbody|tr|th|td|span|a|strong|em|s|code|pre|hr|br)\b/i.test(transcript);
   const transcriptLines = richTextTranscript ? [] : parseInteractiveTranscript(transcript);
   const contentId = `audio-transcript-${resourceId.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 

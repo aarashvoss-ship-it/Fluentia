@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { ChevronDown, Pause, Play, Volume2 } from "lucide-react";
 import { parseInteractiveTranscript } from "@/lib/transcripts";
+import { MarkdownContent } from "@/components/study-room/markdown-content";
 
 function formatTime(value: number) {
   if (!Number.isFinite(value) || value < 0) return "0:00";
@@ -173,16 +174,21 @@ export function CustomAudioPlayer({ src, label = "Audio", blob, transcript }: { 
             <div id={transcriptId} className="max-h-[320px] overflow-y-auto overscroll-contain border-t border-[#202631] scroll-smooth pr-2">
               <div className="space-y-1 p-2">
                 {transcriptLines.map((line) => (
-                  <button
-                    key={`${line.seconds}-${line.text}`}
-                    type="button"
-                    onClick={() => seekToTimestamp(line.seconds)}
-                    disabled={sourceStatus !== "ready"}
-                    className="flex w-full min-w-0 items-start gap-2 rounded px-2 py-1.5 text-left text-xs text-stone-300 transition hover:bg-amber-500/20 hover:text-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <span className="shrink-0 rounded border border-amber-500/40 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-amber-400">[{line.timestamp}]</span>
-                    <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">{line.text}</span>
-                  </button>
+                  <div key={`${line.seconds}-${line.text}`} className="flex min-w-0 items-start gap-2 rounded px-2 py-1.5 text-xs text-stone-300">
+                    <button
+                      type="button"
+                      onClick={() => seekToTimestamp(line.seconds)}
+                      disabled={sourceStatus !== "ready"}
+                      className="shrink-0 rounded border border-amber-500/40 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-amber-400 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label={`Seek to ${line.timestamp}`}
+                    >
+                      [{line.timestamp}]
+                    </button>
+                    <MarkdownContent
+                      value={line.text}
+                      className="min-w-0 flex-1 break-words text-xs leading-relaxed text-stone-300 [&_p]:my-0 [&_p]:inline [&_p]:whitespace-pre-wrap [&_strong]:font-semibold"
+                    />
+                  </div>
                 ))}
               </div>
             </div>
