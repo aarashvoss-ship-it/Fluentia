@@ -4,12 +4,12 @@ import React, { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronRight, Grid3X3, Image, List, MoreVertical, Pencil, Plus, Search, Trash2, X, Lightbulb, UploadCloud } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { StudentContextPanel } from "@/components/instructor/student-context-panel";
-import { LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
+import { LessonBuilderSidebar, LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
 import { InstructorBannerManager, type BannerPosition } from "@/components/instructor/banner-manager";
 import { normalizeBannerDimness } from "@/lib/banner-position";
 import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/submission-evaluator";
 import type { UnifiedReportStage } from "@/components/shared/unified-report-card";
-import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission } from "@/types/lesson";
+import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission, StudyStepId } from "@/types/lesson";
 import { assignLessonToAllActiveStudents, assignLessonToStudent, createLesson, deleteLesson, getLessons, publishLessonAndAssign, setLessonAssignments, unassignLesson, updateLesson, type LessonTags, type LessonWithVersion } from "@/lib/lessons";
 import { PublishedLessonState } from "@/lib/lesson-store";
 import { deduplicateStudents, StudentUser } from "@/lib/users";
@@ -812,6 +812,8 @@ export default function InstructorWorkstationPage({
   const [isLessonGuidanceExpanded, setIsLessonGuidanceExpanded] = useState(false);
   const [activeStudentsOpen, setActiveStudentsOpen] = useState(false);
   const [sidebarStep, setSidebarStep] = useState<keyof SidebarBlocksByStep>("warm_up");
+  const [isBuilderSidebarCollapsed, setIsBuilderSidebarCollapsed] = useState(false);
+  const pendingBuilderBlockRef = useRef<string | null>(null);
   const [sidebarBlocksByStep, setSidebarBlocksByStep] = useState<SidebarBlocksByStep>({});
   const [lessonResources, setLessonResources] = useState<LessonResource[]>([]);
   const [studentResources, setStudentResources] = useState<StudentResourceEntry[]>([]);
@@ -3233,16 +3235,55 @@ export default function InstructorWorkstationPage({
           ? "application/pdf,.pdf,.doc,.docx,.rtf,.odt"
           : undefined;
 
+  useEffect(() => {
+    const blockId = pendingBuilderBlockRef.current;
+    if (!blockId) return;
+    pendingBuilderBlockRef.current = null;
+    window.requestAnimationFrame(() => {
+      document.getElementById(`lesson-builder-block-${blockId}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }, [sidebarStep]);
+
   if (!isMounted) return null;
   if (accessDenied) return <AccessCard title="Access Denied" message="Your instructor account does not have access to this workspace." />;
+
+  const navigateToBuilderBlock = (step: Exclude<StudyStepId, "results">, blockId: string) => {
+    if (sidebarStep === step) {
+      window.requestAnimationFrame(() => {
+        document.getElementById(`lesson-builder-block-${blockId}`)?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+      return;
+    }
+    pendingBuilderBlockRef.current = blockId;
+    setSidebarStep(step);
+  };
 
   const lessonEditorPanel = (
     <LessonTailorEditor
       key={databaseLessonId || "new-lesson"}
       content={workstationState.content}
       sidebarBlocksByStep={sidebarBlocksByStep}
+      activeStepOverride={sidebarStep}
       onActiveStepChange={setSidebarStep}
+      hideStageNavigation
       onChange={(content: StrictStepContent) => setWorkstationState((previous) => ({ ...previous, content }))}
+    />
+  );
+  const lessonBuilderSidebar = (
+    <LessonBuilderSidebar
+      content={workstationState.content}
+      activeStep={sidebarStep}
+      onStepChange={setSidebarStep}
+      onPreview={() => setIsSplitPreviewOpen(true)}
+      collapsed={isBuilderSidebarCollapsed}
+      onToggleCollapsed={() => setIsBuilderSidebarCollapsed((collapsed) => !collapsed)}
+      onNavigateToBlock={navigateToBuilderBlock}
     />
   );
   const heroBannerPanel = (
@@ -3278,7 +3319,7 @@ export default function InstructorWorkstationPage({
 
   return (
     <div className="min-h-screen w-full bg-[#0c1017] font-sans text-[#e8e7e4]">
-      <div className={`${activeTab === "students" || activeTab === "instructors" ? "w-full max-w-full px-6" : "mx-auto w-full max-w-6xl px-4 sm:px-6"} py-6 md:py-8 ${activeTab === "builder" ? "pb-28" : ""}`}>
+      <div className={`${activeTab === "builder" || activeTab === "students" || activeTab === "instructors" ? "w-full max-w-full px-4 sm:px-6" : "mx-auto w-full max-w-6xl px-4 sm:px-6"} py-6 md:py-8 ${activeTab === "builder" ? "pb-28" : ""}`}>
         <div className="mb-6 flex items-center">
           <img src="/logo.png" alt="Fluentia" className="h-10 w-auto object-contain" />
         </div>
@@ -4182,30 +4223,35 @@ export default function InstructorWorkstationPage({
               {isLessonGuidanceExpanded && <div className="border-t border-[#29303c] p-3"><TiptapEditor value={newLesson.instructorGuidance} onChange={(instructorGuidance) => setNewLesson((previous) => ({ ...previous, instructorGuidance }))} placeholder="Guidance shown inside this lesson's Study Room" ariaLabel="Lesson-specific guidance" compact /></div>}
             </div>
           </section>
-          {isSplitPreviewOpen ? (
-            <main className="grid min-w-0 grid-cols-1 items-stretch gap-3 lg:grid-cols-2">
-              <div className="h-[calc(100dvh-20rem)] min-h-[480px] min-w-0 space-y-6 overflow-y-auto overscroll-contain pr-1">
-                <div className="min-w-0 space-y-5" style={{ zoom: 0.85 }}>
-                  {lessonEditorPanel}
-                  {heroBannerPanel}
-                  {sidebarEditorPanel}
-                </div>
-              </div>
-              <div className="h-[calc(100dvh-20rem)] min-h-[480px] min-w-0 overflow-y-auto overscroll-contain rounded-xl border border-[#202631]">
-                <div className="min-w-0" style={{ zoom: 0.85 }}>
-                  <StudentStudyRoomPreview {...livePreviewSnapshot} onStepChange={setPreviewStep} embedded />
-                </div>
-              </div>
-            </main>
-          ) : (
-            <main className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-12">
-              <div className="h-full min-w-0 lg:col-span-8">{lessonEditorPanel}</div>
-              <aside className="h-full space-y-6 lg:col-span-4">
-                {heroBannerPanel}
-                {sidebarEditorPanel}
-              </aside>
-            </main>
-          )}
+          <div className="flex min-w-0 items-start gap-3">
+            {lessonBuilderSidebar}
+            <div className="min-w-0 flex-1 transition-[width] duration-300 ease-in-out">
+              {isSplitPreviewOpen ? (
+                <main className="grid min-w-0 grid-cols-1 items-stretch gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+                  <div className="h-[calc(100dvh-20rem)] min-h-[480px] min-w-0 space-y-6 overflow-y-auto overscroll-contain pr-1">
+                    <div className="min-w-0 space-y-5" style={{ zoom: 0.85 }}>
+                      {lessonEditorPanel}
+                      {heroBannerPanel}
+                      {sidebarEditorPanel}
+                    </div>
+                  </div>
+                  <div className="h-[calc(100dvh-20rem)] min-h-[480px] min-w-0 overflow-y-auto overscroll-contain rounded-xl border border-[#202631]">
+                    <div className="min-w-0" style={{ zoom: 0.85 }}>
+                      <StudentStudyRoomPreview {...livePreviewSnapshot} onStepChange={setPreviewStep} embedded />
+                    </div>
+                  </div>
+                </main>
+              ) : (
+                <main className="grid min-w-0 grid-cols-1 items-stretch gap-6 lg:grid-cols-12">
+                  <div className="h-full min-w-0 lg:col-span-8">{lessonEditorPanel}</div>
+                  <aside className="h-full min-w-0 space-y-6 lg:col-span-4">
+                    {heroBannerPanel}
+                    {sidebarEditorPanel}
+                  </aside>
+                </main>
+              )}
+            </div>
+          </div>
 
           <section className="mt-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" aria-label="Lesson builder resource panel">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

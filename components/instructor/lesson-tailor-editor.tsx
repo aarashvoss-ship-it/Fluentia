@@ -21,6 +21,137 @@ interface LessonTailorEditorProps {
   onPreview?: () => void;
   onActiveStepChange?: (step: Exclude<StudyStepId, "results">) => void;
   sidebarBlocksByStep?: Partial<Record<StudyStepId, { id: string; title: string; body: string }[]>>;
+  activeStepOverride?: StudyStepId;
+  hideStageNavigation?: boolean;
+}
+
+interface LessonBuilderSidebarProps {
+  content: StrictStepContent;
+  activeStep: StudyStepId;
+  onStepChange: (step: Exclude<StudyStepId, "results">) => void;
+  onPreview?: () => void;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
+  onNavigateToBlock: (step: Exclude<StudyStepId, "results">, blockId: string) => void;
+}
+
+export function LessonBuilderSidebar({
+  content,
+  activeStep,
+  onStepChange,
+  onPreview,
+  collapsed,
+  onToggleCollapsed,
+  onNavigateToBlock,
+}: LessonBuilderSidebarProps) {
+  const editableSteps = STUDY_STEPS.filter((stage) => stage.id !== "results") as Array<
+    (typeof STUDY_STEPS)[number] & { id: Exclude<StudyStepId, "results"> }
+  >;
+  const getBlocks = (step: StudyStepId): ContentBlock[] =>
+    (((content[step] || {}) as { blocks?: ContentBlock[] }).blocks || []);
+  const allLessonBlocks = editableSteps.flatMap((step) => getBlocks(step.id));
+  const activeBlockCount = allLessonBlocks.filter((block) => block.is_active !== false && block.enabled !== false).length;
+
+  return (
+    <aside className={`sticky top-24 hidden h-[calc(100vh-7rem)] shrink-0 transition-[width] duration-300 ease-in-out md:block ${collapsed ? "w-14" : "w-64"}`}>
+      <div className="h-full overflow-y-auto rounded-xl border border-[#202631] bg-[#171d28]/80">
+        <div className={`flex items-center border-b border-[#202631] p-3 ${collapsed ? "justify-center" : "justify-between"}`}>
+          {!collapsed && <p className="truncate text-xs font-semibold uppercase tracking-[0.12em] text-amber-400">Builder Navigation</p>}
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            aria-label={collapsed ? "Expand builder sidebar" : "Collapse builder sidebar"}
+            aria-expanded={!collapsed}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-[#394252] text-stone-300 transition hover:border-amber-500/40 hover:text-amber-400"
+          >
+            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </button>
+        </div>
+
+        {!collapsed && (
+          <div className="space-y-4 p-3">
+            <section aria-label="Primary actions">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Quick Actions</p>
+              {onPreview && (
+                <button
+                  type="button"
+                  onClick={onPreview}
+                  className="flex w-full items-center gap-2 rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-left text-xs text-stone-300 transition hover:border-amber-500/40 hover:text-white"
+                >
+                  <Eye className="h-3.5 w-3.5 text-amber-400" /> Preview Student View
+                </button>
+              )}
+            </section>
+
+            <nav aria-label="Lesson stage navigator">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Stages</p>
+              <div className="space-y-1">
+                {editableSteps.map((stage) => {
+                  const isActive = activeStep === stage.id;
+                  const stageBlockCount = getBlocks(stage.id).length;
+                  return (
+                    <button
+                      key={stage.id}
+                      type="button"
+                      onClick={() => onStepChange(stage.id)}
+                      aria-current={isActive ? "step" : undefined}
+                      className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs transition ${isActive ? "bg-amber-500/10 text-amber-400" : "text-stone-400 hover:bg-[#0c1017] hover:text-stone-200"}`}
+                    >
+                      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[9px] ${isActive ? "border-amber-500/50 bg-amber-500/20" : "border-[#394252]"}`}>{stage.stepNumber}</span>
+                      <span className="min-w-0 flex-1 truncate">{stage.label}</span>
+                      <span className="text-[10px] text-stone-500">{stageBlockCount}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </nav>
+
+            <nav aria-label="Lesson block outline">
+              <p className="mb-2 truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Lesson Outline</p>
+              <div className="space-y-1">
+                {editableSteps.map((stage) => {
+                  const stageBlocks = getBlocks(stage.id);
+                  return (
+                    <details key={stage.id} open={stage.id === activeStep} className="rounded">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded px-2 py-1.5 text-[11px] text-stone-400 hover:bg-[#0c1017] hover:text-stone-200">
+                        <span className="truncate">{stage.label}</span>
+                        <span className="shrink-0 text-[10px] text-stone-600">{stageBlocks.length}</span>
+                      </summary>
+                      {stageBlocks.length > 0 ? (
+                        <div className="ml-2 border-l border-[#293343] py-1 pl-1">
+                          {stageBlocks.map((block, index) => (
+                            <button
+                              key={block.id}
+                              type="button"
+                              onClick={() => onNavigateToBlock(stage.id, block.id)}
+                              className="flex w-full min-w-0 items-center gap-2 rounded px-2 py-1.5 text-left text-[11px] text-stone-500 transition hover:bg-[#0c1017] hover:text-amber-300"
+                            >
+                              <span className="shrink-0 text-stone-600">{index + 1}.</span>
+                              <span className="truncate">{block.title || `${block.type} block`}</span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="px-3 py-1 text-[10px] text-stone-600">No blocks</p>
+                      )}
+                    </details>
+                  );
+                })}
+              </div>
+            </nav>
+
+            <section className="border-t border-[#202631] pt-3" aria-label="Lesson status">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Lesson Status</p>
+              <div className="space-y-1 text-[11px]">
+                <p className="flex justify-between gap-2 text-stone-400"><span>Stages with content</span><span className="text-stone-200">{editableSteps.filter((stage) => getBlocks(stage.id).length > 0).length}/6</span></p>
+                <p className="flex justify-between gap-2 text-stone-400"><span>Active blocks</span><span className="text-emerald-300">{activeBlockCount}/{allLessonBlocks.length}</span></p>
+              </div>
+            </section>
+          </div>
+        )}
+      </div>
+    </aside>
+  );
 }
 
 function QuestionSettings({ value, onChange }: { value?: OptionIndexingStyle; onChange: (value: OptionIndexingStyle) => void }) {
@@ -121,10 +252,11 @@ export function LessonTailorEditor({
   onPreview,
   onActiveStepChange,
   sidebarBlocksByStep = {},
+  activeStepOverride,
+  hideStageNavigation = false,
 }: LessonTailorEditorProps) {
-  const [activeStep, setActiveStep] = useState<StudyStepId>("warm_up");
-  const [isBuilderSidebarOpen, setIsBuilderSidebarOpen] = useState(true);
-  const pendingBlockScrollRef = useRef<string | null>(null);
+  const [localActiveStep, setLocalActiveStep] = useState<StudyStepId>("warm_up");
+  const activeStep = activeStepOverride ?? localActiveStep;
   const [draftContent, setDraftContent] = useState(content);
   const draftContentRef = useRef(content);
   const lastEmittedContentRef = useRef(JSON.stringify(content));
@@ -204,33 +336,9 @@ export function LessonTailorEditor({
 
   const getBlocks = (step: StudyStepId): ContentBlock[] =>
     (((draftContentRef.current[step] || {}) as { blocks?: ContentBlock[] }).blocks || []);
-  const allLessonBlocks = STUDY_STEPS
-    .filter((step) => step.id !== "results")
-    .flatMap((step) => getBlocks(step.id));
-  const activeBlockCount = allLessonBlocks.filter((block) => block.is_active !== false && block.enabled !== false).length;
-
   const navigateToStep = (step: StudyStepId) => {
-    setActiveStep(step);
+    if (activeStepOverride === undefined) setLocalActiveStep(step);
     if (step !== "results") onActiveStepChange?.(step);
-  };
-
-  useEffect(() => {
-    const blockId = pendingBlockScrollRef.current;
-    if (!blockId) return;
-    pendingBlockScrollRef.current = null;
-    window.requestAnimationFrame(() => {
-      document.getElementById(`lesson-builder-block-${blockId}`)?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    });
-  }, [activeStep]);
-
-  const scrollToBlock = (blockId: string) => {
-    document.getElementById(`lesson-builder-block-${blockId}`)?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
   };
 
   const updateBlocks = (step: StudyStepId, blocks: ContentBlock[]) => updateStepValue(step, "blocks", blocks);
@@ -883,130 +991,48 @@ export function LessonTailorEditor({
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-3 text-[#d9dce0] md:flex-row md:items-stretch">
-      <aside className={`min-w-0 shrink-0 transition-[width] duration-300 ease-in-out md:sticky md:top-24 md:self-start ${isBuilderSidebarOpen ? "w-full md:w-[min(16rem,33.333%)]" : "w-full md:w-14"}`}>
-        <div className="overflow-hidden rounded-xl border border-[#202631] bg-[#171d28]/80 md:max-h-[calc(100vh-7rem)] md:overflow-y-auto">
-          <div className={`flex items-center border-b border-[#202631] p-3 ${isBuilderSidebarOpen ? "justify-between" : "justify-center"}`}>
-            {isBuilderSidebarOpen && <p className="truncate text-xs font-semibold uppercase tracking-[0.12em] text-amber-400">Builder Navigation</p>}
-            <button
-              type="button"
-              onClick={() => setIsBuilderSidebarOpen((open) => !open)}
-              aria-label={isBuilderSidebarOpen ? "Collapse builder sidebar" : "Expand builder sidebar"}
-              aria-expanded={isBuilderSidebarOpen}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-[#394252] text-stone-300 transition hover:border-amber-500/40 hover:text-amber-400"
-            >
-              {isBuilderSidebarOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            </button>
-          </div>
-
-          {isBuilderSidebarOpen && (
-            <div className="space-y-4 p-3">
-              <section aria-label="Primary actions">
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Quick Actions</p>
-                {onPreview && (
-                  <button
-                    type="button"
-                    onClick={onPreview}
-                    className="flex w-full items-center gap-2 rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-left text-xs text-stone-300 transition hover:border-amber-500/40 hover:text-white"
-                  >
-                    <Eye className="h-3.5 w-3.5 text-amber-400" /> Preview Student View
-                  </button>
-                )}
-              </section>
-
-              <nav aria-label="Lesson stage navigator">
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Stages</p>
-                <div className="space-y-1">
-                  {STUDY_STEPS.filter((stage) => stage.id !== "results").map((stage) => {
-                    const isActive = activeStep === stage.id;
-                    const stageBlockCount = getBlocks(stage.id).length;
-                    return (
-                      <button
-                        key={stage.id}
-                        type="button"
-                        onClick={() => navigateToStep(stage.id)}
-                        aria-current={isActive ? "step" : undefined}
-                        className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs transition ${isActive ? "bg-amber-500/10 text-amber-400" : "text-stone-400 hover:bg-[#0c1017] hover:text-stone-200"}`}
-                      >
-                        <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[9px] ${isActive ? "border-amber-500/50 bg-amber-500/20" : "border-[#394252]"}`}>{stage.stepNumber}</span>
-                        <span className="min-w-0 flex-1 truncate">{stage.label}</span>
-                        <span className="text-[10px] text-stone-500">{stageBlockCount}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </nav>
-
-              <nav aria-label="Lesson block outline">
-                <p className="mb-2 truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Lesson Outline</p>
-                <div className="space-y-1">
-                  {STUDY_STEPS.filter((stage) => stage.id !== "results").map((stage) => {
-                    const stageBlocks = getBlocks(stage.id);
-                    return (
-                      <details key={stage.id} open={stage.id === activeStep} className="rounded">
-                        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded px-2 py-1.5 text-[11px] text-stone-400 hover:bg-[#0c1017] hover:text-stone-200">
-                          <span className="truncate">{stage.label}</span>
-                          <span className="shrink-0 text-[10px] text-stone-600">{stageBlocks.length}</span>
-                        </summary>
-                        {stageBlocks.length > 0 ? (
-                          <div className="ml-2 border-l border-[#293343] py-1 pl-1">
-                            {stageBlocks.map((block, index) => (
-                              <button
-                                key={block.id}
-                                type="button"
-                                onClick={() => {
-                                  if (activeStep !== stage.id) pendingBlockScrollRef.current = block.id;
-                                  navigateToStep(stage.id);
-                                  if (activeStep === stage.id) scrollToBlock(block.id);
-                                }}
-                                className="flex w-full min-w-0 items-center gap-2 rounded px-2 py-1.5 text-left text-[11px] text-stone-500 transition hover:bg-[#0c1017] hover:text-amber-300"
-                              >
-                                <span className="shrink-0 text-stone-600">{index + 1}.</span>
-                                <span className="truncate">{block.title || `${block.type} block`}</span>
-                              </button>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="px-3 py-1 text-[10px] text-stone-600">No blocks</p>
-                        )}
-                      </details>
-                    );
-                  })}
-                </div>
-              </nav>
-
-              <section className="border-t border-[#202631] pt-3" aria-label="Lesson status">
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Lesson Status</p>
-                <div className="space-y-1 text-[11px]">
-                  <p className="flex justify-between gap-2 text-stone-400"><span>Stages with content</span><span className="text-stone-200">{STUDY_STEPS.filter((stage) => stage.id !== "results" && getBlocks(stage.id).length > 0).length}/6</span></p>
-                  <p className="flex justify-between gap-2 text-stone-400"><span>Active blocks</span><span className="text-emerald-300">{activeBlockCount}/{allLessonBlocks.length}</span></p>
-                </div>
-              </section>
-            </div>
-          )}
-        </div>
-      </aside>
-
-      <div className="min-w-0 flex-1 rounded-xl border border-[#202631] bg-[#171d28]/60 p-3 text-[#d9dce0] sm:p-5">
-        <div className="mb-4 flex items-center justify-between border-b border-[#202631] pb-3">
-          <h2 className="flex items-center gap-2 font-sans text-xl font-semibold">
-            <Layers className="h-5 w-5 text-amber-400" />
-            Lesson Content Tailor
-          </h2>
-          {onPreview && (
-            <button
-              type="button"
-              onClick={onPreview}
-              className="flex items-center gap-1.5 rounded-lg border border-[#202631] bg-[#0c1017] px-3 py-1.5 text-xs text-stone-300 transition hover:text-white"
-            >
-              <Eye className="h-3.5 w-3.5" /> Preview Student View
-            </button>
-          )}
-        </div>
-        <div className="space-y-4">
-          {renderDynamicBuilder(activeStep)}
-        </div>
+    <div className="min-w-0 rounded-xl border border-[#202631] bg-[#171d28]/60 p-3 text-[#d9dce0] sm:p-5">
+      <div className="mb-4 flex items-center justify-between border-b border-[#202631] pb-3">
+        <h2 className="flex items-center gap-2 font-sans text-xl font-semibold">
+          <Layers className="h-5 w-5 text-amber-400" />
+          Lesson Content Tailor
+        </h2>
+        {onPreview && (
+          <button
+            type="button"
+            onClick={onPreview}
+            className="flex items-center gap-1.5 rounded-lg border border-[#202631] bg-[#0c1017] px-3 py-1.5 text-xs text-stone-300 transition hover:text-white"
+          >
+            <Eye className="h-3.5 w-3.5" /> Preview Student View
+          </button>
+        )}
       </div>
+
+      {!hideStageNavigation && (
+        <nav aria-label="Lesson content steps" className="mb-6 w-full">
+          <div className="scrollbar-none flex w-full items-center justify-between gap-2 overflow-x-auto sm:gap-3">
+            {STUDY_STEPS.filter((step) => step.id !== "results").map((step) => {
+              const isActive = activeStep === step.id;
+              return (
+                <button
+                  key={step.id}
+                  type="button"
+                  onClick={() => navigateToStep(step.id)}
+                  aria-current={isActive ? "step" : undefined}
+                  className={`group flex shrink-0 items-center gap-2 whitespace-nowrap rounded-none border-0 px-0 py-1 text-[12px] leading-none transition-all duration-200 ease-out ${isActive ? "text-amber-400" : "text-[#545d70] hover:text-[#858d9c]"}`}
+                >
+                  <span className={`flex h-[18px] w-[18px] items-center justify-center rounded-full text-[10px] transition-all ${isActive ? "border border-amber-500/40 bg-amber-500/20 text-amber-400" : "border border-[#293343] bg-transparent text-transparent"}`}>
+                    {isActive ? step.stepNumber : <span>{step.stepNumber}</span>}
+                  </span>
+                  {step.label}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      )}
+
+      <div className="min-w-0 space-y-4">{renderDynamicBuilder(activeStep)}</div>
     </div>
   );
 }
