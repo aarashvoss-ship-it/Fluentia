@@ -305,6 +305,8 @@ export function TiptapEditor({
   onHtmlChangeRef.current = onHtmlChange;
   const [isColorPaletteOpen, setIsColorPaletteOpen] = useState(false);
   const colorPaletteRef = useRef<HTMLDivElement | null>(null);
+  const [isHighlightPaletteOpen, setIsHighlightPaletteOpen] = useState(false);
+  const highlightPaletteRef = useRef<HTMLDivElement | null>(null);
   const [isTableMenuOpen, setIsTableMenuOpen] = useState(false);
   const tableMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const tableMenuRef = useRef<HTMLDivElement | null>(null);
@@ -339,7 +341,7 @@ export function TiptapEditor({
     editorProps: {
       attributes: {
         "aria-label": ariaLabel,
-        class: "prose prose-invert max-w-none min-h-[100px] outline-none [&_p]:mb-3 [&_h1]:mb-4 [&_h2]:mb-3 [&_h3]:mb-2 [&_ul]:mb-3 [&_ol]:mb-3",
+        class: "prose prose-invert max-w-none min-h-[100px] outline-none [&_p]:mb-4 [&_p]:leading-relaxed [&_h1]:mb-4 [&_h2]:mb-3 [&_h3]:mb-2 [&_ul]:mb-3 [&_ol]:mb-3",
       },
       transformPastedHTML: stripDarkPastedTextColors,
     },
@@ -434,6 +436,17 @@ export function TiptapEditor({
   }, [isColorPaletteOpen]);
 
   useEffect(() => {
+    if (!isHighlightPaletteOpen) return;
+    const handleOutsidePointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !highlightPaletteRef.current?.contains(event.target)) {
+        setIsHighlightPaletteOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", handleOutsidePointerDown);
+    return () => document.removeEventListener("pointerdown", handleOutsidePointerDown);
+  }, [isHighlightPaletteOpen]);
+
+  useEffect(() => {
     if (!isTableMenuOpen) return;
     const updatePopoverPositions = () => {
       const positionPopover = (trigger: HTMLButtonElement | null, width: number, height: number) => {
@@ -484,6 +497,12 @@ export function TiptapEditor({
   };
 
   const textColors = ["#f3f4f6", "#fbbf24", "#ef4444", "#10b981", "#06b6d4", "#a78bfa", "#f472b6", "#9ca3af"];
+  const highlightColors = [
+    { label: "Yellow", color: "rgba(234, 179, 8, 0.3)" },
+    { label: "Green", color: "rgba(34, 197, 94, 0.3)" },
+    { label: "Blue", color: "rgba(59, 130, 246, 0.3)" },
+    { label: "Rose", color: "rgba(244, 63, 94, 0.3)" },
+  ];
   return (
     <div className="tiptap-editor w-full min-w-0 space-y-2">
       <div className="w-full min-w-0">
@@ -498,7 +517,28 @@ export function TiptapEditor({
           <ToolbarButton compact={compact} label="Italic" active={active.italic} onClick={() => editor?.chain().focus().toggleItalic().run()}><Italic className="h-3.5 w-3.5" /></ToolbarButton>
           <ToolbarButton compact={compact} label="Strikethrough" active={active.strike} onClick={() => editor?.chain().focus().toggleStrike().run()}><Strikethrough className="h-3.5 w-3.5" /></ToolbarButton>
           <ToolbarButton compact={compact} label="Underline (Ctrl/Cmd+U)" active={active.underline} onClick={() => editor?.chain().focus().toggleUnderline().run()}><UnderlineIcon className="h-3.5 w-3.5" /></ToolbarButton>
-          <ToolbarButton compact={compact} label="Highlight" active={active.highlight} onClick={() => editor?.chain().focus().toggleHighlight({ color: "#facc15" }).run()}><Highlighter className="h-3.5 w-3.5" /></ToolbarButton>
+          <div ref={highlightPaletteRef} className="relative shrink-0">
+            <ToolbarButton compact={compact} label="Highlight color" active={active.highlight} onClick={() => setIsHighlightPaletteOpen((open) => !open)}><Highlighter className="h-3.5 w-3.5" /></ToolbarButton>
+            {isHighlightPaletteOpen && (
+              <div className="absolute left-0 top-full z-40 mt-2 flex gap-2 rounded-md border border-[#394252] bg-[#171d28] p-2 shadow-xl" role="dialog" aria-label="Choose highlight color">
+                {highlightColors.map(({ label, color }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => {
+                      editor?.chain().focus().toggleHighlight({ color }).run();
+                      setIsHighlightPaletteOpen(false);
+                    }}
+                    className="h-6 w-6 rounded-full border border-white/40 transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
+                    style={{ backgroundColor: color }}
+                    aria-label={`${label} highlight`}
+                    title={`${label} highlight`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
           <ToolbarButton compact={compact} label="Clear formatting" onClick={() => editor?.chain().focus().unsetAllMarks().clearNodes().run()}><Eraser className="h-3.5 w-3.5" /></ToolbarButton>
           {!compact && <span className="mx-1 h-4 w-px shrink-0 bg-[#394252]" aria-hidden="true" />}
           <ToolbarButton compact={compact} label="Bullet list" active={active.bulletList} onClick={() => editor?.chain().focus().toggleBulletList().run()}><List className="h-3.5 w-3.5" /></ToolbarButton>
@@ -604,7 +644,7 @@ export function TiptapEditor({
         </div>,
         document.body,
       )}
-      <div className="overflow-x-auto rounded border border-[#202631] bg-[#0c1017] px-3 py-2 text-xs text-stone-200 outline-none transition focus-within:border-amber-500/40 [&_.ProseMirror]:min-h-[100px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:leading-relaxed [&_.ProseMirror_p]:mb-3 [&_.ProseMirror_h1]:my-3 [&_.ProseMirror_h1]:mb-4 [&_.ProseMirror_h1]:text-xl [&_.ProseMirror_h1]:font-semibold [&_.ProseMirror_h2]:my-2 [&_.ProseMirror_h2]:mb-3 [&_.ProseMirror_h2]:text-lg [&_.ProseMirror_h2]:font-semibold [&_.ProseMirror_h3]:my-2 [&_.ProseMirror_h3]:mb-2 [&_.ProseMirror_h3]:text-base [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h4]:my-2 [&_.ProseMirror_h4]:text-sm [&_.ProseMirror_h4]:font-semibold [&_.ProseMirror_h4]:leading-7 [&_.ProseMirror_blockquote]:my-2 [&_.ProseMirror_blockquote]:border-l-2 [&_.ProseMirror_blockquote]:border-amber-500/40 [&_.ProseMirror_blockquote]:pl-3 [&_.ProseMirror_pre]:my-2 [&_.ProseMirror_pre]:overflow-x-auto [&_.ProseMirror_pre]:rounded [&_.ProseMirror_pre]:bg-[#171d28] [&_.ProseMirror_pre]:p-3 [&_.ProseMirror_code]:rounded [&_.ProseMirror_code]:bg-[#171d28] [&_.ProseMirror_code]:px-1 [&_.ProseMirror_ul]:my-2 [&_.ProseMirror_ul]:mb-3 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5 [&_.ProseMirror_ol]:my-2 [&_.ProseMirror_ol]:mb-3 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-5 [&_.ProseMirror_hr]:my-3 [&_.ProseMirror_a]:text-amber-400 [&_.ProseMirror_a]:underline [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_table_th]:border [&_.ProseMirror_table_th]:border-[#394252] [&_.ProseMirror_table_th]:bg-[#171d28] [&_.ProseMirror_table_th]:p-2 [&_.ProseMirror_table_td]:border [&_.ProseMirror_table_td]:border-[#394252] [&_.ProseMirror_table_td]:p-2">
+      <div className="overflow-x-auto rounded border border-[#202631] bg-[#0c1017] px-3 py-2 text-xs text-stone-200 outline-none transition focus-within:border-amber-500/40 [&_.ProseMirror]:min-h-[100px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:leading-relaxed [&_.ProseMirror_p]:mb-4 [&_.ProseMirror_p]:leading-relaxed [&_.ProseMirror_h1]:my-3 [&_.ProseMirror_h1]:mb-4 [&_.ProseMirror_h1]:text-xl [&_.ProseMirror_h1]:font-semibold [&_.ProseMirror_h2]:my-2 [&_.ProseMirror_h2]:mb-3 [&_.ProseMirror_h2]:text-lg [&_.ProseMirror_h2]:font-semibold [&_.ProseMirror_h3]:my-2 [&_.ProseMirror_h3]:mb-2 [&_.ProseMirror_h3]:text-base [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h4]:my-2 [&_.ProseMirror_h4]:text-sm [&_.ProseMirror_h4]:font-semibold [&_.ProseMirror_h4]:leading-7 [&_.ProseMirror_blockquote]:my-2 [&_.ProseMirror_blockquote]:border-l-2 [&_.ProseMirror_blockquote]:border-amber-500/40 [&_.ProseMirror_blockquote]:pl-3 [&_.ProseMirror_pre]:my-2 [&_.ProseMirror_pre]:overflow-x-auto [&_.ProseMirror_pre]:rounded [&_.ProseMirror_pre]:bg-[#171d28] [&_.ProseMirror_pre]:p-3 [&_.ProseMirror_code]:rounded [&_.ProseMirror_code]:bg-[#171d28] [&_.ProseMirror_code]:px-1 [&_.ProseMirror_ul]:my-2 [&_.ProseMirror_ul]:mb-3 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5 [&_.ProseMirror_ol]:my-2 [&_.ProseMirror_ol]:mb-3 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-5 [&_.ProseMirror_hr]:my-3 [&_.ProseMirror_a]:text-amber-400 [&_.ProseMirror_a]:underline [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_table_th]:border [&_.ProseMirror_table_th]:border-[#394252] [&_.ProseMirror_table_th]:bg-[#171d28] [&_.ProseMirror_table_th]:p-2 [&_.ProseMirror_table_td]:border [&_.ProseMirror_table_td]:border-[#394252] [&_.ProseMirror_table_td]:p-2 [&_.ProseMirror_mark]:text-inherit">
         <EditorContent editor={editor} />
       </div>
     </div>

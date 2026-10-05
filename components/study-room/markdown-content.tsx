@@ -60,6 +60,7 @@ export function MarkdownContent({ value, className = "", plainCode = false, data
             if (iconName) return <DynamicLucideIcon name={iconName} className="mx-1 inline-block h-4 w-4 align-middle text-amber-400" aria-label={iconName} />;
             return <span {...props}>{children}</span>;
           },
+          mark: ({ children, ...props }) => <mark {...props} className="rounded-sm px-0.5 text-inherit">{children}</mark>,
           h1: ({ children }) => <h1 className="mb-4 mt-6 text-2xl font-semibold leading-tight text-stone-100">{children}</h1>,
           h2: ({ children }) => <h2 className="mb-3 mt-5 text-xl font-semibold leading-tight text-stone-100">{children}</h2>,
           h3: ({ children }) => <h3 className="mb-3 mt-4 text-lg font-semibold leading-tight text-stone-100">{children}</h3>,
