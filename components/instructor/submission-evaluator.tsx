@@ -369,7 +369,7 @@ export function SubmissionEvaluator({
 
   return <div className="space-y-5">
     <div className="overflow-x-auto border-b border-[#293343]">
-      <nav className="mx-auto flex w-max min-w-max justify-center gap-6" aria-label="Evaluation stages">
+      <nav className="flex w-full min-w-max justify-between gap-6 px-4" aria-label="Evaluation stages">
         {stages.map((stage, index) => <button
           key={stage.id}
           type="button"
@@ -503,17 +503,17 @@ export function SubmissionEvaluator({
                 ? "border-emerald-500/30 bg-emerald-500/5"
                 : isObjectiveAnswer
                   ? "border-rose-500/30 bg-rose-500/5"
-                  : "border-amber-500/30 bg-amber-500/5";
+                  : "border-[#394252] bg-[#0c1017]";
               const responseLabelClass = isCorrect
                 ? "text-emerald-300"
                 : isObjectiveAnswer
                   ? "text-rose-300"
-                  : "text-amber-300";
+                  : "text-stone-400";
               const responseTextClass = isCorrect
                 ? "text-emerald-100"
                 : isObjectiveAnswer
                   ? "text-rose-100"
-                  : "text-stone-100";
+                  : "text-stone-200";
               return <article key={task.id} className="space-y-3 rounded-xl border border-[#293343] bg-[#111620] p-4">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Student task {index + 1}</p>
@@ -521,7 +521,7 @@ export function SubmissionEvaluator({
                 </div>
                 <div className={`rounded-lg border p-4 ${responseBoxClass}`}>
                   <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${responseLabelClass}`}>Student response</p>
-                  <p className={`mt-2 whitespace-pre-wrap break-words rounded-sm px-2 py-3 text-sm leading-relaxed ${isCorrect ? "bg-emerald-300/10" : isObjectiveAnswer ? "bg-rose-300/10" : "bg-amber-300/10"} ${responseTextClass}`}>{stripMarkdown(task.studentAnswer) || <span className="italic text-stone-500">No response submitted.</span>}</p>
+                  <p className={`mt-2 whitespace-pre-wrap break-words rounded-sm px-2 py-3 text-sm leading-relaxed ${isCorrect ? "bg-emerald-300/10" : isObjectiveAnswer ? "bg-rose-300/10" : "bg-[#171d28]"} ${responseTextClass}`}>{stripMarkdown(task.studentAnswer) || <span className="italic text-stone-500">No response submitted.</span>}</p>
                   {task.audioUrls?.map((url, audioIndex) => <div key={`${url}-${audioIndex}`} className="mt-2"><CustomAudioPlayer src={url} label={`${task.title} student recording`} /></div>)}
                 </div>
                 {task.modelAnswer && <div className="rounded-md border border-blue-500/20 bg-blue-500/5 p-4">
