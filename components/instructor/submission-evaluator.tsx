@@ -409,12 +409,12 @@ export function SubmissionEvaluator({
 
   return <div className="space-y-5">
     <div className="grid items-start gap-5 lg:grid-cols-[250px_minmax(0,1fr)]">
-      <aside className="space-y-4 rounded-xl border border-[#202631] bg-[#111620] p-4" aria-label="Evaluation tools">
+      <aside className="flex flex-col rounded-xl border border-[#202631] bg-[#111620] p-4 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)]" aria-label="Evaluation tools">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-amber-400">Evaluation Studio</p>
           <h2 className="mt-1 text-sm font-semibold text-stone-100">{studentName}</h2>
         </div>
-        <nav className="space-y-1" aria-label="Stage status">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto py-4" aria-label="Stage status">
           {stages.map((stage, index) => {
             const status = evaluationStatus(stage.id);
             return <button
@@ -436,7 +436,7 @@ export function SubmissionEvaluator({
             <span className={`rounded-full border px-1.5 py-0.5 text-[9px] ${stageStatusClass(evaluation?.published ? "Evaluated" : "Pending Review")}`}>{evaluation?.published ? "Evaluated" : "Preview"}</span>
           </button>
         </nav>
-        <div className="space-y-2 border-t border-[#293343] pt-4">
+        <div className="mt-auto shrink-0 space-y-2 border-t border-[#293343] pt-4">
           <button type="button" onClick={() => void handleSaveDraft()} disabled={isSavingDraft || isSubmitting || voiceUploadStage !== null || (useSupabase && submissionLoadState !== "loaded")} className="flex w-full items-center justify-center gap-2 rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-200 transition hover:border-amber-500/40 disabled:cursor-wait disabled:opacity-50">
             <Save className="h-3.5 w-3.5" aria-hidden="true" />{isSavingDraft ? "Saving Draft..." : "Save Draft"}
           </button>
@@ -446,8 +446,8 @@ export function SubmissionEvaluator({
           <button type="button" onClick={() => void handleSubmit()} disabled={isSubmitting || isSubmitted || voiceUploadStage !== null || (useSupabase && submissionLoadState !== "loaded")} className="w-full rounded-md bg-amber-500/20 px-3 py-2.5 text-xs font-semibold text-amber-300 transition hover:bg-amber-500/30 disabled:cursor-wait disabled:opacity-50">
             {isSubmitting ? "Publishing..." : isSubmitted ? "Evaluation Published" : "Publish Evaluation"}
           </button>
+          {draftStatus && <p role="status" className="text-[11px] leading-relaxed text-emerald-300">{draftStatus}</p>}
         </div>
-        {draftStatus && <p role="status" className="text-[11px] leading-relaxed text-emerald-300">{draftStatus}</p>}
       </aside>
 
       <section className="min-w-0 space-y-5" aria-label={`${activeStageTitle} evaluation`}>
