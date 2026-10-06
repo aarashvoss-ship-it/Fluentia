@@ -14,13 +14,14 @@ import { combineTaskFeedback } from "@/lib/evaluation-feedback";
 import {
   type RubricScale,
   RUBRIC_SCALE_OPTIONS,
+  aggregateOverallRubric,
   convertRubricScore,
   displayRubricScore,
+  formatOverallRubricTotal,
   formatRubricScore,
   getRubricScale,
   normalizeRubricScore,
-  overallRubricScaleId,
-  roundRubricScore,
+  roundRubricScoreForScale,
 } from "@/lib/rubric-scoring";
 
 export type { RubricScale } from "@/lib/rubric-scoring";
@@ -118,20 +119,20 @@ export function SubmissionEvaluator({
   onUpdateEvaluation,
   useSupabase = true,
 }: SubmissionEvaluatorProps) {
-  const defaultScores: Record<string, number> = {
-    task: 4,
-    coherence: 4,
-    lexical: 3,
-    grammar: 4,
-  };
-
   const comments = evaluation?.comments || "";
   const criterionFeedback = evaluation?.criterionFeedback || {};
   const stageFeedback = evaluation?.stageFeedback || {};
   const stageScores = evaluation?.stageScores || {};
   const stageRubricScales = evaluation?.stageRubricScales || {};
   const reportCardScoreOverrides = evaluation?.reportCardScoreOverrides || {};
-  const overallScaleId = overallRubricScaleId(stageScores, stageRubricScales);
+  const overallAggregation = aggregateOverallRubric({
+    criterionIds: RUBRIC_CRITERIA.map(({ id }) => id),
+    stageScores,
+    stageRubricScales,
+    reportCardScoreOverrides,
+    fallbackScores: evaluation?.scores,
+  });
+  const overallScaleId = overallAggregation.scaleId;
   const overallScale = getRubricScale(overallScaleId);
   const stageAverages = Object.fromEntries(RUBRIC_CRITERIA.map(({ id }) => {
     const values = Object.entries(stageScores)
@@ -140,16 +141,10 @@ export function SubmissionEvaluator({
         return typeof score === "number" ? normalizeRubricScore(score, stageRubricScales[stageId]) : undefined;
       })
       .filter((score): score is number => typeof score === "number" && Number.isFinite(score));
-    return [id, values.length ? roundRubricScore(values.reduce((sum, score) => sum + score, 0) / values.length) : undefined];
+    return [id, values.length ? values.reduce((sum, score) => sum + score, 0) / values.length : undefined];
   }));
-  const scores = Object.fromEntries(RUBRIC_CRITERIA.map(({ id }) => [
-    id,
-    reportCardScoreOverrides[id] ?? stageAverages[id] ?? evaluation?.scores?.[id] ?? defaultScores[id],
-  ]));
-  const displayScores = Object.fromEntries(RUBRIC_CRITERIA.map(({ id }) => [
-    id,
-    roundRubricScore(displayRubricScore(scores[id], overallScaleId)),
-  ]));
+  const scores = overallAggregation.criterionScores;
+  const displayScores = overallAggregation.displayCriterionScores;
   const taskFeedback = evaluation?.taskFeedback || {};
   const inlineCorrections = evaluation?.inlineCorrections || {};
   const stageVoiceFeedback = evaluation?.stageVoiceFeedback || {};
@@ -235,7 +230,7 @@ export function SubmissionEvaluator({
       if (draftEvaluation) {
         onUpdateEvaluation?.({ ...draftEvaluation, published: false });
       } else if (feedback) {
-        const rubricScores = feedback.rubric_scores || feedback.scores || feedback.criterion_feedback?.scores || defaultScores;
+        const rubricScores = feedback.rubric_scores || feedback.scores || feedback.criterion_feedback?.scores || {};
         onUpdateEvaluation?.({
           scores: rubricScores,
           totalScore: Number(feedback.total_score ?? feedback.score ?? Object.values(rubricScores).reduce<number>((total, score) => total + Number(score), 0)),
@@ -291,7 +286,7 @@ export function SubmissionEvaluator({
     setDraftStatus(null);
   };
 
-  const totalScore = roundRubricScore(Object.values(displayScores).reduce((acc, curr) => acc + curr, 0));
+  const totalScore = overallAggregation.totalScore;
   const reportStageId = "report-card";
   const reportStageIndex = stages.length;
   const activeStageIndex = activeStageId === reportStageId
@@ -519,20 +514,20 @@ export function SubmissionEvaluator({
           <section className="space-y-3 rounded-xl border border-[#202631] bg-[#171d28]/60 p-4">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-sm font-semibold text-stone-100">Overall Rubric</h3>
-              <span className="text-xs text-amber-300">Total: {formatRubricScore(totalScore)}/{RUBRIC_CRITERIA.length * overallScale.max}</span>
+              <span className="text-xs text-amber-300">{formatOverallRubricTotal(totalScore, overallScaleId, overallAggregation.totalDenominator)}</span>
             </div>
             <p className="text-[11px] leading-relaxed text-stone-500">Each criterion starts as the average of its ratings across stages. Adjust a score here to fine-tune the final report.</p>
             <div className="grid gap-3 sm:grid-cols-2">
               {RUBRIC_CRITERIA.map((criterion) => <div key={criterion.id} className="rounded-lg border border-[#293343] bg-[#0c1017] p-3">
-                <div className="flex justify-between gap-2 text-xs"><span className="text-stone-300">{criterion.label}</span><span className="text-amber-300">{formatRubricScore(displayScores[criterion.id])}/{overallScale.max}</span></div>
-                {stageAverages[criterion.id] !== undefined && <p className="mt-1 text-[10px] text-stone-500">{reportCardScoreOverrides[criterion.id] !== undefined ? `Stage average: ${formatRubricScore(roundRubricScore(displayRubricScore(stageAverages[criterion.id] ?? 0, overallScaleId)))}/${overallScale.max} · Manually adjusted` : `Average of ${Object.values(stageScores).filter((stage) => typeof stage[criterion.id] === "number").length} stage ratings`}</p>}
+                <div className="flex justify-between gap-2 text-xs"><span className="text-stone-300">{criterion.label}</span><span className="text-amber-300">{displayScores[criterion.id] === undefined ? `—/${overallScale.max}` : `${formatRubricScore(displayScores[criterion.id])}/${overallScale.max}`}</span></div>
+                {stageAverages[criterion.id] !== undefined && <p className="mt-1 text-[10px] text-stone-500">{reportCardScoreOverrides[criterion.id] !== undefined ? `Stage average: ${formatRubricScore(roundRubricScoreForScale(displayRubricScore(stageAverages[criterion.id] ?? 0, overallScaleId), overallScaleId))}/${overallScale.max} · Manually adjusted` : `Average of ${overallAggregation.criterionStageCounts[criterion.id]} stage ratings`}</p>}
                 <div className="mt-2 flex items-center gap-2">
                   <input
                     type="range"
                     min={overallScale.min}
                     max={overallScale.max}
                     step={overallScale.step}
-                    value={displayScores[criterion.id]}
+                    value={displayScores[criterion.id] ?? overallScale.min}
                     onChange={(event) => handleScoreChange(criterion.id, Number(event.target.value))}
                     className="min-w-0 flex-1 accent-amber-500"
                     aria-label={`${criterion.label} score`}
@@ -542,7 +537,7 @@ export function SubmissionEvaluator({
                     min={overallScale.min}
                     max={overallScale.max}
                     step={overallScale.step}
-                    value={displayScores[criterion.id]}
+                    value={displayScores[criterion.id] ?? overallScale.min}
                     onChange={(event) => {
                       const value = Number(event.target.value);
                       if (event.target.value !== "" && Number.isFinite(value) && value >= overallScale.min && value <= overallScale.max) {

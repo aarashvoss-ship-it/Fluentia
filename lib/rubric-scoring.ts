@@ -59,6 +59,106 @@ export function overallRubricScaleId(
   return scaleIds.size === 1 ? [...scaleIds][0] : DEFAULT_RUBRIC_SCALE;
 }
 
+export function roundRubricScoreForScale(score: number, scaleId?: string) {
+  switch (getRubricScale(scaleId).id) {
+    case "ielts":
+    case "standard-10":
+      return Math.round((score + Number.EPSILON) * 2) / 2;
+    case "standard-5":
+      return Math.round((score + Number.EPSILON) * 4) / 4;
+    case "percentage":
+      return Math.round((score + Number.EPSILON) * 10) / 10;
+  }
+}
+
+export interface OverallRubricResult {
+  scaleId: RubricScale;
+  criterionScores: Record<string, number>;
+  displayCriterionScores: Record<string, number>;
+  criterionStageCounts: Record<string, number>;
+  totalScore: number;
+  totalDenominator: number;
+}
+
+export function formatOverallRubricTotal(
+  totalScore: number,
+  scaleId?: string,
+  denominator?: number,
+) {
+  const scale = getRubricScale(scaleId);
+  const formattedScore = scale.id === "standard-5"
+    ? totalScore.toFixed(2)
+    : totalScore.toFixed(1);
+  const label = scale.id === "ielts" ? "Overall Band Score" : "Total";
+  const maxScore = denominator ?? (scale.id === "standard-5" ? 20 : scale.max);
+  return `${label}: ${formattedScore} / ${maxScore}`;
+}
+
+export function aggregateOverallRubric({
+  criterionIds,
+  stageScores,
+  stageRubricScales,
+  reportCardScoreOverrides = {},
+  fallbackScores = {},
+}: {
+  criterionIds: string[];
+  stageScores: Record<string, Record<string, number>>;
+  stageRubricScales: Record<string, string>;
+  reportCardScoreOverrides?: Record<string, number>;
+  fallbackScores?: Record<string, number>;
+}): OverallRubricResult {
+  const scaleId = overallRubricScaleId(stageScores, stageRubricScales);
+  const scale = getRubricScale(scaleId);
+  const criterionScores: Record<string, number> = {};
+  const displayCriterionScores: Record<string, number> = {};
+  const criterionStageCounts: Record<string, number> = {};
+  const hasRecordedStageRatings = Object.values(stageScores)
+    .some((scores) => Object.values(scores).some((score) => Number.isFinite(score)));
+  const rawDisplayCriterionScores: Record<string, number> = {};
+
+  for (const criterionId of criterionIds) {
+    const stageRatings = Object.entries(stageScores)
+      .map(([stageId, scores]) => {
+        const score = scores[criterionId];
+        return typeof score === "number" && Number.isFinite(score)
+          ? normalizeRubricScore(score, stageRubricScales[stageId])
+          : undefined;
+      })
+      .filter((score): score is number => score !== undefined);
+    const normalizedAverage = stageRatings.length
+      ? stageRatings.reduce((sum, score) => sum + score, 0) / stageRatings.length
+      : undefined;
+    const normalizedScore = typeof reportCardScoreOverrides[criterionId] === "number"
+      ? reportCardScoreOverrides[criterionId]
+      : normalizedAverage ?? (hasRecordedStageRatings ? undefined : fallbackScores[criterionId]);
+
+    criterionStageCounts[criterionId] = stageRatings.length;
+    if (typeof normalizedScore !== "number" || !Number.isFinite(normalizedScore)) continue;
+
+    criterionScores[criterionId] = normalizedScore;
+    rawDisplayCriterionScores[criterionId] = displayRubricScore(normalizedScore, scaleId);
+    displayCriterionScores[criterionId] = roundRubricScore(rawDisplayCriterionScores[criterionId]);
+  }
+
+  const scoredCriteria = criterionIds
+    .map((criterionId) => rawDisplayCriterionScores[criterionId])
+    .filter((score): score is number => typeof score === "number");
+  const unroundedTotal = scaleId === "standard-5"
+    ? scoredCriteria.reduce((sum, score) => sum + score, 0)
+    : scoredCriteria.length
+      ? scoredCriteria.reduce((sum, score) => sum + score, 0) / scoredCriteria.length
+      : 0;
+
+  return {
+    scaleId,
+    criterionScores,
+    displayCriterionScores,
+    criterionStageCounts,
+    totalScore: roundRubricScoreForScale(unroundedTotal, scaleId),
+    totalDenominator: scaleId === "standard-5" ? criterionIds.length * scale.max : scale.max,
+  };
+}
+
 export function roundRubricScore(score: number) {
   return Math.round((score + Number.EPSILON) * 10) / 10;
 }

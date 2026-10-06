@@ -4,12 +4,11 @@ import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import { combineTaskFeedback } from "@/lib/evaluation-feedback";
 import {
-  displayRubricScore,
+  aggregateOverallRubric,
+  formatOverallRubricTotal,
   formatRubricScore,
   getRubricScale,
   normalizeRubricScore,
-  overallRubricScaleId,
-  roundRubricScore,
 } from "@/lib/rubric-scoring";
 
 export interface UnifiedReportTask {
@@ -43,6 +42,7 @@ interface UnifiedReportCardProps {
   stageFeedback: Record<string, string>;
   stageScores?: Record<string, Record<string, number>>;
   stageRubricScales?: Record<string, string>;
+  reportCardScoreOverrides?: Record<string, number>;
   taskFeedback?: Record<string, string>;
   inlineCorrections?: Record<string, string>;
   stageVoiceFeedback?: Record<string, string>;
@@ -105,6 +105,7 @@ export function UnifiedReportCard({
   stageFeedback,
   stageScores = {},
   stageRubricScales = {},
+  reportCardScoreOverrides = {},
   taskFeedback = {},
   inlineCorrections = {},
   stageVoiceFeedback = {},
@@ -121,17 +122,17 @@ export function UnifiedReportCard({
   isSubmitted = false,
   submitError,
 }: UnifiedReportCardProps) {
-  const overallScaleId = overallRubricScaleId(stageScores, stageRubricScales);
+  const overallAggregation = aggregateOverallRubric({
+    criterionIds: RUBRIC_CRITERIA.map(({ id }) => id),
+    stageScores,
+    stageRubricScales,
+    reportCardScoreOverrides,
+    fallbackScores: scores,
+  });
+  const overallScaleId = overallAggregation.scaleId;
   const overallScale = getRubricScale(overallScaleId);
-  const displayScores = Object.fromEntries(RUBRIC_CRITERIA.map((criterion) => [
-    criterion.id,
-    roundRubricScore(displayRubricScore(Number(scores[criterion.id] || 0), overallScaleId)),
-  ]));
-  const totalScore = roundRubricScore(
-    RUBRIC_CRITERIA.reduce((total, criterion) =>
-      total + (typeof scores[criterion.id] === "number" ? displayScores[criterion.id] : 0),
-    0),
-  );
+  const displayScores = overallAggregation.displayCriterionScores;
+  const totalScore = overallAggregation.totalScore;
 
   const renderGeneralField = (
     field: "comments" | "strengths" | "areasToImprove" | "studyHubPrescription",
@@ -257,18 +258,18 @@ export function UnifiedReportCard({
     <section aria-label="Rubric ratings" className="space-y-3">
       <div className="flex items-center justify-between border-b border-[#202631] pb-3">
         <h3 className="text-lg font-semibold text-stone-100">Rubric Ratings</h3>
-        <span className="text-xs text-amber-400">Total: {formatRubricScore(totalScore)}/{RUBRIC_CRITERIA.length * overallScale.max}</span>
+        <span className="text-xs text-amber-400">{formatOverallRubricTotal(totalScore, overallScaleId, overallAggregation.totalDenominator)}</span>
       </div>
       <div className="flex flex-col gap-3">
         {RUBRIC_CRITERIA.map((criterion) => <div key={criterion.id} className="space-y-3 rounded-lg border border-[#202631] bg-[#0c1017] p-4">
           <div className="flex items-center justify-between gap-3">
             <span className="text-sm font-medium text-stone-300">{criterion.label}</span>
-            <span className="text-sm font-semibold text-amber-400">{scores[criterion.id] === undefined ? (!isInstructorView && !isEvaluated ? "Pending Review" : `—/${overallScale.max}`) : `${formatRubricScore(displayScores[criterion.id])}/${overallScale.max}`}</span>
+            <span className="text-sm font-semibold text-amber-400">{displayScores[criterion.id] === undefined ? (!isInstructorView && !isEvaluated ? "Pending Review" : `—/${overallScale.max}`) : `${formatRubricScore(displayScores[criterion.id])}/${overallScale.max}`}</span>
           </div>
           {isInstructorView ? <>
             <div className="flex items-center gap-2">
-              <input type="range" min={overallScale.min} max={overallScale.max} step={overallScale.step} value={displayScores[criterion.id]} onChange={(event) => onScoreChange?.(criterion.id, normalizeRubricScore(Number(event.target.value), overallScaleId))} className="w-full accent-amber-500" aria-label={`${criterion.label} score`} />
-              <input type="number" min={overallScale.min} max={overallScale.max} step={overallScale.step} value={displayScores[criterion.id]} onChange={(event) => {
+              <input type="range" min={overallScale.min} max={overallScale.max} step={overallScale.step} value={displayScores[criterion.id] ?? overallScale.min} onChange={(event) => onScoreChange?.(criterion.id, normalizeRubricScore(Number(event.target.value), overallScaleId))} className="w-full accent-amber-500" aria-label={`${criterion.label} score`} />
+              <input type="number" min={overallScale.min} max={overallScale.max} step={overallScale.step} value={displayScores[criterion.id] ?? overallScale.min} onChange={(event) => {
                 const value = Number(event.target.value);
                 if (event.target.value !== "" && Number.isFinite(value) && value >= overallScale.min && value <= overallScale.max) {
                   onScoreChange?.(criterion.id, normalizeRubricScore(value, overallScaleId));
