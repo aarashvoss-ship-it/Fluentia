@@ -8,7 +8,9 @@ import { getSubmissionById, getSubmissionByLessonAndStudent } from "@/lib/evalua
 import { saveInstructorFeedback, uploadVoiceFeedback } from "@/services/storage-service";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { AudioRecorder } from "@/components/shared/audio-recorder";
+import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import { type UnifiedReportStage } from "@/components/shared/unified-report-card";
+import { combineTaskFeedback } from "@/lib/evaluation-feedback";
 
 export interface FeedbackPayload {
   scores: Record<string, number>;
@@ -484,8 +486,10 @@ export function SubmissionEvaluator({
             {stageFeedback[stage.id]?.trim() && <p className="whitespace-pre-wrap rounded-md bg-[#0c1017] p-3 text-xs leading-relaxed text-stone-300">{stageFeedback[stage.id]}</p>}
             {stage.tasks.map((task) => <div key={task.id} className="space-y-1 rounded-md border border-[#293343] bg-[#0c1017] p-3 text-xs">
               <p className="font-medium text-stone-300">{task.title}</p>
-              {inlineCorrections[task.id]?.trim() && <p className="whitespace-pre-wrap text-amber-200">Correction: {inlineCorrections[task.id]}</p>}
-              {taskFeedback[task.id]?.trim() && <p className="whitespace-pre-wrap text-stone-400">Comment: {taskFeedback[task.id]}</p>}
+              {combineTaskFeedback(taskFeedback[task.id], inlineCorrections[task.id]) && <div className="mt-2">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">INSTRUCTOR FEEDBACK &amp; CORRECTION</p>
+                <TiptapEditor value={combineTaskFeedback(taskFeedback[task.id], inlineCorrections[task.id])} onChange={() => {}} ariaLabel={`${task.title} instructor feedback`} readOnly />
+              </div>}
             </div>)}
             {stageVoiceFeedback[stage.id] && <div className="space-y-1"><p className="text-[10px] text-stone-500">Voice note</p><CustomAudioPlayer src={stageVoiceFeedback[stage.id]} label={`${stage.title} instructor voice note`} /></div>}
           </section>)}
@@ -508,7 +512,6 @@ export function SubmissionEvaluator({
               {activeStage.referenceAudioUrl && <div className="mt-3"><CustomAudioPlayer src={activeStage.referenceAudioUrl} label={`${activeStage.title} lesson reference audio`} /></div>}
             </details>}
             {activeStage.tasks.length ? activeStage.tasks.map((task, index) => {
-              const isTextResponse = Boolean(task.studentAnswer?.trim()) && !task.audioUrls?.length;
               const normalizedAnswer = task.studentAnswer ? normalizeAnswer(task.studentAnswer) : "";
               const matchesCorrectAnswer = task.modelAnswer?.split(/[\/|]/).some(
                 (candidate) => normalizeAnswer(candidate) === normalizedAnswer,
@@ -550,12 +553,20 @@ export function SubmissionEvaluator({
                   <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${modelLabelClass}`}>Model answer</p>
                   <p className={`mt-2 whitespace-pre-wrap py-2 text-sm leading-relaxed ${modelTextClass}`}>{stripMarkdown(task.modelAnswer)}</p>
                 </div>}
-                {isTextResponse && <label className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">Inline correction
-                  <textarea value={inlineCorrections[task.id] || ""} onChange={(event) => updateEvaluation({ inlineCorrections: { ...inlineCorrections, [task.id]: event.target.value } })} rows={3} placeholder="Provide a corrected version or mark specific edits..." className="mt-1 w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] p-3 text-xs normal-case leading-relaxed text-stone-200 outline-none focus:border-amber-500/40" />
-                </label>}
-                <label className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400">Instructor comment
-                  <textarea value={taskFeedback[task.id] || ""} onChange={(event) => updateEvaluation({ taskFeedback: { ...taskFeedback, [task.id]: event.target.value } })} rows={2} placeholder="Add a note about this response..." className="mt-1 w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] p-3 text-xs normal-case leading-relaxed text-stone-200 outline-none focus:border-amber-500/40" />
-                </label>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">INSTRUCTOR FEEDBACK &amp; CORRECTION</p>
+                  <TiptapEditor
+                    value={combineTaskFeedback(taskFeedback[task.id], inlineCorrections[task.id])}
+                    onChange={(value) => updateEvaluation({
+                      taskFeedback: { ...taskFeedback, [task.id]: value },
+                      inlineCorrections: Object.fromEntries(Object.entries(inlineCorrections).filter(([id]) => id !== task.id)),
+                    })}
+                    placeholder="Write a correction, explanation, or note about this response..."
+                    ariaLabel={`${task.title} instructor feedback and correction`}
+                    compact
+                    wrapToolbar
+                  />
+                </div>
               </article>;
             }) : <div className="rounded-lg border border-dashed border-[#394252] bg-[#111620] p-5 text-center">
               <p className="text-sm font-medium text-stone-300">No interactive response in this stage</p>

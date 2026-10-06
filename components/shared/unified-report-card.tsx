@@ -1,6 +1,8 @@
 "use client";
 
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
+import { TiptapEditor } from "@/components/shared/tiptap-editor";
+import { combineTaskFeedback } from "@/lib/evaluation-feedback";
 
 export interface UnifiedReportTask {
   id: string;
@@ -196,13 +198,9 @@ export function UnifiedReportCard({
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Explanation</p>
                 <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-stone-400">{stripMarkdown(task.explanation)}</p>
               </div>}
-              {!isInstructorView && inlineCorrections[task.id]?.trim() && <div className="mt-3 rounded-md border border-amber-500/20 bg-amber-500/5 p-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">Suggested correction</p>
-                <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-stone-200">{inlineCorrections[task.id]}</p>
-              </div>}
-              {!isInstructorView && taskFeedback[task.id]?.trim() && <div className="mt-3 rounded-md border border-[#293343] bg-[#121721] p-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Instructor comment</p>
-                <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-stone-300">{taskFeedback[task.id]}</p>
+              {!isInstructorView && combineTaskFeedback(taskFeedback[task.id], inlineCorrections[task.id]) && <div className="mt-3 rounded-md border border-[#293343] bg-[#121721] p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-300">INSTRUCTOR FEEDBACK &amp; CORRECTION</p>
+                <TiptapEditor value={combineTaskFeedback(taskFeedback[task.id], inlineCorrections[task.id])} onChange={() => {}} ariaLabel={`${stripMarkdown(task.title)} instructor feedback`} readOnly />
               </div>}
             </article>;
             })}

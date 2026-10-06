@@ -133,6 +133,7 @@ type TiptapEditorProps = {
   compact?: boolean;
   wrapToolbar?: boolean;
   defaultBold?: boolean;
+  readOnly?: boolean;
 };
 
 function ToolbarButton({
@@ -320,6 +321,7 @@ export function TiptapEditor({
   compact = false,
   wrapToolbar = true,
   defaultBold = false,
+  readOnly = false,
 }: TiptapEditorProps) {
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -360,6 +362,7 @@ export function TiptapEditor({
     extensions,
     content: normalizedValue,
     contentType: valueIsHtml ? "html" : "markdown",
+    editable: !readOnly,
     immediatelyRender: false,
     editorProps: {
       attributes: {
@@ -374,7 +377,7 @@ export function TiptapEditor({
       onChangeRef.current(html);
       onHtmlChangeRef.current?.(html);
     },
-  }, [extensions]);
+  }, [extensions, readOnly]);
 
   useEffect(() => {
     if (!editor) return;
@@ -530,7 +533,7 @@ export function TiptapEditor({
   ];
   return (
     <div className="tiptap-editor w-full min-w-0 space-y-2">
-      <div className="w-full min-w-0">
+      {!readOnly && <div className="w-full min-w-0">
         <div className={`box-border flex w-full min-w-0 items-center justify-start rounded border border-[#202631] bg-[#0c1017] p-1 ${wrapToolbar ? "flex-wrap" : ""} ${compact ? "gap-0.5" : "gap-1.5"}`} role="toolbar" aria-label="Rich text formatting">
           <ToolbarButton compact={compact} label="Normal paragraph" active={active.paragraph && !active.paragraphVariant} onClick={() => editor?.chain().focus().setParagraph().updateAttributes("paragraph", { textVariant: null }).run()}>P</ToolbarButton>
           <ToolbarButton compact={compact} label="Lead paragraph (18px)" active={active.paragraph && active.paragraphVariant === "lead"} onClick={() => editor?.chain().focus().setParagraph().updateAttributes("paragraph", { textVariant: "lead" }).run()}>P1</ToolbarButton>
@@ -635,7 +638,7 @@ export function TiptapEditor({
           {!compact && <span className="mx-1 h-4 w-px shrink-0 bg-[#394252]" aria-hidden="true" />}
           <ToolbarButton compact={compact} label="Clear formatting" onClick={() => editor?.chain().focus().unsetAllMarks().clearNodes().run()}><Eraser className="h-3.5 w-3.5" /></ToolbarButton>
         </div>
-      </div>
+      </div>}
       {isTableMenuOpen && typeof document !== "undefined" && createPortal(
         <div
           ref={tableMenuRef}
@@ -671,7 +674,7 @@ export function TiptapEditor({
         </div>,
         document.body,
       )}
-      <div className="overflow-x-auto rounded border border-[#202631] bg-[#0c1017] px-3 py-2 text-xs text-stone-200 outline-none transition focus-within:border-amber-500/40 [&_.ProseMirror]:min-h-[100px] [&_.ProseMirror]:outline-none [&_.ProseMirror_blockquote]:my-2 [&_.ProseMirror_blockquote]:border-l-2 [&_.ProseMirror_blockquote]:border-amber-500/40 [&_.ProseMirror_blockquote]:pl-3 [&_.ProseMirror_pre]:my-2 [&_.ProseMirror_pre]:overflow-x-auto [&_.ProseMirror_pre]:rounded [&_.ProseMirror_pre]:bg-[#171d28] [&_.ProseMirror_pre]:p-3 [&_.ProseMirror_code]:rounded [&_.ProseMirror_code]:bg-[#171d28] [&_.ProseMirror_code]:px-1 [&_.ProseMirror_ul]:my-2 [&_.ProseMirror_ul]:mb-3 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5 [&_.ProseMirror_ol]:my-2 [&_.ProseMirror_ol]:mb-3 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-5 [&_.ProseMirror_hr]:my-3 [&_.ProseMirror_a]:text-amber-400 [&_.ProseMirror_a]:underline [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_table_th]:border [&_.ProseMirror_table_th]:border-[#394252] [&_.ProseMirror_table_th]:bg-[#171d28] [&_.ProseMirror_table_th]:p-2 [&_.ProseMirror_table_td]:border [&_.ProseMirror_table_td]:border-[#394252] [&_.ProseMirror_table_td]:p-2 [&_.ProseMirror_mark]:text-inherit">
+      <div className={`overflow-x-auto rounded border border-[#202631] bg-[#0c1017] px-3 py-2 text-xs text-stone-200 outline-none transition focus-within:border-amber-500/40 [&_.ProseMirror]:min-h-[100px] [&_.ProseMirror]:outline-none [&_.ProseMirror_blockquote]:my-2 [&_.ProseMirror_blockquote]:border-l-2 [&_.ProseMirror_blockquote]:border-amber-500/40 [&_.ProseMirror_blockquote]:pl-3 [&_.ProseMirror_pre]:my-2 [&_.ProseMirror_pre]:overflow-x-auto [&_.ProseMirror_pre]:rounded [&_.ProseMirror_pre]:bg-[#171d28] [&_.ProseMirror_pre]:p-3 [&_.ProseMirror_code]:rounded [&_.ProseMirror_code]:bg-[#171d28] [&_.ProseMirror_code]:px-1 [&_.ProseMirror_ul]:my-2 [&_.ProseMirror_ul]:mb-3 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5 [&_.ProseMirror_ol]:my-2 [&_.ProseMirror_ol]:mb-3 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-5 [&_.ProseMirror_hr]:my-3 [&_.ProseMirror_a]:text-amber-400 [&_.ProseMirror_a]:underline [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_table_th]:border [&_.ProseMirror_table_th]:border-[#394252] [&_.ProseMirror_table_th]:bg-[#171d28] [&_.ProseMirror_table_td]:border [&_.ProseMirror_table_td]:border-[#394252] [&_.ProseMirror_table_td]:p-2 [&_.ProseMirror_mark]:text-inherit ${readOnly ? "border-0 bg-transparent px-0 py-0" : ""}`}>
         <EditorContent editor={editor} />
       </div>
     </div>
