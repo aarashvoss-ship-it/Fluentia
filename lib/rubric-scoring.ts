@@ -9,13 +9,13 @@ export interface RubricScaleOption {
 }
 
 export const RUBRIC_SCALE_OPTIONS: RubricScaleOption[] = [
+  { id: "ielts", label: "IELTS · 1–9 (0.5 steps)", min: 1, max: 9, step: 0.5 },
   { id: "standard-5", label: "Standard · 1–5", min: 1, max: 5, step: 1 },
   { id: "standard-10", label: "Standard · 1–10", min: 1, max: 10, step: 1 },
-  { id: "ielts", label: "IELTS · 1–9 (0.5 steps)", min: 1, max: 9, step: 0.5 },
   { id: "percentage", label: "Percentage · 0–100", min: 0, max: 100, step: 1 },
 ];
 
-export const DEFAULT_RUBRIC_SCALE: RubricScale = "standard-5";
+export const DEFAULT_RUBRIC_SCALE: RubricScale = "ielts";
 
 export function getRubricScale(id?: string): RubricScaleOption {
   return RUBRIC_SCALE_OPTIONS.find((option) => option.id === id)

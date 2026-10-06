@@ -13,6 +13,7 @@ import { type UnifiedReportStage } from "@/components/shared/unified-report-card
 import { combineTaskFeedback } from "@/lib/evaluation-feedback";
 import {
   type RubricScale,
+  DEFAULT_RUBRIC_SCALE,
   RUBRIC_SCALE_OPTIONS,
   aggregateOverallRubric,
   calculateStageOverallScore,
@@ -35,6 +36,7 @@ export interface FeedbackPayload {
   stageFeedback: Record<string, string>;
   stageScores: Record<string, Record<string, number>>;
   stageRubricScales: Record<string, RubricScale>;
+  globalRubricScale: RubricScale;
   reportCardScoreOverrides: Record<string, number>;
   taskFeedback: Record<string, string>;
   inlineCorrections: Record<string, string>;
@@ -62,7 +64,6 @@ const RUBRIC_CRITERIA = [
   { id: "grammar", label: "Grammatical Accuracy", max: 5 },
 ];
 const STAGE_RUBRIC_CRITERIA = RUBRIC_CRITERIA;
-const DEFAULT_RUBRIC_SCALE: RubricScale = "standard-5";
 const DEFAULT_REPORT_STAGES: UnifiedReportStage[] = [
   { id: "warm_up", title: "Warm-up", tasks: [] },
   { id: "lesson", title: "Lesson", tasks: [] },
@@ -125,6 +126,7 @@ export function SubmissionEvaluator({
   const stageFeedback = evaluation?.stageFeedback || {};
   const stageScores = evaluation?.stageScores || {};
   const stageRubricScales = evaluation?.stageRubricScales || {};
+  const globalRubricScale = evaluation?.globalRubricScale || DEFAULT_RUBRIC_SCALE;
   const reportCardScoreOverrides = evaluation?.reportCardScoreOverrides || {};
   const overallAggregation = aggregateOverallRubric({
     criterionIds: RUBRIC_CRITERIA.map(({ id }) => id),
@@ -242,6 +244,7 @@ export function SubmissionEvaluator({
           stageFeedback: feedback.criterion_feedback?.stages || evaluation?.stageFeedback || {},
           stageScores: feedback.criterion_feedback?.stageScores || evaluation?.stageScores || {},
           stageRubricScales: feedback.criterion_feedback?.stageRubricScales || evaluation?.stageRubricScales || {},
+          globalRubricScale: feedback.criterion_feedback?.globalRubricScale || evaluation?.globalRubricScale || DEFAULT_RUBRIC_SCALE,
           reportCardScoreOverrides: feedback.criterion_feedback?.reportCardScoreOverrides || evaluation?.reportCardScoreOverrides || {},
           taskFeedback: feedback.criterion_feedback?.taskFeedback || evaluation?.taskFeedback || {},
           inlineCorrections: feedback.criterion_feedback?.inlineCorrections || evaluation?.inlineCorrections || {},
@@ -268,6 +271,26 @@ export function SubmissionEvaluator({
     });
   };
 
+  const handleGlobalScaleChange = (nextScale: RubricScale) => {
+    const nextStageRubricScales = { ...stageRubricScales };
+    const nextStageScores = { ...stageScores };
+    for (const stage of stages) {
+      const currentScale = stageRubricScales[stage.id] || globalRubricScale;
+      nextStageRubricScales[stage.id] = nextScale;
+      nextStageScores[stage.id] = Object.fromEntries(
+        Object.entries(stageScores[stage.id] || {}).map(([criterionId, score]) => [
+          criterionId,
+          convertRubricScore(score, currentScale, nextScale),
+        ]),
+      );
+    }
+    updateEvaluation({
+      globalRubricScale: nextScale,
+      stageRubricScales: nextStageRubricScales,
+      stageScores: nextStageScores,
+    });
+  };
+
   const updateEvaluation = (changes: Partial<LessonEvaluation>) => {
     onUpdateEvaluation?.({
       ...evaluation,
@@ -277,6 +300,7 @@ export function SubmissionEvaluator({
       stageFeedback,
       stageScores,
       stageRubricScales,
+      globalRubricScale,
       reportCardScoreOverrides,
       taskFeedback,
       inlineCorrections,
@@ -312,6 +336,7 @@ export function SubmissionEvaluator({
     stageFeedback,
     stageScores,
     stageRubricScales,
+    globalRubricScale,
     reportCardScoreOverrides,
     taskFeedback,
     inlineCorrections,
@@ -376,6 +401,7 @@ export function SubmissionEvaluator({
         stageFeedback,
         stageScores,
         stageRubricScales,
+        globalRubricScale,
         reportCardScoreOverrides,
         taskFeedback,
         inlineCorrections,
@@ -467,6 +493,17 @@ export function SubmissionEvaluator({
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-amber-400">Evaluation Studio</p>
           <h2 className="mt-1 text-sm font-semibold text-stone-100">{studentName}</h2>
+          <label className="mt-4 block text-xs text-stone-400">
+            <span className="mb-1.5 block font-medium text-stone-300">Scoring Scale</span>
+            <select
+              value={globalRubricScale}
+              onChange={(event) => handleGlobalScaleChange(event.target.value as RubricScale)}
+              className="w-full rounded-md border border-[#394252] bg-[#0c1017] px-2.5 py-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+              aria-label="Global scoring scale for all stages"
+            >
+              {RUBRIC_SCALE_OPTIONS.map((scale) => <option key={scale.id} value={scale.id}>{scale.label}</option>)}
+            </select>
+          </label>
         </div>
         <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto py-4" aria-label="Stage status">
           {stages.map((stage, index) => {
@@ -701,10 +738,10 @@ export function SubmissionEvaluator({
               <label className="flex items-center gap-2 text-xs text-stone-400">
                 Scoring scale
                 <select
-                  value={stageRubricScales[activeStage.id] || DEFAULT_RUBRIC_SCALE}
+                  value={stageRubricScales[activeStage.id] || globalRubricScale}
                   onChange={(event) => {
                     const nextScale = event.target.value as RubricScale;
-                    const currentScale = stageRubricScales[activeStage.id];
+                    const currentScale = stageRubricScales[activeStage.id] || globalRubricScale;
                     updateEvaluation({
                       stageRubricScales: { ...stageRubricScales, [activeStage.id]: nextScale },
                       stageScores: {
