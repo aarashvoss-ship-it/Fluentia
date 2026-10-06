@@ -513,7 +513,8 @@ export function SubmissionEvaluator({
               const matchesCorrectAnswer = task.modelAnswer?.split(/[\/|]/).some(
                 (candidate) => normalizeAnswer(candidate) === normalizedAnswer,
               ) ?? false;
-              const isObjectiveAnswer = task.isCorrect !== undefined || task.autoCheck === true;
+              const isObjectiveAnswer = Boolean(task.studentAnswer?.trim())
+                && (task.isCorrect !== undefined || task.autoCheck === true);
               const isCorrect = task.isCorrect !== undefined ? task.isCorrect : task.autoCheck === true && matchesCorrectAnswer;
               const responseBoxClass = isCorrect
                 ? "border-emerald-500/30 bg-emerald-500/5"

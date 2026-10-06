@@ -3148,11 +3148,13 @@ export default function InstructorWorkstationPage({
     const isUrl = /^(?:https?:|blob:|data:audio\/)/i.test(answer.trim());
     const modelAnswer = reviewModelAnswers[key];
     const normalizedStudentAnswer = normalizeReviewAnswer(answer);
-    const isCorrect = typeof markedIsCorrect === "boolean"
-      ? markedIsCorrect
-      : modelAnswer && reviewAutoCheckKeys.has(key)
-        ? modelAnswer.split(/[\/|]/).some((candidate) => normalizeReviewAnswer(candidate) === normalizedStudentAnswer)
-        : undefined;
+    const isCorrect = answer.trim()
+      ? typeof markedIsCorrect === "boolean"
+        ? markedIsCorrect
+        : modelAnswer && reviewAutoCheckKeys.has(key)
+          ? modelAnswer.split(/[\/|]/).some((candidate) => normalizeReviewAnswer(candidate) === normalizedStudentAnswer)
+          : undefined
+      : undefined;
     stage.tasks.push({
       id: key,
       title: getDisplayQuestion(key, stageId),
@@ -3186,6 +3188,12 @@ export default function InstructorWorkstationPage({
   if (submittedAnswers?.speakingAudioUrl?.trim() && !reviewStages.some((stage) => stage.tasks.some((task) => task.audioUrls?.includes(submittedAnswers.speakingAudioUrl!)))) {
     addReviewAnswer("speaking", "speaking", "Audio response submitted", submittedAnswers.speakingAudioUrl);
   }
+  Object.entries(reviewTaskNumbers).forEach(([key]) => {
+    const stageId = reviewStageForKey[key];
+    const stage = reviewStages.find((candidate) => candidate.id === stageId);
+    if (stage?.tasks.some((task) => task.id === key)) return;
+    addReviewAnswer(stageId, key, "");
+  });
   reviewStages.forEach((stage) => {
     stage.tasks.sort((first, second) => (first.taskNumber ?? Number.MAX_SAFE_INTEGER) - (second.taskNumber ?? Number.MAX_SAFE_INTEGER));
   });
