@@ -537,7 +537,7 @@ export function SubmissionEvaluator({
               const modelTextClass = isObjectiveAnswer ? "text-emerald-100" : "text-blue-100";
               return <article key={task.id} className="space-y-3 rounded-xl border border-[#293343] bg-[#111620] p-4">
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Student task {index + 1}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Student task {task.taskNumber ?? index + 1}</p>
                   <h3 className="mt-1 text-sm font-medium leading-relaxed text-stone-100">{stripMarkdown(task.title)}</h3>
                 </div>
                 <div className={`rounded-lg border p-4 ${responseBoxClass}`}>

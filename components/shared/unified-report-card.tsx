@@ -6,6 +6,7 @@ export interface UnifiedReportTask {
   id: string;
   title: string;
   studentAnswer: string;
+  taskNumber?: number;
   modelAnswer?: string;
   isCorrect?: boolean;
   autoCheck?: boolean;

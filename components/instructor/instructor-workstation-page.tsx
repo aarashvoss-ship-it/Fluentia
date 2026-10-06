@@ -3023,29 +3023,53 @@ export default function InstructorWorkstationPage({
   if (speakingPrompt) reviewQuestionText.speaking = stripReviewMarkdown(speakingPrompt);
   const reviewModelAnswers: Record<string, string> = {};
   const reviewAutoCheckKeys = new Set<string>();
+  const reviewTaskNumbers: Record<string, number> = {};
+  const reviewTaskCounters: Record<InstructorReviewStageId, number> = {
+    warm_up: 0,
+    lesson: 0,
+    listening: 0,
+    reading: 0,
+    writing: 0,
+    speaking: 0,
+  };
   const reviewStageForKey: Record<string, InstructorReviewStageId> = { warm_up: "warm_up", writingText: "writing", speaking: "speaking" };
-  const addReviewReference = (stage: InstructorReviewStageId, key: string, question: string | undefined, answer?: string, shouldAutoCheck = Boolean(answer?.trim())) => {
+  const nextReviewTaskNumber = (stage: InstructorReviewStageId) => ++reviewTaskCounters[stage];
+  const addReviewReference = (
+    stage: InstructorReviewStageId,
+    key: string,
+    question: string | undefined,
+    answer?: string,
+    shouldAutoCheck = Boolean(answer?.trim()),
+    taskNumber = nextReviewTaskNumber(stage),
+  ) => {
     const prompt = getReviewPrompt(question);
     if (prompt) reviewQuestionText[key] = stripReviewMarkdown(prompt);
     reviewStageForKey[key] = stage;
+    reviewTaskNumbers[key] = taskNumber;
     if (answer?.trim()) {
       reviewModelAnswers[key] = answer;
       if (shouldAutoCheck) reviewAutoCheckKeys.add(key);
     }
   };
-  (reviewContent.listening?.questions || []).forEach((question: { id: string; question?: string; prompt?: string; title?: string; correct_answer?: string }) => {
-    addReviewReference("listening", question.id, getReviewPrompt(question.prompt, question.title, question.question), question.correct_answer || reviewContent.results?.answer_keys?.listening?.[question.id]);
-  });
-  (reviewContent.reading?.analytical_questions || []).forEach((question: { id: string; question?: string; prompt?: string; title?: string; correct_answer?: string }) => {
-    addReviewReference("reading", question.id, getReviewPrompt(question.prompt, question.title, question.question), question.correct_answer || reviewContent.results?.answer_keys?.reading?.[question.id]);
-  });
+  if (!(reviewContent.listening?.blocks || []).length) {
+    (reviewContent.listening?.questions || []).forEach((question: { id: string; question?: string; prompt?: string; title?: string; correct_answer?: string }) => {
+      addReviewReference("listening", question.id, getReviewPrompt(question.prompt, question.title, question.question), question.correct_answer || reviewContent.results?.answer_keys?.listening?.[question.id]);
+    });
+  }
+  if (!(reviewContent.reading?.blocks || []).length) {
+    (reviewContent.reading?.analytical_questions || []).forEach((question: { id: string; question?: string; prompt?: string; title?: string; correct_answer?: string }) => {
+      addReviewReference("reading", question.id, getReviewPrompt(question.prompt, question.title, question.question), question.correct_answer || reviewContent.results?.answer_keys?.reading?.[question.id]);
+    });
+  }
   (reviewStages.map((stage) => stage.id)).forEach((step) => {
     (reviewContent[step]?.blocks || []).forEach((block: ContentBlock) => {
       if (block.type === "question") {
         const taskDefinition = block as unknown as { prompt?: string; question?: string };
-        addReviewReference(step, block.id, getReviewPrompt(taskDefinition.prompt, taskDefinition.question, block.title), block.question_type === "open_ended" ? block.sample_answer : block.correct_answer, block.question_type !== "open_ended");
+        const taskNumber = nextReviewTaskNumber(step);
+        addReviewReference(step, block.id, getReviewPrompt(taskDefinition.prompt, taskDefinition.question, block.title), block.question_type === "open_ended" ? block.sample_answer : block.correct_answer, block.question_type !== "open_ended", taskNumber);
       } else if (block.type === "quiz") {
         block.questions.forEach((question) => {
+          const taskNumber = nextReviewTaskNumber(step);
           const taskDefinition = question as typeof question & { title?: string; question?: string };
           const questionText = getQuizQuestionPrompt(taskDefinition);
           const prompt = getReviewPrompt(questionText, taskDefinition.title, taskDefinition.question);
@@ -3060,6 +3084,8 @@ export default function InstructorWorkstationPage({
               `${question.id}-blank-${index}`,
               `${plainPrompt} (Blank ${index + 1})`,
               acceptableAnswers[index]?.join(" / ") || blank.answer,
+              true,
+              taskNumber,
             ));
           } else {
             const answerKey = question.correct_answer
@@ -3082,11 +3108,20 @@ export default function InstructorWorkstationPage({
                 ? question.options?.[correctOptionIndex]
                 : answerKey,
               question.type !== "short_answer",
+              taskNumber,
             );
           }
         });
       } else if (block.type === "fill-in-the-blanks") {
-        block.acceptableAnswers.forEach((answers, index) => addReviewReference(step, `${block.id}-blank-${index}`, `${block.textWithBlanks.replace(/\[[^\]]+\]/g, "_____ ")} (Blank ${index + 1})`, answers.join(" / ")));
+        const taskNumber = nextReviewTaskNumber(step);
+        block.acceptableAnswers.forEach((answers, index) => addReviewReference(
+          step,
+          `${block.id}-blank-${index}`,
+          `${block.textWithBlanks.replace(/\[[^\]]+\]/g, "_____ ")} (Blank ${index + 1})`,
+          answers.join(" / "),
+          true,
+          taskNumber,
+        ));
       } else if (block.type === "video" && block.reflection_prompt_text) {
         addReviewReference(step, `${block.id}-reflection`, block.reflection_prompt_text);
       } else if (block.type === "writing") {
@@ -3122,6 +3157,7 @@ export default function InstructorWorkstationPage({
       id: key,
       title: getDisplayQuestion(key, stageId),
       studentAnswer: audioUrl || isUrl ? "Audio response submitted" : answer,
+      taskNumber: reviewTaskNumbers[key],
       modelAnswer,
       isCorrect,
       autoCheck: reviewAutoCheckKeys.has(key),
@@ -3150,6 +3186,9 @@ export default function InstructorWorkstationPage({
   if (submittedAnswers?.speakingAudioUrl?.trim() && !reviewStages.some((stage) => stage.tasks.some((task) => task.audioUrls?.includes(submittedAnswers.speakingAudioUrl!)))) {
     addReviewAnswer("speaking", "speaking", "Audio response submitted", submittedAnswers.speakingAudioUrl);
   }
+  reviewStages.forEach((stage) => {
+    stage.tasks.sort((first, second) => (first.taskNumber ?? Number.MAX_SAFE_INTEGER) - (second.taskNumber ?? Number.MAX_SAFE_INTEGER));
+  });
 
   const previewSteps = [
     ["warm_up", "Warm-up"],
