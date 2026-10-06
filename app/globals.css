@@ -46,6 +46,17 @@ input[type="file"]::file-selector-button {
   font-weight: 400 !important;
 }
 
+.rubric-score-input {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.rubric-score-input::-webkit-outer-spin-button,
+.rubric-score-input::-webkit-inner-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
 :root {
   --background: #0E1117;
   --foreground: #F3F4F6;

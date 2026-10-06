@@ -727,7 +727,7 @@ export function SubmissionEvaluator({
                           });
                         }
                       }}
-                      className="w-full rounded-md border border-[#394252] bg-[#0c1017] px-2 py-1.5 text-right text-xs text-amber-300 outline-none focus:border-amber-500/40"
+                      className="rubric-score-input w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-center text-xs text-amber-300 outline-none transition-colors hover:border-amber-500/30 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20"
                       aria-label={`${activeStage.title} ${criterion.label} score value`}
                     />
                     <span className="text-[10px] text-stone-500">{score === undefined ? "—" : `/${scale.max}`}</span>
