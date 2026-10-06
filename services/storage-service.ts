@@ -769,6 +769,9 @@ export async function saveInstructorFeedback(
     if (authError) throw authError;
     if (!authData.user) throw new Error("An authenticated instructor is required to save this evaluation.");
     const authenticatedInstructorId = authData.user.id;
+    if (!UUID_PATTERN.test(authenticatedInstructorId)) {
+      throw new Error("The authenticated instructor ID is not a valid UUID.");
+    }
 
     let lessonQuery = supabase.from("lessons").select("id,content,banner_url,status,instructor_id");
     lessonQuery = UUID_PATTERN.test(slug)
@@ -777,7 +780,7 @@ export async function saveInstructorFeedback(
     const { data: lesson, error: lessonError } = await lessonQuery.maybeSingle();
     if (lessonError) throw lessonError;
     if (!lesson) throw new Error(`Lesson ${slug} could not be found for evaluation.`);
-    if (lesson.instructor_id !== authenticatedInstructorId) {
+    if (String(lesson.instructor_id) !== authenticatedInstructorId) {
       throw new Error("The signed-in user is not the instructor assigned to this lesson.");
     }
 
