@@ -5,6 +5,7 @@ import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import { combineTaskFeedback } from "@/lib/evaluation-feedback";
 import {
   aggregateOverallRubric,
+  calculateStageOverallScore,
   formatOverallRubricTotal,
   formatRubricScore,
   getRubricScale,
@@ -242,12 +243,25 @@ export function UnifiedReportCard({
           </div>
           {!isInstructorView && Object.keys(stageScores[stage.id] || {}).length > 0 && <div className="grid gap-2 sm:grid-cols-3">
             {Object.entries(stageScores[stage.id] || {}).map(([criterion, score]) => {
-              const scale = getRubricScale(stageRubricScales[stage.id]);
+              const scaleId = stageRubricScales[stage.id];
+              const scale = getRubricScale(scaleId);
               const criterionLabel = RUBRIC_CRITERIA.find(({ id }) => id === criterion)?.label || criterion;
               return <div key={criterion} className="rounded-md border border-[#293343] bg-[#0c1017] px-3 py-2 text-xs text-stone-400">
-                <span>{criterionLabel}</span><span className="float-right text-amber-300">{formatRubricScore(roundRubricScoreForScale(score, stageRubricScales[stage.id]))}/{scale.max}</span>
+                <span>{criterionLabel}</span><span className="float-right text-amber-300">{formatRubricScore(roundRubricScoreForScale(score, scaleId))}/{scale.max}</span>
               </div>;
             })}
+            {(() => {
+              const scaleId = stageRubricScales[stage.id];
+              const scale = getRubricScale(scaleId);
+              const stageOverallScore = calculateStageOverallScore(
+                stageScores[stage.id] || {},
+                RUBRIC_CRITERIA.map(({ id }) => id),
+                scaleId,
+              );
+              return stageOverallScore === undefined ? null : <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200">
+                <span>Stage Overall Score</span><span className="float-right text-amber-300">{formatRubricScore(stageOverallScore)}/{scale.max}</span>
+              </div>;
+            })()}
           </div>}
           {!isInstructorView && stageVoiceFeedback[stage.id] && <div className="rounded-lg border border-[#293343] bg-[#0c1017] p-3">
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Instructor voice feedback</p>

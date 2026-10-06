@@ -15,6 +15,7 @@ import {
   type RubricScale,
   RUBRIC_SCALE_OPTIONS,
   aggregateOverallRubric,
+  calculateStageOverallScore,
   convertRubricScore,
   displayRubricScore,
   formatOverallRubricTotal,
@@ -562,6 +563,18 @@ export function SubmissionEvaluator({
                 const scale = getRubricScale(stageRubricScales[stage.id]);
                 return <label key={criterion.id} className="rounded-md border border-[#293343] bg-[#0c1017] p-2 text-[10px] text-stone-400">{criterion.label}<span className="float-right text-amber-300">{formatRubricScore(roundRubricScoreForScale(stageScores[stage.id]?.[criterion.id] || 0, stageRubricScales[stage.id]))}/{scale.max}</span></label>;
               })}
+              {(() => {
+                const scaleId = stageRubricScales[stage.id];
+                const scale = getRubricScale(scaleId);
+                const stageOverallScore = calculateStageOverallScore(
+                  stageScores[stage.id] || {},
+                  STAGE_RUBRIC_CRITERIA.map(({ id }) => id),
+                  scaleId,
+                );
+                return stageOverallScore === undefined ? null : <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-[10px] font-semibold text-amber-200">
+                  Stage Overall Score<span className="float-right text-amber-300">{formatRubricScore(stageOverallScore)}/{scale.max}</span>
+                </div>;
+              })()}
             </div>
             {stageFeedback[stage.id]?.trim() && <p className="whitespace-pre-wrap rounded-md bg-[#0c1017] p-3 text-xs leading-relaxed text-stone-300">{stageFeedback[stage.id]}</p>}
             {stage.tasks.map((task) => <div key={task.id} className="space-y-1 rounded-md border border-[#293343] bg-[#0c1017] p-3 text-xs">

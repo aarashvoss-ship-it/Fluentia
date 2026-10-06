@@ -71,6 +71,21 @@ export function roundRubricScoreForScale(score: number, scaleId?: string) {
   }
 }
 
+export function calculateStageOverallScore(
+  criterionScores: Record<string, number>,
+  criterionIds: string[],
+  scaleId?: string,
+) {
+  const scores = criterionIds
+    .map((criterionId) => criterionScores[criterionId])
+    .filter((score): score is number => typeof score === "number" && Number.isFinite(score));
+
+  if (scores.length === 0) return undefined;
+
+  const average = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+  return roundRubricScoreForScale(average, scaleId);
+}
+
 export interface OverallRubricResult {
   scaleId: RubricScale;
   criterionScores: Record<string, number>;
