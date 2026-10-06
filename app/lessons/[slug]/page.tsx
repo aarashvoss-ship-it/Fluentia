@@ -1028,7 +1028,7 @@ export default function LessonPage() {
     );
     const renderFillInTheBlanks = (block: Extract<ContentBlock, { type: "fill-in-the-blanks" }>) => {
       const values = submission.blockResponses || {};
-      return <FillInBlanksMarkdown blockId={block.id} text={block.textWithBlanks} acceptableAnswers={block.acceptableAnswers} wordBank={block.wordBank} caseSensitive={block.caseSensitive} values={values} showFeedback showResults={submission.status === "submitted" || submission.status === "reviewed" || submission.status === "evaluated"} onChange={(blankIndex, value) => void persistSubmission({ ...submission, blockResponses: { ...values, [`${block.id}-blank-${blankIndex}`]: value } })} className="text-sm leading-relaxed text-stone-300" />;
+      return <FillInBlanksMarkdown blockId={block.id} text={block.textWithBlanks} acceptableAnswers={block.acceptableAnswers} wordBank={block.wordBank} caseSensitive={block.caseSensitive} values={values} onChange={(blankIndex, value) => void persistSubmission({ ...submission, blockResponses: { ...values, [`${block.id}-blank-${blankIndex}`]: value } })} className="text-sm leading-relaxed text-stone-300" />;
     };
     const visibleBlocks = blocks.filter((block) => block.is_active !== false && block.enabled !== false);
     const questionBlocks = visibleBlocks.filter((block) => block.type === "question");
@@ -1387,6 +1387,7 @@ export default function LessonPage() {
               <UnifiedReportCard
                 stages={reportCardStages}
                 isInstructorView={false}
+                isEvaluationView
                 isEvaluated={isEvaluationPublished || submission.status === "reviewed" || submission.status === "evaluated"}
                 scores={evaluation?.scores || {}}
                 criterionFeedback={evaluation?.criterionFeedback || {}}

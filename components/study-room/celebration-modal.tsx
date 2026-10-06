@@ -91,14 +91,6 @@ export function CelebrationModal({
                       <p className="font-medium text-stone-200">Question {index + 1}: {response.question}</p>
                       <p className="mt-2 text-[10px] uppercase tracking-[0.1em] text-stone-500">Your Response</p>
                       <p className="mt-1 whitespace-pre-wrap text-stone-200">{response.answer || "No response submitted"}</p>
-                      {response.correctAnswer && <div className="mt-2">
-                        <p className="text-[10px] uppercase tracking-[0.1em] text-amber-400">Correct Answer</p>
-                        <p className="mt-1 whitespace-pre-wrap text-amber-400">{response.correctAnswer}</p>
-                      </div>}
-                      {(response.explanation || response.isCorrect === false) && <div className="mt-2">
-                        <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">Explanation</p>
-                        <p className="mt-1 whitespace-pre-wrap text-stone-300">{response.explanation || "Compare your response with the correct answer."}</p>
-                      </div>}
                     </article>)}
                     {!result.responses.length && <div className="rounded-md border border-dashed border-stone-800 bg-black/20 px-3 py-4 text-center">
                       <p className="font-medium text-stone-300">Instructional Step Completed</p>
