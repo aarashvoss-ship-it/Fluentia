@@ -1944,9 +1944,9 @@ function DashboardContent() {
                 </span>
                 <div className="relative flex h-full flex-col justify-end p-5 md:p-7">
                   <div className="max-w-3xl pr-28 md:pr-36">
-                    <div className="flex items-center gap-2 text-amber-400">
+                    <div className="flex items-center gap-2 text-slate-400">
                       <BookOpen className="h-4 w-4" />
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.14em]">
+                      <span className="text-xs font-medium uppercase tracking-[0.14em]">
                         Lesson
                       </span>
                     </div>
@@ -1963,7 +1963,7 @@ function DashboardContent() {
                           nextLessonStatus === "in-progress"
                             ? "border-sky-400/20 bg-sky-950/40 text-sky-400"
                             : nextLessonStatus === "pending-review"
-                              ? "border-amber-400/20 bg-amber-950/30 text-amber-400"
+                              ? "border-amber-500/20 bg-amber-500/10 text-amber-400"
                               : "border-border bg-surface/80 text-stone-400"
                         }`}>
                           {getLessonStatusCopy(nextLessonStatus)}
@@ -1985,7 +1985,7 @@ function DashboardContent() {
                       <Link
                         href={getLessonHref(nextLesson, nextLessonStatus || "not-started")}
                         onClick={() => rememberLesson(nextLesson.id)}
-                        className="inline-flex w-fit items-center rounded-md border border-border bg-surface px-3 py-2 text-xs font-medium text-stone-300 transition hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-300"
+                        className="inline-flex w-fit items-center rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-400 transition hover:bg-amber-500/20"
                       >
                         {nextLessonStatus === "in-progress" ? "Continue Lesson" : "Start Lesson"}
                         <span className="ml-2" aria-hidden="true">-&gt;</span>
@@ -2132,9 +2132,9 @@ function DashboardContent() {
                       </div>
                       <div className="flex flex-1 flex-col p-5">
                         <div className="flex items-start justify-between gap-4">
-                          <div className="flex items-center gap-2 text-amber-400">
+                          <div className="flex items-center gap-2 text-slate-400">
                             <BookOpen className="h-4 w-4" />
-                            <span className="text-[10px] font-semibold uppercase tracking-[0.14em]">
+                            <span className="text-xs font-medium uppercase tracking-[0.14em]">
                               Lesson
                             </span>
                           </div>
@@ -2142,9 +2142,9 @@ function DashboardContent() {
                           <span
                             className={`rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${
                               status === "completed"
-                                ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-400"
+                                ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
                                 : status === "pending-review"
-                                  ? "border-amber-400/20 bg-amber-950/30 text-amber-400"
+                                  ? "border-amber-500/20 bg-amber-500/10 text-amber-400"
                                   : status === "in-progress"
                                     ? "border-sky-400/20 bg-sky-950/40 text-sky-400"
                                     : "border-border bg-surface text-stone-400"
@@ -2172,73 +2172,22 @@ function DashboardContent() {
                               assignedInstructorName}
                           </p>
                         </div>
-                        {status === "completed" &&
-                          lessonStates[lesson.id]?.evaluation?.published && (
-                            <details className="mt-5 border-t border-border pt-4">
-                              <Tooltip content="Expand the evaluation scores and instructor feedback">
-                              <summary className="cursor-pointer text-xs font-semibold text-amber-400 hover:text-amber-400">
-                                View analytical report
-                              </summary>
-                              </Tooltip>
-                              <div className="mt-4 grid gap-3 text-sm text-stone-400 sm:grid-cols-2">
-                                <div>
-                                  <p className="text-xs font-semibold text-stone-300">
-                                    Rubrics
-                                  </p>
-                                  <p className="mt-1 text-amber-400">
-                                    {Object.entries(
-                                      lessonStates[lesson.id]?.evaluation
-                                        ?.scores || {},
-                                    )
-                                      .map(
-                                        ([criterion, score]) =>
-                                          `${criterion}: ${score}`,
-                                      )
-                                      .join(" | ") ||
-                                      "No rubric scores recorded."}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="text-xs font-semibold text-stone-300">
-                                    Strengths
-                                  </p>
-                                  <p className="mt-1 whitespace-pre-wrap">
-                                    {lessonStates[lesson.id]?.evaluation
-                                      ?.strengths || "No strengths recorded."}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="text-xs font-semibold text-stone-300">
-                                    Areas to Improve
-                                  </p>
-                                  <p className="mt-1 whitespace-pre-wrap">
-                                    {lessonStates[lesson.id]?.evaluation
-                                      ?.areasToImprove ||
-                                      "No improvement areas recorded."}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="text-xs font-semibold text-stone-300">
-                                    Feedback
-                                  </p>
-                                  <p className="mt-1 whitespace-pre-wrap">
-                                    {lessonStates[lesson.id]?.evaluation
-                                      ?.comments || "No comments recorded."}
-                                  </p>
-                                </div>
-                              </div>
-                            </details>
-                          )}
                         <div className="mt-auto flex justify-end pt-5">
-                          <Tooltip content={`${ctaCopy}: ${lesson.title}`}>
-                            <Link
-                              href={getLessonHref(lesson, status)}
-                              onClick={() => rememberLesson(lesson.id)}
-                              className="inline-flex rounded-md border border-border bg-surface px-3 py-2 text-xs font-medium text-stone-300 transition hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-300"
-                            >
+                          {status === "pending-review" ? (
+                            <span className="inline-flex rounded-md bg-slate-800/50 px-3 py-1.5 text-xs text-slate-400">
                               {ctaCopy}
-                            </Link>
-                          </Tooltip>
+                            </span>
+                          ) : (
+                            <Tooltip content={`${ctaCopy}: ${lesson.title}`}>
+                              <Link
+                                href={getLessonHref(lesson, status)}
+                                onClick={() => rememberLesson(lesson.id)}
+                                className="inline-flex rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-400 transition hover:bg-amber-500/20"
+                              >
+                                {ctaCopy}
+                              </Link>
+                            </Tooltip>
+                          )}
                         </div>
                       </div>
                     </article>
