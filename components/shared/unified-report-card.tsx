@@ -258,7 +258,7 @@ export function UnifiedReportCard({
                 RUBRIC_CRITERIA.map(({ id }) => id),
                 scaleId,
               );
-              return stageOverallScore === undefined ? null : <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200">
+              return stageOverallScore === undefined ? null : <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-400">
                 <span>Stage Overall Score</span><span className="float-right text-amber-300">{formatRubricScore(stageOverallScore)}/{scale.max}</span>
               </div>;
             })()}
@@ -271,9 +271,9 @@ export function UnifiedReportCard({
       </div>
     </section>
 
-    <section aria-label="Rubric ratings" className="space-y-3">
-      <div className="flex items-center justify-between border-b border-[#202631] pb-3">
-        <h3 className="text-lg font-semibold text-stone-100">Rubric Ratings</h3>
+    <section aria-label="Overall Performance Breakdown" className="space-y-3 rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4 sm:p-5">
+      <div className="flex items-center justify-between border-b border-emerald-800/40 pb-3">
+        <h3 className="text-lg font-semibold text-emerald-400">Overall Performance Breakdown</h3>
         <span className="text-xs text-amber-400">{formatOverallRubricTotal(totalScore, overallScaleId, overallAggregation.totalDenominator)}</span>
       </div>
       <div className="flex flex-col gap-3">
@@ -298,8 +298,8 @@ export function UnifiedReportCard({
       </div>
     </section>
 
-    <section aria-label="General feedback" className="space-y-3">
-      <div className="border-b border-[#202631] pb-3"><h3 className="text-lg font-semibold text-stone-100">General Feedback</h3></div>
+    <section aria-label="General feedback" className="space-y-3 rounded-xl border border-blue-500/30 bg-blue-950/20 p-4 sm:p-5">
+      <div className="border-b border-blue-800/40 pb-3"><h3 className="text-lg font-semibold text-blue-400">General Feedback</h3></div>
       <div className="flex flex-col gap-3">
         {renderGeneralField("comments", "Personalized Feedback & Corrections", comments, "Provide detailed feedback for the student...")}
         {renderGeneralField("strengths", "Strengths", strengths, "Record specific strengths or successful choices...")}
