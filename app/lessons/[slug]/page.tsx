@@ -302,6 +302,7 @@ export default function LessonPage() {
   const [lessonReady, setLessonReady] = useState(false);
   const [lessonNotFound, setLessonNotFound] = useState(false);
   const [activeStudent, setActiveStudent] = useState<StudentUser | null>(null);
+  const authenticatedStudentIdRef = useRef<string | null>(null);
   const [studentReady, setStudentReady] = useState(false);
   const [currentStep, setCurrentStep] = useState<StudyStepId>("warm_up");
   const [lessonStateHydrated, setLessonStateHydrated] = useState(false);
@@ -382,9 +383,11 @@ export default function LessonPage() {
         }
 
         if (!user) {
+          authenticatedStudentIdRef.current = null;
           setAccessDenied(true);
           return;
         }
+        authenticatedStudentIdRef.current = user.id;
 
         const [studentResult, profileResult] = await Promise.all([
           supabase.from("students").select("name, email, token").eq("id", user.id).maybeSingle(),
@@ -459,6 +462,10 @@ export default function LessonPage() {
     void loadAuthenticatedStudent();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT") return;
+      const nextStudentId = session?.user.id || null;
+      // Auth clients may emit SIGNED_IN again for the same session when it resumes.
+      if (nextStudentId === authenticatedStudentIdRef.current) return;
+      authenticatedStudentIdRef.current = nextStudentId;
       window.setTimeout(() => void loadAuthenticatedStudent(session?.user || null), 0);
     });
     return () => {
