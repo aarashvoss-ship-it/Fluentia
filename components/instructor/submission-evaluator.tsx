@@ -11,6 +11,19 @@ import { AudioRecorder } from "@/components/shared/audio-recorder";
 import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import { type UnifiedReportStage } from "@/components/shared/unified-report-card";
 import { combineTaskFeedback } from "@/lib/evaluation-feedback";
+import {
+  type RubricScale,
+  RUBRIC_SCALE_OPTIONS,
+  convertRubricScore,
+  displayRubricScore,
+  formatRubricScore,
+  getRubricScale,
+  normalizeRubricScore,
+  overallRubricScaleId,
+  roundRubricScore,
+} from "@/lib/rubric-scoring";
+
+export type { RubricScale } from "@/lib/rubric-scoring";
 
 export interface FeedbackPayload {
   scores: Record<string, number>;
@@ -47,29 +60,7 @@ const RUBRIC_CRITERIA = [
   { id: "grammar", label: "Grammatical Accuracy", max: 5 },
 ];
 const STAGE_RUBRIC_CRITERIA = RUBRIC_CRITERIA;
-export type RubricScale = "standard-5" | "standard-10" | "ielts" | "percentage";
-const RUBRIC_SCALE_OPTIONS: { id: RubricScale; label: string; min: number; max: number; step: number }[] = [
-  { id: "standard-5", label: "Standard · 1–5", min: 1, max: 5, step: 1 },
-  { id: "standard-10", label: "Standard · 1–10", min: 1, max: 10, step: 1 },
-  { id: "ielts", label: "IELTS · 1–9 (0.5 steps)", min: 1, max: 9, step: 0.5 },
-  { id: "percentage", label: "Percentage · 0–100", min: 0, max: 100, step: 1 },
-];
 const DEFAULT_RUBRIC_SCALE: RubricScale = "standard-5";
-const getRubricScale = (id?: string) => RUBRIC_SCALE_OPTIONS.find((option) => option.id === id) || RUBRIC_SCALE_OPTIONS[0];
-
-function normalizeRubricScore(score: number, scaleId: RubricScale | undefined) {
-  const scale = getRubricScale(scaleId);
-  const ratio = (score - scale.min) / (scale.max - scale.min);
-  return scale.min === 0 ? ratio * 5 : 1 + ratio * 4;
-}
-
-function convertRubricScore(score: number, fromScaleId: RubricScale | undefined, toScaleId: RubricScale) {
-  const fromScale = getRubricScale(fromScaleId);
-  const toScale = getRubricScale(toScaleId);
-  const ratio = (score - fromScale.min) / (fromScale.max - fromScale.min);
-  const converted = toScale.min + ratio * (toScale.max - toScale.min);
-  return Math.round(converted / toScale.step) * toScale.step;
-}
 const DEFAULT_REPORT_STAGES: UnifiedReportStage[] = [
   { id: "warm_up", title: "Warm-up", tasks: [] },
   { id: "lesson", title: "Lesson", tasks: [] },
@@ -140,6 +131,8 @@ export function SubmissionEvaluator({
   const stageScores = evaluation?.stageScores || {};
   const stageRubricScales = evaluation?.stageRubricScales || {};
   const reportCardScoreOverrides = evaluation?.reportCardScoreOverrides || {};
+  const overallScaleId = overallRubricScaleId(stageScores, stageRubricScales);
+  const overallScale = getRubricScale(overallScaleId);
   const stageAverages = Object.fromEntries(RUBRIC_CRITERIA.map(({ id }) => {
     const values = Object.entries(stageScores)
       .map(([stageId, stage]) => {
@@ -147,11 +140,15 @@ export function SubmissionEvaluator({
         return typeof score === "number" ? normalizeRubricScore(score, stageRubricScales[stageId]) : undefined;
       })
       .filter((score): score is number => typeof score === "number" && Number.isFinite(score));
-    return [id, values.length ? values.reduce((sum, score) => sum + score, 0) / values.length : undefined];
+    return [id, values.length ? roundRubricScore(values.reduce((sum, score) => sum + score, 0) / values.length) : undefined];
   }));
   const scores = Object.fromEntries(RUBRIC_CRITERIA.map(({ id }) => [
     id,
     reportCardScoreOverrides[id] ?? stageAverages[id] ?? evaluation?.scores?.[id] ?? defaultScores[id],
+  ]));
+  const displayScores = Object.fromEntries(RUBRIC_CRITERIA.map(({ id }) => [
+    id,
+    roundRubricScore(displayRubricScore(scores[id], overallScaleId)),
   ]));
   const taskFeedback = evaluation?.taskFeedback || {};
   const inlineCorrections = evaluation?.inlineCorrections || {};
@@ -164,6 +161,7 @@ export function SubmissionEvaluator({
   const [isSavingDraft, setIsSavingDraft] = useState<boolean>(false);
   const [draftStatus, setDraftStatus] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [publishNotice, setPublishNotice] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [voiceUploadStage, setVoiceUploadStage] = useState<string | null>(null);
   const [voiceUploadError, setVoiceUploadError] = useState<string | null>(null);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
@@ -267,9 +265,10 @@ export function SubmissionEvaluator({
   };
 
   const handleScoreChange = (id: string, val: number) => {
+    const normalizedScore = normalizeRubricScore(val, overallScaleId);
     updateEvaluation({
-      scores: { ...scores, [id]: val },
-      reportCardScoreOverrides: { ...reportCardScoreOverrides, [id]: val },
+      scores: { ...scores, [id]: normalizedScore },
+      reportCardScoreOverrides: { ...reportCardScoreOverrides, [id]: normalizedScore },
     });
   };
 
@@ -292,8 +291,7 @@ export function SubmissionEvaluator({
     setDraftStatus(null);
   };
 
-  const totalScore = Object.values(scores).reduce((acc, curr) => acc + curr, 0);
-  const formatScore = (score: number) => Number.isInteger(score) ? String(score) : score.toFixed(1);
+  const totalScore = roundRubricScore(Object.values(displayScores).reduce((acc, curr) => acc + curr, 0));
   const reportStageId = "report-card";
   const reportStageIndex = stages.length;
   const activeStageIndex = activeStageId === reportStageId
@@ -362,50 +360,41 @@ export function SubmissionEvaluator({
   };
 
   const handleSubmit = async () => {
-    // Legacy callback-based submission
-    if (!useSupabase) {
-      if (onSubmitFeedback) {
-        onSubmitFeedback(payload);
-      }
-      setIsSubmitted(true);
-      setTimeout(() => setIsSubmitted(false), 3000);
-      return;
-    }
-
-    // Supabase-based submission
-    if (!lessonId || !studentId || !submissionId) {
-      setSubmitError("Missing required data for submission");
+    setPublishNotice(null);
+    setSubmitError(null);
+    if (!onSubmitFeedback && (!useSupabase || !lessonId || !studentId || !submissionId)) {
+      const message = "Missing required data for submission";
+      setSubmitError(message);
+      setPublishNotice({ type: "error", message });
       return;
     }
 
     setIsSubmitting(true);
-    setSubmitError(null);
-
     try {
-      const totalScoreNumeric = Object.values(scores).reduce((a, b) => a + b, 0);
-      if (onSubmitFeedback) {
-        await onSubmitFeedback({ ...payload, totalScore: totalScoreNumeric });
-        setIsSubmitted(true);
-        window.setTimeout(() => setIsSubmitted(false), 3000);
-        return;
-      }
-
-      await saveInstructorFeedback(lessonId, studentId, {
+      const publishedEvaluation: LessonEvaluation = {
         ...evaluation,
         scores,
-        totalScore: totalScoreNumeric,
+        totalScore,
         comments,
         criterionFeedback,
         stageFeedback,
         stageScores,
+        stageRubricScales,
+        reportCardScoreOverrides,
         taskFeedback,
         inlineCorrections,
         stageVoiceFeedback,
         published: true,
-      });
+      };
+      if (onSubmitFeedback) {
+        await onSubmitFeedback({ ...payload, totalScore });
+      } else {
+        await saveInstructorFeedback(lessonId!, studentId!, publishedEvaluation, submissionId!, true);
+      }
 
       setIsSubmitted(true);
-      setTimeout(() => setIsSubmitted(false), 3000);
+      onUpdateEvaluation?.(publishedEvaluation);
+      setPublishNotice({ type: "success", message: "Evaluation successfully published and sent to the student." });
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Failed to submit evaluation";
@@ -414,8 +403,10 @@ export function SubmissionEvaluator({
         : null;
       if (isMissingDatabaseObject(databaseError)) {
         setSubmitError("Evaluation storage is unavailable. Apply the latest Supabase migrations and try again.");
+        setPublishNotice({ type: "error", message: "Evaluation could not be published. Evaluation storage is unavailable; apply the latest Supabase migrations and try again." });
       } else {
         setSubmitError(errorMessage);
+        setPublishNotice({ type: "error", message: errorMessage });
         console.error("Error submitting evaluation:", error);
       }
     } finally {
@@ -463,6 +454,18 @@ export function SubmissionEvaluator({
   </header>;
 
   return <div className="space-y-5">
+    {publishNotice && <div
+      role={publishNotice.type === "error" ? "alert" : "status"}
+      aria-live={publishNotice.type === "error" ? "assertive" : "polite"}
+      className={`fixed right-6 top-6 z-[100] flex max-w-md items-start gap-3 rounded-lg border p-4 text-sm shadow-xl ${
+        publishNotice.type === "success"
+          ? "border-emerald-500/40 bg-[#111b18] text-emerald-200"
+          : "border-red-500/40 bg-[#201416] text-red-200"
+      }`}
+    >
+      <span className="flex-1">{publishNotice.message}</span>
+      <button type="button" onClick={() => setPublishNotice(null)} className="shrink-0 text-xs opacity-75 hover:opacity-100" aria-label="Dismiss notification">Dismiss</button>
+    </div>}
     <div className="grid items-start gap-5 lg:grid-cols-[250px_minmax(0,1fr)]">
       <aside className="flex flex-col rounded-xl border border-[#202631] bg-[#111620] p-4 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)]" aria-label="Evaluation tools">
         <div>
@@ -516,14 +519,40 @@ export function SubmissionEvaluator({
           <section className="space-y-3 rounded-xl border border-[#202631] bg-[#171d28]/60 p-4">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-sm font-semibold text-stone-100">Overall Rubric</h3>
-              <span className="text-xs text-amber-300">Total: {formatScore(totalScore)}/20</span>
+              <span className="text-xs text-amber-300">Total: {formatRubricScore(totalScore)}/{RUBRIC_CRITERIA.length * overallScale.max}</span>
             </div>
             <p className="text-[11px] leading-relaxed text-stone-500">Each criterion starts as the average of its ratings across stages. Adjust a score here to fine-tune the final report.</p>
             <div className="grid gap-3 sm:grid-cols-2">
               {RUBRIC_CRITERIA.map((criterion) => <div key={criterion.id} className="rounded-lg border border-[#293343] bg-[#0c1017] p-3">
-                <div className="flex justify-between gap-2 text-xs"><span className="text-stone-300">{criterion.label}</span><span className="text-amber-300">{formatScore(scores[criterion.id] || 0)}/5</span></div>
-                {stageAverages[criterion.id] !== undefined && <p className="mt-1 text-[10px] text-stone-500">{reportCardScoreOverrides[criterion.id] !== undefined ? `Stage average: ${formatScore(stageAverages[criterion.id] ?? 0)}/5 · Manually adjusted` : `Average of ${Object.values(stageScores).filter((stage) => typeof stage[criterion.id] === "number").length} stage ratings`}</p>}
-                <div className="mt-2 flex gap-1">{[1, 2, 3, 4, 5].map((score) => <button key={score} type="button" onClick={() => handleScoreChange(criterion.id, score)} aria-label={`${criterion.label}: ${score} out of 5`} className={`h-7 flex-1 rounded text-xs ${scores[criterion.id] === score ? "bg-amber-500/20 text-amber-300" : "bg-[#171d28] text-stone-500 hover:text-white"}`}>{score}</button>)}</div>
+                <div className="flex justify-between gap-2 text-xs"><span className="text-stone-300">{criterion.label}</span><span className="text-amber-300">{formatRubricScore(displayScores[criterion.id])}/{overallScale.max}</span></div>
+                {stageAverages[criterion.id] !== undefined && <p className="mt-1 text-[10px] text-stone-500">{reportCardScoreOverrides[criterion.id] !== undefined ? `Stage average: ${formatRubricScore(roundRubricScore(displayRubricScore(stageAverages[criterion.id] ?? 0, overallScaleId)))}/${overallScale.max} · Manually adjusted` : `Average of ${Object.values(stageScores).filter((stage) => typeof stage[criterion.id] === "number").length} stage ratings`}</p>}
+                <div className="mt-2 flex items-center gap-2">
+                  <input
+                    type="range"
+                    min={overallScale.min}
+                    max={overallScale.max}
+                    step={overallScale.step}
+                    value={displayScores[criterion.id]}
+                    onChange={(event) => handleScoreChange(criterion.id, Number(event.target.value))}
+                    className="min-w-0 flex-1 accent-amber-500"
+                    aria-label={`${criterion.label} score`}
+                  />
+                  <input
+                    type="number"
+                    min={overallScale.min}
+                    max={overallScale.max}
+                    step={overallScale.step}
+                    value={displayScores[criterion.id]}
+                    onChange={(event) => {
+                      const value = Number(event.target.value);
+                      if (event.target.value !== "" && Number.isFinite(value) && value >= overallScale.min && value <= overallScale.max) {
+                        handleScoreChange(criterion.id, value);
+                      }
+                    }}
+                    className="rubric-score-input w-16 rounded border border-[#394252] bg-[#171d28] px-2 py-1 text-center text-xs text-amber-300 outline-none focus:border-amber-500/40"
+                    aria-label={`${criterion.label} score value`}
+                  />
+                </div>
                 <textarea value={criterionFeedback[criterion.id] || ""} onChange={(event) => updateEvaluation({ criterionFeedback: { ...criterionFeedback, [criterion.id]: event.target.value } })} rows={2} placeholder={`Feedback for ${criterion.label.toLowerCase()}...`} className="mt-2 w-full resize-y rounded-md border border-[#394252] bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40" />
               </div>)}
             </div>
@@ -534,7 +563,10 @@ export function SubmissionEvaluator({
               <span className={`rounded-full border px-2 py-0.5 text-[9px] ${stageStatusClass(evaluationStatus(stage.id))}`}>{evaluationStatus(stage.id)}</span>
             </div>
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              {STAGE_RUBRIC_CRITERIA.map((criterion) => <label key={criterion.id} className="rounded-md border border-[#293343] bg-[#0c1017] p-2 text-[10px] text-stone-400">{criterion.label}<span className="float-right text-amber-300">{stageScores[stage.id]?.[criterion.id] || 0}/5</span></label>)}
+              {STAGE_RUBRIC_CRITERIA.map((criterion) => {
+                const scale = getRubricScale(stageRubricScales[stage.id]);
+                return <label key={criterion.id} className="rounded-md border border-[#293343] bg-[#0c1017] p-2 text-[10px] text-stone-400">{criterion.label}<span className="float-right text-amber-300">{formatRubricScore(stageScores[stage.id]?.[criterion.id] || 0)}/{scale.max}</span></label>;
+              })}
             </div>
             {stageFeedback[stage.id]?.trim() && <p className="whitespace-pre-wrap rounded-md bg-[#0c1017] p-3 text-xs leading-relaxed text-stone-300">{stageFeedback[stage.id]}</p>}
             {stage.tasks.map((task) => <div key={task.id} className="space-y-1 rounded-md border border-[#293343] bg-[#0c1017] p-3 text-xs">
