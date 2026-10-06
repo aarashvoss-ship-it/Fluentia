@@ -68,7 +68,7 @@ export function InstructorLessonPage({ lessonId }: InstructorLessonPageProps) {
   return (
     <div
       className="min-h-screen text-white"
-      style={{ backgroundColor: "#0f1923" }}
+      style={{ backgroundColor: "var(--background)" }}
     >
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Header */}
@@ -82,7 +82,7 @@ export function InstructorLessonPage({ lessonId }: InstructorLessonPageProps) {
             </h1>
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] bg-[#171d28] text-stone-400 transition hover:border-amber-500/40 hover:text-amber-400">
+            <button type="button" aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface text-stone-400 transition hover:border-amber-500/40 hover:text-amber-400">
               <BookOpen className="h-4 w-4" />
             </button>
             <AmbientMusicPlayer src={content.ambientMusicUrl || undefined} />

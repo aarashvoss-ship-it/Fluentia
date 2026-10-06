@@ -203,8 +203,8 @@ export function LucideIconPicker({
         aria-haspopup="dialog"
         aria-label={triggerLabel || (selectedName ? `Selected icon: ${selectedName}` : "Choose icon")}
         className={compact
-          ? "flex h-6 min-w-6 items-center justify-center rounded p-1 text-stone-300 transition hover:bg-[#293343] hover:text-white"
-          : "inline-flex min-h-9 min-w-28 items-center justify-center gap-2 rounded border border-amber-500/40 bg-[#0c1017] px-3 text-xs  text-stone-200 hover:border-amber-500/40"}
+          ? "flex h-6 min-w-6 items-center justify-center rounded p-1 text-stone-300 transition hover:bg-border hover:text-white"
+          : "inline-flex min-h-9 min-w-28 items-center justify-center gap-2 rounded border border-amber-500/40 bg-background px-3 text-xs  text-stone-200 hover:border-amber-500/40"}
       >
         <TriggerIcon className={`${compact ? "h-4 w-4" : "h-4 w-4 text-amber-400"} shrink-0`} aria-hidden="true" />
         {!compact && (triggerLabel || selectedName || "Choose icon")}
@@ -217,7 +217,7 @@ export function LucideIconPicker({
             role="dialog"
             aria-label="Choose a Lucide icon"
             style={{ position: "fixed", top: popoverPosition.top, left: popoverPosition.left, zIndex: 10000 }}
-            className="w-[min(21rem,calc(100vw-2rem))] rounded-md border border-[#394252] bg-[#171d28] p-3 shadow-2xl"
+            className="w-[min(21rem,calc(100vw-2rem))] rounded-md border border-border bg-surface p-3 shadow-2xl"
           >
           <label className="relative block">
             <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-stone-500" aria-hidden="true" />
@@ -230,7 +230,7 @@ export function LucideIconPicker({
               onKeyDown={(event) => event.stopPropagation()}
               placeholder="Search icons"
               aria-label="Search icons by name"
-              className="h-9 w-full rounded border border-[#394252] bg-[#0c1017] pl-8 pr-3 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+              className="h-9 w-full rounded border border-border bg-background pl-8 pr-3 text-xs text-stone-200 outline-none focus:border-amber-500/40"
             />
           </label>
           <div className="mt-3 flex gap-1 overflow-x-auto pb-1" role="tablist" aria-label="Icon categories">
@@ -241,7 +241,7 @@ export function LucideIconPicker({
                 role="tab"
                 aria-selected={activeCategory === category.id}
                 onClick={() => setActiveCategory(category.id)}
-                className={`shrink-0 rounded px-2 py-1.5 text-[10px]  ${activeCategory === category.id ? "bg-amber-500/20 text-amber-400" : "text-stone-400 hover:bg-[#202631] hover:text-stone-200"}`}
+                className={`shrink-0 rounded px-2 py-1.5 text-[10px]  ${activeCategory === category.id ? "bg-amber-500/20 text-amber-400" : "text-stone-400 hover:bg-border hover:text-stone-200"}`}
               >
                 {category.label}
               </button>

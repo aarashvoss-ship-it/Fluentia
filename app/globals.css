@@ -33,19 +33,6 @@
   display: none;
 }
 
-button,
-button *,
-[role="button"],
-[role="button"] *,
-a[class*="rounded"][class*="px-"],
-a[class*="rounded"][class*="px-"] * {
-  font-weight: 400 !important;
-}
-
-input[type="file"]::file-selector-button {
-  font-weight: 400 !important;
-}
-
 .rubric-score-input {
   -moz-appearance: textfield;
   appearance: textfield;
@@ -58,7 +45,12 @@ input[type="file"]::file-selector-button {
 }
 
 :root {
-  --background: #0E1117;
+  --app-background-rgb: 12 16 23;
+  --card-surface-rgb: 18 23 33;
+  --card-border-rgb: 32 38 49;
+  --background: rgb(var(--app-background-rgb));
+  --card-surface: rgb(var(--card-surface-rgb));
+  --card-border: rgb(var(--card-border-rgb));
   --foreground: #F3F4F6;
   --accent-amber: #fbbf24;
   --accent-amber-soft: rgba(245, 158, 11, 0.2);
@@ -208,9 +200,9 @@ b {
   width: max-content;
   max-width: min(16rem, calc(100vw - 2rem));
   padding: 0.375rem 0.5rem;
-  border: 1px solid #394252;
+  border: 1px solid var(--card-border);
   border-radius: 0.375rem;
-  background: #171d28;
+  background: var(--card-surface);
   color: #e7e5e4;
   font-size: 0.6875rem;
   line-height: 1.35;
@@ -236,7 +228,7 @@ b {
 /* Student study rooms are intentionally dark and consistent across devices. */
 .fluentia-study-room,
 body {
-  background: #0c1017;
+  background: var(--background);
 }
 
 #fluentia-display-content {
@@ -259,9 +251,8 @@ body {
 }
 
 :root[data-display-theme="pure-black"] #fluentia-display-content :is(
-  .bg-surface,
-  .bg-surface-elevated,
-  .bg-surface-subtle,
+  [class*="bg-background"],
+  [class*="bg-surface"],
   [class*="bg-slate-"],
   [class*="bg-stone-"],
   [class*="bg-gray-"]
@@ -281,7 +272,10 @@ body {
 
 :root.light {
   color-scheme: light;
-  --background: #f3eee3;
+  --app-background-rgb: 243 238 227;
+  --card-surface-rgb: 255 255 255;
+  --card-border-rgb: 215 208 196;
+  --background: rgb(var(--app-background-rgb));
   --foreground: #27231e;
 }
 
@@ -296,12 +290,8 @@ body {
   [class*="bg-slate-900"],
   [class*="bg-slate-800"],
   [class*="bg-stone-900"],
-  [class*="bg-[#0c1017]"],
-  [class*="bg-[#0f1923]"],
-  [class*="bg-[#111620]"],
-  [class*="bg-[#121721]"],
-  [class*="bg-[#171d28]"],
-  [class*="bg-[#1F242C]"]
+  [class*="bg-background"],
+  [class*="bg-surface"]
 ) {
   background-color: #fff !important;
 }
@@ -319,7 +309,7 @@ body {
 }
 
 :root.light #fluentia-display-content :is(
-  [class*="border-[#202631]"],
+  [class*="border-border"],
   [class*="border-slate-700"],
   [class*="border-stone-700"]
 ) {
@@ -342,8 +332,8 @@ body {
   display: grid;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid #3b4352;
-  background: #171d27;
+  border: 1px solid var(--card-border);
+  background: var(--card-surface);
   color: #f3f4f6;
   cursor: pointer;
   transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
@@ -365,7 +355,7 @@ body {
 }
 
 .display-customizer-trigger.is-open {
-  background: #272d38;
+  background: var(--card-surface);
   color: #f3f4f6;
 }
 
@@ -381,9 +371,9 @@ body {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 1.1rem;
-  border: 1px solid #323b49;
+  border: 1px solid var(--card-border);
   border-radius: 0.75rem;
-  background: #111720;
+  background: var(--card-surface);
   box-shadow: 0 20px 60px #0009;
   animation: display-panel-enter 180ms ease-out both;
 }
@@ -424,7 +414,7 @@ body {
 }
 
 .display-customizer-reset:hover {
-  background: #252d38;
+  background: var(--card-border);
   color: var(--accent-amber);
 }
 
@@ -452,7 +442,7 @@ body {
 .display-customizer-close:hover,
 .display-font-controls button:hover:not(:disabled) {
   border-color: var(--accent-amber-border);
-  background: #252d38;
+  background: var(--card-border);
 }
 
 .display-theme-options {
@@ -484,9 +474,9 @@ body {
   align-items: center;
   justify-content: center;
   gap: 0.3rem;
-  border: 1px solid #303947;
+  border: 1px solid var(--card-border);
   border-radius: 0.5rem;
-  background: #191f29;
+  background: var(--card-surface);
   color: #aeb6c3;
   cursor: pointer;
   font-size: 0.625rem;
@@ -661,14 +651,14 @@ body {
 
 .resource-rich-text th,
 .resource-rich-text td {
-  border: 1px solid #394252;
+  border: 1px solid var(--card-border);
   padding: 0.5rem;
   text-align: left;
   vertical-align: top;
 }
 
 .resource-rich-text th {
-  background: #171d28;
+  background: var(--card-surface);
   font-weight: 600;
 }
 

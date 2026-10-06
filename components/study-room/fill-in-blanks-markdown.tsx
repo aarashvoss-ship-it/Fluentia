@@ -69,7 +69,7 @@ export function FillInBlanksMarkdown({
     li: ({ children }) => <li className="pl-1 text-slate-300">{children}</li>,
     strong: ({ children }) => <strong>{children}</strong>,
     em: ({ children }) => <em className="italic text-stone-200">{children}</em>,
-    code: ({ children }) => <code className="rounded border border-[#394252] bg-[#0c1017] px-1.5 py-0.5 font-mono text-xs text-amber-400">{children}</code>,
+    code: ({ children }) => <code className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-xs text-amber-400">{children}</code>,
     a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="text-amber-400 underline decoration-amber-400 underline-offset-2 hover:text-amber-400">{children}</a>,
     input: ({ node }) => {
       const properties = (node as unknown as { properties?: { dataFillBlankIndex?: number | string } }).properties;
@@ -84,7 +84,7 @@ export function FillInBlanksMarkdown({
         ? <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={components}>{markdownWithInputs}</ReactMarkdown>
         : null}
       {wordBank.length > 0 && (
-        <div className="mt-6 h-auto min-h-0 border-t border-[#394252] pb-2 pt-6">
+        <div className="mt-6 h-auto min-h-0 border-t border-border pb-2 pt-6">
           <div className="flex flex-col gap-3">
             <p className="m-0 text-xs font-semibold uppercase tracking-[0.12em] text-amber-400">Word Bank</p>
             <div className="flex flex-wrap gap-2" aria-label="Fill in the blanks word bank">

@@ -85,7 +85,7 @@ export default function InstantDictionaryLookup({
   }
 
   return (
-    <section className="w-full max-w-lg rounded-xl border border-[#394252] bg-[#171d28] p-5 text-[#e8e7e4]" aria-label="Instant dictionary lookup">
+    <section className="w-full max-w-lg rounded-xl border border-border bg-surface p-5 text-[#e8e7e4]" aria-label="Instant dictionary lookup">
       <form onSubmit={(event) => void handleSearch(event)} className="flex gap-2">
         <label htmlFor="instant-dictionary-search" className="sr-only">Search a word</label>
         <input
@@ -93,7 +93,7 @@ export default function InstantDictionaryLookup({
           value={searchTerm}
           onChange={(event) => setSearchTerm(event.target.value)}
           placeholder="Search a word"
-          className="min-w-0 flex-1 rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-sm outline-none focus:border-amber-500/40"
+          className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-amber-500/40"
         />
         <button type="submit" disabled={loading} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/20 px-4 py-2 text-xs  text-amber-400 disabled:cursor-wait disabled:opacity-70">
           {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
@@ -107,7 +107,7 @@ export default function InstantDictionaryLookup({
       {loading && <p className="mt-5 text-center text-sm text-stone-400">Looking up {searchTerm}...</p>}
 
       {result && !loading && (
-        <div className="mt-5 space-y-4 border-t border-[#29303c] pt-4">
+        <div className="mt-5 space-y-4 border-t border-border pt-4">
           <div>
             <div className="flex items-center gap-3">
               <h2 className="font-sans text-2xl text-stone-100">{result.word}</h2>
@@ -117,8 +117,8 @@ export default function InstantDictionaryLookup({
             <p className="mt-2 text-sm leading-relaxed text-stone-300">{result.definition}</p>
           </div>
           {result.example && <p className="border-l-2 border-amber-500/40 pl-3 text-sm italic leading-relaxed text-stone-400">&quot;{result.example}&quot;</p>}
-          <div className="flex flex-wrap items-center gap-2 border-t border-[#29303c] pt-4">
-            <button type="button" onClick={playPronunciation} className="inline-flex items-center gap-1.5 rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 hover:border-amber-500/40 hover:text-amber-400">
+          <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
+            <button type="button" onClick={playPronunciation} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs text-stone-300 hover:border-amber-500/40 hover:text-amber-400">
               <Volume2 className="h-3.5 w-3.5" />
               Pronounce
             </button>

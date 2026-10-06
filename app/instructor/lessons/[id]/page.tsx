@@ -32,7 +32,7 @@ export default function LessonDetailPage() {
   // Handle loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0f1923" }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--background)" }}>
         <div className="text-center">
           <div className="inline-block">
             <div

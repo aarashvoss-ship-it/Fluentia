@@ -139,7 +139,7 @@ export function AudioRecorder({
 
   if (rec) {
     return (
-      <div className="flex w-full min-w-0 items-center gap-3 rounded-lg border border-[#202631] bg-[#111620] px-3 py-2.5">
+      <div className="flex w-full min-w-0 items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5">
         {/* Circular stop button */}
         <button
           type="button"
@@ -163,7 +163,7 @@ export function AudioRecorder({
 
   // Idle — single circular record button + timer placeholder + waveform placeholder
   return (
-    <div className="flex w-full min-w-0 items-center gap-3 rounded-lg border border-[#202631] bg-[#111620] px-3 py-2.5">
+    <div className="flex w-full min-w-0 items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5">
       <button
         type="button"
         onClick={start}
@@ -174,7 +174,7 @@ export function AudioRecorder({
         <Mic className="h-4 w-4" />
       </button>
       <div className="flex flex-1 items-center justify-center" aria-hidden>
-        <span className="h-px w-full max-w-[220px] rounded bg-[#202631]" />
+        <span className="h-px w-full max-w-[220px] rounded bg-border" />
       </div>
       <span className="shrink-0 font-mono text-xs tabular-nums text-stone-500">{fmtInt(0)}</span>
     </div>

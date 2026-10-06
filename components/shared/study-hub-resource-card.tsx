@@ -123,10 +123,10 @@ export function StudyHubResourceCard({
 
   if (resource.resource_type === "image") {
     return (
-      <article className="overflow-hidden rounded-lg border border-[#29303c] bg-[#0c1017]">
+      <article className="overflow-hidden rounded-lg border border-border bg-background">
         {href
           ? <button type="button" onClick={() => onViewImage ? onViewImage(resource) : window.open(href, "_blank", "noopener,noreferrer")} aria-label={`View ${title}`} className="block w-full text-left"><img src={href} alt={title} className="aspect-[4/3] w-full object-cover" /></button>
-          : <div className="aspect-[4/3] bg-[#171d28]" />}
+          : <div className="aspect-[4/3] bg-surface" />}
         <div className="space-y-2 p-3">
           <h4 className="text-xs font-semibold text-stone-100">{title}</h4>
           {resource.body && <MarkdownContent value={resource.body} className="line-clamp-3 text-[11px] leading-relaxed text-stone-400" />}
@@ -137,8 +137,8 @@ export function StudyHubResourceCard({
   }
 
   const cardClass = resource.resource_type === "reading"
-    ? "rounded-lg border border-[#29303c] bg-[#0c1017] p-3"
-    : "space-y-3 rounded-lg border border-[#29303c] bg-[#0c1017] p-3";
+    ? "rounded-lg border border-border bg-background p-3"
+    : "space-y-3 rounded-lg border border-border bg-background p-3";
 
   return (
     <article className={cardClass}>
@@ -174,9 +174,9 @@ export function StudyHubResourceCard({
 
       {resource.resource_type === "file" && (
         <>
-          {href && resource.media_type?.startsWith("image/") && <button type="button" onClick={() => onViewImage ? onViewImage(resource) : window.open(href, "_blank", "noopener,noreferrer")} aria-label={`View ${title}`} className="block w-full"><img src={href} alt={resource.original_filename || title} className="max-h-[420px] w-full rounded-md border border-[#29303c] object-contain" /></button>}
-          {href && resource.media_type === "application/pdf" && <iframe src={href} title={`Preview of ${resource.original_filename || title}`} className="h-[480px] w-full rounded-md border border-[#29303c] bg-white" />}
-          {href && resource.media_type?.startsWith("text/") && <iframe src={href} title={`Preview of ${resource.original_filename || title}`} className="h-[360px] w-full rounded-md border border-[#29303c] bg-white" />}
+          {href && resource.media_type?.startsWith("image/") && <button type="button" onClick={() => onViewImage ? onViewImage(resource) : window.open(href, "_blank", "noopener,noreferrer")} aria-label={`View ${title}`} className="block w-full"><img src={href} alt={resource.original_filename || title} className="max-h-[420px] w-full rounded-md border border-border object-contain" /></button>}
+          {href && resource.media_type === "application/pdf" && <iframe src={href} title={`Preview of ${resource.original_filename || title}`} className="h-[480px] w-full rounded-md border border-border bg-white" />}
+          {href && resource.media_type?.startsWith("text/") && <iframe src={href} title={`Preview of ${resource.original_filename || title}`} className="h-[360px] w-full rounded-md border border-border bg-white" />}
           {href && resource.media_type?.startsWith("audio/") && <CustomAudioPlayer src={href} label={title} />}
           {href && resource.media_type?.startsWith("video/") && <video src={href} controls preload="metadata" className="max-h-[480px] w-full rounded-md bg-black" aria-label={`Preview of ${resource.original_filename || title}`} />}
           {href ? <ResourceLink href={href} download={Boolean(resource.original_filename)}>Open or download</ResourceLink> : <p className="text-xs text-stone-500">This file is not available.</p>}
@@ -242,7 +242,7 @@ export function StudyHubFlashcardDeck({
     <section className="space-y-4" aria-label="Vocabulary and flashcards">
       <div className="flex items-center justify-between gap-3">
         <div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Vocabulary &amp; Flashcards</p><h3 className="mt-1 text-lg font-semibold text-stone-100">Study deck</h3></div>
-        <span className="rounded-full border border-[#394252] bg-[#171d28] px-2 py-1 text-[10px] text-stone-300">{cards.length} cards</span>
+        <span className="rounded-full border border-border bg-surface px-2 py-1 text-[10px] text-stone-300">{cards.length} cards</span>
       </div>
       {currentCard ? <>
         <div className="relative h-[340px] w-full [perspective:1600px]">
@@ -260,24 +260,24 @@ export function StudyHubFlashcardDeck({
             <div className="absolute inset-0 flex flex-col justify-between rounded-2xl p-5 [backface-visibility:hidden]">
               <div className="flex items-center justify-between gap-2"><span className="text-[10px] uppercase tracking-[0.16em] text-amber-400">{cardIndex + 1} / {cards.length}</span><span className="rounded-full border border-amber-500/40 bg-amber-500/20 px-2 py-1 text-[10px] uppercase text-amber-400">Question</span></div>
               <div className="max-h-[190px] overflow-y-auto break-words text-xl leading-snug text-stone-100"><MarkdownContent value={currentCard.question} /></div>
-              <div className="flex justify-center"><span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px] text-stone-300">See answer</span></div>
+              <div className="flex justify-center"><span className="rounded-full border border-border bg-surface px-4 py-2 text-[11px] text-stone-300">See answer</span></div>
             </div>
             <div className="absolute inset-0 flex flex-col justify-between rounded-2xl p-5 [backface-visibility:hidden] [transform:rotateY(180deg)]">
               <div className="flex items-center justify-between gap-2"><span className="text-[10px] uppercase tracking-[0.16em] text-emerald-300">Answer</span><span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] uppercase text-emerald-200">Key idea</span></div>
               <div className="max-h-[190px] overflow-y-auto break-words text-lg leading-relaxed text-stone-100"><MarkdownContent value={currentCard.answer} /></div>
-              {currentCard.explanation && <div className="max-h-16 overflow-y-auto border-t border-[#29303c] pt-2 text-xs leading-relaxed text-stone-300"><MarkdownContent value={currentCard.explanation} /></div>}
+              {currentCard.explanation && <div className="max-h-16 overflow-y-auto border-t border-border pt-2 text-xs leading-relaxed text-stone-300"><MarkdownContent value={currentCard.explanation} /></div>}
             </div>
           </div>
         </div>
-        <div className="flex items-center justify-between gap-2 rounded-xl border border-[#202631] bg-[#0c1017] p-2">
-          <button type="button" onClick={() => goToCard(cardIndex - 1)} disabled={cardIndex === 0} aria-label="Previous flashcard" className="flex h-9 w-9 items-center justify-center rounded-md border border-[#394252] text-stone-200 hover:border-amber-500/40 disabled:cursor-not-allowed disabled:opacity-40"><ArrowLeft className="h-4 w-4" /></button>
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-border bg-background p-2">
+          <button type="button" onClick={() => goToCard(cardIndex - 1)} disabled={cardIndex === 0} aria-label="Previous flashcard" className="flex h-9 w-9 items-center justify-center rounded-md border border-border text-stone-200 hover:border-amber-500/40 disabled:cursor-not-allowed disabled:opacity-40"><ArrowLeft className="h-4 w-4" /></button>
           <button type="button" onClick={() => { setWrongCount((count) => count + 1); goToCard(cardIndex + 1); }} aria-label={`Mark incorrect, ${wrongCount} incorrect`} className="flex h-9 min-w-14 items-center justify-center gap-1.5 rounded-md border border-red-500/40 bg-red-500/10 px-2 text-xs text-red-200"><X className="h-4 w-4" /><span>{wrongCount}</span></button>
           <button type="button" onClick={() => { setRightCount((count) => count + 1); goToCard(cardIndex + 1); }} aria-label={`Mark correct, ${rightCount} correct`} className="flex h-9 min-w-14 items-center justify-center gap-1.5 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 text-xs text-emerald-200"><Check className="h-4 w-4" /><span>{rightCount}</span></button>
-          <button type="button" onClick={() => goToCard(cardIndex + 1)} disabled={cardIndex >= cards.length - 1} aria-label="Next flashcard" className="flex h-9 w-9 items-center justify-center rounded-md border border-[#394252] text-stone-200 hover:border-amber-500/40 disabled:cursor-not-allowed disabled:opacity-40"><ArrowRight className="h-4 w-4" /></button>
+          <button type="button" onClick={() => goToCard(cardIndex + 1)} disabled={cardIndex >= cards.length - 1} aria-label="Next flashcard" className="flex h-9 w-9 items-center justify-center rounded-md border border-border text-stone-200 hover:border-amber-500/40 disabled:cursor-not-allowed disabled:opacity-40"><ArrowRight className="h-4 w-4" /></button>
         </div>
         {renderDownloadButton?.(currentCard)}
         <p className="text-center text-[10px] text-stone-600">Space to flip · Arrow keys to navigate</p>
-      </> : <p className="rounded-xl border border-dashed border-[#394252] p-6 text-center text-sm text-stone-500">Your instructor’s flashcards and saved vocabulary will appear here.</p>}
+      </> : <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-stone-500">Your instructor’s flashcards and saved vocabulary will appear here.</p>}
     </section>
   );
 }

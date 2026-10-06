@@ -135,9 +135,9 @@ export function CustomAudioPlayer({ src, label = "Audio", blob, transcript }: { 
   return (
     <div className="space-y-3">
       {sourceStatus === "unavailable" ? (
-        <p className="rounded-lg border border-[#293343] bg-[#171d28] px-3 py-2 text-xs text-stone-400">Audio playback unavailable</p>
+        <p className="rounded-lg border border-border bg-surface px-3 py-2 text-xs text-stone-400">Audio playback unavailable</p>
       ) : (
-        <div className="w-full rounded-xl border border-[#293343] bg-[#171d28] p-3 text-stone-300 shadow-inner">
+        <div className="w-full rounded-xl border border-border bg-surface p-3 text-stone-300 shadow-inner">
           {sourceStatus === "ready" && <audio ref={audioRef} src={playbackSrc} preload="metadata" className="sr-only" aria-label={label} onError={() => setSourceStatus("unavailable")} />}
           <div className="flex items-center gap-3">
             <button type="button" onClick={() => void togglePlayback()} disabled={sourceStatus !== "ready"} aria-label={isPlaying ? `Pause ${label}` : `Play ${label}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-amber-400 transition hover:bg-amber-500/20 disabled:cursor-wait disabled:opacity-50">
@@ -146,7 +146,7 @@ export function CustomAudioPlayer({ src, label = "Audio", blob, transcript }: { 
             <div className="min-w-0 flex-1">
               <div className="mb-1 flex items-center justify-between gap-2 text-[10px] text-stone-500">
                 <span className="min-w-0 truncate">{label}</span>
-                <select value={playbackRate} onChange={(event) => changePlaybackRate(Number(event.target.value))} aria-label={`${label} playback speed`} className="shrink-0 rounded border border-[#394252] bg-[#0c1017] px-1 py-0.5 text-[10px] text-stone-300 outline-none focus:border-amber-500/40">
+                <select value={playbackRate} onChange={(event) => changePlaybackRate(Number(event.target.value))} aria-label={`${label} playback speed`} className="shrink-0 rounded border border-border bg-background px-1 py-0.5 text-[10px] text-stone-300 outline-none focus:border-amber-500/40">
                   {[0.75, 1, 1.25, 1.5, 2].map((rate) => <option key={rate} value={rate}>{rate}x</option>)}
                 </select>
                 <span className="shrink-0 tabular-nums">{formatTime(currentTime)} / {formatTime(duration)}</span>
@@ -159,7 +159,7 @@ export function CustomAudioPlayer({ src, label = "Audio", blob, transcript }: { 
         </div>
       )}
       {transcriptLines.length > 0 && (
-        <div className="rounded border border-[#202631] bg-[#0c1017]/50" aria-label="Interactive audio transcript">
+        <div className="rounded border border-border bg-background/50" aria-label="Interactive audio transcript">
           <button
             type="button"
             onClick={() => setIsTranscriptExpanded((expanded) => !expanded)}
@@ -171,7 +171,7 @@ export function CustomAudioPlayer({ src, label = "Audio", blob, transcript }: { 
             <ChevronDown className={`h-4 w-4 shrink-0 text-amber-400 transition-transform duration-200 ${isTranscriptExpanded ? "rotate-180" : ""}`} aria-hidden="true" />
           </button>
           {isTranscriptExpanded && (
-            <div id={transcriptId} className="max-h-[320px] overflow-y-auto overscroll-contain border-t border-[#202631] scroll-smooth pr-2">
+            <div id={transcriptId} className="max-h-[320px] overflow-y-auto overscroll-contain border-t border-border scroll-smooth pr-2">
               <div className="space-y-1 p-2">
                 {transcriptLines.map((line) => (
                   <div key={`${line.seconds}-${line.text}`} className="flex min-w-0 items-start gap-2 rounded px-2 py-1.5 text-xs text-stone-300">

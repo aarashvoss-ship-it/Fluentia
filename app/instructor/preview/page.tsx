@@ -6,7 +6,7 @@ const LiveStudentPreviewWindow = dynamic(
   () => import("@/components/instructor/live-student-preview-window").then((module) => module.LiveStudentPreviewWindow),
   {
     ssr: false,
-    loading: () => <main className="flex min-h-screen items-center justify-center bg-[#0c1017] text-sm text-stone-400">Loading live preview...</main>,
+    loading: () => <main className="flex min-h-screen items-center justify-center bg-background text-sm text-stone-400">Loading live preview...</main>,
   },
 );
 

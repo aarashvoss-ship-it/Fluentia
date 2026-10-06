@@ -27,7 +27,7 @@ export default function InstructorLessonRoute() {
   }, [router]);
 
   if (!isMounted || !instructorId) {
-    return <main className="min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
+    return <main className="min-h-screen bg-background text-[#e8e7e4]" />;
   }
 
   return <InstructorLessonWorkstationPage instructorId={instructorId} lessonSlug={params.slug} />;

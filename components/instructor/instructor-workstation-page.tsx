@@ -166,7 +166,7 @@ function StepSidebarEditorPanel({
   };
 
   return (
-    <section className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
+    <section className="rounded-xl border border-border bg-surface/60 p-5">
       <div className="flex items-center justify-between gap-3">
         <button
           type="button"
@@ -184,7 +184,7 @@ function StepSidebarEditorPanel({
             ...current,
             [sidebarStep]: [...(current[sidebarStep] || []), { id: `sidebar-${Date.now()}`, title: "Sidebar note", body: "" }],
           }))}
-          className="inline-flex min-h-9 items-center gap-1.5 rounded border border-amber-500/40 bg-[#0c1017] px-3 text-xs font-normal text-stone-200 transition hover:border-amber-500/40"
+          className="inline-flex min-h-9 items-center gap-1.5 rounded border border-amber-500/40 bg-background px-3 text-xs font-normal text-stone-200 transition hover:border-amber-500/40"
         >
           <Plus className="h-3.5 w-3.5" /> Add Block
         </button>
@@ -199,7 +199,7 @@ function StepSidebarEditorPanel({
         <div className="min-h-0 overflow-hidden">
           <label className="mt-3 block text-xs text-stone-500">
         Editing step
-        <select value={sidebarStep} onChange={(event) => setSidebarStep(event.target.value as keyof SidebarBlocksByStep)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark]" aria-label="Sidebar step">
+        <select value={sidebarStep} onChange={(event) => setSidebarStep(event.target.value as keyof SidebarBlocksByStep)} className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200 [color-scheme:dark]" aria-label="Sidebar step">
           <option value="warm_up">Warm-up</option>
           <option value="lesson">Lesson</option>
           <option value="listening">Listening</option>
@@ -210,7 +210,7 @@ function StepSidebarEditorPanel({
           </label>
           <div className="mt-4 space-y-3">
         {(sidebarBlocksByStep[sidebarStep] || []).map((block) => (
-          <div key={block.id} className="space-y-3 rounded-md border border-[#202631] bg-[#171d28] p-3">
+          <div key={block.id} className="space-y-3 rounded-md border border-border bg-surface p-3">
             <div className="flex items-center gap-2">
               <input
                 value={block.title}
@@ -218,7 +218,7 @@ function StepSidebarEditorPanel({
                   ...current,
                   [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, title: event.target.value } : item),
                 }))}
-                className="h-9 min-w-0 flex-1 rounded border border-[#394252] bg-[#0c1017] px-2.5 text-xs font-semibold text-stone-200 outline-none focus:border-amber-500/40"
+                className="h-9 min-w-0 flex-1 rounded border border-border bg-background px-2.5 text-xs font-semibold text-stone-200 outline-none focus:border-amber-500/40"
                 aria-label="Sidebar block title"
               />
               <Tooltip content="Delete sidebar block">
@@ -229,13 +229,13 @@ function StepSidebarEditorPanel({
                   [sidebarStep]: (current[sidebarStep] || []).filter((item) => item.id !== block.id),
                 }))}
                 aria-label={`Delete ${block.title}`}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-[#394252] text-stone-400 transition hover:border-red-500/60 hover:text-red-300"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-border text-stone-400 transition hover:border-red-500/60 hover:text-red-300"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
               </Tooltip>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-[#29303c] bg-[#0c1017]/60 px-3 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-border bg-background/60 px-3 py-2">
               <span className="text-xs font-medium text-stone-300">Block Icon</span>
               <LucideIconPicker
                 value={block.icon || ""}
@@ -246,7 +246,7 @@ function StepSidebarEditorPanel({
                 }))}
               />
             </div>
-            <div className="space-y-3 rounded-md border border-[#29303c] bg-[#0c1017]/40 p-3">
+            <div className="space-y-3 rounded-md border border-border bg-background/40 p-3">
               <p className="text-xs font-medium text-stone-300">Image (Optional)</p>
               <label className="block text-[11px] text-stone-500">
                 Image URL
@@ -258,11 +258,11 @@ function StepSidebarEditorPanel({
                     setImageUploadStatus((current) => ({ ...current, [block.id]: "" }));
                   }}
                   placeholder="https://example.com/image.jpg"
-                  className="mt-1 w-full rounded border border-[#394252] bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                  className="mt-1 w-full rounded border border-border bg-surface p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                   aria-label={`Image URL for ${block.title || "sidebar block"}`}
                 />
               </label>
-              <label className="flex cursor-pointer items-center justify-center gap-2 rounded border border-dashed border-[#394252] px-3 py-2 text-xs text-stone-300 transition hover:border-amber-500/40 hover:text-amber-400">
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded border border-dashed border-border px-3 py-2 text-xs text-stone-300 transition hover:border-amber-500/40 hover:text-amber-400">
                 <Image className="h-4 w-4" aria-hidden="true" />
                 Upload Image
                 <input
@@ -283,12 +283,12 @@ function StepSidebarEditorPanel({
                   value={block.altText || ""}
                   onChange={(event) => updateSidebarBlock(block.id, { altText: event.target.value })}
                   placeholder="Describe the image for students"
-                  className="mt-1 w-full rounded border border-[#394252] bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                  className="mt-1 w-full rounded border border-border bg-surface p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                   aria-label={`Image alt text or caption for ${block.title || "sidebar block"}`}
                 />
               </label>
               {block.imageUrl?.trim() && (
-                <figure className="overflow-hidden rounded-lg border border-[#29303c] bg-[#0c1017]">
+                <figure className="overflow-hidden rounded-lg border border-border bg-background">
                   <img
                     src={block.imageUrl}
                     alt={block.altText || ""}
@@ -308,7 +308,7 @@ function StepSidebarEditorPanel({
                   ...current,
                   [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, parentMainBlockId: event.target.value || undefined } : item),
                 }))}
-                className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200 [color-scheme:dark] focus:border-amber-500/40"
+                className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200 [color-scheme:dark] focus:border-amber-500/40"
                 aria-label={`Align ${block.title || "sidebar block"} next to main block`}
               >
                 <option value="">Top of Sidebar (Default Unlinked)</option>
@@ -325,7 +325,7 @@ function StepSidebarEditorPanel({
             />
           </div>
         ))}
-        {(sidebarBlocksByStep[sidebarStep] || []).length === 0 && <p className="rounded-md border border-dashed border-[#394252] p-4 text-xs text-stone-500">No sidebar blocks for this step.</p>}
+        {(sidebarBlocksByStep[sidebarStep] || []).length === 0 && <p className="rounded-md border border-dashed border-border p-4 text-xs text-stone-500">No sidebar blocks for this step.</p>}
           </div>
         </div>
       </div>
@@ -605,12 +605,12 @@ function collectStudentFlashcards(resources: StudentResourceEntry[]) {
 
 function FlashcardDraftList({ cards, onRemove }: { cards: FlashcardItem[]; onRemove?: (index: number) => void }) {
   if (cards.length === 0) {
-    return <p className="rounded-md border border-dashed border-[#394252] px-3 py-3 text-xs text-stone-500">Cards you add will appear here before the deck is saved.</p>;
+    return <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-stone-500">Cards you add will appear here before the deck is saved.</p>;
   }
   return (
     <ol className="space-y-2" aria-label="Cards in this draft deck">
       {cards.map((card, index) => (
-        <li key={card.id || index} className="rounded-md border border-[#293343] bg-[#0c1017] p-3 text-xs text-stone-300">
+        <li key={card.id || index} className="rounded-md border border-border bg-background p-3 text-xs text-stone-300">
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="font-semibold text-amber-400">Card {index + 1}</span>
             {onRemove && <button type="button" onClick={() => onRemove(index)} className="text-stone-500 hover:text-red-300" aria-label={`Remove card ${index + 1}`}>Remove</button>}
@@ -747,20 +747,20 @@ function AudioTranscriptAccordion({ resourceId, transcript }: { resourceId: stri
   const contentId = `audio-transcript-${resourceId.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 
   return (
-    <div className="overflow-hidden rounded-lg border border-[#293343] bg-[#0c1017]/70">
+    <div className="overflow-hidden rounded-lg border border-border bg-background/70">
       <button
         type="button"
         aria-expanded={isExpanded}
         aria-controls={contentId}
         onClick={() => setIsExpanded((expanded) => !expanded)}
-        className="flex w-full items-center justify-between gap-3 border-b border-[#293343] px-3 py-2 text-left text-[10px]  uppercase tracking-[0.14em] text-stone-400 transition hover:bg-amber-500/20 hover:text-amber-400"
+        className="flex w-full items-center justify-between gap-3 border-b border-border px-3 py-2 text-left text-[10px]  uppercase tracking-[0.14em] text-stone-400 transition hover:bg-amber-500/20 hover:text-amber-400"
       >
         <span>Transcript</span>
         <ChevronDown className={`h-4 w-4 shrink-0 text-amber-400 transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`} aria-hidden="true" />
       </button>
       <div id={contentId} className={`grid transition-[grid-template-rows] duration-300 ease-out ${isExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
         <div className="min-h-0 overflow-hidden">
-          {richTextTranscript ? <MarkdownContent value={transcript} className="p-3 text-xs leading-relaxed text-stone-300" /> : transcriptLines.length > 0 ? <div className="divide-y divide-[#202631]">
+          {richTextTranscript ? <MarkdownContent value={transcript} className="p-3 text-xs leading-relaxed text-stone-300" /> : transcriptLines.length > 0 ? <div className="divide-y divide-border">
             {transcriptLines.map((line, index) => <div key={`${line.seconds}-${index}`} className="flex items-start gap-3 px-3 py-2.5">
               <span className="shrink-0 rounded border border-amber-500/40 bg-amber-500/20 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-amber-400">{line.timestamp}</span>
               <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-stone-300">{line.text}</p>
@@ -1675,8 +1675,8 @@ export default function InstructorWorkstationPage({
         ? `${names[0]} +${names.length - 1} more`
         : names[0];
     return <span className="group relative inline-flex min-w-0 flex-1">
-      <span className="min-w-0 truncate rounded-md border border-[#394252] bg-[#0c1017] px-2 py-1 text-[11px] text-stone-300">{label}</span>
-      {(names.length > 1 || names[0] === "All Students") && <span role="tooltip" className="pointer-events-none invisible absolute left-0 top-full z-20 mt-2 w-56 rounded-md border border-[#394252] bg-[#171d28] p-2 text-[11px] leading-relaxed text-stone-300 opacity-0 shadow-xl transition group-hover:visible group-hover:opacity-100">{names[0] === "All Students" ? "Available to every student" : names.join(", ")}</span>}
+      <span className="min-w-0 truncate rounded-md border border-border bg-background px-2 py-1 text-[11px] text-stone-300">{label}</span>
+      {(names.length > 1 || names[0] === "All Students") && <span role="tooltip" className="pointer-events-none invisible absolute left-0 top-full z-20 mt-2 w-56 rounded-md border border-border bg-surface p-2 text-[11px] leading-relaxed text-stone-300 opacity-0 shadow-xl transition group-hover:visible group-hover:opacity-100">{names[0] === "All Students" ? "Available to every student" : names.join(", ")}</span>}
     </span>;
   };
 
@@ -2986,7 +2986,7 @@ export default function InstructorWorkstationPage({
     ? "border-amber-500/40 bg-amber-500/20 text-amber-400"
     : submissionState === "Pending Evaluation"
       ? "border-amber-500/40 bg-amber-500/20 text-amber-400"
-      : "border-[#394252] bg-[#171d28] text-stone-400";
+      : "border-border bg-surface text-stone-400";
   const submittedAnswers = workstationState.submission;
   const reviewContent = workstationState.content as Record<string, any>;
   const reviewStages: InstructorReviewStage[] = [
@@ -3220,8 +3220,8 @@ export default function InstructorWorkstationPage({
       }
       return (
         <div className="space-y-4">
-          <div className="rounded-lg border border-amber-500/40 bg-[#0c1017] p-4 text-sm text-stone-400">Results — correct answers as the student will see after submission.</div>
-          {Object.keys(answerKeys).length? Object.entries(answerKeys).map(([id,ans])=><div key={id} className="rounded-lg border border-[#293343] bg-[#0c1017] p-3"><p className="text-xs text-stone-500">{id}</p><p className="text-sm text-amber-400">{ans}</p></div>) : <p className="text-xs text-stone-500">No answer keys configured.</p>}
+          <div className="rounded-lg border border-amber-500/40 bg-background p-4 text-sm text-stone-400">Results — correct answers as the student will see after submission.</div>
+          {Object.keys(answerKeys).length? Object.entries(answerKeys).map(([id,ans])=><div key={id} className="rounded-lg border border-border bg-background p-3"><p className="text-xs text-stone-500">{id}</p><p className="text-sm text-amber-400">{ans}</p></div>) : <p className="text-xs text-stone-500">No answer keys configured.</p>}
         </div>
       );
     }
@@ -3243,12 +3243,12 @@ export default function InstructorWorkstationPage({
             : undefined);
         const rowEmptyMode = block.rowEmptyMode || block.whenEmpty;
         const article = (
-        <article key={block.id} className="rounded-xl border border-[#202631] bg-[#121721] p-5">
+        <article key={block.id} className="rounded-xl border border-border bg-surface p-5">
           {block.title && <h3 className="mb-3 font-sans text-xl font-semibold text-stone-100">{block.title}</h3>}
-          {block.type === "text" && <>{<MarkdownContent value={block.body || ""} className="text-sm leading-relaxed text-stone-300" />}{block.hasStudentResponseInput === true && <textarea rows={6} placeholder="Write your response here..." readOnly className="mt-4 min-h-[140px] w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" aria-label="Student response field preview" />}</>}
+          {block.type === "text" && <>{<MarkdownContent value={block.body || ""} className="text-sm leading-relaxed text-stone-300" />}{block.hasStudentResponseInput === true && <textarea rows={6} placeholder="Write your response here..." readOnly className="mt-4 min-h-[140px] w-full resize-y rounded border border-border bg-surface p-3 text-sm text-stone-400" aria-label="Student response field preview" />}</>}
           {block.type === "image" && <>{block.imageUrl && <img src={block.imageUrl} alt={block.caption || block.title || "Lesson image"} className="max-h-72 w-full rounded-md object-cover" onError={(e)=>{(e.target as HTMLImageElement).style.display="none";}} />}{block.caption && <p className="mt-2 text-xs text-stone-500">{block.caption}</p>}</>}
           {block.type === "audio" && block.audioUrl && <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio lesson"} />}
-          {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} />{block.show_reflection_prompt !== false && block.reflection_prompt_text?.trim() && <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/20 p-4"><p className="text-sm font-semibold text-amber-400">Reflection Question</p><MarkdownContent value={block.reflection_prompt_text.trim()} className="mt-2 text-sm leading-relaxed text-stone-300" /><textarea rows={4} placeholder="Write your reflection here..." readOnly className="mt-3 w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" aria-label="Reflection question response preview" /></div>}</>}
+          {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} />{block.show_reflection_prompt !== false && block.reflection_prompt_text?.trim() && <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/20 p-4"><p className="text-sm font-semibold text-amber-400">Reflection Question</p><MarkdownContent value={block.reflection_prompt_text.trim()} className="mt-2 text-sm leading-relaxed text-stone-300" /><textarea rows={4} placeholder="Write your reflection here..." readOnly className="mt-3 w-full resize-y rounded border border-border bg-surface p-3 text-sm text-stone-400" aria-label="Reflection question response preview" /></div>}</>}
           {block.type === "resource" && block.resourceUrl && <a href={block.resourceUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded border border-amber-500/40 bg-amber-500/20 p-3 text-sm text-amber-400 hover:border-amber-500/40">Open document{block.description ? `: ${block.description}` : ""}</a>}
           {block.type === "question" && <ExerciseQuestions mode="interactive" questions={[{ id: block.id, type: block.question_type === "open_ended" ? "short_answer" : "multiple_choice", prompt: block.prompt || "", options: block.options, correct_answer: block.correct_answer, sample_answer: block.sample_answer }]} readOnly />}
           {block.type === "quiz" && <ExerciseQuestions mode="interactive" questions={block.questions || []} readOnly />}
@@ -3274,7 +3274,7 @@ export default function InstructorWorkstationPage({
           </StudyRoomBlockRow>
         );
       })}
-      {previewBlocks.length === 0 && <p className="rounded-lg border border-dashed border-[#394252] p-6 text-sm text-stone-500">This step has no content blocks yet.</p>}
+      {previewBlocks.length === 0 && <p className="rounded-lg border border-dashed border-border p-6 text-sm text-stone-500">This step has no content blocks yet.</p>}
     </div>
   );};
 
@@ -3514,12 +3514,12 @@ export default function InstructorWorkstationPage({
     />
   );
   const heroBannerPanel = (
-    <details className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" open={heroBannerOpen} onToggle={(event) => setHeroBannerOpen(event.currentTarget.open)}>
+    <details className="rounded-xl border border-border bg-surface/60 p-5" open={heroBannerOpen} onToggle={(event) => setHeroBannerOpen(event.currentTarget.open)}>
       <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold text-stone-200">
         <span className="flex min-w-0 items-center gap-2"><Image className="h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" /><span className="truncate">Hero Banner</span></span>
         <span className="flex shrink-0 items-center gap-3"><span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-[10px] font-medium text-amber-300">16:9 · Dynamic Storage</span><ChevronDown className={`h-4 w-4 text-amber-400 transition-transform ${heroBannerOpen ? "rotate-180" : ""}`} aria-hidden="true" /></span>
       </summary>
-      <div className="mt-4 border-t border-[#29303c] pt-4">
+      <div className="mt-4 border-t border-border pt-4">
         <InstructorBannerManager
           bannerUrl={workstationState.bannerUrl}
           customInput={workstationState.customBannerUrl}
@@ -3545,12 +3545,12 @@ export default function InstructorWorkstationPage({
   );
 
   return (
-    <div className="min-h-screen w-full bg-[#0c1017] font-sans text-[#e8e7e4]">
+    <div className="min-h-screen w-full bg-background font-sans text-[#e8e7e4]">
       <div className={`w-full max-w-full px-4 sm:px-6 py-6 md:py-8 ${activeTab === "builder" ? "pb-28" : ""}`}>
         <div className="mb-6 flex items-center">
           <img src="/logo.png" alt="Fluentia" className="h-10 w-auto object-contain" />
         </div>
-        <header className="mb-8 flex flex-col justify-between gap-4 border-b border-[#202631] pb-4 md:flex-row md:items-center">
+        <header className="mb-8 flex flex-col justify-between gap-4 border-b border-border pb-4 md:flex-row md:items-center">
           <div>
 <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-400">Fluentia Instructor Studio</span>
 <h1 className="mt-2 font-sans text-2xl font-semibold text-[#f1eee8]">Instructor Workstation</h1>
@@ -3558,7 +3558,7 @@ export default function InstructorWorkstationPage({
           {activeTab === "evaluation" && reviewSubmissionId && <button
             type="button"
             onClick={clearEvaluationSelection}
-            className="inline-flex items-center gap-2 self-start rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 transition hover:border-amber-500/40 hover:text-amber-300 md:self-center"
+            className="inline-flex items-center gap-2 self-start rounded-md border border-border px-3 py-2 text-xs text-stone-300 transition hover:border-amber-500/40 hover:text-amber-300 md:self-center"
           >
             <ChevronRight className="h-3.5 w-3.5 rotate-180" aria-hidden="true" />
             Back to Submissions Queue
@@ -3566,10 +3566,10 @@ export default function InstructorWorkstationPage({
           {activeTab === "builder" && <div className="flex min-w-0 flex-col items-stretch gap-2 md:items-end">
             <div className="flex flex-wrap items-center justify-end gap-2">
               <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold ${lessonStatus === "published" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/40 bg-amber-500/20 text-amber-400"}`}><span className={`h-1.5 w-1.5 rounded-full ${lessonStatus === "published" ? "bg-emerald-400" : "bg-amber-500/20"}`} />{lessonStatus === "published" ? "Published" : "Draft"}</span>
-              <button type="button" aria-pressed={isSplitPreviewOpen} onClick={() => setIsSplitPreviewOpen((open) => !open)} className={`rounded border px-2.5 py-1.5 text-[11px]  transition ${isSplitPreviewOpen ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-[#394252] bg-[#0c1017] text-stone-300 hover:border-amber-500/40 hover:text-stone-100"}`}>Split Preview</button>
-              <button type="button" onClick={() => { window.open("/instructor/preview", "fluentia-student-live-preview"); }} className="rounded border border-[#394252] bg-[#0c1017] px-2.5 py-1.5 text-[11px]  text-stone-300 transition hover:border-amber-500/40 hover:text-stone-100">Pop-out Preview</button>
+              <button type="button" aria-pressed={isSplitPreviewOpen} onClick={() => setIsSplitPreviewOpen((open) => !open)} className={`rounded border px-2.5 py-1.5 text-[11px]  transition ${isSplitPreviewOpen ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-border bg-background text-stone-300 hover:border-amber-500/40 hover:text-stone-100"}`}>Split Preview</button>
+              <button type="button" onClick={() => { window.open("/instructor/preview", "fluentia-student-live-preview"); }} className="rounded border border-border bg-background px-2.5 py-1.5 text-[11px]  text-stone-300 transition hover:border-amber-500/40 hover:text-stone-100">Pop-out Preview</button>
               <Tooltip content="Save changes"><button type="button" onClick={handleSaveDraft} className="rounded-md bg-amber-500/20 px-3 py-2 text-xs  text-amber-400 transition hover:bg-amber-500/20">Save Changes</button></Tooltip>
-              {lessonStatus === "published" ? <Tooltip content="Remove this lesson from student access"><button type="button" onClick={handleUnpublish} disabled={isPublishing || !databaseLessonId} className="rounded-md border border-[#394252] px-3 py-2 text-xs  text-stone-300 transition hover:border-red-400 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50">Unpublish</button></Tooltip> : <Tooltip content="Publish this lesson for students"><button type="button" onClick={handleConfirmPublish} disabled={isPublishing} className="rounded-md border border-[#394252] px-3 py-2 text-xs  text-stone-300 transition hover:border-amber-500/40 hover:text-amber-400 disabled:cursor-wait disabled:opacity-60">Publish</button></Tooltip>}
+              {lessonStatus === "published" ? <Tooltip content="Remove this lesson from student access"><button type="button" onClick={handleUnpublish} disabled={isPublishing || !databaseLessonId} className="rounded-md border border-border px-3 py-2 text-xs  text-stone-300 transition hover:border-red-400 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50">Unpublish</button></Tooltip> : <Tooltip content="Publish this lesson for students"><button type="button" onClick={handleConfirmPublish} disabled={isPublishing} className="rounded-md border border-border px-3 py-2 text-xs  text-stone-300 transition hover:border-amber-500/40 hover:text-amber-400 disabled:cursor-wait disabled:opacity-60">Publish</button></Tooltip>}
             </div>
             <div className="flex min-h-5 w-full max-w-xl justify-end gap-3 text-xs" aria-live="polite">
               {publishStatus && <span className="truncate text-amber-400">{publishStatus}</span>}
@@ -3578,7 +3578,7 @@ export default function InstructorWorkstationPage({
           </div>}
         </header>
 
-        <nav className="sticky top-0 z-20 mb-8 border-b border-[#202631] bg-[#0c1017]/95 backdrop-blur" aria-label="Instructor workstation views">
+        <nav className="sticky top-0 z-20 mb-8 border-b border-border bg-background/95 backdrop-blur" aria-label="Instructor workstation views">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-0 flex-wrap gap-x-1">
               {([["dashboard", "Dashboard"], ["students", "Students Directory"], ["instructors", "Instructors Directory"], ["library", "Lesson Library"], ["builder", "Lesson Builder"], ["evaluation", "Student Evaluation"], ["music", "Music Library"]] as const).map(([tab, label]) => <Tooltip key={tab} content={`Open ${label}`}><button type="button" onClick={() => handleWorkspaceTabChange(tab)} className={`whitespace-nowrap border-b-2 px-3 py-3 text-xs  transition sm:px-4 ${activeTab === tab ? "border-amber-500/40 text-amber-400" : "border-transparent text-stone-500 hover:text-stone-200"}`}>{label}</button></Tooltip>)}
@@ -3589,22 +3589,22 @@ export default function InstructorWorkstationPage({
 
         {activeTab === "dashboard" && <section className="space-y-6" aria-label="Instructor dashboard overview">
           <div className="grid items-start gap-4 md:grid-cols-4">
-            <button type="button" onClick={() => setActiveTab("evaluation")} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-left transition hover:border-amber-500/40">
+            <button type="button" onClick={() => setActiveTab("evaluation")} className="rounded-xl border border-border bg-surface/60 p-5 text-left transition hover:border-amber-500/40">
 <p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Pending Evaluations</p>
 <p className="mt-2 text-2xl  text-stone-100">{pendingSubmissionCount}</p>
 <p className="mt-1 text-xs text-stone-500">Student submissions awaiting review</p>
 </button>
-            <button type="button" onClick={() => handleWorkspaceTabChange("builder")} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-left transition hover:border-amber-500/40">
+            <button type="button" onClick={() => handleWorkspaceTabChange("builder")} className="rounded-xl border border-border bg-surface/60 p-5 text-left transition hover:border-amber-500/40">
 <p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Drafts</p>
 <p className="mt-2 text-2xl  text-stone-100">{draftLessonCount}</p>
 <p className="mt-1 text-xs text-stone-500">Open the lesson builder</p>
 </button>
-            <button type="button" onClick={() => handleWorkspaceTabChange("builder")} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-left transition hover:border-amber-500/40">
+            <button type="button" onClick={() => handleWorkspaceTabChange("builder")} className="rounded-xl border border-border bg-surface/60 p-5 text-left transition hover:border-amber-500/40">
 <p className="text-[10px] uppercase tracking-[0.14em] text-amber-400">Published Lessons</p>
 <p className="mt-2 text-2xl  text-stone-100">{publishedLessonCount}</p>
 <p className="mt-1 text-xs text-stone-500">Open the lesson builder</p>
 </button>
-            <details open={activeStudentsOpen} onToggle={(event) => setActiveStudentsOpen(event.currentTarget.open)} className="relative self-start rounded-xl border border-[#202631] bg-[#171d28]/60 text-left transition hover:border-amber-500/40">
+            <details open={activeStudentsOpen} onToggle={(event) => setActiveStudentsOpen(event.currentTarget.open)} className="relative self-start rounded-xl border border-border bg-surface/60 text-left transition hover:border-amber-500/40">
               <summary className="flex cursor-pointer list-none items-start justify-between p-5 [&::-webkit-details-marker]:hidden">
                 <span>
                   <span className="block text-[10px] uppercase tracking-[0.14em] text-amber-400">Active Students</span>
@@ -3613,17 +3613,17 @@ export default function InstructorWorkstationPage({
                 </span>
                 <ChevronDown className={`mt-0.5 h-4 w-4 text-amber-400 transition-transform ${activeStudentsOpen ? "rotate-180" : ""}`} aria-hidden="true" />
               </summary>
-              <div className="absolute left-0 right-0 top-full z-50 mt-2 rounded-lg border border-[#394252] bg-[#171d28] p-3 shadow-2xl">
+              <div className="absolute left-0 right-0 top-full z-50 mt-2 rounded-lg border border-border bg-surface p-3 shadow-2xl">
                 <label className="sr-only" htmlFor="active-student-selector">Select active student</label>
-                <select id="active-student-selector" value={selectedStudentId || ""} onChange={(event) => { const nextStudent = students.find((student) => student.id === event.target.value); if (nextStudent) { void handleStudentChange(nextStudent); setActiveStudentsOpen(false); } }} className="w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-white [color-scheme:dark]" aria-label="Select active student">
-                  <option value="" className="bg-[#0c1017] text-white">{studentsLoading ? "Loading students..." : studentsError ? "Unable to load students" : students.length === 0 ? "No registered students" : "Choose a student"}</option>
-                  {students.map((student) => <option key={student.id} value={student.id} className="bg-[#0c1017] text-white">{student.name}</option>)}
+                <select id="active-student-selector" value={selectedStudentId || ""} onChange={(event) => { const nextStudent = students.find((student) => student.id === event.target.value); if (nextStudent) { void handleStudentChange(nextStudent); setActiveStudentsOpen(false); } }} className="w-full rounded-md border border-border bg-background p-2.5 text-xs text-white [color-scheme:dark]" aria-label="Select active student">
+                  <option value="" className="bg-background text-white">{studentsLoading ? "Loading students..." : studentsError ? "Unable to load students" : students.length === 0 ? "No registered students" : "Choose a student"}</option>
+                  {students.map((student) => <option key={student.id} value={student.id} className="bg-background text-white">{student.name}</option>)}
                 </select>
               </div>
             </details>
           </div>
           <div className="grid items-start gap-6 lg:grid-cols-2">
-<div className="h-fit rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
+<div className="h-fit rounded-xl border border-border bg-surface/60 p-5">
           <button
             type="button"
             onClick={() => setIsPendingSubmissionsExpanded((expanded) => !expanded)}
@@ -3643,7 +3643,7 @@ export default function InstructorWorkstationPage({
           {pendingSubmissionError && <p role="alert" className="mt-3 text-xs text-red-300">{pendingSubmissionError}</p>}
           {isPendingSubmissionsExpanded && <div id="pending-submissions-list">
           {pendingSubmissionCount === 0 && !pendingSubmissionError && <p className="mt-4 text-sm text-stone-500">No submissions are currently awaiting feedback.</p>}
-          {pendingSubmissions.length > 0 && <ul className="mt-4 divide-y divide-[#29303c]">
+          {pendingSubmissions.length > 0 && <ul className="mt-4 divide-y divide-border">
             {pendingSubmissions.map((pendingSubmission) => {
               const studentName = students.find((student) => student.id === pendingSubmission.studentId || student.token === pendingSubmission.studentId)?.name || "Student";
               const lessonTitle = createdLessons.find((lesson) => lesson.id === pendingSubmission.lessonId)?.title || "Lesson submission";
@@ -3659,7 +3659,7 @@ export default function InstructorWorkstationPage({
 </ul>}
 </div>}
 </div>
-<div className="h-fit rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
+<div className="h-fit rounded-xl border border-border bg-surface/60 p-5">
 <button
   type="button"
   onClick={() => setIsRecentActivitiesExpanded((expanded) => !expanded)}
@@ -3672,17 +3672,17 @@ export default function InstructorWorkstationPage({
     <span className="mt-2 block text-sm text-stone-400">Quick access to your recent workspace actions and student reviews.</span>
   </span>
   <span className="flex shrink-0 items-center gap-3">
-    <span className="rounded-full border border-[#394252] bg-[#0c1017] px-2.5 py-1 text-xs font-medium text-stone-300">{recentActivities.length} {recentActivities.length === 1 ? "activity" : "activities"}</span>
+    <span className="rounded-full border border-border bg-background px-2.5 py-1 text-xs font-medium text-stone-300">{recentActivities.length} {recentActivities.length === 1 ? "activity" : "activities"}</span>
     <ChevronDown className={`h-4 w-4 text-stone-400 transition-transform ${isRecentActivitiesExpanded ? "rotate-180" : ""}`} aria-hidden="true" />
   </span>
 </button>
 {isRecentActivitiesExpanded && <div id="recent-activities-list">
 {recentActivities.length > 0 ? (
-  <ul className="mt-4 divide-y divide-[#29303c]">
+  <ul className="mt-4 divide-y divide-border">
     {recentActivities.map((activity) => (
       <li key={activity.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
         <div className="min-w-0">
-          <span className="inline-flex rounded-full border border-[#394252] bg-[#0c1017] px-2 py-0.5 text-[10px] font-medium text-amber-300">{activity.type}</span>
+          <span className="inline-flex rounded-full border border-border bg-background px-2 py-0.5 text-[10px] font-medium text-amber-300">{activity.type}</span>
           <p className="mt-1 truncate text-sm text-stone-200">{activity.description}</p>
           <p className="mt-1 text-[10px] text-stone-500">{formatRelativeActivityTime(activity.timestamp)}</p>
         </div>
@@ -3694,8 +3694,8 @@ export default function InstructorWorkstationPage({
 </div>}
 </div>
 </div>
-          {false && <section className="overflow-visible rounded-xl border border-[#202631] bg-[#171d28]/60" aria-labelledby="lesson-management-title">
-            <div className="flex items-center justify-between gap-4 border-b border-[#202631] px-5 py-4">
+          {false && <section className="overflow-visible rounded-xl border border-border bg-surface/60" aria-labelledby="lesson-management-title">
+            <div className="flex items-center justify-between gap-4 border-b border-border px-5 py-4">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Lesson Management</p>
                 <h2 id="lesson-management-title" className="mt-1 font-sans text-xl font-semibold text-stone-100">All Lessons</h2>
@@ -3714,21 +3714,21 @@ export default function InstructorWorkstationPage({
                   <col className="w-[13%]" />
                   <col className="w-[20%]" />
                 </colgroup>
-                <thead className="border-b border-[#202631] bg-[#0c1017] text-[10px] uppercase tracking-[0.12em] text-stone-500">
+                <thead className="border-b border-border bg-background text-[10px] uppercase tracking-[0.12em] text-stone-500">
                   <tr><th className="px-5 py-3 font-semibold">Lesson</th><th className="px-4 py-3 font-semibold">Assigned Students</th><th className="px-4 py-3 font-semibold">Status</th><th className="px-4 py-3 font-semibold">Module</th><th className="px-4 py-3 text-right font-semibold">Actions</th></tr>
                 </thead>
-                <tbody className="divide-y divide-[#202631]">
-                  {createdLessons.map((lesson) => <tr key={lesson.id} onClick={() => handleEditLesson(lesson)} className="cursor-pointer text-stone-300 transition hover:bg-[#202631]/30">
+                <tbody className="divide-y divide-border">
+                  {createdLessons.map((lesson) => <tr key={lesson.id} onClick={() => handleEditLesson(lesson)} className="cursor-pointer text-stone-300 transition hover:bg-border/30">
                     <td className="min-w-0 px-5 py-4"><button type="button" onClick={() => handleEditLesson(lesson)} className="block min-w-0 max-w-full text-left"><p className="truncate  text-stone-100" title={lesson.title}>{lesson.title}</p><p className="mt-1 truncate text-[11px] text-stone-400" title={lesson.content?.subtitle || lesson.subtitle || "No subtitle"}>{lesson.content?.subtitle || lesson.subtitle || "No subtitle"}</p><p className="mt-1 truncate text-[10px] text-stone-600" title={lesson.content?.slug || lesson.id}>{lesson.content?.slug || lesson.id}</p></button></td>
-                    <td className="min-w-0 px-4 py-4 text-stone-300" onClick={(event) => event.stopPropagation()}><div className="flex min-w-0 items-center gap-2">{renderAssignedStudents(lesson)}<Tooltip content="Assign lesson to a student"><select defaultValue="" onChange={(event) => void handleAssignmentChange(lesson, event.target.value)} aria-label={`Assign ${lesson.title} to a student`} className="w-[4.5rem] shrink-0 rounded-md border border-amber-500/40 bg-[#0c1017] px-2 py-1.5 text-[11px] text-white outline-none [color-scheme:dark]"><option value="" className="bg-[#0c1017] text-white">Assign</option><option value="__all_active__" className="bg-[#0c1017] text-white">All active</option>{getAssignedStudentNames(lesson).length > 0 && <option value="__unassign__" className="bg-[#0c1017] text-white">Unassign</option>}{students.map((student) => <option key={student.id} value={student.id} className="bg-[#0c1017] text-white">{student.name}</option>)}</select></Tooltip></div></td>
+                    <td className="min-w-0 px-4 py-4 text-stone-300" onClick={(event) => event.stopPropagation()}><div className="flex min-w-0 items-center gap-2">{renderAssignedStudents(lesson)}<Tooltip content="Assign lesson to a student"><select defaultValue="" onChange={(event) => void handleAssignmentChange(lesson, event.target.value)} aria-label={`Assign ${lesson.title} to a student`} className="w-[4.5rem] shrink-0 rounded-md border border-amber-500/40 bg-background px-2 py-1.5 text-[11px] text-white outline-none [color-scheme:dark]"><option value="" className="bg-background text-white">Assign</option><option value="__all_active__" className="bg-background text-white">All active</option>{getAssignedStudentNames(lesson).length > 0 && <option value="__unassign__" className="bg-background text-white">Unassign</option>}{students.map((student) => <option key={student.id} value={student.id} className="bg-background text-white">{student.name}</option>)}</select></Tooltip></div></td>
                     <td className="px-4 py-4"><span className={`rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${lesson.status === "published" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/40 bg-amber-500/20 text-amber-400"}`}>{lesson.status === "published" ? "Published" : "Draft"}</span></td>
                     <td className="px-4 py-4 text-stone-300">Module {lesson.content?.moduleNumber || lesson.module_number || 1}</td>
                     <td className="px-4 py-4"><div className="flex items-center justify-end gap-2" onClick={(event) => event.stopPropagation()}>
                       <button type="button" onClick={() => handleEditLesson(lesson)} className="whitespace-nowrap rounded-md border border-amber-500/40 px-3 py-2 text-xs  text-amber-400 hover:bg-amber-500/20 hover:text-amber-400">Edit / Continue</button>
                       <div className="relative">
-                        <Tooltip content="More actions"><button type="button" onClick={() => setOpenLessonMenuId((current) => current === lesson.id ? null : lesson.id)} aria-label={`More actions for ${lesson.title}`} aria-expanded={openLessonMenuId === lesson.id} className="flex h-8 w-8 items-center justify-center rounded-md border border-[#394252] text-stone-300 hover:border-amber-500/40 hover:text-amber-400"><MoreVertical className="h-4 w-4" /></button></Tooltip>
-                        {openLessonMenuId === lesson.id && <div className="absolute right-0 top-full z-50 mt-2 w-36 rounded-md border border-[#394252] bg-[#171d28] p-1 shadow-xl">
-                          <button type="button" onClick={() => { duplicateLesson(lesson); setOpenLessonMenuId(null); }} className="block w-full rounded px-3 py-2 text-left text-xs text-stone-300 hover:bg-[#202631] hover:text-stone-100">Duplicate</button>
+                        <Tooltip content="More actions"><button type="button" onClick={() => setOpenLessonMenuId((current) => current === lesson.id ? null : lesson.id)} aria-label={`More actions for ${lesson.title}`} aria-expanded={openLessonMenuId === lesson.id} className="flex h-8 w-8 items-center justify-center rounded-md border border-border text-stone-300 hover:border-amber-500/40 hover:text-amber-400"><MoreVertical className="h-4 w-4" /></button></Tooltip>
+                        {openLessonMenuId === lesson.id && <div className="absolute right-0 top-full z-50 mt-2 w-36 rounded-md border border-border bg-surface p-1 shadow-xl">
+                          <button type="button" onClick={() => { duplicateLesson(lesson); setOpenLessonMenuId(null); }} className="block w-full rounded px-3 py-2 text-left text-xs text-stone-300 hover:bg-border hover:text-stone-100">Duplicate</button>
                           <button type="button" onClick={() => { setLessonPendingDelete(lesson); setOpenLessonMenuId(null); }} className="block w-full rounded px-3 py-2 text-left text-xs text-red-300 hover:bg-red-500/10">Delete</button>
                         </div>}
                       </div>
@@ -3742,17 +3742,17 @@ export default function InstructorWorkstationPage({
         </section>}
 
         {activeTab === "library" && <section className="space-y-5" aria-labelledby="lesson-library-title">
-          <div className="flex flex-col gap-4 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
+          <div className="flex flex-col gap-4 rounded-xl border border-border bg-surface/60 p-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Lesson Management</p><h2 id="lesson-library-title" className="mt-1 font-sans text-2xl font-semibold text-stone-100">Lesson Library</h2><p className="mt-1 text-sm text-stone-500">{filteredLibraryLessons.length} of {createdLessons.length} lessons</p></div>
               <Tooltip content="Start a new lesson draft"><button type="button" onClick={startNewLesson} className="rounded-md bg-amber-500/20 px-3 py-2 text-xs  text-amber-400 transition hover:bg-amber-500/20">Create New Lesson</button></Tooltip>
             </div>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-              <label className="relative min-w-0 flex-1"><span className="sr-only">Search lessons</span><Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-stone-500" /><input value={librarySearch} onChange={(event) => setLibrarySearch(event.target.value)} placeholder="Search by title or subtitle" className="w-full rounded-md border border-[#394252] bg-[#0c1017] py-2.5 pl-9 pr-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
-              <Tooltip content="Filter lessons by CEFR level"><select value={libraryLevel} onChange={(event) => setLibraryLevel(event.target.value)} aria-label="Filter by level" className="rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2.5 text-xs text-white [color-scheme:dark]"><option value="all">All levels</option>{CEFR_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select></Tooltip>
-              <Tooltip content="Filter lessons by subject domain"><select value={libraryDomain} onChange={(event) => setLibraryDomain(event.target.value)} aria-label="Filter by domain" className="rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2.5 text-xs text-white [color-scheme:dark]"><option value="all">All domains</option>{libraryDomains.map((domain) => <option key={domain} value={domain}>{domain}</option>)}</select></Tooltip>
-              <Tooltip content="Choose how matching lessons are sorted"><label><span className="sr-only">Sort lessons</span><select value={librarySortBy} onChange={(event) => setLibrarySortBy(event.target.value as typeof librarySortBy)} aria-label="Sort lessons by tag" className="rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2.5 text-xs text-white [color-scheme:dark]"><option value="title">Sort: Title</option><option value="domain">Sort: Domain</option><option value="practiceType">Sort: Practice Type</option><option value="skillFocus">Sort: Skill Focus</option></select></label></Tooltip>
-              <div className="flex rounded-md border border-[#394252] bg-[#0c1017] p-1" role="group" aria-label="Lesson view mode"><Tooltip content="Show lessons as cards"><button type="button" onClick={() => setLibraryView("grid")} aria-label="Grid view" className={`rounded p-1.5 ${libraryView === "grid" ? "bg-amber-500/20 text-amber-400" : "text-stone-500 hover:text-stone-200"}`}><Grid3X3 className="h-4 w-4" /></button></Tooltip><Tooltip content="Show lessons in a table"><button type="button" onClick={() => setLibraryView("table")} aria-label="Table view" className={`rounded p-1.5 ${libraryView === "table" ? "bg-amber-500/20 text-amber-400" : "text-stone-500 hover:text-stone-200"}`}><List className="h-4 w-4" /></button></Tooltip></div>
+              <label className="relative min-w-0 flex-1"><span className="sr-only">Search lessons</span><Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-stone-500" /><input value={librarySearch} onChange={(event) => setLibrarySearch(event.target.value)} placeholder="Search by title or subtitle" className="w-full rounded-md border border-border bg-background py-2.5 pl-9 pr-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
+              <Tooltip content="Filter lessons by CEFR level"><select value={libraryLevel} onChange={(event) => setLibraryLevel(event.target.value)} aria-label="Filter by level" className="rounded-md border border-border bg-background px-3 py-2.5 text-xs text-white [color-scheme:dark]"><option value="all">All levels</option>{CEFR_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select></Tooltip>
+              <Tooltip content="Filter lessons by subject domain"><select value={libraryDomain} onChange={(event) => setLibraryDomain(event.target.value)} aria-label="Filter by domain" className="rounded-md border border-border bg-background px-3 py-2.5 text-xs text-white [color-scheme:dark]"><option value="all">All domains</option>{libraryDomains.map((domain) => <option key={domain} value={domain}>{domain}</option>)}</select></Tooltip>
+              <Tooltip content="Choose how matching lessons are sorted"><label><span className="sr-only">Sort lessons</span><select value={librarySortBy} onChange={(event) => setLibrarySortBy(event.target.value as typeof librarySortBy)} aria-label="Sort lessons by tag" className="rounded-md border border-border bg-background px-3 py-2.5 text-xs text-white [color-scheme:dark]"><option value="title">Sort: Title</option><option value="domain">Sort: Domain</option><option value="practiceType">Sort: Practice Type</option><option value="skillFocus">Sort: Skill Focus</option></select></label></Tooltip>
+              <div className="flex rounded-md border border-border bg-background p-1" role="group" aria-label="Lesson view mode"><Tooltip content="Show lessons as cards"><button type="button" onClick={() => setLibraryView("grid")} aria-label="Grid view" className={`rounded p-1.5 ${libraryView === "grid" ? "bg-amber-500/20 text-amber-400" : "text-stone-500 hover:text-stone-200"}`}><Grid3X3 className="h-4 w-4" /></button></Tooltip><Tooltip content="Show lessons in a table"><button type="button" onClick={() => setLibraryView("table")} aria-label="Table view" className={`rounded p-1.5 ${libraryView === "table" ? "bg-amber-500/20 text-amber-400" : "text-stone-500 hover:text-stone-200"}`}><List className="h-4 w-4" /></button></Tooltip></div>
             </div>
           </div>
           {libraryView === "grid" ? (
@@ -3762,7 +3762,7 @@ export default function InstructorWorkstationPage({
                 const tags = getLibraryMetadataTags(metadata);
                 const assignedIds = getAssignedStudentIds(lesson);
                 return (
-                  <article key={lesson.id} className="flex h-full flex-col rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 transition hover:border-amber-500/40">
+                  <article key={lesson.id} className="flex h-full flex-col rounded-xl border border-border bg-surface/60 p-5 transition hover:border-amber-500/40">
                     <div className="flex items-start justify-between gap-3">
                       <button type="button" onClick={() => handleEditLesson(lesson)} className="min-w-0 text-left">
                         <h3 className="truncate text-stone-100">{lesson.title}</h3>
@@ -3783,7 +3783,7 @@ export default function InstructorWorkstationPage({
                         <Pencil className="h-3 w-3" />Edit level & tags
                       </button>
                     </div>
-                    <div className="relative mt-auto border-t border-[#202631] pt-4" onClick={(event) => event.stopPropagation()}>
+                    <div className="relative mt-auto border-t border-border pt-4" onClick={(event) => event.stopPropagation()}>
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex min-w-0 flex-wrap gap-1">
                           {assignedIds.length === 0 ? <span className="text-xs text-stone-500">No students assigned</span> : assignedIds.map((id) => {
@@ -3793,14 +3793,14 @@ export default function InstructorWorkstationPage({
                         </div>
                         <button type="button" onClick={() => setAssignmentEditorLessonId((current) => current === lesson.id ? null : lesson.id)} className="rounded-md border border-amber-500/40 px-2.5 py-1.5 text-[11px] text-amber-400">Assign</button>
                       </div>
-                      {assignmentEditorLessonId === lesson.id && <div className="absolute left-0 right-0 top-full z-30 mt-2 rounded-lg border border-[#394252] bg-[#171d28] p-3 shadow-xl">
+                      {assignmentEditorLessonId === lesson.id && <div className="absolute left-0 right-0 top-full z-30 mt-2 rounded-lg border border-border bg-surface p-3 shadow-xl">
                         <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Assign students</p>
-                        {students.map((student) => <label key={student.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs text-stone-300 hover:bg-[#202631]">
+                        {students.map((student) => <label key={student.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs text-stone-300 hover:bg-border">
                           <input type="checkbox" checked={assignedIds.includes(student.id)} onChange={() => void handleAssignmentToggle(lesson, student.id)} className="accent-amber-500" />
                           <span className="min-w-0 flex-1 truncate">{student.name}</span>
                           {assignedIds.includes(student.id) && <Check className="h-3.5 w-3.5 text-amber-400" />}
                         </label>)}
-                        <button type="button" onClick={() => setAssignmentEditorLessonId(null)} className="mt-2 w-full rounded border border-[#394252] px-2 py-1.5 text-[11px] text-stone-400">Done</button>
+                        <button type="button" onClick={() => setAssignmentEditorLessonId(null)} className="mt-2 w-full rounded border border-border px-2 py-1.5 text-[11px] text-stone-400">Done</button>
                       </div>}
                     </div>
                     <div className="mt-4 flex items-center justify-between">
@@ -3815,17 +3815,17 @@ export default function InstructorWorkstationPage({
               })}
             </div>
           ) : (
-            <div className="w-full overflow-x-auto rounded-xl border border-[#202631] bg-[#171d28]/60">
+            <div className="w-full overflow-x-auto rounded-xl border border-border bg-surface/60">
               <table className="min-w-[900px] w-full text-left text-xs">
-                <thead className="border-b border-[#202631] bg-[#0c1017] text-[10px] uppercase tracking-[0.12em] text-stone-500">
+                <thead className="border-b border-border bg-background text-[10px] uppercase tracking-[0.12em] text-stone-500">
                   <tr><th className="w-2/5 px-5 py-3">Lesson</th><th className="px-4 py-3">Metadata</th><th className="px-4 py-3">Assigned students</th><th className="px-4 py-3">Status</th><th className="min-w-[160px] px-4 py-3 text-right whitespace-nowrap">Action</th></tr>
                 </thead>
-                <tbody className="divide-y divide-[#202631]">
+                <tbody className="divide-y divide-border">
                   {filteredLibraryLessons.map((lesson) => {
                     const metadata = getLessonMetadata(lesson);
                     const tags = getLibraryMetadataTags(metadata);
                     return (
-                      <tr key={lesson.id} className="text-stone-300 hover:bg-[#202631]/30">
+                      <tr key={lesson.id} className="text-stone-300 hover:bg-border/30">
                         <td className="px-5 py-4 align-middle">
                           <button type="button" onClick={() => handleEditLesson(lesson)} className="block w-full min-w-0 text-left">
                             <p className="line-clamp-2 break-words text-stone-100" title={lesson.title}>{lesson.title}</p>
@@ -3859,13 +3859,13 @@ export default function InstructorWorkstationPage({
               </table>
             </div>
           )}
-          {filteredLibraryLessons.length === 0 && <div className="rounded-xl border border-dashed border-[#394252] p-10 text-center text-sm text-stone-500">No lessons match these filters.</div>}
-          {quickTagEditor && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !quickTagSaving) setQuickTagEditor(null); }}><section role="dialog" aria-modal="true" aria-labelledby="quick-tag-editor-title" className="w-full max-w-lg rounded-lg border border-[#394252] bg-[#171d28] p-5 shadow-2xl"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Lesson metadata</p><h3 id="quick-tag-editor-title" className="mt-1 text-lg font-semibold text-stone-100">Edit level & tags</h3></div><button type="button" aria-label="Close tag editor" disabled={quickTagSaving} onClick={() => setQuickTagEditor(null)} className="rounded border border-[#394252] p-1.5 text-stone-400 hover:text-stone-100 disabled:opacity-50"><X className="h-4 w-4" /></button></div><div className="mt-5 grid gap-3 sm:grid-cols-2"><label className="text-xs text-stone-400">CEFR Level<select value={quickTagEditor.level} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, level: event.target.value } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-white [color-scheme:dark]">{CEFR_LEVELS.map((level) => <option key={level}>{level}</option>)}</select></label><label className="text-xs text-stone-400">Domain<input value={quickTagEditor.tags.domain} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, domain: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Skill Focus<input value={quickTagEditor.tags.skill_focus} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, skill_focus: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Practice Type<input value={quickTagEditor.tags.practice_type} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, practice_type: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400 sm:col-span-2">Custom Tags<input value={quickTagEditor.customTagsText} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, customTagsText: event.target.value } : current)} placeholder="Comma-separated custom tags" className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label></div>{quickTagError && <p role="alert" className="mt-3 text-xs text-red-300">{quickTagError}</p>}<div className="mt-5 flex justify-end gap-2"><button type="button" disabled={quickTagSaving} onClick={() => setQuickTagEditor(null)} className="rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 disabled:opacity-50">Cancel</button><button type="button" disabled={quickTagSaving} onClick={() => void saveQuickTagEditor()} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/20 px-3 py-2 text-xs  text-amber-400 disabled:opacity-50">{quickTagSaving ? "Saving..." : <><Check className="h-3.5 w-3.5" />Save tags</>}</button></div></section></div>}
+          {filteredLibraryLessons.length === 0 && <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-stone-500">No lessons match these filters.</div>}
+          {quickTagEditor && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !quickTagSaving) setQuickTagEditor(null); }}><section role="dialog" aria-modal="true" aria-labelledby="quick-tag-editor-title" className="w-full max-w-lg rounded-lg border border-border bg-surface p-5 shadow-2xl"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Lesson metadata</p><h3 id="quick-tag-editor-title" className="mt-1 text-lg font-semibold text-stone-100">Edit level & tags</h3></div><button type="button" aria-label="Close tag editor" disabled={quickTagSaving} onClick={() => setQuickTagEditor(null)} className="rounded border border-border p-1.5 text-stone-400 hover:text-stone-100 disabled:opacity-50"><X className="h-4 w-4" /></button></div><div className="mt-5 grid gap-3 sm:grid-cols-2"><label className="text-xs text-stone-400">CEFR Level<select value={quickTagEditor.level} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, level: event.target.value } : current)} className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-white [color-scheme:dark]">{CEFR_LEVELS.map((level) => <option key={level}>{level}</option>)}</select></label><label className="text-xs text-stone-400">Domain<input value={quickTagEditor.tags.domain} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, domain: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Skill Focus<input value={quickTagEditor.tags.skill_focus} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, skill_focus: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Practice Type<input value={quickTagEditor.tags.practice_type} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, practice_type: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400 sm:col-span-2">Custom Tags<input value={quickTagEditor.customTagsText} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, customTagsText: event.target.value } : current)} placeholder="Comma-separated custom tags" className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200" /></label></div>{quickTagError && <p role="alert" className="mt-3 text-xs text-red-300">{quickTagError}</p>}<div className="mt-5 flex justify-end gap-2"><button type="button" disabled={quickTagSaving} onClick={() => setQuickTagEditor(null)} className="rounded-md border border-border px-3 py-2 text-xs text-stone-300 disabled:opacity-50">Cancel</button><button type="button" disabled={quickTagSaving} onClick={() => void saveQuickTagEditor()} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/20 px-3 py-2 text-xs  text-amber-400 disabled:opacity-50">{quickTagSaving ? "Saving..." : <><Check className="h-3.5 w-3.5" />Save tags</>}</button></div></section></div>}
         </section>}
 
         {activeTab === "students" && <section className="w-full min-w-0 space-y-5" aria-labelledby="students-profile-title">
           {profileSaveToast && <div role="status" aria-live="polite" className="fixed right-6 top-6 z-[70] flex items-center gap-2.5 rounded-lg border border-emerald-400/40 bg-[#11251d] px-4 py-3 text-sm font-medium text-emerald-200 shadow-xl"><Check className="h-4 w-4 shrink-0" aria-hidden="true" />{profileSaveToast}</div>}
-          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-[#202631] pb-4">
+          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Student Directory</p>
               <h2 id="students-profile-title" className="mt-1 font-sans text-2xl font-semibold text-stone-100">Students Profile</h2>
@@ -3874,14 +3874,14 @@ export default function InstructorWorkstationPage({
             <div className="flex flex-wrap items-center gap-3">
               <label className="flex items-center gap-2 text-xs font-medium text-stone-400">
                 <span>Level</span>
-                <select value={studentLevelFilter} onChange={(event) => setStudentLevelFilter(event.target.value as typeof studentLevelFilter)} className="rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs text-white [color-scheme:dark]" aria-label="Filter students by level">
+                <select value={studentLevelFilter} onChange={(event) => setStudentLevelFilter(event.target.value as typeof studentLevelFilter)} className="rounded-md border border-border bg-background px-3 py-2 text-xs text-white [color-scheme:dark]" aria-label="Filter students by level">
                   <option value="All">All levels</option>
                   {STUDENT_CEFR_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}
                 </select>
               </label>
               <label className="flex items-center gap-2 text-xs font-medium text-stone-400">
                 <span>Instructor</span>
-                <select value={studentInstructorFilter} onChange={(event) => setStudentInstructorFilter(event.target.value)} className="max-w-[15rem] rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs text-white [color-scheme:dark]" aria-label="Filter students by instructor">
+                <select value={studentInstructorFilter} onChange={(event) => setStudentInstructorFilter(event.target.value)} className="max-w-[15rem] rounded-md border border-border bg-background px-3 py-2 text-xs text-white [color-scheme:dark]" aria-label="Filter students by instructor">
                   <option>All instructors</option>
                   {studentInstructorOptions.map((instructor) => <option key={instructor}>{instructor}</option>)}
                 </select>
@@ -3892,24 +3892,24 @@ export default function InstructorWorkstationPage({
             </div>
           </div>
           {isAddStudentOpen && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !isAddingStudent) setIsAddStudentOpen(false); }}>
-            <section role="dialog" aria-modal="true" aria-labelledby="add-student-title" className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-[#394252] bg-[#141a23] p-5 shadow-2xl sm:p-6">
-              <div className="flex items-start justify-between gap-4 border-b border-[#293343] pb-4">
+            <section role="dialog" aria-modal="true" aria-labelledby="add-student-title" className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-border bg-[#141a23] p-5 shadow-2xl sm:p-6">
+              <div className="flex items-start justify-between gap-4 border-b border-border pb-4">
                 <div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Student Directory</p><h3 id="add-student-title" className="mt-1 text-xl font-semibold text-stone-100">Add Student</h3></div>
                 <button type="button" onClick={() => setIsAddStudentOpen(false)} disabled={isAddingStudent} aria-label="Close add student dialog" className="rounded-md p-2 text-stone-400 transition hover:bg-white/5 hover:text-stone-100 disabled:opacity-50"><X className="h-4 w-4" /></button>
               </div>
               <form onSubmit={(event) => void handleCreateStudent(event)} className="mt-5 space-y-5">
                 <div className="grid gap-4 md:grid-cols-2">
-                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Full Name<input required maxLength={120} value={addStudentDraft.fullName} onChange={(event) => setAddStudentDraft((current) => ({ ...current, fullName: event.target.value }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
-                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Email<input required type="email" maxLength={254} value={addStudentDraft.email} onChange={(event) => setAddStudentDraft((current) => ({ ...current, email: event.target.value }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
-                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Current Level<select required value={addStudentDraft.currentLevel} onChange={(event) => setAddStudentDraft((current) => ({ ...current, currentLevel: event.target.value as StudentCefrLevel | "" }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-amber-400 outline-none [color-scheme:dark] focus:border-amber-500/40"><option value="" disabled>Select a level</option>{STUDENT_CEFR_LEVELS.map((level) => <option key={level}>{level}</option>)}</select></label>
-                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Assigned Instructor<input value={addStudentDraft.assignedInstructor} onChange={(event) => setAddStudentDraft((current) => ({ ...current, assignedInstructor: event.target.value }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
-                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Focus Weaknesses<textarea value={addStudentDraft.focusWeaknesses} onChange={(event) => setAddStudentDraft((current) => ({ ...current, focusWeaknesses: event.target.value }))} placeholder="Separate with commas" className="min-h-20 w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
-                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Core Goal<textarea value={addStudentDraft.coreGoal} onChange={(event) => setAddStudentDraft((current) => ({ ...current, coreGoal: event.target.value }))} className="min-h-20 w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
-                  <label className="space-y-1.5 text-xs font-medium text-stone-400 md:col-span-2">Dashboard Note<textarea value={addStudentDraft.dashboardNote} onChange={(event) => setAddStudentDraft((current) => ({ ...current, dashboardNote: event.target.value }))} className="min-h-24 w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Full Name<input required maxLength={120} value={addStudentDraft.fullName} onChange={(event) => setAddStudentDraft((current) => ({ ...current, fullName: event.target.value }))} className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Email<input required type="email" maxLength={254} value={addStudentDraft.email} onChange={(event) => setAddStudentDraft((current) => ({ ...current, email: event.target.value }))} className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Current Level<select required value={addStudentDraft.currentLevel} onChange={(event) => setAddStudentDraft((current) => ({ ...current, currentLevel: event.target.value as StudentCefrLevel | "" }))} className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-amber-400 outline-none [color-scheme:dark] focus:border-amber-500/40"><option value="" disabled>Select a level</option>{STUDENT_CEFR_LEVELS.map((level) => <option key={level}>{level}</option>)}</select></label>
+                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Assigned Instructor<input value={addStudentDraft.assignedInstructor} onChange={(event) => setAddStudentDraft((current) => ({ ...current, assignedInstructor: event.target.value }))} className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Focus Weaknesses<textarea value={addStudentDraft.focusWeaknesses} onChange={(event) => setAddStudentDraft((current) => ({ ...current, focusWeaknesses: event.target.value }))} placeholder="Separate with commas" className="min-h-20 w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                  <label className="space-y-1.5 text-xs font-medium text-stone-400">Core Goal<textarea value={addStudentDraft.coreGoal} onChange={(event) => setAddStudentDraft((current) => ({ ...current, coreGoal: event.target.value }))} className="min-h-20 w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                  <label className="space-y-1.5 text-xs font-medium text-stone-400 md:col-span-2">Dashboard Note<textarea value={addStudentDraft.dashboardNote} onChange={(event) => setAddStudentDraft((current) => ({ ...current, dashboardNote: event.target.value }))} className="min-h-24 w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
                 </div>
                 {addStudentError && <p role="alert" className="rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{addStudentError}</p>}
-                <div className="flex flex-col-reverse gap-3 border-t border-[#293343] pt-4 sm:flex-row sm:justify-end">
-                  <button type="button" onClick={() => setIsAddStudentOpen(false)} disabled={isAddingStudent} className="h-10 rounded-md border border-[#394252] px-4 text-xs  text-stone-300 transition hover:bg-white/5 disabled:opacity-50">Cancel</button>
+                <div className="flex flex-col-reverse gap-3 border-t border-border pt-4 sm:flex-row sm:justify-end">
+                  <button type="button" onClick={() => setIsAddStudentOpen(false)} disabled={isAddingStudent} className="h-10 rounded-md border border-border px-4 text-xs  text-stone-300 transition hover:bg-white/5 disabled:opacity-50">Cancel</button>
                   <button type="submit" disabled={isAddingStudent} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-amber-500/20 px-4 text-xs  text-amber-400 transition hover:bg-amber-500/20 disabled:cursor-wait disabled:opacity-60">{isAddingStudent ? "Adding..." : "Add Student"}</button>
                 </div>
               </form>
@@ -3924,12 +3924,12 @@ export default function InstructorWorkstationPage({
               const isSaving = savingProfileStudentId === student.id;
               const isSaved = saveMessage === "Profile saved successfully!";
               const hasSaveError = Boolean(saveMessage) && !isSaved;
-              return <article key={student.id} className="w-full overflow-hidden rounded-xl border border-[#293343] bg-[#141a23] shadow-sm shadow-black/10">
+              return <article key={student.id} className="w-full overflow-hidden rounded-xl border border-border bg-[#141a23] shadow-sm shadow-black/10">
                 <button type="button" onClick={() => toggleStudentProfile(student.id)} aria-expanded={isExpanded} aria-controls={`student-profile-${student.id}`} className="flex w-full flex-col gap-3 px-4 py-4 text-left transition-colors hover:bg-white/[0.025] sm:flex-row sm:items-center sm:justify-between sm:px-5">
                   <span className="flex w-full min-w-0 flex-col gap-1.5 sm:flex-1">
                     <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
                       <span className="break-words text-sm  text-stone-100">{student.name}</span>
-                      <span className={`rounded border px-2 py-0.5 text-[10px]  ${level ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-[#394252] text-stone-500"}`}>{level || "Not set"}</span>
+                      <span className={`rounded border px-2 py-0.5 text-[10px]  ${level ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-border text-stone-500"}`}>{level || "Not set"}</span>
                     </span>
                     <span className="break-all text-xs text-stone-400">{student.email || "No email"}</span>
                   </span>
@@ -3944,23 +3944,23 @@ export default function InstructorWorkstationPage({
                 </button>
                 <div id={`student-profile-${student.id}`} aria-hidden={!isExpanded} inert={!isExpanded} className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${isExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                   <div className="min-h-0 overflow-hidden">
-                    <div className="border-t border-[#293343] px-4 py-5 sm:px-5">
+                    <div className="border-t border-border px-4 py-5 sm:px-5">
                       <div className="grid min-w-0 gap-5 md:grid-cols-2 2xl:grid-cols-3">
                         <section className="min-w-0 space-y-4" aria-label={`${student.name} identity and assignment`}>
-                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Email address<input type="email" value={student.email ?? ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { email: event.target.value })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
-                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Current Level<select value={level} onChange={(event) => void handleStudentLevelChange(student, event.target.value as StudentCefrLevel)} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-amber-400 [color-scheme:dark]">{!level && <option value="" disabled>Not set</option>}{STUDENT_CEFR_LEVELS.map((optionLevel) => <option key={optionLevel} value={optionLevel}>{optionLevel}</option>)}</select></label>
-                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Assigned Instructor<input value={student.profile.assignedInstructor || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { assignedInstructor: event.target.value })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Email address<input type="email" value={student.email ?? ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { email: event.target.value })} className="h-10 w-full rounded-md border border-border bg-background px-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Current Level<select value={level} onChange={(event) => void handleStudentLevelChange(student, event.target.value as StudentCefrLevel)} className="h-10 w-full rounded-md border border-border bg-background px-3 text-xs text-amber-400 [color-scheme:dark]">{!level && <option value="" disabled>Not set</option>}{STUDENT_CEFR_LEVELS.map((optionLevel) => <option key={optionLevel} value={optionLevel}>{optionLevel}</option>)}</select></label>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Assigned Instructor<input value={student.profile.assignedInstructor || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { assignedInstructor: event.target.value })} className="h-10 w-full rounded-md border border-border bg-background px-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
                         </section>
                         <section className="min-w-0 space-y-4" aria-label={`${student.name} goals and focus`}>
-                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Focus Weaknesses<input value={(student.profile.weaknesses || []).join(", ")} onChange={(event) => updateDirectoryStudentProfile(student.id, { weaknesses: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} placeholder="Separate with commas" className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
-                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Core Goal<textarea value={student.profile.targetGoal || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { targetGoal: event.target.value })} rows={3} className="min-h-20 w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Focus Weaknesses<input value={(student.profile.weaknesses || []).join(", ")} onChange={(event) => updateDirectoryStudentProfile(student.id, { weaknesses: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} placeholder="Separate with commas" className="h-10 w-full rounded-md border border-border bg-background px-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Core Goal<textarea value={student.profile.targetGoal || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { targetGoal: event.target.value })} rows={3} className="min-h-20 w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
                         </section>
                         <section className="min-w-0 space-y-1.5 md:col-span-2 2xl:col-span-1" aria-label={`${student.name} dashboard note`}>
                           <label className="block text-xs font-medium text-stone-400">Dashboard Note</label>
-                          <textarea value={student.profile.teacherNotes || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { teacherNotes: event.target.value })} rows={4} className="student-profile-note h-24 w-full resize-y overflow-x-hidden overflow-y-auto rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs leading-relaxed text-stone-200 outline-none focus:border-amber-500/40" />
+                          <textarea value={student.profile.teacherNotes || ""} onChange={(event) => updateDirectoryStudentProfile(student.id, { teacherNotes: event.target.value })} rows={4} className="student-profile-note h-24 w-full resize-y overflow-x-hidden overflow-y-auto rounded-md border border-border bg-background px-3 py-2 text-xs leading-relaxed text-stone-200 outline-none focus:border-amber-500/40" />
                         </section>
                       </div>
-                      <div className="mt-5 flex flex-col-reverse gap-3 border-t border-[#293343] pt-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="mt-5 flex flex-col-reverse gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-h-5 text-xs" role="status" aria-live="polite">
                           {saveMessage && <span className={isSaved ? "text-emerald-300" : "text-rose-300"}>{saveMessage}</span>}
                         </div>
@@ -3974,11 +3974,11 @@ export default function InstructorWorkstationPage({
                 </div>
               </article>;
             })}
-          </div> : <div className="rounded-xl border border-dashed border-[#394252] px-6 py-12 text-center text-sm text-stone-500">No student profiles match this level.</div>}
+          </div> : <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center text-sm text-stone-500">No student profiles match this level.</div>}
         </section>}
 
         {activeTab === "instructors" && <section className="w-full min-w-0 space-y-5" aria-labelledby="instructors-profile-title">
-          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-[#202631] pb-4">
+          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Instructor Directory</p>
               <h2 id="instructors-profile-title" className="mt-1 font-sans text-2xl font-semibold text-stone-100">Instructors Profile</h2>
@@ -3994,7 +3994,7 @@ export default function InstructorWorkstationPage({
               const saveMessage = instructorSaveMessages[instructor.id];
               const isSaved = saveMessage === "Instructor profile saved." || saveMessage === "Instructor placed on leave.";
               const updatedLabel = instructor.updatedAt ? `Updated ${new Date(instructor.updatedAt).toLocaleDateString()}` : "Date unavailable";
-              return <article key={instructor.id} className="w-full overflow-hidden rounded-xl border border-[#293343] bg-[#141a23] shadow-sm shadow-black/10">
+              return <article key={instructor.id} className="w-full overflow-hidden rounded-xl border border-border bg-[#141a23] shadow-sm shadow-black/10">
                 <button type="button" onClick={() => toggleInstructorProfile(instructor.id)} aria-expanded={isExpanded} aria-controls={`instructor-profile-${instructor.id}`} className="flex w-full flex-col gap-3 px-4 py-4 text-left transition-colors hover:bg-white/[0.025] sm:flex-row sm:items-center sm:justify-between sm:px-5">
                   <span className="flex w-full min-w-0 flex-col gap-1.5 sm:flex-1">
                     <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -4011,22 +4011,22 @@ export default function InstructorWorkstationPage({
                 </button>
                 <div id={`instructor-profile-${instructor.id}`} aria-hidden={!isExpanded} inert={!isExpanded} className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${isExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                   <div className="min-h-0 overflow-hidden">
-                    <div className="border-t border-[#293343] px-4 py-5 sm:px-5">
+                    <div className="border-t border-border px-4 py-5 sm:px-5">
                       <div className="grid min-w-0 gap-5 md:grid-cols-2 2xl:grid-cols-3">
                         <section className="min-w-0 space-y-4" aria-label={`${instructor.name} contact and availability`}>
-                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Email<input type="email" value={instructor.email} onChange={(event) => updateInstructorProfile(instructor.id, { email: event.target.value })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
-                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Specialization / Area of Expertise<input value={instructor.specialization} onChange={(event) => updateInstructorProfile(instructor.id, { specialization: event.target.value })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
-                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Status / Availability<select value={instructor.status} onChange={(event) => updateInstructorProfile(instructor.id, { status: event.target.value as InstructorStatus })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none [color-scheme:dark] focus:border-amber-500/40"><option value="active">Active</option><option value="on_leave">On Leave</option></select></label>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Email<input type="email" value={instructor.email} onChange={(event) => updateInstructorProfile(instructor.id, { email: event.target.value })} className="h-10 w-full rounded-md border border-border bg-background px-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Specialization / Area of Expertise<input value={instructor.specialization} onChange={(event) => updateInstructorProfile(instructor.id, { specialization: event.target.value })} className="h-10 w-full rounded-md border border-border bg-background px-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Status / Availability<select value={instructor.status} onChange={(event) => updateInstructorProfile(instructor.id, { status: event.target.value as InstructorStatus })} className="h-10 w-full rounded-md border border-border bg-background px-3 text-xs text-stone-200 outline-none [color-scheme:dark] focus:border-amber-500/40"><option value="active">Active</option><option value="on_leave">On Leave</option></select></label>
                         </section>
                         <section className="min-w-0 space-y-4 md:col-span-1 2xl:col-span-2" aria-label={`${instructor.name} capacity and bio`}>
                           <div className="grid gap-4 sm:grid-cols-2">
-                            <label className="block space-y-1.5 text-xs font-medium text-stone-400">Max Student Capacity<input type="number" min={1} max={1000} value={instructor.maxStudentCapacity} onChange={(event) => updateInstructorProfile(instructor.id, { maxStudentCapacity: Number(event.target.value) })} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                            <label className="block space-y-1.5 text-xs font-medium text-stone-400">Max Student Capacity<input type="number" min={1} max={1000} value={instructor.maxStudentCapacity} onChange={(event) => updateInstructorProfile(instructor.id, { maxStudentCapacity: Number(event.target.value) })} className="h-10 w-full rounded-md border border-border bg-background px-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
                             <div className="flex items-end pb-2 text-xs text-stone-400">Assigned Students <span className="ml-2 font-semibold text-stone-200">{instructor.assignedCount}</span></div>
                           </div>
-                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Bio / Instructor Note<textarea value={instructor.bio} onChange={(event) => updateInstructorProfile(instructor.id, { bio: event.target.value })} rows={4} className="h-24 w-full resize-y overflow-y-auto rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs leading-relaxed text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                          <label className="block space-y-1.5 text-xs font-medium text-stone-400">Bio / Instructor Note<textarea value={instructor.bio} onChange={(event) => updateInstructorProfile(instructor.id, { bio: event.target.value })} rows={4} className="h-24 w-full resize-y overflow-y-auto rounded-md border border-border bg-background px-3 py-2 text-xs leading-relaxed text-stone-200 outline-none focus:border-amber-500/40" /></label>
                         </section>
                       </div>
-                      <div className="mt-5 flex flex-col-reverse gap-3 border-t border-[#293343] pt-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="mt-5 flex flex-col-reverse gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-h-5 text-xs" role="status" aria-live="polite">{saveMessage && <span className={isSaved ? "text-emerald-300" : "text-rose-300"}>{saveMessage}</span>}</div>
                         <div className="flex flex-wrap items-center justify-end gap-2">
                           {instructor.status === "active" && <button type="button" onClick={(event) => void handleDeactivateInstructor(event, instructor)} disabled={isSaving} className="h-10 rounded-md border border-rose-400/30 px-3 text-xs  text-rose-300 transition hover:bg-rose-400/10 disabled:opacity-50">Deactivate</button>}
@@ -4038,21 +4038,21 @@ export default function InstructorWorkstationPage({
                 </div>
               </article>;
             })}
-          </div> : <div className="rounded-xl border border-dashed border-[#394252] px-6 py-12 text-center text-sm text-stone-500">No instructor profiles are available.</div>}
+          </div> : <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center text-sm text-stone-500">No instructor profiles are available.</div>}
 
           {isAddInstructorOpen && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !isAddingInstructor) setIsAddInstructorOpen(false); }}>
-            <section role="dialog" aria-modal="true" aria-labelledby="add-instructor-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-[#394252] bg-[#141a23] p-5 shadow-2xl sm:p-6">
-              <div className="flex items-start justify-between gap-4 border-b border-[#293343] pb-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Instructor Directory</p><h3 id="add-instructor-title" className="mt-1 text-xl font-semibold text-stone-100">Add Instructor</h3></div><button type="button" onClick={() => setIsAddInstructorOpen(false)} disabled={isAddingInstructor} aria-label="Close add instructor dialog" className="rounded-md p-2 text-stone-400 transition hover:bg-white/5 hover:text-stone-100 disabled:opacity-50"><X className="h-4 w-4" /></button></div>
+            <section role="dialog" aria-modal="true" aria-labelledby="add-instructor-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-border bg-[#141a23] p-5 shadow-2xl sm:p-6">
+              <div className="flex items-start justify-between gap-4 border-b border-border pb-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Instructor Directory</p><h3 id="add-instructor-title" className="mt-1 text-xl font-semibold text-stone-100">Add Instructor</h3></div><button type="button" onClick={() => setIsAddInstructorOpen(false)} disabled={isAddingInstructor} aria-label="Close add instructor dialog" className="rounded-md p-2 text-stone-400 transition hover:bg-white/5 hover:text-stone-100 disabled:opacity-50"><X className="h-4 w-4" /></button></div>
               <form onSubmit={(event) => void handleCreateInstructor(event)} className="mt-5 space-y-5">
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="block space-y-1.5 text-xs font-medium text-stone-400">Full Name<input required maxLength={120} value={addInstructorDraft.fullName} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, fullName: event.target.value }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
-                  <label className="block space-y-1.5 text-xs font-medium text-stone-400">Email<input required type="email" maxLength={254} value={addInstructorDraft.email} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, email: event.target.value }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
-                  <label className="block space-y-1.5 text-xs font-medium text-stone-400">Specialization<input value={addInstructorDraft.specialization} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, specialization: event.target.value }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
-                  <label className="block space-y-1.5 text-xs font-medium text-stone-400">Status<select value={addInstructorDraft.status} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, status: event.target.value as InstructorStatus }))} className="h-10 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 text-sm text-stone-200 outline-none [color-scheme:dark] focus:border-amber-500/40"><option value="active">Active</option><option value="on_leave">On Leave</option></select></label>
-                  <label className="block space-y-1.5 text-xs font-medium text-stone-400 sm:col-span-2">Bio<textarea value={addInstructorDraft.bio} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, bio: event.target.value }))} rows={4} className="h-24 w-full resize-y overflow-y-auto rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                  <label className="block space-y-1.5 text-xs font-medium text-stone-400">Full Name<input required maxLength={120} value={addInstructorDraft.fullName} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, fullName: event.target.value }))} className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                  <label className="block space-y-1.5 text-xs font-medium text-stone-400">Email<input required type="email" maxLength={254} value={addInstructorDraft.email} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, email: event.target.value }))} className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                  <label className="block space-y-1.5 text-xs font-medium text-stone-400">Specialization<input value={addInstructorDraft.specialization} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, specialization: event.target.value }))} className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
+                  <label className="block space-y-1.5 text-xs font-medium text-stone-400">Status<select value={addInstructorDraft.status} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, status: event.target.value as InstructorStatus }))} className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-stone-200 outline-none [color-scheme:dark] focus:border-amber-500/40"><option value="active">Active</option><option value="on_leave">On Leave</option></select></label>
+                  <label className="block space-y-1.5 text-xs font-medium text-stone-400 sm:col-span-2">Bio<textarea value={addInstructorDraft.bio} onChange={(event) => setAddInstructorDraft((current) => ({ ...current, bio: event.target.value }))} rows={4} className="h-24 w-full resize-y overflow-y-auto rounded-md border border-border bg-background px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500/40" /></label>
                 </div>
                 {addInstructorError && <p role="alert" className="rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{addInstructorError}</p>}
-                <div className="flex flex-col-reverse gap-3 border-t border-[#293343] pt-4 sm:flex-row sm:justify-end"><button type="button" onClick={() => setIsAddInstructorOpen(false)} disabled={isAddingInstructor} className="h-10 rounded-md border border-[#394252] px-4 text-xs  text-stone-300 transition hover:bg-white/5 disabled:opacity-50">Cancel</button><button type="submit" disabled={isAddingInstructor} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-amber-500/20 px-4 text-xs  text-amber-400 transition hover:bg-amber-500/20 disabled:cursor-wait disabled:opacity-60">{isAddingInstructor ? "Adding..." : "Add Instructor"}</button></div>
+                <div className="flex flex-col-reverse gap-3 border-t border-border pt-4 sm:flex-row sm:justify-end"><button type="button" onClick={() => setIsAddInstructorOpen(false)} disabled={isAddingInstructor} className="h-10 rounded-md border border-border px-4 text-xs  text-stone-300 transition hover:bg-white/5 disabled:opacity-50">Cancel</button><button type="submit" disabled={isAddingInstructor} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-amber-500/20 px-4 text-xs  text-amber-400 transition hover:bg-amber-500/20 disabled:cursor-wait disabled:opacity-60">{isAddingInstructor ? "Adding..." : "Add Instructor"}</button></div>
               </form>
             </section>
           </div>}
@@ -4063,7 +4063,7 @@ export default function InstructorWorkstationPage({
           const currentFlashcard = flashcards[flashcardIndex] || null;
           return (
             <section className="mx-auto w-full min-w-0 max-w-6xl space-y-6" aria-label="Student resources panel">
-              <div className="rounded-2xl border border-[#202631] bg-[#171d28]/60 p-5">
+              <div className="rounded-2xl border border-border bg-surface/60 p-5">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Student Materials</p>
@@ -4080,7 +4080,7 @@ export default function InstructorWorkstationPage({
                           setSelectedStudentId(student.id);
                         }
                       }}
-                      className="min-w-[220px] rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs font-medium normal-case tracking-normal text-white outline-none [color-scheme:dark]"
+                      className="min-w-[220px] rounded-md border border-border bg-background px-3 py-2 text-xs font-medium normal-case tracking-normal text-white outline-none [color-scheme:dark]"
                     >
                       <option value="">Select a student</option>
                       {students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}
@@ -4092,7 +4092,7 @@ export default function InstructorWorkstationPage({
                       value={resourceLessonId || ""}
                       onChange={(event) => setResourceLessonId(event.target.value || null)}
                       disabled={createdLessons.length === 0}
-                      className="min-w-[220px] rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-xs font-medium normal-case tracking-normal text-white outline-none [color-scheme:dark] disabled:opacity-50"
+                      className="min-w-[220px] rounded-md border border-border bg-background px-3 py-2 text-xs font-medium normal-case tracking-normal text-white outline-none [color-scheme:dark] disabled:opacity-50"
                     >
                       <option value="">Select a lesson</option>
                       {createdLessons.map((lesson) => <option key={lesson.id} value={lesson.id}>{lesson.title}</option>)}
@@ -4102,14 +4102,14 @@ export default function InstructorWorkstationPage({
               </div>
 
               <div className="grid min-w-0 grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.35fr)]">
-                <div className="w-full min-w-0 rounded-2xl border border-[#202631] bg-[#171d28]/60 p-5">
+                <div className="w-full min-w-0 rounded-2xl border border-border bg-surface/60 p-5">
                   <div className="mb-4 flex flex-wrap gap-2">
                     {([['note', 'Notes'], ['reading', 'Reading'], ['flashcard', 'Flashcards'], ['quiz', 'Quiz'], ['audio', 'Audio'], ['data_table', 'Data Table']] as const).map(([type, label]) => (
                       <button
                         key={type}
                         type="button"
                         onClick={() => setResourceDraft((previous) => ({ ...previous, type }))}
-                        className={`rounded-full border px-3 py-1.5 text-[11px]  transition ${resourceDraft.type === type ? 'border-amber-500/40 bg-amber-500/20 text-amber-400' : 'border-[#394252] text-stone-400 hover:text-stone-200'}`}
+                        className={`rounded-full border px-3 py-1.5 text-[11px]  transition ${resourceDraft.type === type ? 'border-amber-500/40 bg-amber-500/20 text-amber-400' : 'border-border text-stone-400 hover:text-stone-200'}`}
                       >
                         {label}
                       </button>
@@ -4123,7 +4123,7 @@ export default function InstructorWorkstationPage({
                         value={resourceDraft.title}
                         onChange={(event) => setResourceDraft((previous) => ({ ...previous, title: event.target.value }))}
                         placeholder={resourceDraft.type === "audio" ? "Podcast / Deep Dive Audio" : resourceDraft.type === "data_table" ? "Lesson 3: Core Summary Matrix" : "Vocabulary set / reading summary / quiz idea"}
-                        className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                        className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                       />
                     </label>
 
@@ -4135,7 +4135,7 @@ export default function InstructorWorkstationPage({
                             value={resourceDraft.linkUrl}
                             onChange={(event) => setResourceDraft((previous) => ({ ...previous, linkUrl: event.target.value }))}
                             placeholder="https://… or PDF file name"
-                            className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                            className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                           />
                         </label>
                         <label className="block text-xs text-stone-400">
@@ -4160,7 +4160,7 @@ export default function InstructorWorkstationPage({
                             value={resourceDraft.linkUrl}
                             onChange={(event) => setResourceDraft((previous) => ({ ...previous, linkUrl: event.target.value }))}
                             placeholder="https://…"
-                            className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                            className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                           />
                         </label>
                         <label className="block text-xs text-stone-400">
@@ -4169,7 +4169,7 @@ export default function InstructorWorkstationPage({
                             type="file"
                             accept="audio/*"
                             onChange={(event) => setAudioFile(event.target.files?.[0] || null)}
-                            className="mt-1 block w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-300 file:mr-3 file:rounded file:border-0 file:bg-amber-500/20 file:px-3 file:py-1.5 file:text-xs file: file:text-amber-400"
+                            className="mt-1 block w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-300 file:mr-3 file:rounded file:border-0 file:bg-amber-500/20 file:px-3 file:py-1.5 file:text-xs file: file:text-amber-400"
                           />
                         </label>
                         <label className="block text-xs text-stone-400">
@@ -4246,7 +4246,7 @@ export default function InstructorWorkstationPage({
                         <button
                           type="button"
                           onClick={addFlashcardToDeck}
-                          className="w-full rounded-md border border-[#394252] px-4 py-2.5 text-xs text-stone-200 transition hover:border-amber-500/40 hover:text-amber-400"
+                          className="w-full rounded-md border border-border px-4 py-2.5 text-xs text-stone-200 transition hover:border-amber-500/40 hover:text-amber-400"
                         >
                           + Add Card to Deck
                         </button>
@@ -4267,13 +4267,13 @@ export default function InstructorWorkstationPage({
                   </div>
                 </div>
 
-                <div className="w-full min-w-0 rounded-2xl border border-[#202631] bg-[#0b1018] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
+                <div className="w-full min-w-0 rounded-2xl border border-border bg-[#0b1018] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
                   <div className="mb-4 flex items-center justify-between gap-3">
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Study Deck</p>
                       <h3 className="mt-1 font-sans text-xl font-semibold text-stone-100">Flashcards</h3>
                     </div>
-                    <span className="rounded-full border border-[#394252] bg-[#171d28] px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-stone-300">
+                    <span className="rounded-full border border-border bg-surface px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-stone-300">
                       {flashcards.length} cards
                     </span>
                   </div>
@@ -4301,7 +4301,7 @@ export default function InstructorWorkstationPage({
                               <MarkdownContent value={currentFlashcard.front} className="text-2xl leading-snug text-stone-100" />
                             </div>
                             <div className="flex justify-center">
-                              <span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px]  text-stone-300">See answer</span>
+                              <span className="rounded-full border border-border bg-surface px-4 py-2 text-[11px]  text-stone-300">See answer</span>
                             </div>
                           </div>
 
@@ -4333,7 +4333,7 @@ export default function InstructorWorkstationPage({
                         </div>
                       </div>
 
-                      <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-[#202631] bg-[#0f141b] px-3 py-2">
+                      <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-border bg-[#0f141b] px-3 py-2">
                         <button
                           type="button"
                           onClick={() => {
@@ -4342,7 +4342,7 @@ export default function InstructorWorkstationPage({
                             setShowFlashcardExplanation(false);
                           }}
                           disabled={flashcardIndex === 0}
-                          className="rounded-md border border-[#394252] px-3 py-2 text-xs  text-stone-200 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="rounded-md border border-border px-3 py-2 text-xs  text-stone-200 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           ←
                         </button>
@@ -4384,21 +4384,21 @@ export default function InstructorWorkstationPage({
                             setShowFlashcardExplanation(false);
                           }}
                           disabled={flashcardIndex >= flashcards.length - 1}
-                          className="rounded-md border border-[#394252] px-3 py-2 text-xs  text-stone-200 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="rounded-md border border-border px-3 py-2 text-xs  text-stone-200 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           →
                         </button>
                       </div>
                     </>
                   ) : (
-                    <div className="rounded-2xl border border-dashed border-[#394252] bg-[#10181f] p-10 text-center text-sm text-stone-500">
+                    <div className="rounded-2xl border border-dashed border-border bg-[#10181f] p-10 text-center text-sm text-stone-500">
                       Add one or more flashcards to turn this deck on.
                     </div>
                   )}
 
                   <div className="mt-5 space-y-3">
                     {studentResources.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-[#394252] bg-[#10181f] p-6 text-center text-sm text-stone-500">
+                      <div className="rounded-xl border border-dashed border-border bg-[#10181f] p-6 text-center text-sm text-stone-500">
                         No student resources yet for this student.
                       </div>
                     ) : (
@@ -4408,7 +4408,7 @@ export default function InstructorWorkstationPage({
                         const isDataTable = resource.resource_type === "data_table" || isDataTableResourceTitle(resource.title);
                         const resourceTitle = isDataTable ? getDataTableResourceTitle(resource.title) : resource.title;
                         return (
-                        <div key={resource.id} className="rounded-xl border border-[#202631] bg-[#10181f] p-3">
+                        <div key={resource.id} className="rounded-xl border border-border bg-[#10181f] p-3">
                           <div className="flex items-start justify-between gap-3">
                             <div>
                               <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400">{isDataTable ? "data_table" : isFlashcardDeck ? "Flashcard Deck" : resource.resource_type}</p>
@@ -4451,7 +4451,7 @@ export default function InstructorWorkstationPage({
         {activeTab === "music" && <MusicLibraryManager />}
 
         {activeTab === "builder" && <>
-          {!isInlineStudentViewOpen && <section className="mb-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" aria-labelledby="lesson-details-title">
+          {!isInlineStudentViewOpen && <section className="mb-6 rounded-xl border border-border bg-surface/60 p-5" aria-labelledby="lesson-details-title">
                 {Object.keys(validationErrors).length > 0 && <div className="mb-4 space-y-1 rounded-md border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300" role="alert">{Object.entries(validationErrors).map(([field, message]) => <p key={field}>{message}</p>)}</div>}
             <div className="mb-4">
 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Lesson Builder</p>
@@ -4466,7 +4466,7 @@ export default function InstructorWorkstationPage({
                   onInput={(event) => resizeTextareaToContent(event.currentTarget)}
                   placeholder="A new lesson"
                   rows={1}
-                  className="mt-1 min-h-10 w-full resize-none overflow-hidden rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs leading-relaxed text-stone-200 outline-none focus:border-amber-500/40"
+                  className="mt-1 min-h-10 w-full resize-none overflow-hidden rounded-md border border-border bg-background p-2.5 text-xs leading-relaxed text-stone-200 outline-none focus:border-amber-500/40"
                 />
               </label>
               <label className="block text-xs text-stone-400">Subtitle
@@ -4477,31 +4477,31 @@ export default function InstructorWorkstationPage({
                   onInput={(event) => resizeTextareaToContent(event.currentTarget)}
                   placeholder="Lesson summary"
                   rows={1}
-                  className="mt-1 min-h-10 w-full resize-none overflow-hidden rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs leading-relaxed text-stone-200 outline-none focus:border-amber-500/40"
+                  className="mt-1 min-h-10 w-full resize-none overflow-hidden rounded-md border border-border bg-background p-2.5 text-xs leading-relaxed text-stone-200 outline-none focus:border-amber-500/40"
                 />
               </label>
             </div>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <label className="text-xs text-stone-400">Select Student<select value={selectedStudentId || ""} onChange={(event) => { const nextStudent = students.find((student) => student.id === event.target.value); if (nextStudent) void handleStudentChange(nextStudent); }} className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-white [color-scheme:dark]" aria-label="Select student for lesson"><option value="" className="bg-[#0c1017] text-white">{studentsLoading ? "Loading students..." : studentsError ? "Unable to load students" : students.length === 0 ? "No registered students" : "Choose a student"}</option>{students.map((student) => <option key={student.id} value={student.id} className="bg-[#0c1017] text-white">{student.name}</option>)}</select>
+              <label className="text-xs text-stone-400">Select Student<select value={selectedStudentId || ""} onChange={(event) => { const nextStudent = students.find((student) => student.id === event.target.value); if (nextStudent) void handleStudentChange(nextStudent); }} className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-white [color-scheme:dark]" aria-label="Select student for lesson"><option value="" className="bg-background text-white">{studentsLoading ? "Loading students..." : studentsError ? "Unable to load students" : students.length === 0 ? "No registered students" : "Choose a student"}</option>{students.map((student) => <option key={student.id} value={student.id} className="bg-background text-white">{student.name}</option>)}</select>
               </label>
-              <label className="text-xs text-stone-400">Module Number<input value={newLesson.moduleNumber} onChange={(event) => setNewLesson((previous) => ({ ...previous, moduleNumber: event.target.value }))} placeholder="1" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" />
+              <label className="text-xs text-stone-400">Module Number<input value={newLesson.moduleNumber} onChange={(event) => setNewLesson((previous) => ({ ...previous, moduleNumber: event.target.value }))} placeholder="1" className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200" />
               </label>
-              <label className="text-xs text-stone-400">CEFR Level<select value={newLesson.level} onChange={(event) => updateBuilderLevel(event.target.value)} className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-white [color-scheme:dark]" aria-label="Lesson CEFR level">{CEFR_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select>
+              <label className="text-xs text-stone-400">CEFR Level<select value={newLesson.level} onChange={(event) => updateBuilderLevel(event.target.value)} className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-white [color-scheme:dark]" aria-label="Lesson CEFR level">{CEFR_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select>
               </label>
-              <div className="text-xs text-stone-400">Visibility<p className="mt-1 rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200">{lessonStatus === "published" ? "Published" : "Draft"}</p></div>
+              <div className="text-xs text-stone-400">Visibility<p className="mt-1 rounded-md border border-border bg-background p-2.5 text-xs text-stone-200">{lessonStatus === "published" ? "Published" : "Draft"}</p></div>
             </div>
             <div className="mt-3 grid gap-3 md:grid-cols-3">
-              <label className="text-xs text-stone-400">Domain<input value={newLesson.tags.domain} onChange={(event) => updateBuilderTags({ ...newLesson.tags, domain: event.target.value }, newLesson.customTagsText)} placeholder="Work, travel, culture..." className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label>
-              <label className="text-xs text-stone-400">Skill Focus<input value={newLesson.tags.skill_focus} onChange={(event) => updateBuilderTags({ ...newLesson.tags, skill_focus: event.target.value }, newLesson.customTagsText)} placeholder="Speaking, listening..." className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label>
-              <label className="text-xs text-stone-400">Practice Type<input value={newLesson.tags.practice_type} onChange={(event) => updateBuilderTags({ ...newLesson.tags, practice_type: event.target.value }, newLesson.customTagsText)} placeholder="Role-play, reflection..." className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label>
-              <label className="text-xs text-stone-400 md:col-span-3">Custom Tags<input value={newLesson.customTagsText} onChange={(event) => updateBuilderTags({ ...newLesson.tags, custom: parseCustomLessonTags(event.target.value) }, event.target.value)} placeholder="Comma-separated custom tags" className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200" /></label>
+              <label className="text-xs text-stone-400">Domain<input value={newLesson.tags.domain} onChange={(event) => updateBuilderTags({ ...newLesson.tags, domain: event.target.value }, newLesson.customTagsText)} placeholder="Work, travel, culture..." className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200" /></label>
+              <label className="text-xs text-stone-400">Skill Focus<input value={newLesson.tags.skill_focus} onChange={(event) => updateBuilderTags({ ...newLesson.tags, skill_focus: event.target.value }, newLesson.customTagsText)} placeholder="Speaking, listening..." className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200" /></label>
+              <label className="text-xs text-stone-400">Practice Type<input value={newLesson.tags.practice_type} onChange={(event) => updateBuilderTags({ ...newLesson.tags, practice_type: event.target.value }, newLesson.customTagsText)} placeholder="Role-play, reflection..." className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200" /></label>
+              <label className="text-xs text-stone-400 md:col-span-3">Custom Tags<input value={newLesson.customTagsText} onChange={(event) => updateBuilderTags({ ...newLesson.tags, custom: parseCustomLessonTags(event.target.value) }, event.target.value)} placeholder="Comma-separated custom tags" className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200" /></label>
             </div>
-            <div className="mt-3 overflow-hidden rounded-md border border-[#29303c] bg-[#0c1017]/60">
+            <div className="mt-3 overflow-hidden rounded-md border border-border bg-background/60">
               <button type="button" aria-expanded={isLessonGuidanceExpanded} onClick={() => setIsLessonGuidanceExpanded((expanded) => !expanded)} className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-xs  text-stone-300 transition hover:bg-amber-500/20 hover:text-stone-100">
                 <span>Lesson-Specific Guidance</span>
                 {isLessonGuidanceExpanded ? <ChevronDown className="h-4 w-4 text-amber-400" aria-hidden="true" /> : <ChevronRight className="h-4 w-4 text-amber-400" aria-hidden="true" />}
               </button>
-              {isLessonGuidanceExpanded && <div className="border-t border-[#29303c] p-3"><TiptapEditor value={newLesson.instructorGuidance} onChange={(instructorGuidance) => setNewLesson((previous) => ({ ...previous, instructorGuidance }))} placeholder="Guidance shown inside this lesson's Study Room" ariaLabel="Lesson-specific guidance" compact /></div>}
+              {isLessonGuidanceExpanded && <div className="border-t border-border p-3"><TiptapEditor value={newLesson.instructorGuidance} onChange={(instructorGuidance) => setNewLesson((previous) => ({ ...previous, instructorGuidance }))} placeholder="Guidance shown inside this lesson's Study Room" ariaLabel="Lesson-specific guidance" compact /></div>}
             </div>
           </section>}
           {isInlineStudentViewOpen ? (
@@ -4511,12 +4511,12 @@ export default function InstructorWorkstationPage({
                 <button
                   type="button"
                   onClick={() => setIsInlineStudentViewOpen(false)}
-                  className="inline-flex items-center gap-2 rounded-md border border-[#394252] bg-[#171d28] px-3 py-2 text-xs text-stone-200 transition hover:border-amber-500/40 hover:text-amber-300"
+                  className="inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-xs text-stone-200 transition hover:border-amber-500/40 hover:text-amber-300"
                 >
                   <X className="h-3.5 w-3.5" aria-hidden="true" /> Return to Lesson Builder
                 </button>
               </div>
-              <div className="min-w-0 overflow-hidden rounded-xl border border-[#202631]">
+              <div className="min-w-0 overflow-hidden rounded-xl border border-border">
                 <StudentStudyRoomPreview {...livePreviewSnapshot} onStepChange={setPreviewStep} />
               </div>
             </section>
@@ -4533,7 +4533,7 @@ export default function InstructorWorkstationPage({
                       {sidebarEditorPanel}
                     </div>
                   </div>
-                  <div className="h-[calc(100dvh-20rem)] min-h-[480px] min-w-0 overflow-y-auto overscroll-contain rounded-xl border border-[#202631]">
+                  <div className="h-[calc(100dvh-20rem)] min-h-[480px] min-w-0 overflow-y-auto overscroll-contain rounded-xl border border-border">
                     <div className="min-w-0" style={{ zoom: 0.85 }}>
                       <StudentStudyRoomPreview {...livePreviewSnapshot} onStepChange={setPreviewStep} embedded />
                     </div>
@@ -4552,7 +4552,7 @@ export default function InstructorWorkstationPage({
             </div>
           )}
 
-          {!isInlineStudentViewOpen && <section className="mt-6 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5" aria-label="Lesson builder resource panel">
+          {!isInlineStudentViewOpen && <section className="mt-6 rounded-xl border border-border bg-surface/60 p-5" aria-label="Lesson builder resource panel">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <button
                 type="button"
@@ -4581,7 +4581,7 @@ export default function InstructorWorkstationPage({
                 >
                   <Eye className="h-3.5 w-3.5" aria-hidden="true" /> Preview as Student
                 </button>
-                <div className="rounded-full border border-[#394252] bg-[#0c1017] px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-stone-300">
+                <div className="rounded-full border border-border bg-background px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-stone-300">
                   {activeBuilderStudent ? `${activeBuilderStudent.name} · ${activeBuilderLessonId ? "Bound" : "Lesson not saved yet"}` : "Select student in Lesson Details"}
                 </div>
               </div>
@@ -4602,21 +4602,21 @@ export default function InstructorWorkstationPage({
                       disabled={Boolean(editingStudentResourceId && activeResourceType !== type)}
                       aria-pressed={activeResourceType === type}
                       onClick={() => setResourceDraft((previous) => ({ ...previous, type }))}
-                      className={`rounded-md border px-3 py-2 text-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${activeResourceType === type ? 'border-amber-500/40 bg-amber-500/20 text-amber-400 shadow-sm' : 'border-[#394252] bg-[#0c1017] text-stone-400 hover:border-amber-500/40 hover:text-stone-100'}`}
+                      className={`rounded-md border px-3 py-2 text-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${activeResourceType === type ? 'border-amber-500/40 bg-amber-500/20 text-amber-400 shadow-sm' : 'border-border bg-background text-stone-400 hover:border-amber-500/40 hover:text-stone-100'}`}
                     >
                       {label}
                     </button>
                   ))}
                 </div>
                 {!activeBuilderStudent || !activeBuilderLessonId ? (
-              <div className="mt-4 rounded-lg border border-dashed border-[#202631] bg-[#0c1017] px-4 py-5 text-sm text-stone-400">
+              <div className="mt-4 rounded-lg border border-dashed border-border bg-background px-4 py-5 text-sm text-stone-400">
                 Choose a student and save the lesson draft in Lesson Details to bind resource uploads to the active lesson context.
               </div>
             ) : (
               <div className="mt-5 space-y-6">
                 <div className="grid min-w-0 grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.35fr)]">
-                  <div className="w-full min-w-0 rounded-2xl border border-[#202631] bg-[#171d28]/60 p-5">
-                    <div id="student-resource-editor" className="mb-4 border-b border-[#202631] pb-3">
+                  <div className="w-full min-w-0 rounded-2xl border border-border bg-surface/60 p-5">
+                    <div id="student-resource-editor" className="mb-4 border-b border-border pb-3">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">{editingStudentResourceId ? "Edit saved resource" : "Resource Editor"}</p>
                       <h4 className="mt-1 font-sans text-lg font-semibold text-stone-100">
                         {activeResourceType === "note" ? "Note Editor" : activeResourceType === "reading" ? "Reading Editor" : activeResourceType === "flashcard" ? "Flashcard Builder" : activeResourceType === "quiz" ? "Quiz Editor" : activeResourceType === "audio" ? "Audio Editor" : activeResourceType === "video" ? "Video Editor" : activeResourceType === "image" ? "Image Editor" : activeResourceType === "file" ? "File Upload" : "Data Table Editor"}
@@ -4630,12 +4630,12 @@ export default function InstructorWorkstationPage({
                           value={resourceDraft.title}
                           onChange={(event) => setResourceDraft((previous) => ({ ...previous, title: event.target.value }))}
                           placeholder={resourceDraft.type === "audio" ? "Podcast / Deep Dive Audio" : resourceDraft.type === "data_table" ? "Lesson 3: Core Summary Matrix" : resourceDraft.type === "file" ? "Resource title" : "Vocabulary set / reading summary / quiz idea"}
-                          className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                          className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                         />
                       </label>
 
                       {(["reading", "audio", "file", "image", "video"] as StudentResourceType[]).includes(resourceDraft.type) && (
-                        <div className="grid grid-cols-2 rounded-md border border-[#394252] bg-[#0c1017] p-1" role="tablist" aria-label="Media input method">
+                        <div className="grid grid-cols-2 rounded-md border border-border bg-background p-1" role="tablist" aria-label="Media input method">
                           <button type="button" role="tab" aria-selected={resourceInputMode === "upload"} onClick={() => setResourceInputMode("upload")} className={`rounded px-3 py-2 text-xs  transition ${resourceInputMode === "upload" ? "bg-amber-500/20 text-amber-400" : "text-stone-400 hover:text-stone-200"}`}>Upload File</button>
                           <button type="button" role="tab" aria-selected={resourceInputMode === "url"} onClick={() => setResourceInputMode("url")} className={`rounded px-3 py-2 text-xs  transition ${resourceInputMode === "url" ? "bg-amber-500/20 text-amber-400" : "text-stone-400 hover:text-stone-200"}`}>Paste URL</button>
                         </div>
@@ -4650,7 +4650,7 @@ export default function InstructorWorkstationPage({
                             setIsResourceFileDragging(false);
                             handleResourceFileSelection(event.dataTransfer.files[0]);
                           }}
-                          className={`rounded-lg border border-dashed p-5 text-center transition ${isResourceFileDragging ? "border-amber-500/40 bg-amber-500/20" : "border-[#394252] bg-[#0c1017]"}`}
+                          className={`rounded-lg border border-dashed p-5 text-center transition ${isResourceFileDragging ? "border-amber-500/40 bg-amber-500/20" : "border-border bg-background"}`}
                         >
                           <input
                             id="student-resource-file-input"
@@ -4676,7 +4676,7 @@ export default function InstructorWorkstationPage({
                             value={resourceDraft.linkUrl}
                             onChange={(event) => setResourceDraft((previous) => ({ ...previous, linkUrl: event.target.value }))}
                             placeholder="https://..."
-                            className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                            className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                           />
                         </label>
                       )}
@@ -4702,7 +4702,7 @@ export default function InstructorWorkstationPage({
                             value={resourceDraft.linkUrl}
                             onChange={(event) => setResourceDraft((previous) => ({ ...previous, linkUrl: event.target.value }))}
                             placeholder="https://…"
-                            className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                            className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                           />
                         </label>
                       )}
@@ -4722,14 +4722,14 @@ export default function InstructorWorkstationPage({
 
                       {resourceDraft.type === "audio" && resourceInputMode === "upload" && (
                         <label className="block text-xs text-stone-400">Upload audio file
-                          <input type="file" accept="audio/*" onChange={(event) => setAudioFile(event.target.files?.[0] || null)} className="mt-1 block w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-300 file:mr-3 file:rounded file:border-0 file:bg-amber-500/20 file:px-3 file:py-1.5 file:text-xs file: file:text-amber-400" />
+                          <input type="file" accept="audio/*" onChange={(event) => setAudioFile(event.target.files?.[0] || null)} className="mt-1 block w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-300 file:mr-3 file:rounded file:border-0 file:bg-amber-500/20 file:px-3 file:py-1.5 file:text-xs file: file:text-amber-400" />
                           {audioFile && <span className="mt-2 block truncate text-stone-300">{audioFile.name}</span>}
                         </label>
                       )}
 
                       {(["file", "image", "video"] as StudentResourceType[]).includes(resourceDraft.type) && resourceInputMode === "url" && (
                         <label className="block text-xs text-stone-400">{resourceDraft.type === "image" ? "Image URL" : resourceDraft.type === "video" ? "Video URL (direct, YouTube, or Vimeo)" : "File URL"}
-                          <input type="url" value={resourceDraft.linkUrl} onChange={(event) => setResourceDraft((previous) => ({ ...previous, linkUrl: event.target.value }))} placeholder="https://..." className="mt-1 w-full rounded-md border border-[#202631] bg-[#0c1017] p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40" />
+                          <input type="url" value={resourceDraft.linkUrl} onChange={(event) => setResourceDraft((previous) => ({ ...previous, linkUrl: event.target.value }))} placeholder="https://..." className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40" />
                         </label>
                       )}
 
@@ -4794,7 +4794,7 @@ export default function InstructorWorkstationPage({
                           <button
                             type="button"
                             onClick={addFlashcardToDeck}
-                            className="w-full rounded-md border border-[#394252] px-4 py-2.5 text-xs text-stone-200 transition hover:border-amber-500/40 hover:text-amber-400"
+                            className="w-full rounded-md border border-border px-4 py-2.5 text-xs text-stone-200 transition hover:border-amber-500/40 hover:text-amber-400"
                           >
                             + Add Card to Deck
                           </button>
@@ -4813,19 +4813,19 @@ export default function InstructorWorkstationPage({
                           ? resourceDraft.type === "flashcard" ? "Update Deck" : "Update resource"
                           : resourceDraft.type === "data_table" ? "Save Data Table" : resourceDraft.type === "flashcard" ? "Save Deck" : "Save resource"}
                       </button>
-                      {editingStudentResourceId && <button type="button" onClick={cancelStudentResourceEdit} className="w-full rounded-md border border-[#394252] px-4 py-2.5 text-xs text-stone-300 transition hover:border-stone-300 hover:text-stone-100">Cancel edit</button>}
+                      {editingStudentResourceId && <button type="button" onClick={cancelStudentResourceEdit} className="w-full rounded-md border border-border px-4 py-2.5 text-xs text-stone-300 transition hover:border-stone-300 hover:text-stone-100">Cancel edit</button>}
                       {resourceStatus && <p role="status" className="text-xs leading-relaxed text-amber-400">{resourceStatus}</p>}
                     </div>
                   </div>
 
                   {activeResourceType === "flashcard" ? (
-                  <div className="w-full min-w-0 rounded-2xl border border-[#202631] bg-[#0b1018] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
+                  <div className="w-full min-w-0 rounded-2xl border border-border bg-[#0b1018] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
                     <div className="mb-4 flex items-center justify-between gap-3">
                       <div>
                         <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Deck Preview</p>
                         <h3 className="mt-1 font-sans text-xl font-semibold text-stone-100">Live Student Card Preview</h3>
                       </div>
-                      <span className="rounded-full border border-[#394252] bg-[#171d28] px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-stone-300">
+                      <span className="rounded-full border border-border bg-surface px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-stone-300">
                         {collectStudentFlashcards(studentResources).length} saved cards
                       </span>
                     </div>
@@ -4847,17 +4847,17 @@ export default function InstructorWorkstationPage({
                         <div className="absolute inset-0 flex flex-col justify-between rounded-2xl p-5 [backface-visibility:hidden]">
                           <div className="flex items-center justify-between gap-2"><span className="text-[10px]  uppercase tracking-[0.16em] text-amber-400">Draft question</span><span className="rounded-full border border-amber-500/40 bg-amber-500/20 px-2 py-1 text-[10px]  uppercase text-amber-400">Question</span></div>
                           <div className="max-h-[170px] overflow-y-auto break-words text-xl leading-snug text-stone-100"><ResourceRichTextPreview html={resourceQuestionHtml} fallback="Your question will appear here as you type." /></div>
-                          <div className="flex justify-center"><span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px]  text-stone-300">See answer</span></div>
+                          <div className="flex justify-center"><span className="rounded-full border border-border bg-surface px-4 py-2 text-[11px]  text-stone-300">See answer</span></div>
                         </div>
                         <div className="absolute inset-0 flex flex-col justify-between rounded-2xl p-5 [backface-visibility:hidden] [transform:rotateY(180deg)]">
                           <div className="flex items-center justify-between gap-2"><span className="text-[10px]  uppercase tracking-[0.16em] text-emerald-300">Draft answer</span><span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px]  uppercase text-emerald-200">Key idea</span></div>
                           <div className="max-h-[170px] overflow-y-auto break-words text-lg leading-relaxed text-stone-100"><ResourceRichTextPreview html={resourceAnswerHtml} fallback="Your answer will appear here as you type." />{resourceDraft.explanation.trim() && <ResourceRichTextPreview html={resourceExplanationHtml} fallback="" className="mt-3 text-xs leading-relaxed text-stone-400" />}</div>
-                          <div className="flex justify-center"><span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px]  text-stone-300">Flip back</span></div>
+                          <div className="flex justify-center"><span className="rounded-full border border-border bg-surface px-4 py-2 text-[11px]  text-stone-300">Flip back</span></div>
                         </div>
                       </div>
                     </div>
 
-                    <h4 className="mb-3 border-t border-[#202631] pt-4 text-xs font-semibold uppercase tracking-[0.12em] text-stone-400">Saved deck</h4>
+                    <h4 className="mb-3 border-t border-border pt-4 text-xs font-semibold uppercase tracking-[0.12em] text-stone-400">Saved deck</h4>
 
                     {(() => {
                       const flashcards = collectStudentFlashcards(studentResources);
@@ -4885,7 +4885,7 @@ export default function InstructorWorkstationPage({
                                   <MarkdownContent value={currentFlashcard.front} className="text-2xl leading-snug text-stone-100" />
                                 </div>
                                 <div className="flex justify-center">
-                                  <span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px]  text-stone-300">See answer</span>
+                                  <span className="rounded-full border border-border bg-surface px-4 py-2 text-[11px]  text-stone-300">See answer</span>
                                 </div>
                               </div>
 
@@ -4913,14 +4913,14 @@ export default function InstructorWorkstationPage({
                                   )}
                                 </div>
                                 <div className="flex justify-center">
-                                  <span className="rounded-full border border-[#394252] bg-[#171d28] px-4 py-2 text-[11px]  text-stone-300">Flip back</span>
+                                  <span className="rounded-full border border-border bg-surface px-4 py-2 text-[11px]  text-stone-300">Flip back</span>
                                 </div>
                               </div>
                             </div>
                           </div>
 
                           <div className="mt-5 flex items-center justify-between gap-3">
-                            <button type="button" onClick={() => setFlashcardIndex((index) => (index === 0 ? flashcards.length - 1 : index - 1))} className="rounded-md border border-[#394252] bg-[#171d28] px-3 py-2 text-xs  text-stone-300 hover:text-stone-100">
+                            <button type="button" onClick={() => setFlashcardIndex((index) => (index === 0 ? flashcards.length - 1 : index - 1))} className="rounded-md border border-border bg-surface px-3 py-2 text-xs  text-stone-300 hover:text-stone-100">
                               Previous
                             </button>
                             <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-stone-500">
@@ -4931,18 +4931,18 @@ export default function InstructorWorkstationPage({
                                 Wrong
                               </button>
                             </div>
-                            <button type="button" onClick={() => setFlashcardIndex((index) => (index + 1) % flashcards.length)} className="rounded-md border border-[#394252] bg-[#171d28] px-3 py-2 text-xs  text-stone-300 hover:text-stone-100">
+                            <button type="button" onClick={() => setFlashcardIndex((index) => (index + 1) % flashcards.length)} className="rounded-md border border-border bg-surface px-3 py-2 text-xs  text-stone-300 hover:text-stone-100">
                               Next
                             </button>
                           </div>
 
-                          <div className="mt-4 flex items-center justify-between rounded-xl border border-[#202631] bg-[#0c1017] px-3 py-2 text-[10px] uppercase tracking-[0.14em] text-stone-500">
+                          <div className="mt-4 flex items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-[10px] uppercase tracking-[0.14em] text-stone-500">
                             <span>Right: {rightCount}</span>
                             <span>Wrong: {wrongCount}</span>
                           </div>
                         </>
                       ) : (
-                        <div className="rounded-xl border border-dashed border-[#394252] bg-[#0c1017] p-6 text-center text-sm text-stone-500">
+                        <div className="rounded-xl border border-dashed border-border bg-background p-6 text-center text-sm text-stone-500">
                           No flashcards saved for this active student and lesson yet.
                         </div>
                       );
@@ -4963,19 +4963,19 @@ export default function InstructorWorkstationPage({
                   )}
                 </div>
 
-                <div className="rounded-2xl border border-[#202631] bg-[#0c1017] p-5">
+                <div className="rounded-2xl border border-border bg-background p-5">
                   <div className="mb-4 flex items-center justify-between gap-3">
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Library</p>
                       <h4 className="mt-1 font-sans text-lg font-semibold text-stone-100">Saved resources</h4>
                     </div>
-                    <span className="rounded-full border border-[#394252] bg-[#171d28] px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-stone-300">
+                    <span className="rounded-full border border-border bg-surface px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-stone-300">
                       {studentResources.length} items
                     </span>
                   </div>
 
                   {studentResources.length === 0 ? (
-                    <p className="rounded-lg border border-dashed border-[#202631] bg-[#0b1018] px-4 py-5 text-sm text-stone-500">
+                    <p className="rounded-lg border border-dashed border-border bg-[#0b1018] px-4 py-5 text-sm text-stone-500">
                       No resources yet for the active student in this lesson context.
                     </p>
                   ) : (
@@ -4988,7 +4988,7 @@ export default function InstructorWorkstationPage({
                         const isExpanded = expandedStudentResourceIds.has(resource.id);
                         const previewId = `saved-resource-preview-${resource.id}`;
                         return (
-                          <div key={resource.id} className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-4">
+                          <div key={resource.id} className="rounded-xl border border-border bg-surface/60 p-4">
                             <div className="flex items-start justify-between gap-3">
                               <button
                                 type="button"
@@ -5030,7 +5030,7 @@ export default function InstructorWorkstationPage({
                               </div>
                             </div>
                             {isExpanded && (
-                              <div id={previewId} className="mt-4 border-t border-[#293343] pt-4">
+                              <div id={previewId} className="mt-4 border-t border-border pt-4">
                                 <SavedResourcePreview resource={resource} title={resourceTitle} />
                               </div>
                             )}
@@ -5059,7 +5059,7 @@ export default function InstructorWorkstationPage({
 
         {activeTab === "evaluation" && (
           <section className="space-y-6" aria-label="Student submission review workspace">
-            <div className="space-y-4 rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
+            <div className="space-y-4 rounded-xl border border-border bg-surface/60 p-5">
               <div className="grid gap-4 md:grid-cols-2">
               <label className="block text-xs font-medium text-stone-400">
                 Select Student
@@ -5083,7 +5083,7 @@ export default function InstructorWorkstationPage({
                       setIsPendingSubmissionsExpanded(true);
                     }
                   }}
-                  className="mt-2 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2.5 text-sm text-stone-200 [color-scheme:dark]"
+                  className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-stone-200 [color-scheme:dark]"
                   aria-label="Select student for evaluation"
                 >
                   <option value="">Select a student</option>
@@ -5106,7 +5106,7 @@ export default function InstructorWorkstationPage({
                     }
                   }}
                   disabled={!selectedStudent}
-                  className="mt-2 w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2.5 text-sm text-stone-200 [color-scheme:dark] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-stone-200 [color-scheme:dark] disabled:cursor-not-allowed disabled:opacity-50"
                   aria-label="Select submitted assignment"
                 >
                   <option value="">{selectedStudentSubmissions.length ? "Select a submission" : "No submissions for this student"}</option>
@@ -5122,27 +5122,27 @@ export default function InstructorWorkstationPage({
             </div>
 
             {selectedStudent && (
-              <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[#202631] bg-[#171d28]/40 px-4 py-3" aria-label="Read-only student context">
+              <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface/40 px-4 py-3" aria-label="Read-only student context">
                 <span className="text-sm font-semibold text-stone-200">{selectedStudent.name}</span>
                 <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-300">Level: {selectedStudent.profile.targetLevel || selectedStudent.profile.level || "Not set"}</span>
                 <span className="text-xs text-stone-400">Core Goal: {selectedStudent.profile.targetGoal?.trim() || "Not set"}</span>
                 <span className="flex flex-wrap items-center gap-1.5 text-xs text-stone-400">
                   Weaknesses:
                   {selectedStudent.profile.weaknesses.length
-                    ? selectedStudent.profile.weaknesses.map((weakness) => <span key={weakness} className="rounded-md border border-[#394252] bg-[#0c1017] px-2 py-0.5 text-stone-300">{weakness}</span>)
+                    ? selectedStudent.profile.weaknesses.map((weakness) => <span key={weakness} className="rounded-md border border-border bg-background px-2 py-0.5 text-stone-300">{weakness}</span>)
                     : <span>Not set</span>}
                 </span>
               </div>
             )}
 
             {!reviewSubmissionId ? (
-              <div className="rounded-xl border border-[#202631] bg-[#171d28]/60 p-5">
+              <div className="rounded-xl border border-border bg-surface/60 p-5">
                 <button
                   type="button"
                   onClick={() => setIsPendingSubmissionsExpanded((expanded) => !expanded)}
                   aria-expanded={isPendingSubmissionsExpanded}
                   aria-controls="evaluation-pending-submissions-list"
-                  className="flex w-full flex-wrap items-center justify-between gap-3 border-b border-[#202631] pb-4 text-left"
+                  className="flex w-full flex-wrap items-center justify-between gap-3 border-b border-border pb-4 text-left"
                 >
                   <div>
                     <h2 className="font-sans text-xl font-semibold text-stone-100">Pending Submissions Queue</h2>
@@ -5156,7 +5156,7 @@ export default function InstructorWorkstationPage({
                 {isPendingSubmissionsExpanded && <div id="evaluation-pending-submissions-list" className="pointer-events-auto max-h-[380px] overflow-y-auto overscroll-contain">
                 {pendingSubmissionError && <p role="alert" className="mt-4 text-sm text-red-300">{pendingSubmissionError}</p>}
                 {pendingSubmissions.length > 0 ? (
-                  <ul className="divide-y divide-[#29303c]">
+                  <ul className="divide-y divide-border">
                     {pendingSubmissions.map((submission) => {
                       const studentName = students.find((student) => student.id === submission.studentId || student.token === submission.studentId)?.name || "Student";
                       const lessonTitle = createdLessons.find((lesson) => lesson.id === submission.lessonId)?.title || "Lesson submission";
@@ -5177,7 +5177,7 @@ export default function InstructorWorkstationPage({
               </div>
             ) : selectedReviewSubmission && selectedStudent && (
               <div className="space-y-6">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#202631] pb-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Submission Review Workspace</p>
                     <h2 className="mt-1 font-sans text-xl font-semibold text-stone-100">{selectedStudent.name}&apos;s answers</h2>
@@ -5257,8 +5257,8 @@ export default function InstructorWorkstationPage({
         )}
       </div>}
       <div className={`fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm transition-opacity duration-300 ease-in-out ${guidanceOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`} role="presentation" onClick={() => setGuidanceOpen(false)} aria-hidden={!guidanceOpen}>
-        <aside className={`absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-amber-500/40 bg-[#0c1017]/95 p-5 text-stone-200 shadow-2xl backdrop-blur-md transition-transform duration-300 ease-in-out ${guidanceOpen ? "translate-x-0" : "translate-x-full"}`} role="dialog" aria-modal={guidanceOpen} aria-labelledby="workstation-guidance-title" onClick={(event) => event.stopPropagation()}>
-          <div className="flex items-center justify-between border-b border-[#293343] pb-4"><h2 id="workstation-guidance-title" className="flex items-center gap-2 text-sm font-semibold text-amber-400"><Lightbulb className="h-4 w-4" />Lesson Guidance</h2><button type="button" onClick={() => setGuidanceOpen(false)} aria-label="Close lesson guidance" className="rounded-md p-2 text-stone-400 transition hover:bg-white/10 hover:text-stone-100"><X className="h-4 w-4" /></button></div>
+        <aside className={`absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-amber-500/40 bg-background/95 p-5 text-stone-200 shadow-2xl backdrop-blur-md transition-transform duration-300 ease-in-out ${guidanceOpen ? "translate-x-0" : "translate-x-full"}`} role="dialog" aria-modal={guidanceOpen} aria-labelledby="workstation-guidance-title" onClick={(event) => event.stopPropagation()}>
+          <div className="flex items-center justify-between border-b border-border pb-4"><h2 id="workstation-guidance-title" className="flex items-center gap-2 text-sm font-semibold text-amber-400"><Lightbulb className="h-4 w-4" />Lesson Guidance</h2><button type="button" onClick={() => setGuidanceOpen(false)} aria-label="Close lesson guidance" className="rounded-md p-2 text-stone-400 transition hover:bg-white/10 hover:text-stone-100"><X className="h-4 w-4" /></button></div>
           <div className="min-h-0 flex-1 overflow-y-auto py-5"><MarkdownContent value={newLesson.instructorGuidance} className="text-sm leading-relaxed text-stone-300" /></div>
         </aside>
       </div>
@@ -5268,7 +5268,7 @@ export default function InstructorWorkstationPage({
         instructorId={instructorId}
     lessonContext={newLesson.title || newLesson.slug || lessonId}
   />
-      {lessonPendingDelete && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-lesson-title" aria-describedby="delete-lesson-warning"><div className="w-full max-w-md rounded-xl border border-red-500/30 bg-[#171d28] p-6 shadow-2xl"><h2 id="delete-lesson-title" className="font-sans text-xl font-semibold text-stone-100">Delete lesson permanently?</h2><p id="delete-lesson-warning" className="mt-3 text-sm leading-relaxed text-stone-300">This permanently deletes the lesson, its versions, assignments, submissions, feedback, and lesson-linked student resources. This action cannot be undone.</p><p className="mt-2 truncate text-xs text-amber-400">{lessonPendingDelete.title}</p><div className="mt-6 flex justify-end gap-3"><button type="button" disabled={isDeletingLesson} onClick={() => setLessonPendingDelete(null)} className="rounded-md border border-[#394252] px-4 py-2 text-xs  text-stone-300 hover:border-stone-300 disabled:cursor-not-allowed disabled:opacity-50">Cancel</button><button type="button" disabled={isDeletingLesson} onClick={() => void handleDeleteLesson()} className="rounded-md bg-red-500 px-4 py-2 text-xs  text-white hover:bg-red-400 disabled:cursor-wait disabled:opacity-60">{isDeletingLesson ? "Deleting..." : "Delete lesson"}</button></div></div></div>}
+      {lessonPendingDelete && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-lesson-title" aria-describedby="delete-lesson-warning"><div className="w-full max-w-md rounded-xl border border-red-500/30 bg-surface p-6 shadow-2xl"><h2 id="delete-lesson-title" className="font-sans text-xl font-semibold text-stone-100">Delete lesson permanently?</h2><p id="delete-lesson-warning" className="mt-3 text-sm leading-relaxed text-stone-300">This permanently deletes the lesson, its versions, assignments, submissions, feedback, and lesson-linked student resources. This action cannot be undone.</p><p className="mt-2 truncate text-xs text-amber-400">{lessonPendingDelete.title}</p><div className="mt-6 flex justify-end gap-3"><button type="button" disabled={isDeletingLesson} onClick={() => setLessonPendingDelete(null)} className="rounded-md border border-border px-4 py-2 text-xs  text-stone-300 hover:border-stone-300 disabled:cursor-not-allowed disabled:opacity-50">Cancel</button><button type="button" disabled={isDeletingLesson} onClick={() => void handleDeleteLesson()} className="rounded-md bg-red-500 px-4 py-2 text-xs  text-white hover:bg-red-400 disabled:cursor-wait disabled:opacity-60">{isDeletingLesson ? "Deleting..." : "Delete lesson"}</button></div></div></div>}
     </div>
   );
 }

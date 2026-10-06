@@ -113,7 +113,7 @@ export function StudyHubMarkdownResource({ title, value, className = "" }: { tit
         <button type="button" onClick={() => { if (!printMarkdownTables(title, tables)) setExportStatus("Allow pop-ups to print this table as PDF."); }} className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 px-2.5 py-1.5 text-[11px] text-amber-400 transition hover:bg-amber-500/20">
           <FileDown className="h-3.5 w-3.5" /> Download PDF
         </button>
-        <button type="button" onClick={() => void copyOrDownloadText()} className="inline-flex items-center gap-1.5 rounded-md border border-[#394252] px-2.5 py-1.5 text-[11px] text-stone-300 transition hover:border-amber-500/40 hover:text-amber-400">
+        <button type="button" onClick={() => void copyOrDownloadText()} className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] text-stone-300 transition hover:border-amber-500/40 hover:text-amber-400">
           <Copy className="h-3.5 w-3.5" /> Copy / Export Text
         </button>
         {exportStatus && <span className="text-[10px] text-stone-500" role="status">{exportStatus}</span>}

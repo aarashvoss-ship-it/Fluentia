@@ -19,7 +19,7 @@ export function WritingBlockEditor({ block, onChange }: WritingBlockEditorProps)
           value={block.title}
           onChange={(event) => onChange({ title: event.target.value })}
           placeholder="Writing prompt title"
-          className="mt-1 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+          className="mt-1 w-full rounded border border-border bg-background p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
         />
       </label>
       <label className="block text-xs text-stone-500">
@@ -39,7 +39,7 @@ export function WritingBlockEditor({ block, onChange }: WritingBlockEditorProps)
             min={0}
             value={block.minWordCount}
             onChange={(event) => onChange({ minWordCount: Math.max(0, Number(event.target.value) || 0) })}
-            className="mt-1 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+            className="mt-1 w-full rounded border border-border bg-background p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
           />
         </label>
         <label className="block text-xs text-stone-500">
@@ -49,7 +49,7 @@ export function WritingBlockEditor({ block, onChange }: WritingBlockEditorProps)
             min={0}
             value={block.maxWordCount}
             onChange={(event) => onChange({ maxWordCount: Math.max(0, Number(event.target.value) || 0) })}
-            className="mt-1 w-full rounded border border-[#202631] bg-[#0c1017] p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+            className="mt-1 w-full rounded border border-border bg-background p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
           />
         </label>
       </div>
@@ -62,7 +62,7 @@ export function WritingBlockEditor({ block, onChange }: WritingBlockEditorProps)
           ariaLabel="Writing guidance or model answer notes"
         />
       </label>
-      <div className="rounded border border-[#202631] bg-[#0c1017]/50 p-3">
+      <div className="rounded border border-border bg-background/50 p-3">
         <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400">Student preview</p>
         {block.prompt.trim() ? <MarkdownContent value={block.prompt} className="text-sm leading-relaxed text-stone-300" /> : <p className="text-sm text-stone-500">Add instructions to preview this writing task.</p>}
         <WritingBlockRenderer block={block} value="" isPreview />
@@ -108,7 +108,7 @@ export function WritingBlockRenderer({ block, value = "", onChange, isPreview = 
           readOnly={isPreview}
           onChange={(event) => onChange?.(event.target.value)}
           placeholder={isPreview ? "Student essay response" : "Start writing your response..."}
-          className="min-h-[180px] w-full resize-none overflow-hidden rounded-lg border border-[#202631] bg-[#0c1017] p-4 pb-12 text-sm leading-7 text-stone-200 outline-none transition focus:border-amber-500/40 read-only:cursor-default read-only:opacity-80"
+          className="min-h-[180px] w-full resize-none overflow-hidden rounded-lg border border-border bg-background p-4 pb-12 text-sm leading-7 text-stone-200 outline-none transition focus:border-amber-500/40 read-only:cursor-default read-only:opacity-80"
           aria-label="Writing response"
         />
         <div className="pointer-events-none absolute bottom-3 right-3 flex flex-wrap justify-end gap-x-3 gap-y-1 text-[11px] tabular-nums text-stone-500">

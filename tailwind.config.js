@@ -9,16 +9,9 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        background: "#0E1117",
-        surface: {
-          DEFAULT: "#161B22",
-          elevated: "#1F242C",
-          subtle: "#12161D",
-        },
-        border: {
-          subtle: "#262C36",
-          strong: "#3B4352",
-        },
+        background: "rgb(var(--app-background-rgb) / <alpha-value>)",
+        surface: "rgb(var(--card-surface-rgb) / <alpha-value>)",
+        border: "rgb(var(--card-border-rgb) / <alpha-value>)",
         accent: {
           DEFAULT: "#FBBF24",
           hover: "#FCD34D",
@@ -29,8 +22,22 @@ module.exports = {
           secondary: "#9CA3AF",
           muted: "#6B7280",
         },
-        success: "#10B981",
-        warning: "#FBBF24",
+        success: {
+          DEFAULT: "#34D399",
+          subtle: "#064E3B",
+        },
+        warning: {
+          DEFAULT: "#FBBF24",
+          subtle: "#78350F",
+        },
+        info: {
+          DEFAULT: "#38BDF8",
+          subtle: "#0C4A6E",
+        },
+        error: {
+          DEFAULT: "#FB7185",
+          subtle: "#881337",
+        },
       },
       fontFamily: {
         sans: ["var(--font-inter, system-ui)", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],

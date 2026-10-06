@@ -36,7 +36,7 @@ export function LiveStudentPreviewWindow() {
 
   if (!snapshot) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#0c1017] px-5 text-center text-stone-300">
+      <main className="flex min-h-screen items-center justify-center bg-background px-5 text-center text-stone-300">
         <div>
           <h1 className="text-lg font-semibold text-stone-100">Waiting for Lesson Builder</h1>
           <p className="mt-2 text-sm text-stone-500">Keep the builder open to stream unsaved changes into this preview.</p>

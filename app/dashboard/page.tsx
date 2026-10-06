@@ -63,26 +63,26 @@ type LessonStatus =
 const AVATAR_PRESETS = [
   {
     id: "amber",
-    label: "Amber Gold",
-    backgroundColor: "#fbbf24",
-    className: "text-slate-950",
+    label: "Muted Amber",
+    backgroundColor: "#b7791f",
+    className: "text-white",
   },
   {
     id: "indigo",
-    label: "Midnight Indigo",
-    backgroundColor: "#4f46e5",
+    label: "Muted Indigo",
+    backgroundColor: "#4338ca",
     className: "text-white",
   },
   {
     id: "emerald",
-    label: "Emerald Slate",
-    backgroundColor: "#10b981",
-    className: "text-slate-950",
+    label: "Muted Emerald",
+    backgroundColor: "#047857",
+    className: "text-white",
   },
   {
     id: "crimson",
-    label: "Crimson Red",
-    backgroundColor: "#dc2626",
+    label: "Muted Rose",
+    backgroundColor: "#be123c",
     className: "text-white",
   },
 ] as const;
@@ -743,7 +743,7 @@ function DashboardContent() {
   }, [router]);
 
   if (!isMounted) {
-    return <main className="min-h-screen bg-[#0c1017] text-[#e8e7e4]" />;
+    return <main className="min-h-screen bg-background text-[#e8e7e4]" />;
   }
 
   if (accessDenied || !activeStudent) {
@@ -1151,8 +1151,8 @@ function DashboardContent() {
   };
 
   return (
-    <main className="min-h-screen bg-[#0c1017] text-[#e8e7e4] font-sans">
-      {profileSaveNotice && <div role="status" className="fixed bottom-5 right-5 z-[100] flex items-center gap-3 rounded-md border border-emerald-500/30 bg-[#171d28] px-4 py-3 text-xs text-emerald-300 shadow-xl"><span>{profileSaveNotice}</span><button type="button" onClick={() => setProfileSaveNotice(null)} aria-label="Dismiss profile save notification" className="text-emerald-200/70 hover:text-emerald-100"><X className="h-4 w-4" /></button></div>}
+    <main className="min-h-screen bg-background text-[#e8e7e4] font-sans">
+      {profileSaveNotice && <div role="status" className="fixed bottom-5 right-5 z-[100] flex items-center gap-3 rounded-md border border-emerald-500/30 bg-surface px-4 py-3 text-xs text-emerald-300 shadow-xl"><span>{profileSaveNotice}</span><button type="button" onClick={() => setProfileSaveNotice(null)} aria-label="Dismiss profile save notification" className="text-emerald-200/70 hover:text-emerald-100"><X className="h-4 w-4" /></button></div>}
       {profileSaveError && <div role="alert" className="fixed bottom-5 right-5 z-[100] flex items-center gap-3 rounded-md border border-red-500/40 bg-[#241719] px-4 py-3 text-xs text-red-200 shadow-xl"><span>{profileSaveError}</span><button type="button" onClick={() => setProfileSaveError(null)} aria-label="Dismiss profile save error" className="text-red-200/70 hover:text-red-100"><X className="h-4 w-4" /></button></div>}
       {showUnreadFeedbackModal && <div
         className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-4"
@@ -1165,7 +1165,7 @@ function DashboardContent() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="unread-feedback-title"
-          className="w-full max-w-lg rounded-xl border border-emerald-500/30 bg-[#121721] p-5 shadow-2xl"
+          className="w-full max-w-lg rounded-xl border border-emerald-500/30 bg-surface p-5 shadow-2xl"
         >
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -1176,7 +1176,7 @@ function DashboardContent() {
               type="button"
               onClick={() => setShowUnreadFeedbackModal(false)}
               aria-label="Close unread feedback list"
-              className="rounded-md p-1 text-stone-400 transition hover:bg-[#202631] hover:text-stone-100"
+              className="rounded-md p-1 text-stone-400 transition hover:bg-border hover:text-stone-100"
             >
               <X className="h-4 w-4" />
             </button>
@@ -1187,7 +1187,7 @@ function DashboardContent() {
                 <button
                   type="button"
                   onClick={() => openUnreadEvaluation(lesson, submissionId)}
-                  className="flex w-full items-center justify-between gap-3 rounded-lg border border-[#293343] bg-[#0c1017] px-3 py-3 text-left text-sm text-stone-200 transition hover:border-emerald-500/40 hover:bg-emerald-950/20"
+                  className="flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-3 text-left text-sm text-stone-200 transition hover:border-emerald-500/40 hover:bg-emerald-950/20"
                 >
                   <span className="min-w-0 truncate">{lesson.title}</span>
                   <span className="shrink-0 text-xs font-semibold text-emerald-300">View Report Card</span>
@@ -1215,7 +1215,7 @@ function DashboardContent() {
             <HeroBannerContent
               logo={<HeroBannerLogo />}
               badge={
-                <span className="inline-flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 md:text-sm">
+                <span className="inline-flex items-center gap-2 rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 md:text-sm">
                   <UserRound className="h-3.5 w-3.5" />
                   {displayLessons.length} lessons available
                   <span aria-hidden="true">|</span> {studentLevel}
@@ -1243,7 +1243,7 @@ function DashboardContent() {
                     ? { backgroundColor: badgeColor }
                     : undefined
                 }
-                className={`flex h-8 w-8 items-center justify-center overflow-hidden rounded-full text-xs  transition hover:ring-2 hover:ring-amber-500/40 ${avatarImage ? "bg-[#283344]" : selectedAvatar.className}`}
+                className={`flex h-8 w-8 items-center justify-center overflow-hidden rounded-full text-xs  transition hover:ring-2 hover:ring-amber-500/40 ${avatarImage ? "bg-surface" : selectedAvatar.className}`}
               >
                 {avatarImage ? (
                   <img
@@ -1279,9 +1279,9 @@ function DashboardContent() {
               {profileOpen && (
                 <div
                   id="legacy-student-profile-flyout"
-                  className="absolute right-0 top-12 z-50 flex max-h-[min(80vh,620px)] w-[min(22rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-xl border border-[#394252] bg-[#171d28] text-left shadow-2xl"
+                  className="absolute right-0 top-12 z-50 flex max-h-[min(80vh,620px)] w-[min(22rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-xl border border-border bg-surface text-left shadow-2xl"
                 >
-                  <div className="flex items-start justify-between gap-4 border-b border-[#29303c] p-4">
+                  <div className="flex items-start justify-between gap-4 border-b border-border p-4">
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">
                         Student profile
@@ -1299,7 +1299,7 @@ function DashboardContent() {
                       <X className="h-4 w-4" />
                     </button>
                   </div>
-                  <div className="grid grid-cols-2 border-b border-[#29303c] px-4 pt-3">
+                  <div className="grid grid-cols-2 border-b border-border px-4 pt-3">
                     <button
                       type="button"
                       onClick={() => setProfileTab("profile")}
@@ -1334,20 +1334,20 @@ function DashboardContent() {
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <p className="text-stone-500">Level</p>
-                            <p className="mt-1 rounded-md border border-[#394252] bg-[#0c1017] p-2 text-stone-200">
+                            <p className="mt-1 rounded-md border border-border bg-background p-2 text-stone-200">
                               {studentLevel}
                             </p>
                           </div>
                           <div>
                             <p className="text-stone-500">Learning goal</p>
-                            <p className="mt-1 rounded-md border border-[#394252] bg-[#0c1017] p-2 text-stone-200">
+                            <p className="mt-1 rounded-md border border-border bg-background p-2 text-stone-200">
                               {studentLearningGoal}
                             </p>
                           </div>
                         </div>
-                        <div className="border-t border-[#29303c] pt-3">
+                        <div className="border-t border-border pt-3">
                           <p className="text-stone-500">Assigned instructor</p>
-                          <p className="mt-1 rounded-md border border-[#394252] bg-[#0c1017] p-2 text-stone-200">
+                          <p className="mt-1 rounded-md border border-border bg-background p-2 text-stone-200">
                             {assignedInstructorName}
                           </p>
                         </div>
@@ -1369,7 +1369,7 @@ function DashboardContent() {
                                   setCustomAvatarUrl("");
                                 }}
                                 aria-label={`Use ${preset.label} avatar`}
-                                className={`flex flex-col items-center gap-1 rounded-md border p-2 text-[10px] text-stone-400 transition ${avatarPreset === preset.id && !avatarImage ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-[#394252] hover:border-amber-500/40"}`}
+                                className={`flex flex-col items-center gap-1 rounded-md border p-2 text-[10px] text-stone-400 transition ${avatarPreset === preset.id && !avatarImage                                 ? "border-amber-500/20 bg-amber-500/10 text-amber-400" : "border-border hover:border-amber-500/40"}`}
                               >
                                 <span
                                   style={{
@@ -1383,7 +1383,7 @@ function DashboardContent() {
                               </button>
                             ))}
                           </div>
-                          <div className="mt-3 flex items-center gap-2 rounded-md border border-[#29303c] bg-[#0c1017] p-2">
+                          <div className="mt-3 flex items-center gap-2 rounded-md border border-border bg-background p-2">
                             <span
                               style={
                                 !avatarImage
@@ -1392,7 +1392,7 @@ function DashboardContent() {
                                     }
                                   : undefined
                               }
-                              className={`flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-bold ${avatarImage ? "bg-[#283344]" : selectedAvatar.className}`}
+                              className={`flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-bold ${avatarImage ? "bg-surface" : selectedAvatar.className}`}
                             >
                               {avatarImage ? (
                                 <img
@@ -1416,7 +1416,7 @@ function DashboardContent() {
                                 setCustomAvatarUrl(event.target.value)
                               }
                               placeholder="https://..."
-                              className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2 text-xs text-stone-200"
+                              className="mt-1 w-full rounded-md border border-border bg-background p-2 text-xs text-stone-200"
                             />
                           </label>
                         </div>
@@ -1433,7 +1433,7 @@ function DashboardContent() {
                                   setBannerPreset(preset.id);
                                   setCustomBannerUrl("");
                                 }}
-                                className={`overflow-hidden rounded-md border text-left transition ${bannerPreset === preset.id && !customBannerUrl ? "border-amber-500/40" : "border-[#394252] hover:border-amber-500/40"}`}
+                                className={`overflow-hidden rounded-md border text-left transition ${bannerPreset === preset.id && !customBannerUrl ? "border-amber-500/40" : "border-border hover:border-amber-500/40"}`}
                               >
                                 <img
                                   src={preset.image}
@@ -1454,14 +1454,14 @@ function DashboardContent() {
                                 setCustomBannerUrl(event.target.value)
                               }
                               placeholder="https://..."
-                              className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2 text-xs text-stone-200"
+                              className="mt-1 w-full rounded-md border border-border bg-background p-2 text-xs text-stone-200"
                             />
                           </label>
                         </div>
                       </div>
                     )}
                   </div>
-                  <div className="border-t border-[#29303c] bg-[#171d28] p-4">
+                  <div className="border-t border-border bg-surface p-4">
                     <button
                       type="button"
                       onClick={() => void saveProfileCustomization()}
@@ -1514,11 +1514,11 @@ function DashboardContent() {
 
         <div className="py-8">
           <section
-            className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch border-b border-[#202631] py-6"
+            className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch border-b border-border py-6"
             aria-label="Student progress overview"
           >
             <div
-              className="relative order-last flex h-full min-h-[104px] flex-col justify-center rounded-xl border border-[#202631] bg-[#121721] p-4"
+              className="relative order-last flex h-full min-h-[104px] flex-col justify-center rounded-xl border border-border bg-surface p-4"
               aria-label="Student profile"
             >
               <div className="flex items-center gap-3">
@@ -1534,7 +1534,7 @@ function DashboardContent() {
                       ? { backgroundColor: badgeColor }
                       : undefined
                   }
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs  transition hover:ring-2 hover:ring-amber-500/40 ${avatarImage ? "bg-[#283344]" : selectedAvatar.className}`}
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs  transition hover:ring-2 hover:ring-amber-500/40 ${avatarImage ? "bg-surface" : selectedAvatar.className}`}
                 >
                   {avatarImage ? (
                     <img
@@ -1572,9 +1572,9 @@ function DashboardContent() {
               {profileOpen && (
                 <div
                   id="student-profile-flyout"
-                  className="absolute right-0 top-full z-50 mt-2 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-[#394252] bg-[#171d28] text-left shadow-2xl"
+                  className="absolute right-0 top-full z-50 mt-2 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border bg-surface text-left shadow-2xl"
                 >
-                  <div className="flex items-center justify-between gap-3 border-b border-[#29303c] p-4">
+                  <div className="flex items-center justify-between gap-3 border-b border-border p-4">
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">
                         Student profile
@@ -1594,7 +1594,7 @@ function DashboardContent() {
                     </button>
                     </Tooltip>
                   </div>
-                  <div className="grid grid-cols-2 border-b border-[#29303c] px-4 pt-3">
+                  <div className="grid grid-cols-2 border-b border-border px-4 pt-3">
                     <Tooltip content="View your profile and learning preferences">
                     <button
                       type="button"
@@ -1633,20 +1633,20 @@ function DashboardContent() {
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <p className="text-stone-500">Level</p>
-                            <p className="mt-1 rounded-md border border-[#394252] bg-[#0c1017] p-2 text-stone-200">
+                            <p className="mt-1 rounded-md border border-border bg-background p-2 text-stone-200">
                               {studentLevel}
                             </p>
                           </div>
                           <div>
                             <p className="text-stone-500">Learning goal</p>
-                            <p className="mt-1 rounded-md border border-[#394252] bg-[#0c1017] p-2 text-stone-200">
+                            <p className="mt-1 rounded-md border border-border bg-background p-2 text-stone-200">
                               {studentLearningGoal}
                             </p>
                           </div>
                         </div>
-                        <div className="border-t border-[#29303c] pt-3">
+                        <div className="border-t border-border pt-3">
                           <p className="text-stone-500">Assigned instructor</p>
-                          <p className="mt-1 rounded-md border border-[#394252] bg-[#0c1017] p-2 text-stone-200">
+                          <p className="mt-1 rounded-md border border-border bg-background p-2 text-stone-200">
                             {assignedInstructorName}
                           </p>
                         </div>
@@ -1669,7 +1669,7 @@ function DashboardContent() {
                                 }}
                                 aria-label={`Use ${preset.label} badge color`}
                                 aria-pressed={avatarPreset === preset.id}
-                                className={`flex items-center gap-2 rounded-md border px-2 py-2 text-left text-[10px] text-stone-300 ${avatarPreset === preset.id ? "border-amber-500/40" : "border-[#394252] hover:border-amber-500/40"}`}
+                                className={`flex items-center gap-2 rounded-md border px-2 py-2 text-left text-[10px] text-stone-300 ${avatarPreset === preset.id ? "border-amber-500/40" : "border-border hover:border-amber-500/40"}`}
                               >
                                 <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: preset.backgroundColor }} />
                                 <span className="truncate">{preset.label}</span>
@@ -1683,11 +1683,11 @@ function DashboardContent() {
                               onChange={(event) => setAvatarInitials(event.target.value.replace(/[^a-z]/gi, "").slice(0, 3).toUpperCase())}
                               maxLength={3}
                               placeholder={defaultProfileInitials}
-                              className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2 text-xs uppercase text-stone-200"
+                              className="mt-1 w-full rounded-md border border-border bg-background p-2 text-xs uppercase text-stone-200"
                             />
                             <span className="mt-1 block text-[10px] text-stone-500">Leave blank to use your name initials.</span>
                           </label>
-                          <div className="mt-3 flex items-center gap-3 rounded-md border border-[#29303c] bg-[#0c1017] p-2">
+                          <div className="mt-3 flex items-center gap-3 rounded-md border border-border bg-background p-2">
                             <span style={{ backgroundColor: avatarColor }} className={`flex h-10 w-10 items-center justify-center overflow-hidden rounded-full text-xs font-bold ${selectedAvatar.className}`}>
                               {visibleAvatarInitials}
                             </span>
@@ -1696,13 +1696,13 @@ function DashboardContent() {
                         </div>
                         <div className="space-y-2">
                           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Custom avatar image</p>
-                          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 hover:border-amber-500/40">
+                          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-stone-300 hover:border-amber-500/40">
                             <Upload className="h-4 w-4" />{isUploadingAvatar ? "Uploading avatar..." : "Upload avatar image"}
                             <input ref={avatarFileRef} type="file" accept="image/jpeg,image/png,image/webp" disabled={isUploadingAvatar} onChange={(event) => void uploadProfileImage(event.target.files?.[0], "avatar")} className="sr-only" />
                           </label>
                           <p className="text-[10px] leading-relaxed text-stone-500">Recommended: 400×400 px (1:1). Max 2 MB. JPG, PNG, or WEBP.</p>
                           <label className="block text-xs text-stone-400">Or use an image URL
-                            <input value={customAvatarUrl} onChange={(event) => setCustomAvatarUrl(event.target.value)} placeholder="https://..." className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2 text-xs text-stone-200" />
+                            <input value={customAvatarUrl} onChange={(event) => setCustomAvatarUrl(event.target.value)} placeholder="https://..." className="mt-1 w-full rounded-md border border-border bg-background p-2 text-xs text-stone-200" />
                           </label>
                         </div>
                         <div className="space-y-2">
@@ -1722,7 +1722,7 @@ function DashboardContent() {
                                   }}
                                   aria-label={`Use ${preset.label} banner`}
                                   aria-pressed={isSelected}
-                                  className={`overflow-hidden rounded-md border transition ${isSelected ? "border-amber-500/40 ring-1 ring-amber-500/40" : "border-[#394252] hover:border-amber-500/40"}`}
+                                  className={`overflow-hidden rounded-md border transition ${isSelected ? "border-amber-500/40 ring-1 ring-amber-500/40" : "border-border hover:border-amber-500/40"}`}
                                 >
                                   <img src={preset.image} alt="" className="h-12 w-full object-cover" />
                                   <span className="block truncate px-1.5 py-1 text-left text-[9px] text-stone-300">
@@ -1732,7 +1732,7 @@ function DashboardContent() {
                               );
                             })}
                           </div>
-                          <div className="relative aspect-video overflow-hidden rounded-md border border-[#29303c] bg-[#0c1017]">
+                          <div className="relative aspect-video overflow-hidden rounded-md border border-border bg-background">
                             <img
                               src={activeBannerUrl}
                               alt="Banner preview"
@@ -1765,20 +1765,20 @@ function DashboardContent() {
                               className="mt-1 w-full accent-amber-500"
                             />
                           </label>
-                          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 hover:border-amber-500/40">
+                          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-stone-300 hover:border-amber-500/40">
                             <Upload className="h-4 w-4" />{isUploadingBanner ? "Uploading banner..." : "Upload banner image"}
                             <input ref={bannerFileRef} type="file" accept="image/jpeg,image/png,image/webp" disabled={isUploadingBanner} onChange={(event) => void uploadProfileImage(event.target.files?.[0], "banner")} className="sr-only" />
                           </label>
                           <p className="text-[10px] leading-relaxed text-stone-500">Recommended: 1200×300 px (4:1). Max 5 MB. JPG, PNG, or WEBP.</p>
                           <label className="block text-xs text-stone-400">Or use an image URL
-                            <input value={customBannerUrl} onChange={(event) => setCustomBannerUrl(event.target.value)} placeholder="https://..." className="mt-1 w-full rounded-md border border-[#394252] bg-[#0c1017] p-2 text-xs text-stone-200" />
+                            <input value={customBannerUrl} onChange={(event) => setCustomBannerUrl(event.target.value)} placeholder="https://..." className="mt-1 w-full rounded-md border border-border bg-background p-2 text-xs text-stone-200" />
                           </label>
                         </div>
-                        {profileImageStatus && <p role="status" className="rounded-md border border-amber-500/40 bg-amber-500/20 p-2 text-[10px] text-amber-400">{profileImageStatus}</p>}
+                        {profileImageStatus && <p role="status" className="rounded-md border border-amber-400/20 bg-amber-950/30 p-2 text-[10px] text-amber-400">{profileImageStatus}</p>}
                       </>
                     )}
                   </div>
-                  <div className="border-t border-[#29303c] bg-[#171d28] p-4">
+                  <div className="border-t border-border bg-surface p-4">
                     <Tooltip content="Save your profile and appearance settings">
                     <button
                       type="button"
@@ -1794,7 +1794,7 @@ function DashboardContent() {
               )}
             </div>
             <Tooltip content={`${completedLessons} of ${displayLessons.length} available lessons are complete`}>
-            <div className="flex h-full min-h-[104px] w-full flex-col justify-center rounded-xl border border-[#202631] bg-[#121721] p-4">
+            <div className="flex h-full min-h-[104px] w-full flex-col justify-center rounded-xl border border-border bg-surface p-4">
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#667084]">
                 Lessons Completed
               </p>
@@ -1815,13 +1815,13 @@ function DashboardContent() {
               type="button"
               onClick={handleEvaluationStatusClick}
               aria-haspopup={unreadEvaluations.length > 1 ? "dialog" : undefined}
-              className="flex h-full min-h-[104px] w-full cursor-pointer flex-col justify-center rounded-xl border border-[#202631] bg-[#121721] p-4 text-left transition hover:border-emerald-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+              className="flex h-full min-h-[104px] w-full cursor-pointer flex-col justify-center rounded-xl border border-border bg-surface p-4 text-left transition hover:border-emerald-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
             >
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#667084]">
                 Overall Evaluation Status
               </p>
               <p
-                className={`mt-2 flex items-center gap-2 text-sm font-semibold ${hasPublishedFeedback ? "text-emerald-300" : "text-amber-400"}`}
+                className={`mt-2 flex items-center gap-2 text-sm font-semibold ${hasPublishedFeedback ? "text-emerald-400" : "text-amber-400"}`}
               >
                 {hasPublishedFeedback ? (
                   <CheckCircle2 className="h-4 w-4" />
@@ -1843,7 +1843,7 @@ function DashboardContent() {
           </section>
 
           <section
-            className="mt-6 rounded-xl border border-amber-500/40 bg-[#121721] p-5"
+            className="mt-6 rounded-xl border border-amber-500/40 bg-surface p-5"
             aria-label="Instructor note"
           >
             <div className="flex items-start gap-3">
@@ -1860,7 +1860,7 @@ function DashboardContent() {
           </section>
 
           <section
-            className="mt-6 rounded-xl border border-[#202631] bg-[#121721] p-5"
+            className="mt-6 rounded-xl border border-border bg-surface p-5"
             aria-label="My Vocabulary and Flashcards"
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1896,7 +1896,7 @@ function DashboardContent() {
                 <button
                   type="button"
                   onClick={() => setShowDefinition((shown) => !shown)}
-                  className="flex min-h-24 flex-1 items-center justify-center rounded-lg border border-amber-500/40 bg-[#0c1017] p-4 text-center transition hover:border-amber-500/40"
+                  className="flex min-h-24 flex-1 items-center justify-center rounded-lg border border-amber-500/40 bg-background p-4 text-center transition hover:border-amber-500/40"
                 >
                   <span className="font-sans text-2xl text-stone-100">
                     {showDefinition ? currentCard.definition : currentCard.word}
@@ -1922,7 +1922,7 @@ function DashboardContent() {
                 </div>
               </div>
             ) : (
-              <p className="mt-4 rounded-lg border border-dashed border-[#394252] p-4 text-sm text-stone-500">
+              <p className="mt-4 rounded-lg border border-dashed border-border p-4 text-sm text-stone-500">
                 Save words in the Study Room dictionary to build your first
                 deck.
               </p>
@@ -1931,7 +1931,7 @@ function DashboardContent() {
 
           {nextLesson && (
             <section className="mt-6" aria-label="Continue learning">
-              <article className="group relative h-64 w-full overflow-hidden rounded-xl border border-[#202631] bg-[#121721] transition-colors duration-300 hover:border-amber-500/40">
+              <article className="group relative h-64 w-full overflow-hidden rounded-xl border border-border bg-surface transition-colors duration-300 hover:border-amber-500/40">
                 <img
                   src={instructorLessonBanner || BANNER_PRESETS[0].image}
                   alt=""
@@ -1939,7 +1939,7 @@ function DashboardContent() {
                   className="absolute inset-0 h-full w-full object-cover"
                 />
                 <div style={{ opacity: nextLessonBannerDimness / 100 }} className="absolute inset-0 bg-[linear-gradient(90deg,rgba(12,16,23,.72),rgba(12,16,23,.24)),linear-gradient(0deg,rgba(12,16,23,.92),transparent_65%)]" />
-                <span className="absolute left-5 top-4 z-10 rounded-md px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 bg-amber-500/20 border border-amber-500/40">
+                <span className="absolute left-5 top-4 z-10 rounded-md px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 bg-amber-500/10 border border-amber-500/20">
                   Module {activeModuleNumber ?? 1}
                 </span>
                 <div className="relative flex h-full flex-col justify-end p-5 md:p-7">
@@ -1961,14 +1961,16 @@ function DashboardContent() {
                       {nextLessonStatus && (
                         <span className={`rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${
                           nextLessonStatus === "in-progress"
-                            ? "border-sky-500/30 bg-sky-500/10 text-sky-300"
-                            : "border-[#394252] bg-[#171d28]/80 text-stone-400"
+                            ? "border-sky-400/20 bg-sky-950/40 text-sky-400"
+                            : nextLessonStatus === "pending-review"
+                              ? "border-amber-400/20 bg-amber-950/30 text-amber-400"
+                              : "border-border bg-surface/80 text-stone-400"
                         }`}>
                           {getLessonStatusCopy(nextLessonStatus)}
                         </span>
                       )}
                       <p className="flex items-center gap-2 text-[11px] text-stone-500">
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#283344] text-[8px] font-semibold text-amber-400">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-surface text-[8px] font-semibold text-amber-400">
                           {nextLesson.content?.instructor?.initials ||
                             assignedInstructorInitials}
                         </span>{" "}
@@ -1983,7 +1985,7 @@ function DashboardContent() {
                       <Link
                         href={getLessonHref(nextLesson, nextLessonStatus || "not-started")}
                         onClick={() => rememberLesson(nextLesson.id)}
-                        className="inline-flex w-fit items-center rounded-md bg-amber-500/20 px-3 py-2 text-xs font-normal text-amber-400 transition-colors hover:bg-amber-500/20"
+                        className="inline-flex w-fit items-center rounded-md border border-border bg-surface px-3 py-2 text-xs font-medium text-stone-300 transition hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-300"
                       >
                         {nextLessonStatus === "in-progress" ? "Continue Lesson" : "Start Lesson"}
                         <span className="ml-2" aria-hidden="true">-&gt;</span>
@@ -1997,7 +1999,7 @@ function DashboardContent() {
 
           {!nextLesson && (
             <section className="mt-6" aria-label="Continue learning">
-              <div className="flex h-64 flex-col justify-center rounded-xl border border-[#202631] bg-[#121721] p-5 md:p-7">
+              <div className="flex h-64 flex-col justify-center rounded-xl border border-border bg-surface p-5 md:p-7">
                 <div className="flex items-center gap-2 text-amber-400">
                   <Flame className="h-4 w-4" />
                   <span className="text-[10px] font-semibold uppercase tracking-[0.16em]">
@@ -2016,7 +2018,7 @@ function DashboardContent() {
 
           {latestReport?.published && (
             <section
-              className="mt-6 rounded-xl border border-[#202631] bg-[#121721] p-5"
+              className="mt-6 rounded-xl border border-border bg-surface p-5"
               aria-label="Latest analytical report"
             >
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">
@@ -2083,7 +2085,7 @@ function DashboardContent() {
             )}
             <div className="grid gap-5 md:grid-cols-2">
               {availableLessons.length === 0 ? (
-                <p className="col-span-full rounded-xl border border-dashed border-[#202631] bg-[#121721] p-6 text-center text-sm text-stone-500">
+                <p className="col-span-full rounded-xl border border-dashed border-border bg-surface p-6 text-center text-sm text-stone-500">
                   No previous lessons yet. Your instructor will assign more
                   lessons here.
                 </p>
@@ -2108,9 +2110,9 @@ function DashboardContent() {
                   return (
                     <article
                       key={lesson.id}
-                      className="group flex flex-col overflow-hidden rounded-xl border border-[#202631] bg-[#121721] transition-colors duration-300 hover:border-amber-500/40"
+                      className="group flex flex-col overflow-hidden rounded-xl border border-border bg-surface transition-colors duration-300 hover:border-amber-500/40"
                     >
-                      <div className="relative h-44 overflow-hidden border-b border-[#202631]">
+                      <div className="relative h-44 overflow-hidden border-b border-border">
                         <img
                           src={
                             (typeof lesson.content?.coverImage === "string"
@@ -2124,7 +2126,7 @@ function DashboardContent() {
                           className="h-full w-full object-cover"
                         />
                         <div style={{ opacity: lessonBannerDimness / 100 }} className="absolute inset-0 bg-[linear-gradient(90deg,rgba(12,16,23,.72),rgba(12,16,23,.24)),linear-gradient(0deg,rgba(12,16,23,.92),transparent_65%)]" />
-                        <span className="absolute bottom-4 left-5 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 bg-amber-500/20 border border-amber-500/40 rounded-md">
+                        <span className="absolute bottom-4 left-5 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-md">
                           Module {lesson.content?.moduleNumber || 1}
                         </span>
                       </div>
@@ -2140,12 +2142,12 @@ function DashboardContent() {
                           <span
                             className={`rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${
                               status === "completed"
-                                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                                ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-400"
                                 : status === "pending-review"
-                                  ? "border-amber-500/40 bg-amber-500/20 text-amber-400"
+                                  ? "border-amber-400/20 bg-amber-950/30 text-amber-400"
                                   : status === "in-progress"
-                                    ? "border-sky-500/30 bg-sky-500/10 text-sky-300"
-                                    : "border-[#394252] bg-[#171d28] text-stone-400"
+                                    ? "border-sky-400/20 bg-sky-950/40 text-sky-400"
+                                    : "border-border bg-surface text-stone-400"
                             }`}
                           >
                             {statusCopy}
@@ -2161,7 +2163,7 @@ function DashboardContent() {
                               "Continue your personalized language practice."}
                           </p>
                           <p className="mt-3 flex items-center gap-2 text-[11px] text-stone-500">
-                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#283344] text-[8px] font-semibold text-amber-400">
+                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-surface text-[8px] font-semibold text-amber-400">
                               {lesson.content?.instructor?.initials ||
                                 assignedInstructorInitials}
                             </span>{" "}
@@ -2172,7 +2174,7 @@ function DashboardContent() {
                         </div>
                         {status === "completed" &&
                           lessonStates[lesson.id]?.evaluation?.published && (
-                            <details className="mt-5 border-t border-[#202631] pt-4">
+                            <details className="mt-5 border-t border-border pt-4">
                               <Tooltip content="Expand the evaluation scores and instructor feedback">
                               <summary className="cursor-pointer text-xs font-semibold text-amber-400 hover:text-amber-400">
                                 View analytical report
@@ -2232,11 +2234,7 @@ function DashboardContent() {
                             <Link
                               href={getLessonHref(lesson, status)}
                               onClick={() => rememberLesson(lesson.id)}
-                              className={`inline-flex rounded-md px-3 py-2 text-xs transition-colors ${
-                                status === "completed"
-                                  ? "border border-emerald-500/40 bg-emerald-950/40 font-medium text-emerald-400 transition hover:border-emerald-500/70 hover:bg-emerald-500/20"
-                                  : "bg-amber-500/20 text-amber-400 group-hover:bg-amber-500/20"
-                              }`}
+                              className="inline-flex rounded-md border border-border bg-surface px-3 py-2 text-xs font-medium text-stone-300 transition hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-300"
                             >
                               {ctaCopy}
                             </Link>

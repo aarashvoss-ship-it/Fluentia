@@ -91,18 +91,18 @@ export default function StudyHubPage() {
   };
 
   if (loading) {
-    return <main className="flex min-h-dvh items-center justify-center bg-[#0c1017] text-sm text-stone-400">Loading Study Hub...</main>;
+    return <main className="flex min-h-dvh items-center justify-center bg-background text-sm text-stone-400">Loading Study Hub...</main>;
   }
 
   if (error && !lesson) {
-    return <main className="flex min-h-dvh items-center justify-center bg-[#0c1017] px-6 text-center text-sm text-red-300" role="alert">{error}</main>;
+    return <main className="flex min-h-dvh items-center justify-center bg-background px-6 text-center text-sm text-red-300" role="alert">{error}</main>;
   }
 
   if (!lesson) return null;
 
   return (
-    <main className="h-dvh overflow-hidden bg-[#0c1017]">
-      {error && <p className="absolute left-4 top-4 z-10 rounded-md border border-red-500/30 bg-[#171d28] px-3 py-2 text-xs text-red-300" role="alert">{error}</p>}
+    <main className="h-dvh overflow-hidden bg-background">
+      {error && <p className="absolute left-4 top-4 z-10 rounded-md border border-red-500/30 bg-surface px-3 py-2 text-xs text-red-300" role="alert">{error}</p>}
       <LearningSidebar
         open
         standalone

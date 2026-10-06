@@ -107,9 +107,9 @@ export function StudentStudyRoomPreview({
       }
       return (
         <div className="space-y-4">
-          <div className="rounded-lg border border-amber-500/40 bg-[#0c1017] p-4 text-sm text-stone-400">Results - correct answers as the student will see after submission.</div>
+          <div className="rounded-lg border border-amber-500/40 bg-background p-4 text-sm text-stone-400">Results - correct answers as the student will see after submission.</div>
           {Object.keys(answerKeys).length
-            ? Object.entries(answerKeys).map(([id, answer]) => <div key={id} className="rounded-lg border border-[#293343] bg-[#0c1017] p-3"><p className="text-xs text-stone-500">{id}</p><p className="text-sm text-amber-400">{answer}</p></div>)
+            ? Object.entries(answerKeys).map(([id, answer]) => <div key={id} className="rounded-lg border border-border bg-background p-3"><p className="text-xs text-stone-500">{id}</p><p className="text-sm text-amber-400">{answer}</p></div>)
             : <p className="text-xs text-stone-500">No answer keys configured.</p>}
         </div>
       );
@@ -125,17 +125,17 @@ export function StudentStudyRoomPreview({
           const rowEmptyMode = block.rowEmptyMode || block.whenEmpty;
           const expandsInlineRow = block.layoutMode === "inline-row" && !sidebarBlock && rowEmptyMode === "full";
           const article = (
-            <article key={block.id} className="rounded-xl border border-[#202631] bg-[#121721] p-5">
+            <article key={block.id} className="rounded-xl border border-border bg-surface p-5">
               {block.title && (
                 <h3 className="mb-3 flex items-center gap-2 font-sans text-xl font-semibold text-stone-100">
                   {block.icon && <DynamicLucideIcon name={block.icon} className="h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />}
                   {block.title}
                 </h3>
               )}
-              {block.type === "text" && <><MarkdownContent value={block.body || ""} className="text-sm leading-relaxed text-stone-300" />{block.hasStudentResponseInput === true && <textarea rows={6} placeholder="Write your response here..." readOnly className="mt-4 min-h-[140px] w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" aria-label="Student response field preview" />}</>}
+              {block.type === "text" && <><MarkdownContent value={block.body || ""} className="text-sm leading-relaxed text-stone-300" />{block.hasStudentResponseInput === true && <textarea rows={6} placeholder="Write your response here..." readOnly className="mt-4 min-h-[140px] w-full resize-y rounded border border-border bg-surface p-3 text-sm text-stone-400" aria-label="Student response field preview" />}</>}
               {block.type === "image" && <>{block.imageUrl && <img src={block.imageUrl} alt={block.caption || block.title || "Lesson image"} className="max-h-72 w-full rounded-md object-cover" onError={(event) => { event.currentTarget.style.display = "none"; }} />}{block.caption && <p className="mt-2 text-xs text-stone-500">{block.caption}</p>}</>}
               {block.type === "audio" && block.audioUrl && <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio lesson"} />}
-              {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} />{block.show_reflection_prompt !== false && block.reflection_prompt_text?.trim() && <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/20 p-4"><p className="text-sm font-semibold text-amber-400">Reflection Question</p><MarkdownContent value={block.reflection_prompt_text.trim()} className="mt-2 text-sm leading-relaxed text-stone-300" /><textarea rows={4} placeholder="Write your reflection here..." readOnly className="mt-3 w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" aria-label="Reflection question response preview" /></div>}</>}
+              {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} />{block.show_reflection_prompt !== false && block.reflection_prompt_text?.trim() && <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/20 p-4"><p className="text-sm font-semibold text-amber-400">Reflection Question</p><MarkdownContent value={block.reflection_prompt_text.trim()} className="mt-2 text-sm leading-relaxed text-stone-300" /><textarea rows={4} placeholder="Write your reflection here..." readOnly className="mt-3 w-full resize-y rounded border border-border bg-surface p-3 text-sm text-stone-400" aria-label="Reflection question response preview" /></div>}</>}
               {block.type === "resource" && block.resourceUrl && <a href={block.resourceUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded border border-amber-500/40 bg-amber-500/20 p-3 text-sm text-amber-400 hover:border-amber-500/40">Open document{block.description ? `: ${block.description}` : ""}</a>}
               {block.type === "fill-in-the-blanks" && <FillInBlanksMarkdown blockId={block.id} text={block.textWithBlanks} acceptableAnswers={block.acceptableAnswers} wordBank={block.wordBank} caseSensitive={block.caseSensitive} values={{}} readOnly className="text-sm leading-relaxed text-stone-300" />}
               {block.type === "question" && <ExerciseQuestions mode="interactive" questions={[{ id: block.id, type: block.question_type === "open_ended" ? "short_answer" : "multiple_choice", prompt: block.prompt || "", options: block.options, correct_answer: block.correct_answer, sample_answer: block.sample_answer }]} readOnly />}
@@ -161,13 +161,13 @@ export function StudentStudyRoomPreview({
             </StudyRoomBlockRow>
           );
         })}
-        {blocks.length === 0 && <p className="rounded-lg border border-dashed border-[#394252] p-6 text-sm text-stone-500">This step has no content blocks yet.</p>}
+        {blocks.length === 0 && <p className="rounded-lg border border-dashed border-border p-6 text-sm text-stone-500">This step has no content blocks yet.</p>}
       </div>
     );
   };
 
   return (
-    <div className={`fluentia-study-room bg-[#0c1017] text-[#e8e7e4] ${embedded ? "h-full min-h-full" : "min-h-screen"}`}>
+    <div className={`fluentia-study-room bg-background text-[#e8e7e4] ${embedded ? "h-full min-h-full" : "min-h-screen"}`}>
       <div className="mx-auto max-w-7xl px-4 py-5 md:px-6">
         <HeroBanner imageUrl={bannerUrl} position={bannerPosition} dimness={bannerDimness}>
           <div className="space-y-2.5">
@@ -188,7 +188,7 @@ export function StudentStudyRoomPreview({
             </div>
           </header>
         </div>
-        <div className="border-t border-[#202631]" />
+        <div className="border-t border-border" />
         <main className="min-h-[560px] py-5">{renderStep()}</main>
       </div>
       <LearningSidebar

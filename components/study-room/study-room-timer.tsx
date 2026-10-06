@@ -266,7 +266,7 @@ export function StudyRoomTimer() {
         <span className="font-mono tabular-nums">{formatTime(displayedSeconds, timer.mode === "stopwatch")}</span>
       </button>
       {isOpen && (
-        <section className="absolute right-0 top-full z-50 mt-2 w-[min(21rem,calc(100vw-2rem))] rounded-lg border border-[#394252] bg-[#171d28] p-4 text-stone-200 shadow-2xl" aria-label="Study room timer">
+        <section className="absolute right-0 top-full z-50 mt-2 w-[min(21rem,calc(100vw-2rem))] rounded-lg border border-border bg-surface p-4 text-stone-200 shadow-2xl" aria-label="Study room timer">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Study Timer</p>
@@ -294,8 +294,8 @@ export function StudyRoomTimer() {
               <label className="text-[10px] text-stone-400">Focus minutes<input type="number" min={1} max={240} value={timer.focusMinutes} onChange={(event) => {
                 const focusMinutes = Math.min(240, Math.max(1, Number(event.target.value) || 1));
                 setTimer((current) => ({ ...current, focusMinutes, remainingSeconds: current.phase === "focus" && !current.running ? focusMinutes * 60 : current.remainingSeconds }));
-              }} className="mt-1 w-full rounded border border-[#394252] bg-[#0c1017] px-2 py-1.5 text-xs text-stone-200" /></label>
-              <label className="text-[10px] text-stone-400">Break minutes<input type="number" min={1} max={120} value={timer.breakMinutes} onChange={(event) => setTimer((current) => ({ ...current, breakMinutes: Math.min(120, Math.max(1, Number(event.target.value) || 1)) }))} className="mt-1 w-full rounded border border-[#394252] bg-[#0c1017] px-2 py-1.5 text-xs text-stone-200" /></label>
+              }} className="mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-stone-200" /></label>
+              <label className="text-[10px] text-stone-400">Break minutes<input type="number" min={1} max={120} value={timer.breakMinutes} onChange={(event) => setTimer((current) => ({ ...current, breakMinutes: Math.min(120, Math.max(1, Number(event.target.value) || 1)) }))} className="mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-stone-200" /></label>
             </div>}
           </div>}
 
@@ -307,11 +307,11 @@ export function StudyRoomTimer() {
               <label className="text-[10px] text-stone-400">Minutes<input type="number" min={0} max={999} value={timer.countdownMinutes} onChange={(event) => {
                 const countdownMinutes = Math.min(999, Math.max(0, Number(event.target.value) || 0));
                 setTimer((current) => ({ ...current, countdownMinutes, running: false, endsAt: null, remainingSeconds: countdownMinutes * 60 + current.countdownSeconds }));
-              }} className="mt-1 w-full rounded border border-[#394252] bg-[#0c1017] px-2 py-1.5 text-xs text-stone-200" /></label>
+              }} className="mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-stone-200" /></label>
               <label className="text-[10px] text-stone-400">Seconds<input type="number" min={0} max={59} value={timer.countdownSeconds} onChange={(event) => {
                 const countdownSeconds = Math.min(59, Math.max(0, Number(event.target.value) || 0));
                 setTimer((current) => ({ ...current, countdownSeconds, running: false, endsAt: null, remainingSeconds: current.countdownMinutes * 60 + countdownSeconds }));
-              }} className="mt-1 w-full rounded border border-[#394252] bg-[#0c1017] px-2 py-1.5 text-xs text-stone-200" /></label>
+              }} className="mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-stone-200" /></label>
             </div>
           </div>}
 

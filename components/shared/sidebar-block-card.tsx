@@ -26,9 +26,9 @@ export function SidebarBlockCard({
   }, [imageUrl]);
 
   return (
-    <article className="min-w-0 overflow-hidden rounded-xl border border-[#202631] bg-[#121721]">
+    <article className="min-w-0 overflow-hidden rounded-xl border border-border bg-surface">
       {imageUrl && !imageFailed && (
-        <div className="aspect-[4/3] w-full overflow-hidden bg-[#0c1017]">
+        <div className="aspect-[4/3] w-full overflow-hidden bg-background">
           <img
             src={imageUrl}
             alt={altText || ""}

@@ -444,9 +444,9 @@ export function SubmissionEvaluator({
     ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
     : status === "In progress"
       ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-      : "border-[#394252] bg-[#171d28] text-stone-500";
+      : "border-border bg-surface text-stone-500";
   const feedbackError = submitError || (useSupabase && submissionLoadState === "missing" ? "Student has not submitted work for this lesson yet." : null);
-  const stageStepper = <div className="w-full min-w-0 overflow-x-auto border-b border-[#293343]">
+  const stageStepper = <div className="w-full min-w-0 overflow-x-auto border-b border-border">
     <nav className="flex w-full min-w-0 justify-between gap-0 px-0" aria-label="Evaluation stages">
       {stages.map((stage, index) => <button
         key={stage.id}
@@ -467,7 +467,7 @@ export function SubmissionEvaluator({
       </button>
     </nav>
   </div>;
-  const stageHeading = <header className="flex flex-wrap items-end justify-between gap-3 border-b border-[#202631] pb-4">
+  const stageHeading = <header className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-4">
     <div>
       <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-amber-400">{activeStageId === reportStageId ? "Final review" : `Stage ${String(activeStageIndex + 1).padStart(2, "0")} of 07`}</p>
       <h2 className="mt-1 text-xl font-semibold text-stone-100">{activeStageTitle}</h2>
@@ -489,7 +489,7 @@ export function SubmissionEvaluator({
       <button type="button" onClick={() => setPublishNotice(null)} className="shrink-0 text-xs opacity-75 hover:opacity-100" aria-label="Dismiss notification">Dismiss</button>
     </div>}
     <div className="grid items-start gap-5 lg:grid-cols-[250px_minmax(0,1fr)]">
-      <aside className="flex flex-col rounded-xl border border-[#202631] bg-[#111620] p-4 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)]" aria-label="Evaluation tools">
+      <aside className="flex flex-col rounded-xl border border-border bg-surface p-4 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)]" aria-label="Evaluation tools">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-amber-400">Evaluation Studio</p>
           <h2 className="mt-1 text-sm font-semibold text-stone-100">{studentName}</h2>
@@ -498,7 +498,7 @@ export function SubmissionEvaluator({
             <select
               value={globalRubricScale}
               onChange={(event) => handleGlobalScaleChange(event.target.value as RubricScale)}
-              className="w-full rounded-md border border-[#394252] bg-[#0c1017] px-2.5 py-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+              className="w-full rounded-md border border-border bg-background px-2.5 py-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
               aria-label="Global scoring scale for all stages"
             >
               {RUBRIC_SCALE_OPTIONS.map((scale) => <option key={scale.id} value={scale.id}>{scale.label}</option>)}
@@ -512,7 +512,7 @@ export function SubmissionEvaluator({
               key={stage.id}
               type="button"
               onClick={() => changeActiveStage(stage.id)}
-              className={`flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left transition ${activeStageId === stage.id ? "bg-amber-500/10 text-amber-200" : "text-stone-400 hover:bg-[#171d28] hover:text-stone-200"}`}
+              className={`flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left transition ${activeStageId === stage.id ? "bg-amber-500/10 text-amber-200" : "text-stone-400 hover:bg-surface hover:text-stone-200"}`}
             >
               <span className="min-w-0 truncate text-xs"><span className="mr-2 font-mono text-[10px] text-stone-600">{String(index + 1).padStart(2, "0")}</span>{stage.title}</span>
               <span className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] ${stageStatusClass(status)}`}>{status}</span>
@@ -521,17 +521,17 @@ export function SubmissionEvaluator({
           <button
             type="button"
             onClick={() => changeActiveStage(reportStageId)}
-            className={`flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left transition ${activeStageId === reportStageId ? "bg-amber-500/10 text-amber-200" : "text-stone-400 hover:bg-[#171d28] hover:text-stone-200"}`}
+            className={`flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left transition ${activeStageId === reportStageId ? "bg-amber-500/10 text-amber-200" : "text-stone-400 hover:bg-surface hover:text-stone-200"}`}
           >
             <span className="text-xs"><span className="mr-2 font-mono text-[10px] text-stone-600">07</span>Report Card</span>
             <span className={`rounded-full border px-1.5 py-0.5 text-[9px] ${stageStatusClass(evaluation?.published ? "Evaluated" : "Pending Review")}`}>{evaluation?.published ? "Evaluated" : "Preview"}</span>
           </button>
         </nav>
-        <div className="mt-auto shrink-0 space-y-2 border-t border-[#293343] pt-4">
-          <button type="button" onClick={() => void handleSaveDraft()} disabled={isSavingDraft || isSubmitting || voiceUploadStage !== null || (useSupabase && submissionLoadState !== "loaded")} className="flex w-full items-center justify-center gap-2 rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-200 transition hover:border-amber-500/40 disabled:cursor-wait disabled:opacity-50">
+        <div className="mt-auto shrink-0 space-y-2 border-t border-border pt-4">
+          <button type="button" onClick={() => void handleSaveDraft()} disabled={isSavingDraft || isSubmitting || voiceUploadStage !== null || (useSupabase && submissionLoadState !== "loaded")} className="flex w-full items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-stone-200 transition hover:border-amber-500/40 disabled:cursor-wait disabled:opacity-50">
             <Save className="h-3.5 w-3.5" aria-hidden="true" />{isSavingDraft ? "Saving Draft..." : "Save Draft"}
           </button>
-          <button type="button" onClick={() => changeActiveStage(reportStageId)} className="flex w-full items-center justify-center gap-2 rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-200 transition hover:border-amber-500/40">
+          <button type="button" onClick={() => changeActiveStage(reportStageId)} className="flex w-full items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-stone-200 transition hover:border-amber-500/40">
             <ClipboardCheck className="h-3.5 w-3.5" aria-hidden="true" />Jump to Report Card
           </button>
           <button type="button" onClick={() => void handleSubmit()} disabled={isSubmitting || isSubmitted || voiceUploadStage !== null || (useSupabase && submissionLoadState !== "loaded")} className="w-full rounded-md bg-amber-500/20 px-3 py-2.5 text-xs font-semibold text-amber-300 transition hover:bg-amber-500/30 disabled:cursor-wait disabled:opacity-50">
@@ -549,14 +549,14 @@ export function SubmissionEvaluator({
             <p className="text-sm font-medium text-amber-200">Compiled Report Card Preview</p>
             <p className="mt-1 text-xs leading-relaxed text-stone-400">Review the scores, comments, corrections, and voice notes collected across all six lesson stages before publishing to {studentName}.</p>
           </div>
-          <section className="space-y-3 rounded-xl border border-[#202631] bg-[#171d28]/60 p-4">
+          <section className="space-y-3 rounded-xl border border-border bg-surface/60 p-4">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-sm font-semibold text-stone-100">Overall Rubric</h3>
               <span className="text-xs text-amber-300">{formatOverallRubricTotal(totalScore, overallScaleId, overallAggregation.totalDenominator)}</span>
             </div>
             <p className="text-[11px] leading-relaxed text-stone-500">Each criterion starts as the average of its ratings across stages. Adjust a score here to fine-tune the final report.</p>
             <div className="grid gap-3 sm:grid-cols-2">
-              {RUBRIC_CRITERIA.map((criterion) => <div key={criterion.id} className="rounded-lg border border-[#293343] bg-[#0c1017] p-3">
+              {RUBRIC_CRITERIA.map((criterion) => <div key={criterion.id} className="rounded-lg border border-border bg-background p-3">
                 <div className="flex justify-between gap-2 text-xs"><span className="text-stone-300">{criterion.label}</span><span className="text-amber-300">{displayScores[criterion.id] === undefined ? `—/${overallScale.max}` : `${formatRubricScore(displayScores[criterion.id])}/${overallScale.max}`}</span></div>
                 {stageAverages[criterion.id] !== undefined && <p className="mt-1 text-[10px] text-stone-500">{reportCardScoreOverrides[criterion.id] !== undefined ? `Stage average: ${formatRubricScore(roundRubricScoreForScale(displayRubricScore(stageAverages[criterion.id] ?? 0, overallScaleId), overallScaleId))}/${overallScale.max} · Manually adjusted` : `Average of ${overallAggregation.criterionStageCounts[criterion.id]} stage ratings`}</p>}
                 <div className="mt-2 flex items-center gap-2">
@@ -582,23 +582,23 @@ export function SubmissionEvaluator({
                         handleScoreChange(criterion.id, value);
                       }
                     }}
-                    className="rubric-score-input w-16 rounded border border-[#394252] bg-[#171d28] px-2 py-1 text-center text-xs text-amber-300 outline-none focus:border-amber-500/40"
+                    className="rubric-score-input w-16 rounded border border-border bg-surface px-2 py-1 text-center text-xs text-amber-300 outline-none focus:border-amber-500/40"
                     aria-label={`${criterion.label} score value`}
                   />
                 </div>
-                <textarea value={criterionFeedback[criterion.id] || ""} onChange={(event) => updateEvaluation({ criterionFeedback: { ...criterionFeedback, [criterion.id]: event.target.value } })} rows={2} placeholder={`Feedback for ${criterion.label.toLowerCase()}...`} className="mt-2 w-full resize-y rounded-md border border-[#394252] bg-[#171d28] p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40" />
+                <textarea value={criterionFeedback[criterion.id] || ""} onChange={(event) => updateEvaluation({ criterionFeedback: { ...criterionFeedback, [criterion.id]: event.target.value } })} rows={2} placeholder={`Feedback for ${criterion.label.toLowerCase()}...`} className="mt-2 w-full resize-y rounded-md border border-border bg-surface p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40" />
               </div>)}
             </div>
           </section>
-          {stages.map((stage, index) => <section key={stage.id} className="space-y-3 rounded-xl border border-[#202631] bg-[#171d28]/50 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#293343] pb-2">
+          {stages.map((stage, index) => <section key={stage.id} className="space-y-3 rounded-xl border border-border bg-surface/50 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2">
               <h3 className="text-sm font-semibold text-stone-100">{String(index + 1).padStart(2, "0")} · {stage.title}</h3>
               <span className={`rounded-full border px-2 py-0.5 text-[9px] ${stageStatusClass(evaluationStatus(stage.id))}`}>{evaluationStatus(stage.id)}</span>
             </div>
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
               {STAGE_RUBRIC_CRITERIA.map((criterion) => {
                 const scale = getRubricScale(stageRubricScales[stage.id]);
-                return <label key={criterion.id} className="rounded-md border border-[#293343] bg-[#0c1017] p-2 text-[10px] text-stone-400">{criterion.label}<span className="float-right text-amber-300">{formatRubricScore(roundRubricScoreForScale(stageScores[stage.id]?.[criterion.id] || 0, stageRubricScales[stage.id]))}/{scale.max}</span></label>;
+                return <label key={criterion.id} className="rounded-md border border-border bg-background p-2 text-[10px] text-stone-400">{criterion.label}<span className="float-right text-amber-300">{formatRubricScore(roundRubricScoreForScale(stageScores[stage.id]?.[criterion.id] || 0, stageRubricScales[stage.id]))}/{scale.max}</span></label>;
               })}
               {(() => {
                 const scaleId = stageRubricScales[stage.id];
@@ -613,8 +613,8 @@ export function SubmissionEvaluator({
                 </div>;
               })()}
             </div>
-            {stageFeedback[stage.id]?.trim() && <p className="whitespace-pre-wrap rounded-md bg-[#0c1017] p-3 text-xs leading-relaxed text-stone-300">{stageFeedback[stage.id]}</p>}
-            {stage.tasks.map((task) => <div key={task.id} className="space-y-1 rounded-md border border-[#293343] bg-[#0c1017] p-3 text-xs">
+            {stageFeedback[stage.id]?.trim() && <p className="whitespace-pre-wrap rounded-md bg-background p-3 text-xs leading-relaxed text-stone-300">{stageFeedback[stage.id]}</p>}
+            {stage.tasks.map((task) => <div key={task.id} className="space-y-1 rounded-md border border-border bg-background p-3 text-xs">
               <p className="font-medium text-stone-300">{task.title}</p>
               {combineTaskFeedback(taskFeedback[task.id], inlineCorrections[task.id]) && <div className="mt-2">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">INSTRUCTOR FEEDBACK &amp; CORRECTION</p>
@@ -623,20 +623,20 @@ export function SubmissionEvaluator({
             </div>)}
             {stageVoiceFeedback[stage.id] && <div className="space-y-1"><p className="text-[10px] text-stone-500">Voice note</p><CustomAudioPlayer src={stageVoiceFeedback[stage.id]} label={`${stage.title} instructor voice note`} /></div>}
           </section>)}
-          <section className="space-y-3 rounded-xl border border-[#202631] bg-[#171d28]/60 p-4">
+          <section className="space-y-3 rounded-xl border border-border bg-surface/60 p-4">
             <h3 className="text-sm font-semibold text-stone-100">Final Student Feedback</h3>
-            <textarea value={comments} onChange={(event) => updateEvaluation({ comments: event.target.value })} rows={4} placeholder="Personalized feedback and corrections..." className="w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" aria-label="Personalized feedback" />
+            <textarea value={comments} onChange={(event) => updateEvaluation({ comments: event.target.value })} rows={4} placeholder="Personalized feedback and corrections..." className="w-full resize-y rounded-md border border-border bg-background p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" aria-label="Personalized feedback" />
             <div className="grid gap-3 sm:grid-cols-2">
-              <textarea value={evaluation?.strengths || ""} onChange={(event) => updateEvaluation({ strengths: event.target.value })} rows={3} placeholder="Specific strengths..." className="w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] p-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" aria-label="Student strengths" />
-              <textarea value={evaluation?.areasToImprove || ""} onChange={(event) => updateEvaluation({ areasToImprove: event.target.value })} rows={3} placeholder="Focused next steps..." className="w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] p-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" aria-label="Areas to improve" />
+              <textarea value={evaluation?.strengths || ""} onChange={(event) => updateEvaluation({ strengths: event.target.value })} rows={3} placeholder="Specific strengths..." className="w-full resize-y rounded-md border border-border bg-background p-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" aria-label="Student strengths" />
+              <textarea value={evaluation?.areasToImprove || ""} onChange={(event) => updateEvaluation({ areasToImprove: event.target.value })} rows={3} placeholder="Focused next steps..." className="w-full resize-y rounded-md border border-border bg-background p-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" aria-label="Areas to improve" />
             </div>
-            <textarea value={evaluation?.studyHubPrescription || ""} onChange={(event) => updateEvaluation({ studyHubPrescription: event.target.value })} rows={2} placeholder="Recommended study resource or topic..." className="w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] p-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" aria-label="Study Hub prescription" />
+            <textarea value={evaluation?.studyHubPrescription || ""} onChange={(event) => updateEvaluation({ studyHubPrescription: event.target.value })} rows={2} placeholder="Recommended study resource or topic..." className="w-full resize-y rounded-md border border-border bg-background p-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" aria-label="Study Hub prescription" />
           </section>
         </div> : activeStage ?         <div className="min-w-0 space-y-5">
           <div className="min-w-0 space-y-5">
             {stageStepper}
             {stageHeading}
-            {(activeStage.id === "reading" || activeStage.id === "listening") && (activeStage.referenceText || activeStage.referenceAudioUrl) && <details className="rounded-lg border border-[#293343] bg-[#111620] p-3">
+            {(activeStage.id === "reading" || activeStage.id === "listening") && (activeStage.referenceText || activeStage.referenceAudioUrl) && <details className="rounded-lg border border-border bg-surface p-3">
               <summary className="cursor-pointer text-xs font-medium text-stone-300">Show lesson reference</summary>
               {activeStage.referenceText && <p className="mt-3 whitespace-pre-wrap text-xs leading-relaxed text-stone-400">{stripMarkdown(activeStage.referenceText)}</p>}
               {activeStage.referenceAudioUrl && <div className="mt-3"><CustomAudioPlayer src={activeStage.referenceAudioUrl} label={`${activeStage.title} lesson reference audio`} /></div>}
@@ -655,7 +655,7 @@ export function SubmissionEvaluator({
                 ? "border-emerald-500/30 bg-emerald-500/5"
                 : isObjectiveAnswer
                   ? "border-rose-500/30 bg-rose-500/5"
-                  : "border-[#394252] bg-[#0c1017]";
+                  : "border-border bg-background";
               const responseLabelClass = isCorrect
                 ? "text-emerald-300"
                 : isObjectiveAnswer
@@ -671,14 +671,14 @@ export function SubmissionEvaluator({
                 : "border-blue-500/20 bg-blue-500/5";
               const modelLabelClass = isObjectiveAnswer ? "text-emerald-300" : "text-blue-300";
               const modelTextClass = isObjectiveAnswer ? "text-emerald-100" : "text-blue-100";
-              return <article key={task.id} className="space-y-3 rounded-xl border border-[#293343] bg-[#111620] p-4">
+              return <article key={task.id} className="space-y-3 rounded-xl border border-border bg-surface p-4">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Student task {task.taskNumber ?? index + 1}</p>
                   <h3 className="mt-1 text-sm font-medium leading-relaxed text-stone-100">{stripMarkdown(task.title)}</h3>
                 </div>
                 <div className={`rounded-lg border p-4 ${responseBoxClass}`}>
                   <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${responseLabelClass}`}>Student response</p>
-                  <p className={`mt-2 whitespace-pre-wrap break-words rounded-sm px-2 py-3 text-sm leading-relaxed ${isCorrect ? "bg-emerald-300/10" : isObjectiveAnswer ? "bg-rose-300/10" : "bg-[#171d28]"} ${responseTextClass}`}>{stripMarkdown(task.studentAnswer) || <span className="italic text-stone-500">No response submitted.</span>}</p>
+                  <p className={`mt-2 whitespace-pre-wrap break-words rounded-sm px-2 py-3 text-sm leading-relaxed ${isCorrect ? "bg-emerald-300/10" : isObjectiveAnswer ? "bg-rose-300/10" : "bg-surface"} ${responseTextClass}`}>{stripMarkdown(task.studentAnswer) || <span className="italic text-stone-500">No response submitted.</span>}</p>
                   {task.audioUrls?.map((url, audioIndex) => <div key={`${url}-${audioIndex}`} className="mt-2"><CustomAudioPlayer src={url} label={`${task.title} student recording`} /></div>)}
                 </div>
                 {task.modelAnswer && <div className={`rounded-md border p-4 ${modelBoxClass}`}>
@@ -723,14 +723,14 @@ export function SubmissionEvaluator({
                   </div>
                 </div>
               </article>;
-            }) : <div className="rounded-lg border border-dashed border-[#394252] bg-[#111620] p-5 text-center">
+            }) : <div className="rounded-lg border border-dashed border-border bg-surface p-5 text-center">
               <p className="text-sm font-medium text-stone-300">No interactive response in this stage</p>
               <p className="mt-1 text-xs text-stone-500">You can still add a stage score and instructor feedback.</p>
             </div>}
           </div>
 
-          <section className="space-y-4 rounded-xl border border-[#202631] bg-[#171d28]/60 p-4" aria-label={`${activeStage.title} stage rubric`}>
-            <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#293343] pb-3">
+          <section className="space-y-4 rounded-xl border border-border bg-surface/60 p-4" aria-label={`${activeStage.title} stage rubric`}>
+            <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-3">
               <div>
                 <h3 className="text-sm font-semibold text-stone-100">Stage Rubric</h3>
                 <p className="mt-1 text-[10px] text-stone-500">Choose a scoring scale for {activeStage.title}, then rate each criterion.</p>
@@ -755,14 +755,14 @@ export function SubmissionEvaluator({
                       },
                     });
                   }}
-                  className="rounded-md border border-[#394252] bg-[#0c1017] px-2.5 py-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                  className="rounded-md border border-border bg-background px-2.5 py-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                   aria-label={`${activeStage.title} rubric scoring scale`}
                 >
                   {RUBRIC_SCALE_OPTIONS.map((scale) => <option key={scale.id} value={scale.id}>{scale.label}</option>)}
                 </select>
               </label>
             </div>
-            <div className="divide-y divide-[#293343]">
+            <div className="divide-y divide-border">
               {STAGE_RUBRIC_CRITERIA.map((criterion) => {
                 const scale = getRubricScale(stageRubricScales[activeStage.id]);
                 const score = stageScores[activeStage.id]?.[criterion.id];
@@ -804,7 +804,7 @@ export function SubmissionEvaluator({
                           });
                         }
                       }}
-                      className="rubric-score-input w-full rounded-md border border-[#394252] bg-[#0c1017] px-3 py-2 text-center text-xs text-amber-300 outline-none transition-colors hover:border-amber-500/30 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20"
+                      className="rubric-score-input w-full rounded-md border border-border bg-background px-3 py-2 text-center text-xs text-amber-300 outline-none transition-colors hover:border-amber-500/30 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20"
                       aria-label={`${activeStage.title} ${criterion.label} score value`}
                     />
                     <span className="text-[10px] text-stone-500">{score === undefined ? "—" : `/${scale.max}`}</span>
@@ -812,14 +812,14 @@ export function SubmissionEvaluator({
                 </div>;
               })}
             </div>
-            <label className="block border-t border-[#293343] pt-3 text-xs font-medium text-stone-300">Stage feedback
-              <textarea value={stageFeedback[activeStage.id] || ""} onChange={(event) => updateEvaluation({ stageFeedback: { ...stageFeedback, [activeStage.id]: event.target.value } })} rows={3} placeholder={`Comments on ${activeStage.title.toLowerCase()}...`} className="mt-1 w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] p-3 text-xs font-normal leading-relaxed text-stone-200 outline-none focus:border-amber-500/40" />
+            <label className="block border-t border-border pt-3 text-xs font-medium text-stone-300">Stage feedback
+              <textarea value={stageFeedback[activeStage.id] || ""} onChange={(event) => updateEvaluation({ stageFeedback: { ...stageFeedback, [activeStage.id]: event.target.value } })} rows={3} placeholder={`Comments on ${activeStage.title.toLowerCase()}...`} className="mt-1 w-full resize-y rounded-md border border-border bg-background p-3 text-xs font-normal leading-relaxed text-stone-200 outline-none focus:border-amber-500/40" />
             </label>
-            {(activeStage.id === "listening" || activeStage.id === "speaking") && <div className="space-y-2 border-t border-[#293343] pt-3">
+            {(activeStage.id === "listening" || activeStage.id === "speaking") && <div className="space-y-2 border-t border-border pt-3">
               <div className="flex items-center gap-2 text-xs font-semibold text-stone-200"><Mic className="h-3.5 w-3.5 text-amber-300" aria-hidden="true" />Audio feedback note</div>
               <AudioRecorder onBlob={(blob) => { void uploadStageVoiceNote(activeStage.id, blob); }} onError={setVoiceUploadError} disabled={voiceUploadStage === activeStage.id || isSubmitting} label={`Record ${activeStage.title.toLowerCase()} feedback`} />
               <label className="block text-[10px] text-stone-400">Or attach an audio file
-                <input type="file" accept="audio/*" disabled={voiceUploadStage === activeStage.id || isSubmitting} onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file && !file.type.startsWith("audio/")) { setVoiceUploadError("Choose a valid audio file."); } else if (file) { void uploadStageVoiceNote(activeStage.id, file); } event.currentTarget.value = ""; }} className="mt-1 block w-full text-[10px] text-stone-400 file:mr-2 file:rounded file:border-0 file:bg-[#293343] file:px-2 file:py-1.5 file:text-[10px] file:text-stone-200" />
+                <input type="file" accept="audio/*" disabled={voiceUploadStage === activeStage.id || isSubmitting} onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file && !file.type.startsWith("audio/")) { setVoiceUploadError("Choose a valid audio file."); } else if (file) { void uploadStageVoiceNote(activeStage.id, file); } event.currentTarget.value = ""; }} className="mt-1 block w-full text-[10px] text-stone-400 file:mr-2 file:rounded file:border-0 file:bg-border file:px-2 file:py-1.5 file:text-[10px] file:text-stone-200" />
               </label>
               {voiceUploadStage === activeStage.id && <p role="status" className="text-[10px] text-amber-300">Uploading voice note...</p>}
               {voiceUploadError && <p role="alert" className="text-[10px] text-red-300">{voiceUploadError}</p>}
@@ -834,8 +834,8 @@ export function SubmissionEvaluator({
         {feedbackError && <p role="alert" className="rounded-lg border border-red-700 bg-red-900/30 p-3 text-xs text-red-200">{feedbackError}</p>}
         {draftStatus && <p role="status" className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-emerald-300">{draftStatus}</p>}
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#202631] pt-4">
-          <button type="button" onClick={() => changeActiveStage(activeStageIndex <= 0 ? reportStageId : activeStageIndex === reportStageIndex ? stages[stages.length - 1]?.id || reportStageId : stages[activeStageIndex - 1]?.id || reportStageId)} disabled={activeStageIndex <= 0} className="inline-flex items-center gap-2 rounded-md border border-[#394252] px-3 py-2 text-xs text-stone-300 transition hover:border-amber-500/40 disabled:cursor-not-allowed disabled:opacity-40">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+          <button type="button" onClick={() => changeActiveStage(activeStageIndex <= 0 ? reportStageId : activeStageIndex === reportStageIndex ? stages[stages.length - 1]?.id || reportStageId : stages[activeStageIndex - 1]?.id || reportStageId)} disabled={activeStageIndex <= 0} className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-stone-300 transition hover:border-amber-500/40 disabled:cursor-not-allowed disabled:opacity-40">
             <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />Previous Stage
           </button>
           <button type="button" onClick={() => changeActiveStage(activeStageIndex >= reportStageIndex ? reportStageId : activeStageIndex === reportStageIndex - 1 ? reportStageId : stages[activeStageIndex + 1]?.id || reportStageId)} disabled={activeStageIndex >= reportStageIndex} className="inline-flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40">

@@ -67,11 +67,11 @@ function LoginForm() {
     setLoading(false);
   };
 
-  if (checkingSession) return <main className="min-h-screen bg-[#0c1017]" />;
+  if (checkingSession) return <main className="min-h-screen bg-background" />;
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#0c1017] px-4 py-10 text-stone-100">
-      <section className="w-full max-w-md rounded-xl border border-[#293343] bg-[#171d28] p-6 shadow-xl">
+    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10 text-stone-100">
+      <section className="w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-xl">
         <h1 className="text-2xl font-semibold">Sign in to Fluentia</h1>
         <p className="mt-2 text-sm text-stone-400">Continue your language learning workspace.</p>
 
@@ -82,7 +82,7 @@ function LoginForm() {
           {loading ? 'Connecting...' : 'Continue with Google'}
         </button>
 
-        {message && <p className="mt-4 rounded-md border border-[#394252] px-3 py-2 text-sm text-amber-400" role="status">{message}</p>}
+        {message && <p className="mt-4 rounded-md border border-border px-3 py-2 text-sm text-amber-400" role="status">{message}</p>}
       </section>
     </main>
   );
@@ -90,7 +90,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<main className="min-h-screen bg-[#0c1017]" />}>
+    <Suspense fallback={<main className="min-h-screen bg-background" />}>
       <LoginForm />
     </Suspense>
   );

@@ -16,9 +16,9 @@ export default function GlobalError({
 
   return (
     <html lang="en">
-      <body className="min-h-screen bg-[#0c1017] text-[#e8e7e4] antialiased">
+      <body className="min-h-screen bg-background text-[#e8e7e4] antialiased">
         <main className="flex min-h-screen items-center justify-center px-6">
-          <section className="w-full max-w-md rounded-xl border border-[#202631] bg-[#121721] p-8 text-center">
+          <section className="w-full max-w-md rounded-xl border border-border bg-surface p-8 text-center">
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-amber-400">
               Fluentia
             </p>

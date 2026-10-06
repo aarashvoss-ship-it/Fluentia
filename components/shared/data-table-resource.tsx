@@ -114,7 +114,7 @@ export function DataTableResource({ title, markdown, html }: { title: string; ma
 
   return (
     <div className="min-w-0">
-      <header className="mb-4 flex items-center justify-between gap-4 border-b border-[#394252] pb-3">
+      <header className="mb-4 flex items-center justify-between gap-4 border-b border-border pb-3">
         <h3 className="min-w-0 flex-1 break-words text-sm font-semibold text-stone-100">{title}</h3>
         <img src="/logo.png" alt="Fluentia" className="h-9 w-auto max-w-24 shrink-0 object-contain" />
       </header>
@@ -122,7 +122,7 @@ export function DataTableResource({ title, markdown, html }: { title: string; ma
         <button type="button" onClick={() => { if (!printTables(title, tables, getPlainText())) setStatus("Allow pop-ups to print this table as PDF."); }} className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 px-2.5 py-1.5 text-[11px]  text-amber-400 transition hover:bg-amber-500/20">
           <FileDown className="h-3.5 w-3.5" /> Download PDF
         </button>
-        <button type="button" onClick={() => void copyText()} className="inline-flex items-center gap-1.5 rounded-md border border-[#394252] px-2.5 py-1.5 text-[11px]  text-stone-300 transition hover:border-amber-500/40 hover:text-amber-400">
+        <button type="button" onClick={() => void copyText()} className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px]  text-stone-300 transition hover:border-amber-500/40 hover:text-amber-400">
           <Copy className="h-3.5 w-3.5" /> Copy / Export Text
         </button>
         {status && <span role="status" className="text-[10px] text-stone-500">{status}</span>}

@@ -144,7 +144,7 @@ function MarkdownResourceContent({ title, value, className = "" }: { title: stri
         <button type="button" onClick={() => { if (!printMarkdownTables(title, tables)) setExportStatus("Allow pop-ups to print this table as PDF."); }} className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 px-2.5 py-1.5 text-[11px]  text-amber-400 transition hover:bg-amber-500/20">
           <FileDown className="h-3.5 w-3.5" /> Download PDF
         </button>
-        <button type="button" onClick={() => void copyOrDownloadText()} className="inline-flex items-center gap-1.5 rounded-md border border-[#394252] px-2.5 py-1.5 text-[11px]  text-stone-300 transition hover:border-amber-500/40 hover:text-amber-400">
+        <button type="button" onClick={() => void copyOrDownloadText()} className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px]  text-stone-300 transition hover:border-amber-500/40 hover:text-amber-400">
           <Copy className="h-3.5 w-3.5" /> Copy / Export Text
         </button>
         {exportStatus && <span className="text-[10px] text-stone-500" role="status">{exportStatus}</span>}
@@ -356,12 +356,12 @@ export function LearningSidebar({
       )}
       <aside
         className={standalone
-          ? "flex min-h-0 h-dvh w-full flex-col bg-[#121721] text-stone-200"
-          : `fixed bottom-0 right-0 top-0 z-[1100] flex w-full max-w-xl flex-col border-l border-[#29303c] bg-[#121721] shadow-2xl transition-transform duration-200 ${open ? "translate-x-0" : "translate-x-full"}`}
+          ? "flex min-h-0 h-dvh w-full flex-col bg-surface text-stone-200"
+          : `fixed bottom-0 right-0 top-0 z-[1100] flex w-full max-w-xl flex-col border-l border-border bg-surface shadow-2xl transition-transform duration-200 ${open ? "translate-x-0" : "translate-x-full"}`}
         id={standalone ? undefined : "learning-sidebar"}
         aria-hidden={standalone ? undefined : !open}
       >
-        <div className="flex items-start justify-between border-b border-[#29303c] p-5">
+        <div className="flex items-start justify-between border-b border-border p-5">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Learning Hub</p>
             <h2 className="mt-1 font-sans text-2xl text-stone-100">Your study tools</h2>
@@ -374,19 +374,19 @@ export function LearningSidebar({
                 onClick={openInNewTab}
                 aria-label="Open Learning Hub in a New Tab"
                 tabIndex={open ? 0 : -1}
-                className="flex h-9 w-9 items-center justify-center rounded-md border border-[#394252] text-stone-400 transition hover:border-amber-500/40 hover:text-amber-400"
+                className="flex h-9 w-9 items-center justify-center rounded-md border border-border text-stone-400 transition hover:border-amber-500/40 hover:text-amber-400"
               >
                 <ExternalLink className="h-4 w-4" />
               </button>
               </Tooltip>
             )}
-            <button type="button" onClick={onClose} aria-label={standalone ? "Return to lesson" : "Close Learning Hub"} tabIndex={open ? 0 : -1} className="flex h-9 w-9 items-center justify-center rounded-md border border-[#394252] text-stone-400 transition hover:border-amber-500/40 hover:text-amber-400">
+            <button type="button" onClick={onClose} aria-label={standalone ? "Return to lesson" : "Close Learning Hub"} tabIndex={open ? 0 : -1} className="flex h-9 w-9 items-center justify-center rounded-md border border-border text-stone-400 transition hover:border-amber-500/40 hover:text-amber-400">
               {standalone ? <ArrowLeft className="h-5 w-5" /> : <X className="h-5 w-5" />}
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 border-b border-[#29303c] p-3 min-[380px]:grid-cols-3 sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-2 border-b border-border p-3 min-[380px]:grid-cols-3 sm:grid-cols-5">
           {tabs.map(([id, label, Icon]) => {
             const itemCount = tabItemCounts[id];
             const hasContent = itemCount > 0;
@@ -400,11 +400,11 @@ export function LearningSidebar({
                 }}
                 aria-pressed={tab === id}
                 aria-label={`${label}${hasContent ? `, ${itemCount} items` : ", no materials assigned for this lesson"}`}
-                className={`flex min-h-16 min-w-0 w-full flex-col items-center justify-center gap-1 rounded-md border px-1.5 py-2 text-[10px] transition-all ${tab === id ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-transparent text-stone-500 hover:border-[#394252] hover:bg-[#171d28] hover:text-stone-300"} ${hasContent ? "" : "opacity-40 hover:opacity-70"}`}
+                className={`flex min-h-16 min-w-0 w-full flex-col items-center justify-center gap-1 rounded-md border px-1.5 py-2 text-[10px] transition-all ${tab === id ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-transparent text-stone-500 hover:border-border hover:bg-surface hover:text-stone-300"} ${hasContent ? "" : "opacity-40 hover:opacity-70"}`}
               >
                 <span className="relative inline-flex">
                   <Icon className="h-4 w-4" />
-                  {hasContent && <span aria-hidden="true" className="absolute -right-2 -top-1 min-w-3 rounded-full bg-amber-400 px-1 text-center text-[8px] font-bold leading-3 text-[#171d28]">{itemCount > 99 ? "99+" : itemCount}</span>}
+                  {hasContent && <span aria-hidden="true" className="absolute -right-2 -top-1 min-w-3 rounded-full bg-amber-400 px-1 text-center text-[8px] font-bold leading-3 text-background">{itemCount > 99 ? "99+" : itemCount}</span>}
                 </span>
                 <span className="w-full truncate text-center">{label}</span>
               </button>
@@ -421,7 +421,7 @@ export function LearningSidebar({
             <section aria-label="Saved vocabulary" className="space-y-3">
               <h3 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Vocabulary</h3>
               {words.length === 0 ? <p className="text-sm text-stone-500">Double-click any lesson word to save it here.</p> : words.map((word) => (
-                <article key={word.word} className="rounded-lg border border-[#29303c] bg-[#0c1017] p-3">
+                <article key={word.word} className="rounded-lg border border-border bg-background p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div><p className="font-semibold text-stone-100">{word.word}</p><p className="mt-1 text-xs text-amber-400">{word.partOfSpeech}</p></div>
                     <button type="button" onClick={() => onRemoveWord(word.word)} aria-label={`Remove ${word.word}`} className="text-stone-600 hover:text-red-300"><Trash2 className="h-3.5 w-3.5" /></button>
@@ -443,9 +443,9 @@ export function LearningSidebar({
                   <StudyHubResourceCard key={item.id} resource={item} downloadButton={<div className="mt-3"><DownloadMaterialButton title={item.title} href={getSafeResourceHref(item.link_url)} content={item.body} /></div>} />
                 ))}
               </div>
-              <div className="space-y-2 border-t border-[#29303c] pt-4">
+              <div className="space-y-2 border-t border-border pt-4">
                 <div className="flex items-center justify-between gap-3"><h3 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-400">My Notes</h3><DownloadMaterialButton title="My Notes" content={notes[0]?.text} /></div>
-                <textarea value={notes[0]?.text || ""} onChange={(event) => onSaveNote({ id: notes[0]?.id || "personal", text: event.target.value, updatedAt: new Date().toISOString() })} placeholder="Your personal notes auto-save as you type..." rows={8} className="w-full resize-y rounded-lg border border-[#29303c] bg-[#0c1017] p-3 text-sm leading-relaxed text-stone-200 outline-none focus:border-amber-500/40" />
+                <textarea value={notes[0]?.text || ""} onChange={(event) => onSaveNote({ id: notes[0]?.id || "personal", text: event.target.value, updatedAt: new Date().toISOString() })} placeholder="Your personal notes auto-save as you type..." rows={8} className="w-full resize-y rounded-lg border border-border bg-background p-3 text-sm leading-relaxed text-stone-200 outline-none focus:border-amber-500/40" />
                 <p className="text-[10px] text-stone-600">Auto-saved locally for this student.</p>
               </div>
             </section>
@@ -462,7 +462,7 @@ export function LearningSidebar({
               {resources.map((item) => {
                 const href = getSafeResourceHref(item.url);
                 if (!href) return null;
-                return <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#202631] bg-[#0c1017] px-3 py-2.5 text-xs text-stone-300">
+                return <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2.5 text-xs text-stone-300">
                   <a href={href} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate font-medium hover:text-amber-400">{item.title || item.url}</a>
                   <span className="shrink-0 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-amber-400">{item.type}</span>
                   <DownloadMaterialButton title={item.title || item.type} href={href} />

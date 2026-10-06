@@ -82,7 +82,7 @@ export function InteractiveVideoBlock({
   return (
     <div className="space-y-3">
       {embedUrl ? (
-        <div className="aspect-video overflow-hidden rounded border border-[#202631] bg-[#0c1017]">
+        <div className="aspect-video overflow-hidden rounded border border-border bg-background">
           <iframe
             ref={iframeRef}
             src={embedUrl}
@@ -96,15 +96,15 @@ export function InteractiveVideoBlock({
           />
         </div>
       ) : directVideoUrl ? (
-        <div className="overflow-hidden rounded border border-[#202631] bg-[#0c1017]">
+        <div className="overflow-hidden rounded border border-border bg-background">
           <video src={directVideoUrl} controls preload="metadata" className="max-h-[480px] w-full bg-black" aria-label={title || "Lesson video"} />
         </div>
       ) : editable ? (
-        <div className="rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Add a video URL to preview this block.</div>
+        <div className="rounded border border-dashed border-border p-4 text-xs text-stone-500">Add a video URL to preview this block.</div>
       ) : null}
 
       {showTranscript && !transcriptLocked && transcriptLines.length > 0 && (
-        <div className="rounded border border-[#202631] bg-[#0c1017]/50" aria-label="Interactive transcript">
+        <div className="rounded border border-border bg-background/50" aria-label="Interactive transcript">
           <button
             type="button"
             onClick={() => setIsTranscriptExpanded((expanded) => !expanded)}
@@ -116,7 +116,7 @@ export function InteractiveVideoBlock({
             <ChevronDown className={`h-4 w-4 shrink-0 text-amber-400 transition-transform duration-200 ${isTranscriptExpanded ? "rotate-180" : ""}`} aria-hidden="true" />
           </button>
           {isTranscriptExpanded && (
-            <div id={transcriptId} className="max-h-[320px] overflow-y-auto overscroll-contain border-t border-[#202631] scroll-smooth pr-2">
+            <div id={transcriptId} className="max-h-[320px] overflow-y-auto overscroll-contain border-t border-border scroll-smooth pr-2">
               <div className="space-y-1 p-2">
                 {transcriptLines.map((line) => (
                   <button

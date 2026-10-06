@@ -55,7 +55,7 @@ export function ExerciseQuestions({
           || (type === "short_answer" ? question.sample_answer : "");
 
         return (
-          <section key={question.id} className="space-y-3 border-b border-[#202631] pb-5 last:border-0 last:pb-0">
+          <section key={question.id} className="space-y-3 border-b border-border pb-5 last:border-0 last:pb-0">
             {question.sectionHeader?.trim() && (
               <div className="text-sm leading-relaxed text-stone-300 [&_p]:m-0">
                 <MarkdownContent value={question.sectionHeader.trim()} />
@@ -91,7 +91,7 @@ export function ExerciseQuestions({
                 rows={5}
                 placeholder={readOnly || isReview ? "Short answer response" : "Write your answer here..."}
                 aria-label={`Question ${index + 1} response`}
-                className="min-h-[120px] w-full resize-y rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40 read-only:cursor-default read-only:text-stone-400"
+                className="min-h-[120px] w-full resize-y rounded-lg border border-border bg-background p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40 read-only:cursor-default read-only:text-stone-400"
               />
             ) : (
               <div className="grid gap-2 sm:grid-cols-2">
@@ -107,10 +107,10 @@ export function ExerciseQuestions({
                       ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
                       : isSelected
                         ? "border-rose-500/40 bg-rose-500/10 text-rose-300"
-                        : "border-[#202631] bg-[#0c1017] text-stone-300"
+                        : "border-border bg-background text-stone-300"
                     : isSelected
                       ? "border-amber-500/40 bg-amber-500/20 text-amber-400"
-                      : "border-[#202631] bg-[#0c1017] text-stone-300 hover:border-amber-500/40 hover:text-amber-400 disabled:hover:border-[#202631] disabled:hover:text-stone-300";
+                      : "border-border bg-background text-stone-300 hover:border-amber-500/40 hover:text-amber-400 disabled:hover:border-border disabled:hover:text-stone-300";
                   return (
                     <button
                       key={`${question.id}-${optionIndex}`}

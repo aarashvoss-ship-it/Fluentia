@@ -84,17 +84,17 @@ export function MarkdownContent({ value, className = "", plainCode = false, data
             return <li className="flex items-start gap-2"><Icon className={`mt-1 h-4 w-4 shrink-0 ${isSuccess ? "text-emerald-400" : "text-red-400"}`} aria-hidden="true" /><span className="min-w-0">{markedChildren.children}</span></li>;
           },
           blockquote: ({ children }) => <blockquote className="my-4 border-l-4 border-amber-500/40 bg-amber-500/20 px-4 py-2 leading-7 italic text-amber-400">{children}</blockquote>,
-          hr: () => <hr className="my-5 border-[#394252]" />,
+          hr: () => <hr className="my-5 border-border" />,
           table: ({ children }) => dataTables ? (
-            <div className="my-4 max-w-full overflow-x-auto rounded-lg border border-[#394252]">
+            <div className="my-4 max-w-full overflow-x-auto rounded-lg border border-border">
               <table className="w-full min-w-max border-collapse text-left text-xs text-stone-300">{children}</table>
             </div>
           ) : <table>{children}</table>,
           thead: ({ children }) => <thead className={dataTables ? "bg-amber-500/20 text-amber-400" : undefined}>{children}</thead>,
-          th: ({ children }) => <th className={dataTables ? "border-b border-[#394252] px-3 py-2.5 text-left text-[11px] font-semibold text-amber-400" : undefined}>{children}</th>,
+          th: ({ children }) => <th className={dataTables ? "border-b border-border px-3 py-2.5 text-left text-[11px] font-semibold text-amber-400" : undefined}>{children}</th>,
           tbody: ({ children }) => <tbody>{children}</tbody>,
-          tr: ({ children }) => <tr className={dataTables ? "odd:bg-[#10151d] even:bg-[#171d28] hover:bg-amber-500/20" : undefined}>{children}</tr>,
-          td: ({ children }) => <td className={dataTables ? "border-t border-[#29303c] px-3 py-2.5 align-top leading-relaxed" : undefined}>{children}</td>,
+          tr: ({ children }) => <tr className={dataTables ? "odd:bg-[#10151d] even:bg-surface hover:bg-amber-500/20" : undefined}>{children}</tr>,
+          td: ({ children }) => <td className={dataTables ? "border-t border-border px-3 py-2.5 align-top leading-relaxed" : undefined}>{children}</td>,
           pre: ({ children }) => renderPlainCode
             ? <p className="mb-4 whitespace-pre-wrap leading-7 last:mb-0">{children}</p>
             : <pre className="mb-4 max-w-full overflow-x-auto rounded-lg border border-white/10 bg-black/30 p-3 text-sm leading-6 text-stone-200">{children}</pre>,

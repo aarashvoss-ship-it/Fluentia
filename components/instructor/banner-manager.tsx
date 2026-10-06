@@ -156,7 +156,7 @@ export function InstructorBannerManager({
   ));
 
   return (
-    <div className={embedded ? "text-[#d9dce0]" : "rounded-xl border border-[#202631] bg-[#171d28]/60 p-5 text-[#d9dce0]"}>
+    <div className={embedded ? "text-[#d9dce0]" : "rounded-xl border border-border bg-surface/60 p-5 text-[#d9dce0]"}>
       {!embedded && <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h3 className="flex min-w-0 shrink items-center gap-2 whitespace-nowrap font-sans text-xl font-semibold">
           <Image aria-hidden="true" focusable="false" className="h-5 w-5 shrink-0 text-amber-400" />
@@ -168,7 +168,7 @@ export function InstructorBannerManager({
       </div>}
 
       <div
-        className="relative mb-2 aspect-video w-full touch-none overflow-hidden rounded-lg border border-[#202631] bg-black/40"
+        className="relative mb-2 aspect-video w-full touch-none overflow-hidden rounded-lg border border-border bg-black/40"
         onPointerDown={(event) => {
           if (!selectedUrl || !onUpdatePosition) return;
           event.currentTarget.setPointerCapture(event.pointerId);
@@ -245,7 +245,7 @@ export function InstructorBannerManager({
                 key={index}
                 onClick={() => handleSelect(preset)}
                 className={`relative aspect-video overflow-hidden rounded-md border transition ${
-                  isSelected ? "border-amber-500/40 ring-1 ring-amber-500/40" : "border-[#202631] opacity-70 hover:opacity-100"
+                  isSelected ? "border-amber-500/40 ring-1 ring-amber-500/40" : "border-border opacity-70 hover:opacity-100"
                 }`}
               >
                 <img src={preset} alt={`Preset banner ${index + 1}`} className="h-full w-full object-cover" />
@@ -274,7 +274,7 @@ export function InstructorBannerManager({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#394252] bg-[#0c1017] px-3 py-2.5 text-xs  text-stone-200 transition hover:border-amber-500/40 hover:text-amber-400 disabled:cursor-wait disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 text-xs  text-stone-200 transition hover:border-amber-500/40 hover:text-amber-400 disabled:cursor-wait disabled:opacity-60"
           >
             {isUploading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
             {isUploading ? "Uploading..." : "Choose image to upload"}
@@ -291,11 +291,11 @@ export function InstructorBannerManager({
               placeholder="Paste image URL or Supabase link..."
               value={customInput}
               onChange={(e) => onUpdateCustomInput?.(e.target.value)}
-              className="flex-1 bg-[#0c1017] border border-[#202631] rounded-lg px-3 py-2 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500/40"
+              className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500/40"
             />
             <button
               onClick={handleCustomApply}
-              className="bg-[#202631] hover:bg-[#29303c] text-xs px-3 py-2 rounded-lg  transition flex items-center gap-1.5"
+              className="bg-border hover:bg-border text-xs px-3 py-2 rounded-lg  transition flex items-center gap-1.5"
             >
               <Upload className="w-3.5 h-3.5" /> Apply
             </button>
