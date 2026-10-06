@@ -228,7 +228,9 @@ function mapFeedbackRow(feedback: SupabaseRow | null): LessonEvaluation {
   return {
     scores,
     totalScore: Number(feedback?.total_score ?? Object.values(scores).reduce<number>((total, score) => total + Number(score), 0)),
-    comments: feedback?.comments || "",
+    comments: typeof criterionFeedback.overallComments === "string"
+      ? criterionFeedback.overallComments
+      : feedback?.comments || "",
     criterionFeedback: criterionFeedback.comments || criterionFeedback,
     stageFeedback: criterionFeedback.stages || {},
     stageScores: criterionFeedback.stageScores || {},
@@ -795,6 +797,7 @@ export async function saveInstructorFeedback(
       : existingSubmission.answers || {};
     const rubricFeedback = {
       comments: savedEvaluation.criterionFeedback || {},
+      overallComments: savedEvaluation.comments,
       stages: savedEvaluation.stageFeedback || {},
       stageScores: savedEvaluation.stageScores || {},
       reportCardScoreOverrides: savedEvaluation.reportCardScoreOverrides || {},
@@ -807,7 +810,6 @@ export async function saveInstructorFeedback(
       student_id: studentId,
       rubric_scores: savedEvaluation.scores,
       total_score: savedEvaluation.totalScore,
-      comments: savedEvaluation.comments,
       criterion_feedback: rubricFeedback,
       strengths: savedEvaluation.strengths,
       areas_to_improve: savedEvaluation.areasToImprove,

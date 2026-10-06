@@ -5,6 +5,15 @@
 
 import { supabase, type SubmissionRow, type EvaluationRow, isSupabaseConfigured } from "@/lib/supabase";
 
+function feedbackText(feedback: { criterion_feedback?: unknown; comments?: unknown }) {
+  const criterionFeedback = feedback.criterion_feedback;
+  if (criterionFeedback && typeof criterionFeedback === "object" && "overallComments" in criterionFeedback) {
+    const overallComments = criterionFeedback.overallComments;
+    if (typeof overallComments === "string") return overallComments;
+  }
+  return typeof feedback.comments === "string" ? feedback.comments : "";
+}
+
 function isMissingFeedbackTable(error: unknown) {
   if (!error || typeof error !== "object") return false;
   const details = error as { code?: string; message?: string; status?: number };
@@ -63,7 +72,7 @@ async function getFeedbackForSubmission(submission: SubmissionRow): Promise<Eval
     id: data.id,
     submission_id: submission.id,
     instructor_id: data.instructor_id || "",
-    feedback: data.comments || "",
+    feedback: feedbackText(data),
     score: data.total_score ?? null,
     evaluated_at: data.updated_at || "",
   };
@@ -337,8 +346,7 @@ export async function createEvaluation(
       student_id: submission.student_id,
       rubric_scores: {},
       total_score: input.score || 0,
-      comments: input.feedback || "",
-      criterion_feedback: {},
+      criterion_feedback: { overallComments: input.feedback || "" },
       is_published: true,
       updated_at: evaluatedAt,
     }, { onConflict: "lesson_id,student_id" })
@@ -356,7 +364,7 @@ export async function createEvaluation(
     id: feedback.id,
     submission_id: input.submission_id,
     instructor_id: input.instructor_id,
-    feedback: feedback.comments || "",
+    feedback: feedbackText(feedback),
     score: feedback.total_score ?? input.score ?? null,
     evaluated_at: feedback.updated_at || evaluatedAt,
   };
@@ -392,7 +400,7 @@ export async function getEvaluationById(id: string): Promise<EvaluationRow | nul
       id: feedback.id,
       submission_id: submission.id,
       instructor_id: "",
-      feedback: feedback.comments || "",
+      feedback: feedbackText(feedback),
       score: feedback.total_score ?? null,
       evaluated_at: feedback.updated_at || "",
     } : null;
@@ -456,7 +464,7 @@ export async function getEvaluationsByLessonId(lessonId: string): Promise<Evalua
         id: feedback.id,
         submission_id: submission.id,
         instructor_id: "",
-        feedback: feedback.comments || "",
+        feedback: feedbackText(feedback),
         score: feedback.total_score ?? null,
         evaluated_at: feedback.updated_at || "",
       }] : [];
@@ -503,7 +511,7 @@ export async function getEvaluationsByInstructorId(
         id: feedback.id,
         submission_id: submission.id,
         instructor_id: instructorId,
-        feedback: feedback.comments || "",
+        feedback: feedbackText(feedback),
         score: feedback.total_score ?? null,
         evaluated_at: feedback.updated_at || "",
       }] : [];
@@ -527,10 +535,29 @@ export async function updateEvaluation(
   }
 
   try {
+    let criterionFeedback: Record<string, unknown> | undefined;
+    if (input.feedback !== undefined) {
+      const { data: currentFeedback, error: currentFeedbackError } = await supabase
+        .from("instructor_feedback")
+        .select("criterion_feedback")
+        .eq("id", id)
+        .maybeSingle();
+      if (currentFeedbackError) throw currentFeedbackError;
+      if (!currentFeedback) throw new Error("Evaluation not found.");
+      const currentCriterionFeedback = currentFeedback.criterion_feedback;
+      criterionFeedback = currentCriterionFeedback
+        && typeof currentCriterionFeedback === "object"
+        && !Array.isArray(currentCriterionFeedback)
+        ? currentCriterionFeedback as Record<string, unknown>
+        : {};
+    }
+
     const { data: feedback, error } = await supabase
       .from("instructor_feedback")
       .update({
-        ...(input.feedback !== undefined ? { comments: input.feedback } : {}),
+        ...(input.feedback !== undefined
+          ? { criterion_feedback: { ...criterionFeedback, overallComments: input.feedback } }
+          : {}),
         ...(input.score !== undefined ? { total_score: input.score } : {}),
         updated_at: new Date().toISOString(),
       })
@@ -553,7 +580,7 @@ export async function updateEvaluation(
       id: feedback.id,
       submission_id: submission.id,
       instructor_id: "",
-      feedback: feedback.comments || "",
+      feedback: feedbackText(feedback),
       score: feedback.total_score ?? null,
       evaluated_at: feedback.updated_at || "",
     };

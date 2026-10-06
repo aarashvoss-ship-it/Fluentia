@@ -194,7 +194,9 @@ export function SubmissionEvaluator({
         onUpdateEvaluation?.({
           scores: rubricScores,
           totalScore: Number(feedback.total_score ?? feedback.score ?? Object.values(rubricScores).reduce<number>((total, score) => total + Number(score), 0)),
-          comments: feedback.comments || "",
+          comments: typeof feedback.criterion_feedback?.overallComments === "string"
+            ? feedback.criterion_feedback.overallComments
+            : feedback.comments || "",
           criterionFeedback: feedback.criterion_feedback?.comments || feedback.criterion_feedback || evaluation?.criterionFeedback || {},
           stageFeedback: feedback.criterion_feedback?.stages || evaluation?.stageFeedback || {},
           stageScores: feedback.criterion_feedback?.stageScores || evaluation?.stageScores || {},
