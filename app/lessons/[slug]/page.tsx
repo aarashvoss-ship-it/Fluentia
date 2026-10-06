@@ -460,13 +460,24 @@ export default function LessonPage() {
     };
 
     void loadAuthenticatedStudent();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT") return;
-      const nextStudentId = session?.user.id || null;
-      // Auth clients may emit SIGNED_IN again for the same session when it resumes.
-      if (nextStudentId === authenticatedStudentIdRef.current) return;
-      authenticatedStudentIdRef.current = nextStudentId;
-      window.setTimeout(() => void loadAuthenticatedStudent(session?.user || null), 0);
+      window.setTimeout(() => {
+        void supabase.auth.getUser().then(({ data, error }) => {
+          if (error) {
+            console.warn("Unable to verify student after an auth event:", error);
+            return;
+          }
+          const currentUser = data.user;
+          const nextStudentId = currentUser?.id || null;
+          // Ignore focus-time SIGNED_IN/ SIGNED_OUT notifications when the user did not change.
+          if (nextStudentId === authenticatedStudentIdRef.current) return;
+          authenticatedStudentIdRef.current = nextStudentId;
+          void loadAuthenticatedStudent(currentUser);
+        }).catch((error: unknown) => {
+          console.warn("Unable to verify student after an auth event:", error);
+        });
+      }, 0);
     });
     return () => {
       cancelled = true;
