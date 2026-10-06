@@ -137,7 +137,10 @@ export function aggregateOverallRubric({
 
     criterionScores[criterionId] = normalizedScore;
     rawDisplayCriterionScores[criterionId] = displayRubricScore(normalizedScore, scaleId);
-    displayCriterionScores[criterionId] = roundRubricScore(rawDisplayCriterionScores[criterionId]);
+    displayCriterionScores[criterionId] = roundRubricScoreForScale(
+      rawDisplayCriterionScores[criterionId],
+      scaleId,
+    );
   }
 
   const scoredCriteria = criterionIds

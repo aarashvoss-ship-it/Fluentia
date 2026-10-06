@@ -560,7 +560,7 @@ export function SubmissionEvaluator({
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
               {STAGE_RUBRIC_CRITERIA.map((criterion) => {
                 const scale = getRubricScale(stageRubricScales[stage.id]);
-                return <label key={criterion.id} className="rounded-md border border-[#293343] bg-[#0c1017] p-2 text-[10px] text-stone-400">{criterion.label}<span className="float-right text-amber-300">{formatRubricScore(stageScores[stage.id]?.[criterion.id] || 0)}/{scale.max}</span></label>;
+                return <label key={criterion.id} className="rounded-md border border-[#293343] bg-[#0c1017] p-2 text-[10px] text-stone-400">{criterion.label}<span className="float-right text-amber-300">{formatRubricScore(roundRubricScoreForScale(stageScores[stage.id]?.[criterion.id] || 0, stageRubricScales[stage.id]))}/{scale.max}</span></label>;
               })}
             </div>
             {stageFeedback[stage.id]?.trim() && <p className="whitespace-pre-wrap rounded-md bg-[#0c1017] p-3 text-xs leading-relaxed text-stone-300">{stageFeedback[stage.id]}</p>}

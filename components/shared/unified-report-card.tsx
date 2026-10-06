@@ -9,6 +9,7 @@ import {
   formatRubricScore,
   getRubricScale,
   normalizeRubricScore,
+  roundRubricScoreForScale,
 } from "@/lib/rubric-scoring";
 
 export interface UnifiedReportTask {
@@ -242,8 +243,9 @@ export function UnifiedReportCard({
           {!isInstructorView && Object.keys(stageScores[stage.id] || {}).length > 0 && <div className="grid gap-2 sm:grid-cols-3">
             {Object.entries(stageScores[stage.id] || {}).map(([criterion, score]) => {
               const scale = getRubricScale(stageRubricScales[stage.id]);
+              const criterionLabel = RUBRIC_CRITERIA.find(({ id }) => id === criterion)?.label || criterion;
               return <div key={criterion} className="rounded-md border border-[#293343] bg-[#0c1017] px-3 py-2 text-xs text-stone-400">
-                <span className="capitalize">{criterion}</span><span className="float-right text-amber-300">{formatRubricScore(score)}/{scale.max}</span>
+                <span>{criterionLabel}</span><span className="float-right text-amber-300">{formatRubricScore(roundRubricScoreForScale(score, stageRubricScales[stage.id]))}/{scale.max}</span>
               </div>;
             })}
           </div>}
