@@ -904,7 +904,7 @@ function DashboardContent() {
     const submissionParam = submissionId
       ? `&submissionId=${encodeURIComponent(submissionId)}`
       : "";
-    return `/lessons/${encodeURIComponent(lessonPath)}?step=7${submissionParam}`;
+    return `/lessons/${encodeURIComponent(lessonPath)}?stage=report-card${submissionParam}`;
   };
   const openUnreadEvaluation = (lesson: LessonWithVersion, submissionId?: string) => {
     setShowUnreadFeedbackModal(false);
@@ -1169,7 +1169,7 @@ function DashboardContent() {
         >
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 id="unread-feedback-title" className="text-lg font-semibold text-stone-100">New evaluation feedback</h2>
+              <h2 id="unread-feedback-title" className="text-lg font-semibold text-stone-100">New Evaluation Feedback</h2>
               <p className="mt-1 text-sm text-stone-400">Choose a lesson to open its Report Card.</p>
             </div>
             <button
@@ -1829,9 +1829,9 @@ function DashboardContent() {
                   <Clock3 className="h-4 w-4" />
                 )}
                 {unreadEvaluations.length > 1
-                  ? `${unreadEvaluations.length} New Feedbacks Ready`
+                  ? `${unreadEvaluations.length} New Evaluations Ready`
                   : unreadEvaluations.length === 1
-                    ? "1 New Feedback Ready"
+                    ? "1 New Evaluation Ready"
                     : hasPublishedFeedback
                       ? "All Feedback Viewed"
                   : hasPendingReview

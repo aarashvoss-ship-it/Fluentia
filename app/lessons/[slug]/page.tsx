@@ -561,10 +561,12 @@ export default function LessonPage() {
     setCurrentStep("warm_up");
     const params = new URLSearchParams(requestedSearch);
     const requestedStep = getRequestedStep(params.get("step"));
+    const reportCardRequested = params.get("stage") === "report-card";
     const startStep = params.get("start");
     void fetchStudentProgress(lesson.id, activeToken).then(async (progress) => {
       if (cancelled) return;
-      let isReviewView = Boolean(requestedSubmissionId)
+      let isReviewView = reportCardRequested
+        || Boolean(requestedSubmissionId)
         || requestedStep === "results"
         || progress.currentStep === "results"
         || progress.status === "submitted"
@@ -599,6 +601,8 @@ export default function LessonPage() {
       });
       setCurrentStep(canShowResults
         ? "results"
+        : reportCardRequested && state?.evaluation?.published
+          ? "results"
         : requestedNonResultsStep || (startStep === "warm_up" ? "warm_up" : persistedStep));
       setCompletedSteps(progress.completedSteps);
       setSubmissionHydrated(true);
