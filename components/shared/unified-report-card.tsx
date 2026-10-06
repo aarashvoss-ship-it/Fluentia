@@ -272,11 +272,11 @@ export function UnifiedReportCard({
     <section aria-label="Overall Performance Breakdown" className="space-y-3 rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4 sm:p-5">
       <div className="flex items-center justify-between border-b border-emerald-800/40 pb-3">
         <h3 className="text-lg font-semibold text-white">Overall Performance Breakdown</h3>
-        <span className="inline-flex items-baseline gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-1.5 font-bold text-amber-400">
+        <span className="inline-flex items-baseline gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 px-2.5 py-1 font-bold leading-tight text-amber-400">
           {overallScaleId === "ielts" ? <>
-            <span className="text-sm">Overall Band Score:</span>
-            <span className="text-lg">{totalScore.toFixed(1)} / {overallAggregation.totalDenominator}</span>
-          </> : <span className="text-lg">{formatOverallRubricTotal(totalScore, overallScaleId, overallAggregation.totalDenominator)}</span>}
+            <span className="text-xs">Overall Band Score:</span>
+            <span className="text-sm">{totalScore.toFixed(1)} / {overallAggregation.totalDenominator}</span>
+          </> : <span className="text-sm">{formatOverallRubricTotal(totalScore, overallScaleId, overallAggregation.totalDenominator)}</span>}
         </span>
       </div>
       <div className="flex flex-col gap-3">
