@@ -457,7 +457,8 @@ export default function LessonPage() {
     };
 
     void loadAuthenticatedStudent();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT") return;
       window.setTimeout(() => void loadAuthenticatedStudent(session?.user || null), 0);
     });
     return () => {
