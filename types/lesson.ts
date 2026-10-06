@@ -281,6 +281,7 @@ export interface PublishedLessonState {
   studentProfile: StudentProfile;
   evaluation: LessonEvaluation;
   status: "draft" | "published";
+  submissionId?: string;
   submission?: StudentSubmission;
 }
 
@@ -375,6 +376,7 @@ export interface StudentSubmission {
   quizSelections?: Record<string, string>;
   audioUploads?: Record<string, string>;
   submittedAt?: string;
+  evaluationViewedAt?: string;
 }
 
 export interface SavedVocabularyWord {

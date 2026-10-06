@@ -370,6 +370,9 @@ function mapSubmission(row: SupabaseRow): StudentSubmission {
     quizSelections: content.quizSelections || {},
     audioUploads: content.audioUploads || {},
     submittedAt: row.submitted_at || content.submittedAt,
+    evaluationViewedAt: typeof content.evaluationViewedAt === "string"
+      ? content.evaluationViewedAt
+      : typeof row.evaluationViewedAt === "string" ? row.evaluationViewedAt : undefined,
   };
 }
 
@@ -493,7 +496,7 @@ export async function fetchLessonState(
             } else {
               const result = await supabase
                 .from("submissions")
-                .select("id,status,submitted_at")
+                .select("id,status,submitted_at,evaluationViewedAt:answers->>evaluationViewedAt")
                 .eq("lesson_id", lessonId)
                 .eq("student_id", authenticatedStudentId)
                 .order("submitted_at", { ascending: false })
@@ -529,6 +532,7 @@ export async function fetchLessonState(
             studentProfile: defaultProfile(),
             evaluation: feedback ? mapFeedbackRow(feedback) : emptyEvaluation(),
             status: lesson.status === "draft" ? "draft" : "published",
+            submissionId: submission?.id,
             submission: submission ? mapSubmission(submission) : undefined,
           };
         }
@@ -541,6 +545,60 @@ export async function fetchLessonState(
     }
   }
   return getStateForMode(slug, studentToken, mode);
+}
+
+export async function markStudentEvaluationAsViewed(
+  slug: string,
+  studentToken?: string,
+  submissionId?: string,
+): Promise<void> {
+  if (isSupabaseConfigured()) {
+    const studentId = await getStudentId();
+    if (!studentId) throw new Error("An authenticated student session is required to mark feedback as viewed.");
+    const lesson = await fetchStudentLesson(slug, studentId);
+    if (!lesson) throw new Error(`Unable to resolve lesson ${slug} for the current student.`);
+
+    let query = supabase
+      .from("submissions")
+      .select("id,answers")
+      .eq("lesson_id", lesson.id)
+      .eq("student_id", studentId);
+    if (submissionId) {
+      query = query.eq("id", submissionId);
+    } else {
+      query = query.order("submitted_at", { ascending: false }).limit(1);
+    }
+    const { data: submission, error: lookupError } = await query.maybeSingle();
+    if (lookupError) throw lookupError;
+    if (!submission) throw new Error("The submission for this evaluation could not be found.");
+
+    const answers = submission.answers && typeof submission.answers === "object"
+      ? submission.answers as Record<string, unknown>
+      : {};
+    if (typeof answers.evaluationViewedAt === "string") return;
+
+    const { error: updateError } = await supabase
+      .from("submissions")
+      .update({
+        answers: { ...answers, evaluationViewedAt: new Date().toISOString() },
+      })
+      .eq("id", submission.id)
+      .eq("student_id", studentId);
+    if (updateError) throw updateError;
+    notifyDataUpdated({ type: "evaluation-viewed", slug, studentToken: studentId });
+    return;
+  }
+
+  const state = getState(slug, studentToken);
+  if (!state?.submission) return;
+  if (state.submission.evaluationViewedAt) return;
+  await saveLessonState(slug, {
+    ...state,
+    submission: {
+      ...state.submission,
+      evaluationViewedAt: new Date().toISOString(),
+    },
+  }, studentToken);
 }
 
 function getStateForMode(slug: string, studentToken: string | undefined, mode: LessonStateMode) {
@@ -557,6 +615,7 @@ function getStateForMode(slug: string, studentToken: string | undefined, mode: L
     ...studentState,
     submission: {
       status: submission.status,
+      evaluationViewedAt: submission.evaluationViewedAt,
       listeningAnswers: {},
       readingAnswers: {},
       writingText: "",

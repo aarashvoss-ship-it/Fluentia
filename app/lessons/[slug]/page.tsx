@@ -7,7 +7,7 @@ import type { User } from "@supabase/supabase-js";
 import { ChatMessage, ContentBlock, SavedVocabularyWord, StudentNote, StudyStepId, STUDY_STEPS, LessonContent, StudentSubmission } from "@/types/lesson";
 import { getLessonById, type LessonWithVersion } from "@/lib/lessons";
 import { getLessonStateKey, PublishedLessonState, writeLastAccessedLesson } from "@/lib/lesson-store";
-import { fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, saveChatMessage, saveStudentNote, saveStudentSubmissionDraft, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
+import { fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, markStudentEvaluationAsViewed, saveChatMessage, saveStudentNote, saveStudentSubmissionDraft, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
 import { FLUENTIA_USERS, INSTRUCTOR_USER, type StudentUser } from "@/lib/users";
 import { supabase } from "@/lib/supabase";
 import { Stepper } from "@/components/study-room/stepper";
@@ -294,6 +294,8 @@ type QueuedSubmissionSave = {
 export default function LessonPage() {
   const rawSlug = useParams()?.slug;
   const searchParams = useSearchParams();
+  const requestedSearch = searchParams.toString();
+  const requestedSubmissionId = searchParams.get("submissionId") || undefined;
   const requestedSlug = typeof rawSlug === "string" ? rawSlug : searchParams.get("slug") || searchParams.get("id") || "";
   const [lesson, setLesson] = useState<LessonWithVersion | null>(null);
   const [loading, setLoading] = useState(true);
@@ -322,6 +324,7 @@ export default function LessonPage() {
     audioUploads: {},
   });
   const submissionSaveQueue = useRef<Promise<void>>(Promise.resolve());
+  const evaluationViewedSubmissionRef = useRef<string | null>(null);
   const submissionSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSubmissionSave = useRef<QueuedSubmissionSave | null>(null);
   const [visibleSampleAnswers, setVisibleSampleAnswers] = useState<Record<string, boolean>>({});
@@ -556,18 +559,19 @@ export default function LessonPage() {
       }
     }
     setCurrentStep("warm_up");
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(requestedSearch);
     const requestedStep = getRequestedStep(params.get("step"));
     const startStep = params.get("start");
     void fetchStudentProgress(lesson.id, activeToken).then(async (progress) => {
       if (cancelled) return;
-      let isReviewView = requestedStep === "results"
+      let isReviewView = Boolean(requestedSubmissionId)
+        || requestedStep === "results"
         || progress.currentStep === "results"
         || progress.status === "submitted"
         || progress.status === "pending_evaluation"
         || progress.status === "reviewed"
         || progress.status === "evaluated";
-      let state = await fetchLessonState(lesson.id, activeToken, isReviewView ? "review" : "interactive");
+      let state = await fetchLessonState(lesson.id, activeToken, isReviewView ? "review" : "interactive", requestedSubmissionId);
       if (cancelled) return;
       const savedStatus = state?.submission?.status;
       if (!isReviewView && (savedStatus === "submitted"
@@ -575,7 +579,7 @@ export default function LessonPage() {
         || savedStatus === "reviewed"
         || savedStatus === "evaluated")) {
         isReviewView = true;
-        state = await fetchLessonState(lesson.id, activeToken, "review");
+        state = await fetchLessonState(lesson.id, activeToken, "review", requestedSubmissionId);
       }
       if (cancelled) return;
       const hydratedSubmission = state?.submission;
@@ -610,7 +614,31 @@ export default function LessonPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeStudent?.id, lessonReady, lessonNotFound, lesson, studentReady]);
+  }, [activeStudent?.id, lessonReady, lessonNotFound, lesson, requestedSearch, studentReady]);
+
+  useEffect(() => {
+    const viewedSubmissionId = publishedLesson?.submissionId || requestedSubmissionId;
+    if (currentStep !== "results"
+      || publishedLesson?.evaluation?.published !== true
+      || submission.evaluationViewedAt) return;
+    const markerKey = `${lesson?.id || requestedSlug}:${viewedSubmissionId || "latest"}`;
+    if (evaluationViewedSubmissionRef.current === markerKey) return;
+    evaluationViewedSubmissionRef.current = markerKey;
+    void markStudentEvaluationAsViewed(lesson?.id || requestedSlug, activeStudent?.id, viewedSubmissionId)
+      .catch((error) => {
+        evaluationViewedSubmissionRef.current = null;
+        console.error("Unable to mark student evaluation as viewed:", error);
+      });
+  }, [
+    activeStudent?.id,
+    currentStep,
+    lesson?.id,
+    publishedLesson?.evaluation?.published,
+    publishedLesson?.submissionId,
+    requestedSubmissionId,
+    requestedSlug,
+    submission.evaluationViewedAt,
+  ]);
 
   useEffect(() => {
     if (!studentReady || accessDenied || !activeStudent?.id) return;

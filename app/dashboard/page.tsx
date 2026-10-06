@@ -200,6 +200,7 @@ function DashboardContent() {
   const [notes, setNotes] = useState<StudentNote[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [showUnreadFeedbackModal, setShowUnreadFeedbackModal] = useState(false);
   const [profileTab, setProfileTab] = useState<"profile" | "customization">(
     "profile",
   );
@@ -777,9 +778,14 @@ function DashboardContent() {
   const hasPendingReview = displayLessons.some(
     (lesson) => getLessonStatus(lessonStates[lesson.id]) === "pending-review",
   );
-  const hasFeedback = displayLessons.some(
-    (lesson) => getLessonStatus(lessonStates[lesson.id]) === "completed",
+  const hasPublishedFeedback = displayLessons.some(
+    (lesson) => lessonStates[lesson.id]?.evaluation?.published === true,
   );
+  const unreadEvaluations = displayLessons.flatMap((lesson) => {
+    const state = lessonStates[lesson.id];
+    if (!state?.evaluation?.published || state.submission?.evaluationViewedAt) return [];
+    return [{ lesson, submissionId: state.submissionId }];
+  });
   const instructorNote =
     savedInstructorNote ||
     activeStudent?.profile?.instructor_notes ||
@@ -892,6 +898,25 @@ function DashboardContent() {
       /\?$/,
       "",
     );
+  };
+  const getEvaluationHref = (lesson: LessonWithVersion, submissionId?: string) => {
+    const lessonPath = lesson.content?.slug || lesson.slug || lesson.id;
+    const submissionParam = submissionId
+      ? `&submissionId=${encodeURIComponent(submissionId)}`
+      : "";
+    return `/lessons/${encodeURIComponent(lessonPath)}?step=7${submissionParam}`;
+  };
+  const openUnreadEvaluation = (lesson: LessonWithVersion, submissionId?: string) => {
+    setShowUnreadFeedbackModal(false);
+    router.push(getEvaluationHref(lesson, submissionId));
+  };
+  const handleEvaluationStatusClick = () => {
+    if (unreadEvaluations.length === 1) {
+      const [unread] = unreadEvaluations;
+      openUnreadEvaluation(unread.lesson, unread.submissionId);
+    } else if (unreadEvaluations.length > 1) {
+      setShowUnreadFeedbackModal(true);
+    }
   };
   const rememberLesson = (lessonId: string) =>
     writeLastAccessedLesson(lessonId, token);
@@ -1129,6 +1154,49 @@ function DashboardContent() {
     <main className="min-h-screen bg-[#0c1017] text-[#e8e7e4] font-sans">
       {profileSaveNotice && <div role="status" className="fixed bottom-5 right-5 z-[100] flex items-center gap-3 rounded-md border border-emerald-500/30 bg-[#171d28] px-4 py-3 text-xs text-emerald-300 shadow-xl"><span>{profileSaveNotice}</span><button type="button" onClick={() => setProfileSaveNotice(null)} aria-label="Dismiss profile save notification" className="text-emerald-200/70 hover:text-emerald-100"><X className="h-4 w-4" /></button></div>}
       {profileSaveError && <div role="alert" className="fixed bottom-5 right-5 z-[100] flex items-center gap-3 rounded-md border border-red-500/40 bg-[#241719] px-4 py-3 text-xs text-red-200 shadow-xl"><span>{profileSaveError}</span><button type="button" onClick={() => setProfileSaveError(null)} aria-label="Dismiss profile save error" className="text-red-200/70 hover:text-red-100"><X className="h-4 w-4" /></button></div>}
+      {showUnreadFeedbackModal && <div
+        className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-4"
+        role="presentation"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setShowUnreadFeedbackModal(false);
+        }}
+      >
+        <section
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="unread-feedback-title"
+          className="w-full max-w-lg rounded-xl border border-emerald-500/30 bg-[#121721] p-5 shadow-2xl"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 id="unread-feedback-title" className="text-lg font-semibold text-stone-100">New evaluation feedback</h2>
+              <p className="mt-1 text-sm text-stone-400">Choose a lesson to open its Report Card.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowUnreadFeedbackModal(false)}
+              aria-label="Close unread feedback list"
+              className="rounded-md p-1 text-stone-400 transition hover:bg-[#202631] hover:text-stone-100"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <ul className="mt-4 space-y-2">
+            {unreadEvaluations.map(({ lesson, submissionId }) => (
+              <li key={`${lesson.id}:${submissionId || "latest"}`}>
+                <button
+                  type="button"
+                  onClick={() => openUnreadEvaluation(lesson, submissionId)}
+                  className="flex w-full items-center justify-between gap-3 rounded-lg border border-[#293343] bg-[#0c1017] px-3 py-3 text-left text-sm text-stone-200 transition hover:border-emerald-500/40 hover:bg-emerald-950/20"
+                >
+                  <span className="min-w-0 truncate">{lesson.title}</span>
+                  <span className="shrink-0 text-xs font-semibold text-emerald-300">View Report Card</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>}
       <div className="mx-auto max-w-7xl px-4 pt-6 md:px-6">
         <HeroBanner
           imageUrl={dashboardHeaderBanner}
@@ -1738,26 +1806,39 @@ function DashboardContent() {
               </p>
             </div>
             </Tooltip>
-            <Tooltip content={hasFeedback ? "Your latest evaluation feedback is available" : "Your instructor has not published evaluation feedback yet"}>
-            <div className="flex h-full min-h-[104px] w-full flex-col justify-center rounded-xl border border-[#202631] bg-[#121721] p-4">
+            <Tooltip content={unreadEvaluations.length > 0
+              ? "Open your unread evaluation feedback"
+              : hasPublishedFeedback
+                ? "All published evaluation feedback has been viewed"
+                : "Your instructor has not published evaluation feedback yet"}>
+            <button
+              type="button"
+              onClick={handleEvaluationStatusClick}
+              aria-haspopup={unreadEvaluations.length > 1 ? "dialog" : undefined}
+              className="flex h-full min-h-[104px] w-full cursor-pointer flex-col justify-center rounded-xl border border-[#202631] bg-[#121721] p-4 text-left transition hover:border-emerald-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+            >
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#667084]">
                 Overall Evaluation Status
               </p>
               <p
-                className={`mt-2 flex items-center gap-2 text-sm font-semibold ${hasFeedback ? "text-emerald-300" : "text-amber-400"}`}
+                className={`mt-2 flex items-center gap-2 text-sm font-semibold ${hasPublishedFeedback ? "text-emerald-300" : "text-amber-400"}`}
               >
-                {hasFeedback ? (
+                {hasPublishedFeedback ? (
                   <CheckCircle2 className="h-4 w-4" />
                 ) : (
                   <Clock3 className="h-4 w-4" />
                 )}
-                {hasFeedback
-                  ? "Feedback Ready"
+                {unreadEvaluations.length > 1
+                  ? `${unreadEvaluations.length} New Feedbacks Ready`
+                  : unreadEvaluations.length === 1
+                    ? "1 New Feedback Ready"
+                    : hasPublishedFeedback
+                      ? "All Feedback Viewed"
                   : hasPendingReview
                     ? "Pending Evaluation"
                     : "Pending Evaluation"}
               </p>
-            </div>
+            </button>
             </Tooltip>
           </section>
 
