@@ -1833,7 +1833,7 @@ function DashboardContent() {
                   : unreadEvaluations.length === 1
                     ? "1 New Evaluation Ready"
                     : hasPublishedFeedback
-                      ? "All Feedback Viewed"
+                      ? "All Evaluations Reviewed"
                   : hasPendingReview
                     ? "Pending Evaluation"
                     : "Pending Evaluation"}
@@ -2234,7 +2234,7 @@ function DashboardContent() {
                               onClick={() => rememberLesson(lesson.id)}
                               className={`inline-flex rounded-md px-3 py-2 text-xs transition-colors ${
                                 status === "completed"
-                                  ? "bg-emerald-500 text-amber-400"
+                                  ? "border border-emerald-500/40 bg-emerald-950/40 font-medium text-emerald-400 transition hover:border-emerald-500/70 hover:bg-emerald-500/20"
                                   : "bg-amber-500/20 text-amber-400 group-hover:bg-amber-500/20"
                               }`}
                             >
