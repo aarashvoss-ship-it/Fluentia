@@ -765,6 +765,10 @@ export async function saveInstructorFeedback(
   if (isSupabaseConfigured()) {
     const studentId = studentToken?.trim() || "";
     if (!UUID_PATTERN.test(studentId)) throw new Error("A valid selected student ID is required to save this evaluation.");
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    if (!authData.user) throw new Error("An authenticated instructor is required to save this evaluation.");
+    const authenticatedInstructorId = authData.user.id;
 
     let lessonQuery = supabase.from("lessons").select("id,content,banner_url,status,instructor_id");
     lessonQuery = UUID_PATTERN.test(slug)
@@ -773,6 +777,9 @@ export async function saveInstructorFeedback(
     const { data: lesson, error: lessonError } = await lessonQuery.maybeSingle();
     if (lessonError) throw lessonError;
     if (!lesson) throw new Error(`Lesson ${slug} could not be found for evaluation.`);
+    if (lesson.instructor_id !== authenticatedInstructorId) {
+      throw new Error("The signed-in user is not the instructor assigned to this lesson.");
+    }
 
     let submissionQuery = supabase
       .from("submissions")
@@ -808,6 +815,7 @@ export async function saveInstructorFeedback(
     const { error: feedbackError } = await supabase.from("instructor_feedback").upsert({
       lesson_id: lesson.id,
       student_id: studentId,
+      instructor_id: authenticatedInstructorId,
       rubric_scores: savedEvaluation.scores,
       total_score: savedEvaluation.totalScore,
       criterion_feedback: rubricFeedback,
