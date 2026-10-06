@@ -501,22 +501,6 @@ export async function fetchLessonState(
           } catch (error) {
             console.error("[Dashboard Progress] Submission fetch threw an error:", { lessonId, studentId: authenticatedStudentId, submissionId, mode, error });
           }
-          if (mode === "interactive" && (submission?.status === "in_progress" || submission?.status === "draft")) {
-            try {
-              const result = await supabase
-                .from("submissions")
-                .select("id,answers,status,submitted_at")
-                .eq("id", submission.id)
-                .eq("lesson_id", lessonId)
-                .eq("student_id", authenticatedStudentId)
-                .maybeSingle();
-              if (result.error) throw result.error;
-              submission = result.data;
-            } catch (error) {
-              console.error("[Dashboard Progress] Active student draft could not be loaded:", { lessonId, studentId: authenticatedStudentId, error });
-              submission = null;
-            }
-          }
           if (mode !== "interactive") {
             try {
               const result = await supabase.from("instructor_feedback").select("*").eq("lesson_id", lessonId).eq("student_id", authenticatedStudentId).limit(1).maybeSingle();
@@ -552,7 +536,6 @@ function getStateForMode(slug: string, studentToken: string | undefined, mode: L
   const state = getState(slug, studentToken);
   if (!state || mode === "review") return state;
   const submission = state.submission;
-  if (mode === "interactive" && (!submission || submission.status === "in_progress")) return state;
   if (!submission) return state;
   return {
     ...state,
