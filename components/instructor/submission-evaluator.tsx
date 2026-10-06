@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, ClipboardCheck, Mic, Save } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Mic, Save } from "lucide-react";
 import { LessonEvaluation } from "@/types/lesson";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { getSubmissionById, getSubmissionByLessonAndStudent } from "@/lib/evaluations";
@@ -130,6 +130,7 @@ export function SubmissionEvaluator({
   const stageVoiceFeedback = evaluation?.stageVoiceFeedback || {};
   const stages = reportCardStages.length ? reportCardStages : DEFAULT_REPORT_STAGES;
   const [activeStageId, setActiveStageId] = useState(stages[0]?.id || "report-card");
+  const [expandedTaskFeedback, setExpandedTaskFeedback] = useState<Record<string, boolean>>({});
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isSavingDraft, setIsSavingDraft] = useState<boolean>(false);
@@ -512,6 +513,8 @@ export function SubmissionEvaluator({
               {activeStage.referenceAudioUrl && <div className="mt-3"><CustomAudioPlayer src={activeStage.referenceAudioUrl} label={`${activeStage.title} lesson reference audio`} /></div>}
             </details>}
             {activeStage.tasks.length ? activeStage.tasks.map((task, index) => {
+              const feedbackSectionId = `${activeStage.id}:${task.id}`;
+              const isFeedbackExpanded = expandedTaskFeedback[feedbackSectionId] ?? false;
               const normalizedAnswer = task.studentAnswer ? normalizeAnswer(task.studentAnswer) : "";
               const matchesCorrectAnswer = task.modelAnswer?.split(/[\/|]/).some(
                 (candidate) => normalizeAnswer(candidate) === normalizedAnswer,
@@ -554,18 +557,41 @@ export function SubmissionEvaluator({
                   <p className={`mt-2 whitespace-pre-wrap py-2 text-sm leading-relaxed ${modelTextClass}`}>{stripMarkdown(task.modelAnswer)}</p>
                 </div>}
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">INSTRUCTOR FEEDBACK &amp; CORRECTION</p>
-                  <TiptapEditor
-                    value={combineTaskFeedback(taskFeedback[task.id], inlineCorrections[task.id])}
-                    onChange={(value) => updateEvaluation({
-                      taskFeedback: { ...taskFeedback, [task.id]: value },
-                      inlineCorrections: Object.fromEntries(Object.entries(inlineCorrections).filter(([id]) => id !== task.id)),
-                    })}
-                    placeholder="Write a correction, explanation, or note about this response..."
-                    ariaLabel={`${task.title} instructor feedback and correction`}
-                    compact
-                    wrapToolbar
-                  />
+                  <button
+                    type="button"
+                    aria-expanded={isFeedbackExpanded}
+                    aria-controls={`task-feedback-editor-${index}`}
+                    onClick={() => setExpandedTaskFeedback((current) => ({
+                      ...current,
+                      [feedbackSectionId]: !isFeedbackExpanded,
+                    }))}
+                    className="flex w-full items-center gap-2 rounded-md py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300 transition hover:text-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50"
+                  >
+                    {isFeedbackExpanded
+                      ? <ChevronDown className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      : <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+                    INSTRUCTOR FEEDBACK &amp; CORRECTION
+                  </button>
+                  <div
+                    id={`task-feedback-editor-${index}`}
+                    className={`grid transition-[grid-template-rows] duration-200 ease-in-out ${isFeedbackExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+                    aria-hidden={!isFeedbackExpanded}
+                    inert={!isFeedbackExpanded}
+                  >
+                    <div className="min-h-0 overflow-hidden">
+                      <TiptapEditor
+                        value={combineTaskFeedback(taskFeedback[task.id], inlineCorrections[task.id])}
+                        onChange={(value) => updateEvaluation({
+                          taskFeedback: { ...taskFeedback, [task.id]: value },
+                          inlineCorrections: Object.fromEntries(Object.entries(inlineCorrections).filter(([id]) => id !== task.id)),
+                        })}
+                        placeholder="Write a correction, explanation, or note about this response..."
+                        ariaLabel={`${task.title} instructor feedback and correction`}
+                        compact
+                        wrapToolbar
+                      />
+                    </div>
+                  </div>
                 </div>
               </article>;
             }) : <div className="rounded-lg border border-dashed border-[#394252] bg-[#111620] p-5 text-center">
