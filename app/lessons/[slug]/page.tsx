@@ -1482,6 +1482,7 @@ export default function LessonPage() {
                 criterionFeedback={evaluation?.criterionFeedback || {}}
                 stageFeedback={evaluation?.stageFeedback || {}}
                 stageScores={evaluation?.stageScores || {}}
+                stageRubricScales={evaluation?.stageRubricScales || {}}
                 taskFeedback={evaluation?.taskFeedback || {}}
                 inlineCorrections={evaluation?.inlineCorrections || {}}
                 stageVoiceFeedback={evaluation?.stageVoiceFeedback || {}}

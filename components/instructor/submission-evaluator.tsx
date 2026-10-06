@@ -19,6 +19,7 @@ export interface FeedbackPayload {
   criterionFeedback: Record<string, string>;
   stageFeedback: Record<string, string>;
   stageScores: Record<string, Record<string, number>>;
+  stageRubricScales: Record<string, RubricScale>;
   reportCardScoreOverrides: Record<string, number>;
   taskFeedback: Record<string, string>;
   inlineCorrections: Record<string, string>;
@@ -46,6 +47,29 @@ const RUBRIC_CRITERIA = [
   { id: "grammar", label: "Grammatical Accuracy", max: 5 },
 ];
 const STAGE_RUBRIC_CRITERIA = RUBRIC_CRITERIA;
+export type RubricScale = "standard-5" | "standard-10" | "ielts" | "percentage";
+const RUBRIC_SCALE_OPTIONS: { id: RubricScale; label: string; min: number; max: number; step: number }[] = [
+  { id: "standard-5", label: "Standard · 1–5", min: 1, max: 5, step: 1 },
+  { id: "standard-10", label: "Standard · 1–10", min: 1, max: 10, step: 1 },
+  { id: "ielts", label: "IELTS · 1–9 (0.5 steps)", min: 1, max: 9, step: 0.5 },
+  { id: "percentage", label: "Percentage · 0–100", min: 0, max: 100, step: 1 },
+];
+const DEFAULT_RUBRIC_SCALE: RubricScale = "standard-5";
+const getRubricScale = (id?: string) => RUBRIC_SCALE_OPTIONS.find((option) => option.id === id) || RUBRIC_SCALE_OPTIONS[0];
+
+function normalizeRubricScore(score: number, scaleId: RubricScale | undefined) {
+  const scale = getRubricScale(scaleId);
+  const ratio = (score - scale.min) / (scale.max - scale.min);
+  return scale.min === 0 ? ratio * 5 : 1 + ratio * 4;
+}
+
+function convertRubricScore(score: number, fromScaleId: RubricScale | undefined, toScaleId: RubricScale) {
+  const fromScale = getRubricScale(fromScaleId);
+  const toScale = getRubricScale(toScaleId);
+  const ratio = (score - fromScale.min) / (fromScale.max - fromScale.min);
+  const converted = toScale.min + ratio * (toScale.max - toScale.min);
+  return Math.round(converted / toScale.step) * toScale.step;
+}
 const DEFAULT_REPORT_STAGES: UnifiedReportStage[] = [
   { id: "warm_up", title: "Warm-up", tasks: [] },
   { id: "lesson", title: "Lesson", tasks: [] },
@@ -114,10 +138,14 @@ export function SubmissionEvaluator({
   const criterionFeedback = evaluation?.criterionFeedback || {};
   const stageFeedback = evaluation?.stageFeedback || {};
   const stageScores = evaluation?.stageScores || {};
+  const stageRubricScales = evaluation?.stageRubricScales || {};
   const reportCardScoreOverrides = evaluation?.reportCardScoreOverrides || {};
   const stageAverages = Object.fromEntries(RUBRIC_CRITERIA.map(({ id }) => {
-    const values = Object.values(stageScores)
-      .map((stage) => stage[id])
+    const values = Object.entries(stageScores)
+      .map(([stageId, stage]) => {
+        const score = stage[id];
+        return typeof score === "number" ? normalizeRubricScore(score, stageRubricScales[stageId]) : undefined;
+      })
       .filter((score): score is number => typeof score === "number" && Number.isFinite(score));
     return [id, values.length ? values.reduce((sum, score) => sum + score, 0) / values.length : undefined];
   }));
@@ -219,6 +247,7 @@ export function SubmissionEvaluator({
           criterionFeedback: feedback.criterion_feedback?.comments || feedback.criterion_feedback || evaluation?.criterionFeedback || {},
           stageFeedback: feedback.criterion_feedback?.stages || evaluation?.stageFeedback || {},
           stageScores: feedback.criterion_feedback?.stageScores || evaluation?.stageScores || {},
+          stageRubricScales: feedback.criterion_feedback?.stageRubricScales || evaluation?.stageRubricScales || {},
           reportCardScoreOverrides: feedback.criterion_feedback?.reportCardScoreOverrides || evaluation?.reportCardScoreOverrides || {},
           taskFeedback: feedback.criterion_feedback?.taskFeedback || evaluation?.taskFeedback || {},
           inlineCorrections: feedback.criterion_feedback?.inlineCorrections || evaluation?.inlineCorrections || {},
@@ -252,6 +281,7 @@ export function SubmissionEvaluator({
       criterionFeedback,
       stageFeedback,
       stageScores,
+      stageRubricScales,
       reportCardScoreOverrides,
       taskFeedback,
       inlineCorrections,
@@ -287,6 +317,7 @@ export function SubmissionEvaluator({
     criterionFeedback,
     stageFeedback,
     stageScores,
+    stageRubricScales,
     reportCardScoreOverrides,
     taskFeedback,
     inlineCorrections,
@@ -524,7 +555,7 @@ export function SubmissionEvaluator({
             </div>
             <textarea value={evaluation?.studyHubPrescription || ""} onChange={(event) => updateEvaluation({ studyHubPrescription: event.target.value })} rows={2} placeholder="Recommended study resource or topic..." className="w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] p-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" aria-label="Study Hub prescription" />
           </section>
-        </div> : activeStage ? <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_330px]">
+        </div> : activeStage ?         <div className="min-w-0 space-y-5">
           <div className="min-w-0 space-y-5">
             {stageStepper}
             {stageHeading}
@@ -621,19 +652,92 @@ export function SubmissionEvaluator({
             </div>}
           </div>
 
-          <aside className="h-fit space-y-4 rounded-xl border border-[#202631] bg-[#171d28]/60 p-4" aria-label={`${activeStage.title} feedback tools`}>
-            <div>
-              <h3 className="text-sm font-semibold text-stone-100">Stage Rubric</h3>
-              <p className="mt-1 text-[10px] text-stone-500">Rate each criterion from 1 to 5.</p>
+          <section className="space-y-4 rounded-xl border border-[#202631] bg-[#171d28]/60 p-4" aria-label={`${activeStage.title} stage rubric`}>
+            <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#293343] pb-3">
+              <div>
+                <h3 className="text-sm font-semibold text-stone-100">Stage Rubric</h3>
+                <p className="mt-1 text-[10px] text-stone-500">Choose a scoring scale for {activeStage.title}, then rate each criterion.</p>
+              </div>
+              <label className="flex items-center gap-2 text-xs text-stone-400">
+                Scoring scale
+                <select
+                  value={stageRubricScales[activeStage.id] || DEFAULT_RUBRIC_SCALE}
+                  onChange={(event) => {
+                    const nextScale = event.target.value as RubricScale;
+                    const currentScale = stageRubricScales[activeStage.id];
+                    updateEvaluation({
+                      stageRubricScales: { ...stageRubricScales, [activeStage.id]: nextScale },
+                      stageScores: {
+                        ...stageScores,
+                        [activeStage.id]: Object.fromEntries(
+                          Object.entries(stageScores[activeStage.id] || {}).map(([criterionId, score]) => [
+                            criterionId,
+                            convertRubricScore(score, currentScale, nextScale),
+                          ]),
+                        ),
+                      },
+                    });
+                  }}
+                  className="rounded-md border border-[#394252] bg-[#0c1017] px-2.5 py-2 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                  aria-label={`${activeStage.title} rubric scoring scale`}
+                >
+                  {RUBRIC_SCALE_OPTIONS.map((scale) => <option key={scale.id} value={scale.id}>{scale.label}</option>)}
+                </select>
+              </label>
             </div>
-            {STAGE_RUBRIC_CRITERIA.map((criterion) => <fieldset key={criterion.id} className="rounded-lg border border-[#293343] bg-[#0c1017] p-3">
-              <legend className="px-1 text-xs text-stone-300">{criterion.label}</legend>
-              <div className="flex gap-1">{[1, 2, 3, 4, 5].map((score) => <button key={score} type="button" onClick={() => updateEvaluation({ stageScores: { ...stageScores, [activeStage.id]: { ...stageScores[activeStage.id], [criterion.id]: score } } })} aria-label={`${activeStage.title} ${criterion.label}: ${score} out of 5`} className={`h-8 flex-1 rounded text-xs ${stageScores[activeStage.id]?.[criterion.id] === score ? "bg-amber-500/20 text-amber-300" : "bg-[#171d28] text-stone-500 hover:text-stone-200"}`}>{score}</button>)}</div>
-            </fieldset>)}
-            <label className="block text-xs font-medium text-stone-300">Stage feedback
-              <textarea value={stageFeedback[activeStage.id] || ""} onChange={(event) => updateEvaluation({ stageFeedback: { ...stageFeedback, [activeStage.id]: event.target.value } })} rows={4} placeholder={`Comments on ${activeStage.title.toLowerCase()}...`} className="mt-1 w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] p-3 text-xs font-normal leading-relaxed text-stone-200 outline-none focus:border-amber-500/40" />
+            <div className="divide-y divide-[#293343]">
+              {STAGE_RUBRIC_CRITERIA.map((criterion) => {
+                const scale = getRubricScale(stageRubricScales[activeStage.id]);
+                const score = stageScores[activeStage.id]?.[criterion.id];
+                return <div key={criterion.id} className="grid gap-2 py-3 sm:grid-cols-[minmax(180px,0.8fr)_minmax(0,2fr)_96px] sm:items-center">
+                  <label htmlFor={`stage-score-${activeStage.id}-${criterion.id}`} className="text-xs font-medium text-stone-300">{criterion.label}</label>
+                  <input
+                    id={`stage-score-${activeStage.id}-${criterion.id}`}
+                    type="range"
+                    min={scale.min}
+                    max={scale.max}
+                    step={scale.step}
+                    value={score ?? scale.min}
+                    onChange={(event) => updateEvaluation({
+                      stageScores: {
+                        ...stageScores,
+                        [activeStage.id]: { ...stageScores[activeStage.id], [criterion.id]: Number(event.target.value) },
+                      },
+                    })}
+                    className="w-full accent-amber-500"
+                    aria-label={`${activeStage.title} ${criterion.label}`}
+                  />
+                  <div className="flex items-center gap-2 sm:justify-end">
+                    <input
+                      type="number"
+                      min={scale.min}
+                      max={scale.max}
+                      step={scale.step}
+                      value={score ?? ""}
+                      onChange={(event) => {
+                        const value = event.target.value === "" ? undefined : Number(event.target.value);
+                        if (value === undefined || (Number.isFinite(value) && value >= scale.min && value <= scale.max)) {
+                          updateEvaluation({
+                            stageScores: {
+                              ...stageScores,
+                              [activeStage.id]: value === undefined
+                                ? Object.fromEntries(Object.entries(stageScores[activeStage.id] || {}).filter(([id]) => id !== criterion.id))
+                                : { ...stageScores[activeStage.id], [criterion.id]: value },
+                            },
+                          });
+                        }
+                      }}
+                      className="w-full rounded-md border border-[#394252] bg-[#0c1017] px-2 py-1.5 text-right text-xs text-amber-300 outline-none focus:border-amber-500/40"
+                      aria-label={`${activeStage.title} ${criterion.label} score value`}
+                    />
+                    <span className="text-[10px] text-stone-500">{score === undefined ? "—" : `/${scale.max}`}</span>
+                  </div>
+                </div>;
+              })}
+            </div>
+            <label className="block border-t border-[#293343] pt-3 text-xs font-medium text-stone-300">Stage feedback
+              <textarea value={stageFeedback[activeStage.id] || ""} onChange={(event) => updateEvaluation({ stageFeedback: { ...stageFeedback, [activeStage.id]: event.target.value } })} rows={3} placeholder={`Comments on ${activeStage.title.toLowerCase()}...`} className="mt-1 w-full resize-y rounded-md border border-[#394252] bg-[#0c1017] p-3 text-xs font-normal leading-relaxed text-stone-200 outline-none focus:border-amber-500/40" />
             </label>
-
             {(activeStage.id === "listening" || activeStage.id === "speaking") && <div className="space-y-2 border-t border-[#293343] pt-3">
               <div className="flex items-center gap-2 text-xs font-semibold text-stone-200"><Mic className="h-3.5 w-3.5 text-amber-300" aria-hidden="true" />Audio feedback note</div>
               <AudioRecorder onBlob={(blob) => { void uploadStageVoiceNote(activeStage.id, blob); }} onError={setVoiceUploadError} disabled={voiceUploadStage === activeStage.id || isSubmitting} label={`Record ${activeStage.title.toLowerCase()} feedback`} />
@@ -647,7 +751,7 @@ export function SubmissionEvaluator({
                 <button type="button" onClick={() => updateEvaluation({ stageVoiceFeedback: { ...stageVoiceFeedback, [activeStage.id]: "" } })} className="text-[10px] text-stone-500 underline hover:text-red-300">Remove voice note</button>
               </div>}
             </div>}
-          </aside>
+          </section>
         </div> : null}
 
         {feedbackError && <p role="alert" className="rounded-lg border border-red-700 bg-red-900/30 p-3 text-xs text-red-200">{feedbackError}</p>}

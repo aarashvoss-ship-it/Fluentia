@@ -34,6 +34,7 @@ interface UnifiedReportCardProps {
   criterionFeedback: Record<string, string>;
   stageFeedback: Record<string, string>;
   stageScores?: Record<string, Record<string, number>>;
+  stageRubricScales?: Record<string, string>;
   taskFeedback?: Record<string, string>;
   inlineCorrections?: Record<string, string>;
   stageVoiceFeedback?: Record<string, string>;
@@ -95,6 +96,7 @@ export function UnifiedReportCard({
   criterionFeedback,
   stageFeedback,
   stageScores = {},
+  stageRubricScales = {},
   taskFeedback = {},
   inlineCorrections = {},
   stageVoiceFeedback = {},
@@ -220,7 +222,7 @@ export function UnifiedReportCard({
           </div>
           {!isInstructorView && Object.keys(stageScores[stage.id] || {}).length > 0 && <div className="grid gap-2 sm:grid-cols-3">
             {Object.entries(stageScores[stage.id] || {}).map(([criterion, score]) => <div key={criterion} className="rounded-md border border-[#293343] bg-[#0c1017] px-3 py-2 text-xs text-stone-400">
-              <span className="capitalize">{criterion}</span><span className="float-right text-amber-300">{score}/5</span>
+              <span className="capitalize">{criterion}</span><span className="float-right text-amber-300">{score}/{stageRubricScales[stage.id] === "ielts" ? "9" : stageRubricScales[stage.id] === "standard-10" ? "10" : stageRubricScales[stage.id] === "percentage" ? "100" : "5"}</span>
             </div>)}
           </div>}
           {!isInstructorView && stageVoiceFeedback[stage.id] && <div className="rounded-lg border border-[#293343] bg-[#0c1017] p-3">
