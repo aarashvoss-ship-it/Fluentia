@@ -16,7 +16,11 @@ export async function createSubmission(input: {
 }): Promise<SubmissionRow>
 
 // Get submission by ID
-export async function getSubmissionById(id: string): Promise<SubmissionWithEvaluation | null>
+export async function getSubmissionById(
+  id: string,
+  lessonId: string,
+  studentId: string,
+): Promise<SubmissionWithEvaluation | null>
 
 // Get all submissions for a lesson
 export async function getSubmissionsByLessonId(lessonId: string): Promise<SubmissionWithEvaluation[]>
@@ -360,7 +364,7 @@ useEffect(() => {
 
 // Submission functions return:
 createSubmission()              → SubmissionRow
-getSubmissionById()             → SubmissionWithEvaluation | null
+getSubmissionById(id, lessonId, studentId) → SubmissionWithEvaluation | null
 getSubmissionsByLessonId()      → SubmissionWithEvaluation[]
 getSubmissionsByStudentId()     → SubmissionWithEvaluation[]
 getSubmissionByLessonAndStudent() → SubmissionWithEvaluation | null

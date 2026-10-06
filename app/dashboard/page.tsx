@@ -488,7 +488,7 @@ function DashboardContent() {
       const lessonStateResults = await Promise.allSettled(
         availableLessons.map(
           async (lesson) =>
-            [lesson.id, await fetchLessonState(lesson.id, userId)] as const,
+            [lesson.id, await fetchLessonState(lesson.id, userId, "summary")] as const,
         ),
       );
       lessonStateResults.forEach((result) => {

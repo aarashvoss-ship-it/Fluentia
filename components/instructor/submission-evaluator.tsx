@@ -150,16 +150,20 @@ export function SubmissionEvaluator({
   const loadSubmissionData = async () => {
     const normalizedLessonId = lessonId?.trim() || "";
     const normalizedStudentId = studentId?.trim() || "";
-    if (!isSupabaseConfigured() || !UUID_PATTERN.test(normalizedLessonId) || !UUID_PATTERN.test(normalizedStudentId)) {
-      setSubmissionId(pendingSubmissionId || null);
-      setSubmissionLoadState(pendingSubmissionId ? "loaded" : "missing");
+    if (!isSupabaseConfigured()
+      || !UUID_PATTERN.test(normalizedLessonId)
+      || !UUID_PATTERN.test(normalizedStudentId)
+      || (pendingSubmissionId !== undefined && !UUID_PATTERN.test(pendingSubmissionId))) {
+      setSubmissionId(null);
+      setSubmissionLoadState("missing");
       return;
     }
+    setSubmissionId(null);
     setSubmissionLoadState("loading");
     try {
       const [submission, feedbackResult] = await Promise.all([
         pendingSubmissionId
-          ? getSubmissionById(pendingSubmissionId)
+          ? getSubmissionById(pendingSubmissionId, normalizedLessonId, normalizedStudentId)
           : getSubmissionByLessonAndStudent(normalizedLessonId, normalizedStudentId),
         supabase
           .from("instructor_feedback")
@@ -171,10 +175,8 @@ export function SubmissionEvaluator({
       if (submission) {
         setSubmissionId(submission.id);
         setSubmissionLoadState("loaded");
-      } else if (pendingSubmissionId) {
-        setSubmissionId(pendingSubmissionId);
-        setSubmissionLoadState("loaded");
       } else {
+        setSubmissionId(null);
         setSubmissionLoadState("missing");
       }
       if (feedbackResult.error) {
@@ -205,12 +207,8 @@ export function SubmissionEvaluator({
         });
       }
     } catch (error) {
-      if (pendingSubmissionId) {
-        setSubmissionId(pendingSubmissionId);
-        setSubmissionLoadState("loaded");
-      } else {
-        setSubmissionLoadState("missing");
-      }
+      setSubmissionId(null);
+      setSubmissionLoadState("missing");
       if (error instanceof Error) console.warn("Student submission could not be refreshed:", error.message);
     }
   };

@@ -3203,8 +3203,8 @@ export default function InstructorWorkstationPage({
           {block.type === "audio" && block.audioUrl && <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio lesson"} />}
           {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} />{block.show_reflection_prompt !== false && block.reflection_prompt_text?.trim() && <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/20 p-4"><p className="text-sm font-semibold text-amber-400">Reflection Question</p><MarkdownContent value={block.reflection_prompt_text.trim()} className="mt-2 text-sm leading-relaxed text-stone-300" /><textarea rows={4} placeholder="Write your reflection here..." readOnly className="mt-3 w-full resize-y rounded border border-[#394252] bg-[#171d28] p-3 text-sm text-stone-400" aria-label="Reflection question response preview" /></div>}</>}
           {block.type === "resource" && block.resourceUrl && <a href={block.resourceUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded border border-amber-500/40 bg-amber-500/20 p-3 text-sm text-amber-400 hover:border-amber-500/40">Open document{block.description ? `: ${block.description}` : ""}</a>}
-          {block.type === "question" && <ExerciseQuestions questions={[{ id: block.id, type: block.question_type === "open_ended" ? "short_answer" : "multiple_choice", prompt: block.prompt || "", options: block.options, correct_answer: block.correct_answer, sample_answer: block.sample_answer }]} readOnly />}
-          {block.type === "quiz" && <ExerciseQuestions questions={block.questions || []} readOnly />}
+          {block.type === "question" && <ExerciseQuestions mode="interactive" questions={[{ id: block.id, type: block.question_type === "open_ended" ? "short_answer" : "multiple_choice", prompt: block.prompt || "", options: block.options, correct_answer: block.correct_answer, sample_answer: block.sample_answer }]} readOnly />}
+          {block.type === "quiz" && <ExerciseQuestions mode="interactive" questions={block.questions || []} readOnly />}
           {block.type === "writing" && <WritingBlockRenderer block={block} isPreview />}
         </article>
         );
@@ -3392,7 +3392,12 @@ export default function InstructorWorkstationPage({
   const selectedStudentSubmissions = submittedAssignments.filter((submission) =>
     selectedStudent && (submission.studentId === selectedStudent.id || submission.studentId === selectedStudent.token),
   );
-  const selectedReviewSubmission = submittedAssignments.find((submission) => submission.id === reviewSubmissionId) || null;
+  const selectedReviewSubmission = submittedAssignments.find((submission) =>
+    submission.id === reviewSubmissionId
+    && submission.lessonId === reviewSubmissionLessonId
+    && selectedStudent
+    && (submission.studentId === selectedStudent.id || submission.studentId === selectedStudent.token),
+  ) || null;
 
   useEffect(() => {
     const blockId = pendingBuilderBlockRef.current;

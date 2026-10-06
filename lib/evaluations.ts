@@ -108,18 +108,25 @@ export async function createSubmission(
 }
 
 /**
- * Gets a specific submission by ID
+ * Gets a specific submission scoped to its lesson and student
  */
-export async function getSubmissionById(id: string): Promise<SubmissionWithEvaluation | null> {
+export async function getSubmissionById(
+  id: string,
+  lessonId: string,
+  studentId: string,
+): Promise<SubmissionWithEvaluation | null> {
   if (!isSupabaseConfigured()) {
     return null;
   }
+  if (!id.trim() || !lessonId.trim() || !studentId.trim()) return null;
 
   try {
     const { data: submission, error: submissionError } = await supabase
       .from("submissions")
       .select("*")
       .eq("id", id)
+      .eq("lesson_id", lessonId)
+      .eq("student_id", studentId)
       .single();
 
     if (submissionError && submissionError.code !== "PGRST116") {

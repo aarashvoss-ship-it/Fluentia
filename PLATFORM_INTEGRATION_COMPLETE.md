@@ -232,7 +232,7 @@ createSubmission(input: {
 }): Promise<SubmissionRow>
 
 // Read
-getSubmissionById(id: string): Promise<SubmissionWithEvaluation | null>
+getSubmissionById(id: string, lessonId: string, studentId: string): Promise<SubmissionWithEvaluation | null>
 getSubmissionsByLessonId(lessonId: string): Promise<SubmissionWithEvaluation[]>
 getSubmissionsByStudentId(studentId: string): Promise<SubmissionWithEvaluation[]>
 getSubmissionByLessonAndStudent(lessonId, studentId): Promise<SubmissionWithEvaluation | null>

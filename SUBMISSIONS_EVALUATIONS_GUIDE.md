@@ -17,8 +17,8 @@
  * - Input: { lesson_id, student_id, answers, status? }
  * - Returns: SubmissionRow with id, timestamps
  * 
- * getSubmissionById(id)
- * - Fetches submission with associated evaluation if exists
+ * getSubmissionById(id, lessonId, studentId)
+ * - Fetches submission scoped to the lesson and student, with evaluation if it exists
  * - Returns: SubmissionWithEvaluation (submission + latest evaluation)
  * 
  * getSubmissionsByLessonId(lessonId)

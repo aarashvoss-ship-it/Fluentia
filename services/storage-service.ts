@@ -15,6 +15,13 @@ import { resolveUserUuid } from "@/lib/identity";
 
 export type LessonStatus = "draft" | "published";
 export type SubmissionStatus = "not_started" | "in_progress" | "submitted" | "pending_evaluation" | "reviewed" | "evaluated";
+type LessonStateMode = "interactive" | "review" | "summary";
+
+const STUDY_STEP_IDS: readonly string[] = ["warm_up", "lesson", "listening", "reading", "writing", "speaking", "results"];
+
+function isStudyStepId(value: unknown): value is StudyStepId {
+  return typeof value === "string" && STUDY_STEP_IDS.includes(value);
+}
 
 const SUBMISSION_STATUS_FALLBACKS: Record<SubmissionStatus, string[]> = {
   not_started: ["draft", "not_started", "in_progress", "submitted", "pending_evaluation", "completed"],
@@ -432,43 +439,94 @@ export async function updateLessonStatus(slug: string, status: LessonStatus): Pr
   return updated;
 }
 
-export async function fetchLessonState(slug: string, studentToken?: string): Promise<PublishedLessonState | null> {
+/**
+ * Interactive loads expose only the current draft; review loads include answers,
+ * while summary loads return progress metadata without answer contents.
+ */
+export async function fetchLessonState(
+  slug: string,
+  studentToken?: string,
+  mode: LessonStateMode = "interactive",
+  submissionId?: string,
+): Promise<PublishedLessonState | null> {
   if (isSupabaseConfigured()) {
+    let authenticatedStudentId: string | null = null;
     try {
-      const lesson = await fetchStudentLesson(slug, studentToken);
+      authenticatedStudentId = await getStudentId();
+      if (!authenticatedStudentId) return null;
+      const lesson = await fetchStudentLesson(slug, authenticatedStudentId);
       if (lesson) {
-        const resolvedStudentId = await getStudentId() || lesson.student_id;
         const lessonId = typeof lesson.id === "string" ? lesson.id.trim() : "";
-        const studentId = typeof resolvedStudentId === "string" ? resolvedStudentId.trim() : "";
-        if (UUID_PATTERN.test(lessonId) && UUID_PATTERN.test(studentId)) {
+        if (UUID_PATTERN.test(lessonId) && UUID_PATTERN.test(authenticatedStudentId)) {
           let submission = null;
           let feedback = null;
           try {
-            const result = await supabase.from("submissions").select("id,answers,status,submitted_at").eq("lesson_id", lessonId).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
-            if (result.error) {
-              console.error("[Dashboard Progress] Failed to fetch lesson submission:", {
-                lessonId,
-                studentId,
-                code: result.error.code,
-                message: result.error.message,
-                details: result.error.details,
-                hint: result.error.hint,
-              });
+            if (mode === "review") {
+              let scopedSubmissionId = submissionId;
+              if (!scopedSubmissionId) {
+                const latest = await supabase
+                  .from("submissions")
+                  .select("id")
+                  .eq("lesson_id", lessonId)
+                  .eq("student_id", authenticatedStudentId)
+                  .order("submitted_at", { ascending: false })
+                  .limit(1)
+                  .maybeSingle();
+                if (latest.error) throw latest.error;
+                scopedSubmissionId = latest.data?.id;
+              }
+              if (scopedSubmissionId) {
+                const result = await supabase
+                  .from("submissions")
+                  .select("id,answers,status,submitted_at")
+                  .eq("id", scopedSubmissionId)
+                  .eq("lesson_id", lessonId)
+                  .eq("student_id", authenticatedStudentId)
+                  .maybeSingle();
+                if (result.error) throw result.error;
+                submission = result.data;
+              }
             } else {
+              const result = await supabase
+                .from("submissions")
+                .select("id,status,submitted_at")
+                .eq("lesson_id", lessonId)
+                .eq("student_id", authenticatedStudentId)
+                .order("submitted_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              if (result.error) throw result.error;
               submission = result.data;
             }
           } catch (error) {
-            console.error("[Dashboard Progress] Submission fetch threw an error:", { lessonId, studentId, error });
-            submission = null;
+            console.error("[Dashboard Progress] Submission fetch threw an error:", { lessonId, studentId: authenticatedStudentId, submissionId, mode, error });
           }
-          try {
-            const result = await supabase.from("instructor_feedback").select("*").eq("lesson_id", lessonId).eq("student_id", studentId).limit(1).maybeSingle();
-            if (!result.error) feedback = result.data;
-            else if (!isMissingSchemaObject(result.error) && result.error.code !== "PGRST116") {
-              console.warn("[Dashboard Progress] Instructor feedback is unavailable:", result.error.message);
+          if (mode === "interactive" && (submission?.status === "in_progress" || submission?.status === "draft")) {
+            try {
+              const result = await supabase
+                .from("submissions")
+                .select("id,answers,status,submitted_at")
+                .eq("id", submission.id)
+                .eq("lesson_id", lessonId)
+                .eq("student_id", authenticatedStudentId)
+                .maybeSingle();
+              if (result.error) throw result.error;
+              submission = result.data;
+            } catch (error) {
+              console.error("[Dashboard Progress] Active student draft could not be loaded:", { lessonId, studentId: authenticatedStudentId, error });
+              submission = null;
             }
-          } catch {
-            feedback = null;
+          }
+          if (mode !== "interactive") {
+            try {
+              const result = await supabase.from("instructor_feedback").select("*").eq("lesson_id", lessonId).eq("student_id", authenticatedStudentId).limit(1).maybeSingle();
+              if (!result.error) feedback = result.data;
+              else if (!isMissingSchemaObject(result.error) && result.error.code !== "PGRST116") {
+                console.warn("[Dashboard Progress] Instructor feedback is unavailable:", result.error.message);
+              }
+            } catch {
+              feedback = null;
+            }
           }
           return {
             content: lesson.content || defaultContent(),
@@ -480,14 +538,35 @@ export async function fetchLessonState(slug: string, studentToken?: string): Pro
           };
         }
       }
-      return getState(slug, studentToken) || null;
+      return getStateForMode(slug, authenticatedStudentId, mode);
     } catch (error) {
       console.error("[Dashboard Progress] Failed to fetch lesson state:", { slug, studentToken, error });
       // Use local state when Supabase is unavailable or the lesson has no saved state yet.
-      return getState(slug, studentToken) || null;
+      return authenticatedStudentId ? getStateForMode(slug, authenticatedStudentId, mode) : null;
     }
   }
-  return getState(slug, studentToken);
+  return getStateForMode(slug, studentToken, mode);
+}
+
+function getStateForMode(slug: string, studentToken: string | undefined, mode: LessonStateMode) {
+  const state = getState(slug, studentToken);
+  if (!state || mode === "review") return state;
+  const submission = state.submission;
+  if (mode === "interactive" && (!submission || submission.status === "in_progress")) return state;
+  if (!submission) return state;
+  return {
+    ...state,
+    submission: {
+      status: submission.status,
+      listeningAnswers: {},
+      readingAnswers: {},
+      writingText: "",
+      writing_responses: {},
+      blockResponses: {},
+      quizSelections: {},
+      audioUploads: {},
+    },
+  };
 }
 
 export async function fetchStudentProgress(slug: string, studentToken?: string): Promise<StudentProgressRecord> {
@@ -496,10 +575,18 @@ export async function fetchStudentProgress(slug: string, studentToken?: string):
       const studentId = await getStudentId();
       const lesson = studentId ? await fetchStudentLesson(slug, studentId) : null;
       if (lesson && studentId) { // has lesson + student -> save to Supabase
-        const { data, error } = await supabase.from("submissions").select("answers,status,submitted_at").eq("lesson_id", lesson.id).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
+        const { data, error } = await supabase.from("submissions").select("status,submitted_at,progress:answers->progress").eq("lesson_id", lesson.id).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
         if (error) throw error;
-        const progress = data?.answers?.progress;
-        if (progress) return { currentStep: progress.currentStep || "warm_up", completedSteps: progress.completedSteps || [], completed: Boolean(progress.completed), status: normalizeSubmissionStatus(progress.status || data?.status, "not_started"), updatedAt: data?.submitted_at || new Date(0).toISOString() };
+        const progress = data?.progress;
+        if (progress && typeof progress === "object" && !Array.isArray(progress)) {
+          return {
+            currentStep: isStudyStepId(progress.currentStep) ? progress.currentStep : "warm_up",
+            completedSteps: Array.isArray(progress.completedSteps) ? progress.completedSteps.filter(isStudyStepId) : [],
+            completed: progress.completed === true,
+            status: normalizeSubmissionStatus(progress.status || data?.status, "not_started"),
+            updatedAt: data?.submitted_at || new Date(0).toISOString(),
+          };
+        }
       }
     } catch (error) {
       console.error("[Dashboard Progress] Failed to fetch student progress:", { slug, studentToken, error });
@@ -579,7 +666,12 @@ async function persistStudentSubmission(
   progress?: Partial<StudentProgressRecord>
 ): Promise<PublishedLessonState> {
   const persistableSubmission = removeTemporaryBlobUrls(submission) as StudentSubmission;
-  const current = await fetchLessonState(slug, studentToken);
+  const authenticatedStudentId = await getStudentId();
+  if (isSupabaseConfigured() && !authenticatedStudentId) {
+    throw new Error("An authenticated student session is required to save lesson answers.");
+  }
+  const studentScope = authenticatedStudentId || studentToken;
+  const current = await fetchLessonState(slug, studentScope);
   const nextState: PublishedLessonState = {
     content: current?.content || defaultContent(),
     bannerUrl: current?.bannerUrl || "",
@@ -588,12 +680,11 @@ async function persistStudentSubmission(
     status: current?.status || "published",
     submission: persistableSubmission,
   };
-  await saveLessonState(slug, nextState, studentToken);
+  await saveLessonState(slug, nextState, studentScope);
   if (isSupabaseConfigured()) {
     try {
-      const lesson = await fetchStudentLesson(slug, studentToken);
-      const authenticatedStudentId = await getStudentId();
-      const studentId = authenticatedStudentId || lesson?.student_id;
+      const lesson = await fetchStudentLesson(slug, studentScope);
+      const studentId = authenticatedStudentId;
       if (lesson && studentId) {
         const { data: existingSubmission, error: lookupError } = await supabase.from("submissions").select("id").eq("lesson_id", lesson.id).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
         if (lookupError) throw lookupError;
@@ -622,7 +713,7 @@ async function persistStudentSubmission(
             ? supabase.from("submissions").update(submissionPayload).eq("id", existingSubmission.id)
             : supabase.from("submissions").insert(submissionPayload);
         });
-        notifyDataUpdated({ type: "submission", slug, studentToken });
+        notifyDataUpdated({ type: "submission", slug, studentToken: studentScope });
         return nextState;
       }
       if (!demoDataEnabled()) {
@@ -640,7 +731,7 @@ async function persistStudentSubmission(
     }
   }
     // Supabase lesson not found — fall through to local save instead of throwing
-  await saveLessonState(slug, nextState, studentToken);
+  await saveLessonState(slug, nextState, studentScope);
   if (progress) {
     await saveStudentProgress(slug, {
       currentStep: progress.currentStep || "warm_up",
@@ -648,9 +739,9 @@ async function persistStudentSubmission(
       completed: progress.completed ?? (submission.status === "submitted" || submission.status === "pending_evaluation" || submission.status === "reviewed" || submission.status === "evaluated"),
       status: progress.status || (submission.status === "evaluated" ? "evaluated" : submission.status === "reviewed" ? "reviewed" : submission.status === "pending_evaluation" ? "pending_evaluation" : submission.status === "submitted" ? "submitted" : "in_progress"),
       updatedAt: new Date().toISOString(),
-    }, studentToken);
+    }, studentScope);
   }
-  notifyDataUpdated({ type: "submission", slug, studentToken });
+  notifyDataUpdated({ type: "submission", slug, studentToken: studentScope });
   return nextState;
 }
 

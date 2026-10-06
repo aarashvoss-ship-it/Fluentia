@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
+import type { User } from "@supabase/supabase-js";
 import { ChatMessage, ContentBlock, SavedVocabularyWord, StudentNote, StudyStepId, STUDY_STEPS, LessonContent, StudentSubmission } from "@/types/lesson";
 import { getLessonById, type LessonWithVersion } from "@/lib/lessons";
 import { getLessonStateKey, PublishedLessonState, writeLastAccessedLesson } from "@/lib/lesson-store";
@@ -335,32 +336,61 @@ export default function LessonPage() {
 
   useEffect(() => {
     let cancelled = false;
-    const loadAuthenticatedStudent = async () => {
+    let requestId = 0;
+    const loadAuthenticatedStudent = async (authenticatedUser?: User | null) => {
+      const currentRequestId = ++requestId;
+      const isCurrentRequest = () => !cancelled && currentRequestId === requestId;
+      setActiveStudent(null);
+      setAccessDenied(false);
+      setStudentReady(false);
+      setSubmissionHydrated(false);
+      setLessonStateHydrated(false);
+      setSubmission({
+        status: "in_progress",
+        listeningAnswers: {},
+        readingAnswers: {},
+        writingText: "",
+        writing_responses: {},
+        blockResponses: {},
+        quizSelections: {},
+        audioUploads: {},
+      });
+      setSavedWords([]);
+      setNotes([]);
+      setChatMessages([]);
+      setCompletedSteps([]);
+      setCurrentStep("warm_up");
+      setIsModalOpen(false);
+      setSubmissionSaveError(null);
+      if (submissionSaveTimer.current) clearTimeout(submissionSaveTimer.current);
+      submissionSaveTimer.current = null;
+      pendingSubmissionSave.current?.resolve(false);
+      pendingSubmissionSave.current = null;
       try {
-        const { data, error } = await supabase.auth.getUser();
-        if (cancelled) return;
+        let user = authenticatedUser;
+        if (authenticatedUser === undefined) {
+          const { data, error } = await supabase.auth.getUser();
+          if (!isCurrentRequest()) return;
 
-        const isSessionMissing = Boolean(error && (error.name === "AuthSessionMissingError" || /Auth session missing/i.test(error.message || "")));
-        if (error && !isSessionMissing) {
-          console.error("Unable to resolve authenticated student:", error);
+          const isSessionMissing = Boolean(error && (error.name === "AuthSessionMissingError" || /Auth session missing/i.test(error.message || "")));
+          if (error && !isSessionMissing) {
+            console.error("Unable to resolve authenticated student:", error);
+            setAccessDenied(true);
+            return;
+          }
+          user = data.user;
+        }
+
+        if (!user) {
           setAccessDenied(true);
-          setStudentReady(true);
-          setIsMounted(true);
           return;
         }
 
-        if (!data.user) {
-          setStudentReady(true);
-          setIsMounted(true);
-          return;
-        }
-
-        const user = data.user;
         const [studentResult, profileResult] = await Promise.all([
           supabase.from("students").select("name, email, token").eq("id", user.id).maybeSingle(),
           supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
         ]);
-        if (cancelled) return;
+        if (!isCurrentRequest()) return;
 
         const { data: studentRecord, error: studentError } = studentResult;
         const { data: profile, error: profileError } = profileResult;
@@ -398,7 +428,7 @@ export default function LessonPage() {
           email,
           role: "student",
           profile: {
-            id: data.user.id,
+            id: user.id,
             fullName: name,
             level: "",
             targetGoal: "",
@@ -410,17 +440,16 @@ export default function LessonPage() {
         };
         setActiveStudent(student);
       } catch (error) {
-        if (cancelled) return;
+        if (!isCurrentRequest()) return;
         const message = error instanceof Error ? error.message : String(error);
         if (/Auth session missing/i.test(message)) {
-          setStudentReady(true);
-          setIsMounted(true);
+          setAccessDenied(true);
           return;
         }
         console.error("Unable to resolve authenticated student:", error);
         setAccessDenied(true);
       } finally {
-        if (!cancelled) {
+        if (isCurrentRequest()) {
           setStudentReady(true);
           setIsMounted(true);
         }
@@ -428,8 +457,12 @@ export default function LessonPage() {
     };
 
     void loadAuthenticatedStudent();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      window.setTimeout(() => void loadAuthenticatedStudent(session?.user || null), 0);
+    });
     return () => {
       cancelled = true;
+      subscription.unsubscribe();
     };
   }, []);
 
@@ -460,8 +493,8 @@ export default function LessonPage() {
         
         if (lesson) {
           setLesson(lesson);
-          if (activeStudent?.token) {
-            writeLastAccessedLesson(lesson.id, activeStudent.token);
+          if (activeStudent?.id) {
+            writeLastAccessedLesson(lesson.id, activeStudent.id);
           }
         } else {
           setLessonNotFound(true);
@@ -486,23 +519,46 @@ export default function LessonPage() {
 
   useEffect(() => {
     if (!lessonReady || !studentReady || lessonNotFound || !lesson) return;
-    const activeToken = activeStudent?.token || lesson.student_token || lesson.student_id || "student";
+    if (!activeStudent?.id) {
+      setSubmissionHydrated(true);
+      setLessonStateHydrated(true);
+      return;
+    }
+    let cancelled = false;
+    const activeToken = activeStudent.id;
     if (typeof window !== "undefined" && lesson.updated_at) {
-      const cacheVersionKey = `fluentia:lesson-cache-version:${lesson.id}:${activeToken}`;
-      const cachedVersion = window.localStorage.getItem(cacheVersionKey);
-      if (cachedVersion !== lesson.updated_at) {
-        window.localStorage.removeItem(getLessonStateKey(lesson.id, activeToken));
-        window.localStorage.setItem(cacheVersionKey, lesson.updated_at);
+      if (activeToken) {
+        const cacheVersionKey = `fluentia:lesson-cache-version:${lesson.id}:${activeToken}`;
+        const cachedVersion = window.localStorage.getItem(cacheVersionKey);
+        if (cachedVersion !== lesson.updated_at) {
+          window.localStorage.removeItem(getLessonStateKey(lesson.id, activeToken));
+          window.localStorage.setItem(cacheVersionKey, lesson.updated_at);
+        }
       }
     }
     setCurrentStep("warm_up");
     const params = new URLSearchParams(window.location.search);
     const requestedStep = getRequestedStep(params.get("step"));
     const startStep = params.get("start");
-    void Promise.all([
-      fetchLessonState(lesson.id, activeToken),
-      fetchStudentProgress(lesson.id, activeToken),
-    ]).then(([state, progress]) => {
+    void fetchStudentProgress(lesson.id, activeToken).then(async (progress) => {
+      if (cancelled) return;
+      let isReviewView = requestedStep === "results"
+        || progress.currentStep === "results"
+        || progress.status === "submitted"
+        || progress.status === "pending_evaluation"
+        || progress.status === "reviewed"
+        || progress.status === "evaluated";
+      let state = await fetchLessonState(lesson.id, activeToken, isReviewView ? "review" : "interactive");
+      if (cancelled) return;
+      const savedStatus = state?.submission?.status;
+      if (!isReviewView && (savedStatus === "submitted"
+        || savedStatus === "pending_evaluation"
+        || savedStatus === "reviewed"
+        || savedStatus === "evaluated")) {
+        isReviewView = true;
+        state = await fetchLessonState(lesson.id, activeToken, "review");
+      }
+      if (cancelled) return;
       const hydratedSubmission = state?.submission;
       const canShowResults = hydratedSubmission?.status === "submitted" || hydratedSubmission?.status === "pending_evaluation" || hydratedSubmission?.status === "reviewed" || hydratedSubmission?.status === "evaluated";
       const requestedNonResultsStep = requestedStep && requestedStep !== "results" ? requestedStep : null;
@@ -518,34 +574,44 @@ export default function LessonPage() {
         quizSelections: {},
         audioUploads: {},
       });
-      setCurrentStep(canShowResults && requestedStep === "results"
+      setCurrentStep(canShowResults
         ? "results"
         : requestedNonResultsStep || (startStep === "warm_up" ? "warm_up" : persistedStep));
       setCompletedSteps(progress.completedSteps);
       setSubmissionHydrated(true);
       setLessonStateHydrated(true);
     }).catch((error) => {
+      if (cancelled) return;
       console.error("Failed to hydrate lesson state:", error);
       setCurrentStep("warm_up");
       setCompletedSteps([]);
       setSubmissionHydrated(true);
       setLessonStateHydrated(true);
     });
-  }, [activeStudent?.token, lessonReady, lessonNotFound, lesson, studentReady]);
+    return () => {
+      cancelled = true;
+    };
+  }, [activeStudent?.id, lessonReady, lessonNotFound, lesson, studentReady]);
 
   useEffect(() => {
-    if (!studentReady || accessDenied) return;
-    const activeToken = activeStudent?.token || lesson?.student_token || lesson?.student_id || "student";
+    if (!studentReady || accessDenied || !activeStudent?.id) return;
+    let cancelled = false;
+    const activeToken = activeStudent.id;
     void Promise.all([
       fetchSavedVocabulary(activeToken),
       fetchStudentNotes(activeToken),
     ]).then(([words, savedNotes]) => {
+      if (cancelled) return;
       setSavedWords(words);
       setNotes(savedNotes);
     }).catch((error) => {
+      if (cancelled) return;
       console.error("Failed to load student resources:", error);
     });
-  }, [accessDenied, activeStudent?.token, lesson?.student_id, lesson?.student_token, studentReady]);
+    return () => {
+      cancelled = true;
+    };
+  }, [accessDenied, activeStudent?.id, studentReady]);
 
   useEffect(() => {
     function handleDoubleClick(event: MouseEvent) {
@@ -570,7 +636,7 @@ export default function LessonPage() {
     if (!lesson) return false;
     const isFinalSubmission = nextSubmission.status === "submitted" || nextSubmission.status === "pending_evaluation" || nextSubmission.status === "reviewed" || nextSubmission.status === "evaluated";
     try {
-      const tok = activeStudent?.token ?? lesson.student_token ?? undefined;
+      const tok = activeStudent?.id;
       const progress = {
         currentStep: nextProgress.currentStep || currentStep,
         completedSteps: nextProgress.completedSteps || completedSteps,
@@ -588,7 +654,7 @@ export default function LessonPage() {
       if (isFinalSubmission) {
         console.error("[Lesson Submission] Failed to persist final submission:", {
           lessonId: lesson.id,
-          studentId: activeStudent?.id || lesson.student_id,
+          studentId: activeStudent?.id,
           error,
         });
         setSubmissionSaveError(error instanceof Error ? error.message : String(error));
@@ -647,7 +713,7 @@ export default function LessonPage() {
     if (queued) {
       void persistSubmissionNow(queued.submission, queued.progress, true).then(queued.resolve);
     }
-  }, [lesson?.id, activeStudent?.token]);
+  }, [lesson?.id, activeStudent?.id]);
 
   const lessonContent = (lesson?.content || {}) as any;
   const rawLessonContent = lessonContent as Record<string, unknown>;
@@ -903,6 +969,8 @@ export default function LessonPage() {
       title: response.question,
       studentAnswer: response.answer,
       modelAnswer: response.correctAnswer,
+      isCorrect: response.isCorrect,
+      autoCheck: response.isCorrect !== undefined,
       audioUrls: response.mediaUrls,
       explanation: response.explanation,
     })),
@@ -984,7 +1052,7 @@ export default function LessonPage() {
     || submission.status === "evaluated"
     || completedSteps.includes("results")
     || isResultsStep;
-  const lessonStudentToken = activeStudent?.token ?? lesson?.student_token ?? lesson?.student_id ?? "student";
+  const lessonStudentToken = activeStudent?.id || "anonymous";
   const studentDisplayName = activeStudent?.name || "Student";
   const currentStepSidebarBlocks = ((rawLessonContent.sidebarBlocks as Record<string, { id: string; title: string; body: string; icon?: string; parentMainBlockId?: string; imageUrl?: string; altText?: string }[]> | undefined)?.[currentStep] || []);
 
@@ -1065,6 +1133,7 @@ export default function LessonPage() {
           {block.type === "image" && block.imageUrl && <figure><img src={block.imageUrl} alt={block.caption || block.title || "Lesson image"} className="max-h-[420px] w-full rounded-lg object-cover" onError={(e)=>{ (e.target as HTMLImageElement).style.display="none"; (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden"); }} /><div className="hidden rounded border border-dashed border-[#394252] p-4 text-xs text-stone-500">Image unavailable — {block.caption || block.title || "Lesson image"}</div>{block.caption && <figcaption className="mt-2 text-xs text-stone-500">{block.caption}</figcaption>}</figure>}
           {block.type === "resource" && block.resourceUrl && <a href={block.resourceUrl} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-lg border border-amber-500/40 bg-amber-500/20 p-4 text-sm text-amber-400 hover:border-amber-500/40">{block.description || "Open document"}<span aria-hidden="true">PDF</span></a>}
           {block.type === "question" && <ExerciseQuestions
+            mode="interactive"
             questions={questionBlocks.map((questionBlock) => ({
               id: questionBlock.id,
               type: questionBlock.question_type === "open_ended" ? "short_answer" : "multiple_choice",
@@ -1081,6 +1150,7 @@ export default function LessonPage() {
             onTextAnswer={(questionId, answer) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [questionId]: answer } })}
           />}
           {block.type === "quiz" && <ExerciseQuestions
+            mode="interactive"
             questions={block.questions}
             choiceAnswers={submission.quizSelections}
             textAnswers={submission.blockResponses}
@@ -1147,7 +1217,7 @@ export default function LessonPage() {
         <div className="flex flex-wrap items-center justify-between gap-3 text-[12px]">
           <p className="text-[#aeb2b9]">Welcome back, <span className="text-[#e6e4e0]">{studentDisplayName}</span>.</p>
           <div className="flex flex-wrap items-center gap-2">
-            <AmbientMusicPlayer src={lessonContent.ambientMusicUrl} studentScope={activeStudent?.id || activeStudent?.token || lesson?.student_id || lesson?.student_token || "student"} />
+            <AmbientMusicPlayer src={lessonContent.ambientMusicUrl} studentScope={activeStudent?.id || "anonymous"} />
             <StudyRoomTimer />
             {((typeof lesson.instructor_note === "string" && lesson.instructor_note.trim()) || (typeof rawLessonContent.instructorGuidance === "string" && rawLessonContent.instructorGuidance.trim())) && <Tooltip content="Open lesson guidance"><button type="button" onClick={() => setGuidanceOpen((open) => !open)} aria-expanded={guidanceOpen} aria-label="Open lesson guidance" className={`flex h-8 w-8 items-center justify-center rounded-md border bg-transparent transition-colors duration-200 hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-400 ${guidanceOpen ? "border-amber-500/40 text-amber-400" : "border-slate-700/50 text-slate-400"}`}><Lightbulb className="h-4 w-4" /></button></Tooltip>}
             <Tooltip content="Open your notes, resources, and study tools"><button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex h-8 items-center gap-1.5 rounded-md border bg-transparent px-3 text-xs transition-colors duration-200 hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-400 ${sidebarOpen ? "border-amber-500/40 text-amber-400" : "border-slate-700/50 text-slate-400"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button></Tooltip>
@@ -1474,7 +1544,7 @@ export default function LessonPage() {
         words={savedWords}
         notes={notes}
         studentId={activeStudent?.id}
-        studentToken={activeStudent?.token || lesson?.student_token || lesson?.student_id || undefined}
+        studentToken={activeStudent?.id}
         activeLessonId={lesson?.id}
         resource={evaluation?.studyHubPrescription} resources={lessonPageResources}
         onSaveNote={(note) => {

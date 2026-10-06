@@ -12,12 +12,17 @@ function removeManualQuestionNumber(prompt: string) {
   return prompt.replace(/^(\s*(?:<[^>]+>\s*)*)\d+[.)]\s+/, "$1");
 }
 
+function normalizeAnswer(value: string) {
+  return value.trim().toLowerCase().replace(/^(?:[a-z]|\d+)\s*[).]\s*/, "").trim();
+}
+
 export function getExerciseQuestionType(question: QuizQuestion): ExerciseQuestionType {
   return question.type || "multiple_choice";
 }
 
 export function ExerciseQuestions({
   questions,
+  mode = "interactive",
   choiceAnswers = {},
   textAnswers = {},
   onChoiceAnswer,
@@ -26,6 +31,7 @@ export function ExerciseQuestions({
   readOnly = false,
 }: {
   questions: QuizQuestion[];
+  mode?: "interactive" | "review";
   choiceAnswers?: Record<string, string>;
   textAnswers?: Record<string, string>;
   onChoiceAnswer?: (questionId: string, answer: string) => void;
@@ -33,6 +39,7 @@ export function ExerciseQuestions({
   onBlankAnswer?: (questionId: string, blankIndex: number, answer: string) => void;
   readOnly?: boolean;
 }) {
+  const isReview = mode === "review";
   const [revealedSamples, setRevealedSamples] = useState<Record<string, boolean>>({});
 
   return (
@@ -65,7 +72,10 @@ export function ExerciseQuestions({
                   caseSensitive={question.caseSensitive}
                   values={textAnswers}
                   onChange={(blankIndex, answer) => onBlankAnswer?.(question.id, blankIndex, answer)}
-                  readOnly={readOnly}
+                  readOnly={readOnly || isReview}
+                  isEvaluationView={isReview}
+                  showFeedback={isReview}
+                  showResults={isReview}
                   className="min-w-0 flex-1 text-base leading-relaxed text-stone-100 [&_p]:m-0"
                 />
               ) : (
@@ -77,9 +87,9 @@ export function ExerciseQuestions({
               <textarea
                 value={textAnswers[question.id] || ""}
                 onChange={(event) => onTextAnswer?.(question.id, event.target.value)}
-                readOnly={readOnly}
+                readOnly={readOnly || isReview}
                 rows={5}
-                placeholder={readOnly ? "Short answer response" : "Write your answer here..."}
+                placeholder={readOnly || isReview ? "Short answer response" : "Write your answer here..."}
                 aria-label={`Question ${index + 1} response`}
                 className="min-h-[120px] w-full resize-y rounded-lg border border-[#202631] bg-[#0c1017] p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40 read-only:cursor-default read-only:text-stone-400"
               />
@@ -87,14 +97,28 @@ export function ExerciseQuestions({
               <div className="grid gap-2 sm:grid-cols-2">
                 {options.filter(Boolean).map((option, optionIndex) => {
                   const isSelected = choiceAnswers[question.id] === option;
+                  const isCorrectOption = isReview && correctAnswer
+                    ? correctAnswer.split(/[\/|]/).some((answer) => normalizeAnswer(answer) === normalizeAnswer(option)
+                      || (question.optionIndexingStyle === "alphabetical" && normalizeAnswer(answer) === String.fromCharCode(97 + optionIndex))
+                      || (question.optionIndexingStyle === "numeric" && normalizeAnswer(answer) === String(optionIndex + 1)))
+                    : false;
+                  const optionClass = isReview
+                    ? isCorrectOption
+                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                      : isSelected
+                        ? "border-rose-500/40 bg-rose-500/10 text-rose-300"
+                        : "border-[#202631] bg-[#0c1017] text-stone-300"
+                    : isSelected
+                      ? "border-amber-500/40 bg-amber-500/20 text-amber-400"
+                      : "border-[#202631] bg-[#0c1017] text-stone-300 hover:border-amber-500/40 hover:text-amber-400 disabled:hover:border-[#202631] disabled:hover:text-stone-300";
                   return (
                     <button
                       key={`${question.id}-${optionIndex}`}
                       type="button"
-                      disabled={readOnly}
+                      disabled={readOnly || isReview}
                       onClick={() => onChoiceAnswer?.(question.id, option)}
-                      aria-pressed={!readOnly && isSelected}
-                      className={`rounded-md border px-3 py-2 text-left text-sm transition disabled:cursor-default ${isSelected ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-[#202631] bg-[#0c1017] text-stone-300 hover:border-amber-500/40 hover:text-amber-400 disabled:hover:border-[#202631] disabled:hover:text-stone-300"}`}
+                      aria-pressed={(isReview || !readOnly) && isSelected}
+                      className={`rounded-md border px-3 py-2 text-left text-sm transition disabled:cursor-default ${optionClass}`}
                     >
                       {question.optionIndexingStyle === "alphabetical"
                         ? `${String.fromCharCode(65 + optionIndex)}. ${option}`
@@ -117,7 +141,7 @@ export function ExerciseQuestions({
                 {revealedSamples[question.id] && <MarkdownContent value={question.sample_answer} className="rounded border border-amber-500/40 bg-amber-500/20 p-3 text-sm text-stone-300" />}
               </>
             )}
-            {readOnly && correctAnswer && <p className="text-xs text-stone-500">Answer key: <span className="text-amber-400">{correctAnswer}</span></p>}
+            {isReview && correctAnswer && <p className="text-xs text-stone-500">Answer key: <span className="text-amber-400">{correctAnswer}</span></p>}
           </section>
         );
       })}
