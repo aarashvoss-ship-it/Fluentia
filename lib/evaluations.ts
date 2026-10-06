@@ -62,6 +62,7 @@ async function getFeedbackForSubmission(submission: SubmissionRow): Promise<Eval
     .select("*")
     .eq("lesson_id", submission.lesson_id)
     .eq("student_id", submission.student_id)
+    .eq("is_published", true)
     .maybeSingle();
   if (error) {
     if (isMissingFeedbackTable(error) || error.code === "PGRST116") return undefined;
@@ -383,6 +384,7 @@ export async function getEvaluationById(id: string): Promise<EvaluationRow | nul
       .from("instructor_feedback")
       .select("*")
       .eq("id", id)
+      .eq("is_published", true)
       .maybeSingle();
 
     if (error) throw error;
@@ -449,6 +451,7 @@ export async function getEvaluationsByLessonId(lessonId: string): Promise<Evalua
       .from("instructor_feedback")
       .select("*")
       .eq("lesson_id", lessonId)
+      .eq("is_published", true)
       .order("updated_at", { ascending: false });
     if (error) throw error;
     if (!feedbackRows?.length) return [];
@@ -498,6 +501,7 @@ export async function getEvaluationsByInstructorId(
       .from("instructor_feedback")
       .select("*")
       .in("lesson_id", lessonIds)
+      .eq("is_published", true)
       .order("updated_at", { ascending: false });
     if (error) throw error;
     const { data: submissions, error: submissionsError } = await supabase
@@ -562,6 +566,7 @@ export async function updateEvaluation(
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
+      .eq("is_published", true)
       .select()
       .single();
 

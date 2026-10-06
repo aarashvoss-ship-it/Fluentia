@@ -505,7 +505,14 @@ export async function fetchLessonState(
           }
           if (mode !== "interactive") {
             try {
-              const result = await supabase.from("instructor_feedback").select("*").eq("lesson_id", lessonId).eq("student_id", authenticatedStudentId).limit(1).maybeSingle();
+              const result = await supabase
+                .from("instructor_feedback")
+                .select("*")
+                .eq("lesson_id", lessonId)
+                .eq("student_id", authenticatedStudentId)
+                .eq("is_published", true)
+                .limit(1)
+                .maybeSingle();
               if (!result.error) feedback = result.data;
               else if (!isMissingSchemaObject(result.error) && result.error.code !== "PGRST116") {
                 console.warn("[Dashboard Progress] Instructor feedback is unavailable:", result.error.message);
@@ -536,11 +543,16 @@ export async function fetchLessonState(
 
 function getStateForMode(slug: string, studentToken: string | undefined, mode: LessonStateMode) {
   const state = getState(slug, studentToken);
-  if (!state || mode === "review") return state;
-  const submission = state.submission;
-  if (!submission) return state;
-  return {
+  if (!state) return state;
+  const studentState = {
     ...state,
+    evaluation: state.evaluation?.published ? state.evaluation : emptyEvaluation(),
+  };
+  if (mode === "review") return studentState;
+  const submission = studentState.submission;
+  if (!submission) return studentState;
+  return {
+    ...studentState,
     submission: {
       status: submission.status,
       listeningAnswers: {},
@@ -815,20 +827,29 @@ export async function saveInstructorFeedback(
       inlineCorrections: savedEvaluation.inlineCorrections || {},
       stageVoiceFeedback: savedEvaluation.stageVoiceFeedback || {},
     };
-    const { error: feedbackError } = await supabase.from("instructor_feedback").upsert({
-      lesson_id: lesson.id,
-      student_id: studentId,
-      instructor_id: authenticatedInstructorId,
-      rubric_scores: savedEvaluation.scores,
-      total_score: savedEvaluation.totalScore,
-      criterion_feedback: rubricFeedback,
-      strengths: savedEvaluation.strengths,
-      areas_to_improve: savedEvaluation.areasToImprove,
-      study_hub_prescription: savedEvaluation.studyHubPrescription,
-      voice_feedback_url: savedEvaluation.voiceFeedbackUrl,
-      is_published: isPublished,
-      updated_at: evaluatedAt,
-    }, { onConflict: "lesson_id,student_id" });
+    const { error: feedbackError } = isPublished
+      ? await supabase.from("instructor_feedback").upsert({
+        lesson_id: lesson.id,
+        student_id: studentId,
+        instructor_id: authenticatedInstructorId,
+        rubric_scores: savedEvaluation.scores,
+        total_score: savedEvaluation.totalScore,
+        criterion_feedback: rubricFeedback,
+        strengths: savedEvaluation.strengths,
+        areas_to_improve: savedEvaluation.areasToImprove,
+        study_hub_prescription: savedEvaluation.studyHubPrescription,
+        voice_feedback_url: savedEvaluation.voiceFeedbackUrl,
+        is_published: true,
+        updated_at: evaluatedAt,
+      }, { onConflict: "lesson_id,student_id" })
+      : await supabase.from("instructor_evaluation_drafts").upsert({
+        submission_id: existingSubmission.id,
+        lesson_id: lesson.id,
+        student_id: studentId,
+        instructor_id: authenticatedInstructorId,
+        evaluation: savedEvaluation,
+        updated_at: evaluatedAt,
+      }, { onConflict: "submission_id" });
     if (feedbackError) throw feedbackError;
 
     if (isPublished) {
@@ -839,6 +860,14 @@ export async function saveInstructorFeedback(
         .eq("lesson_id", lesson.id)
         .eq("student_id", studentId);
       if (statusError) throw statusError;
+    }
+    if (isPublished) {
+      const { error: draftError } = await supabase
+        .from("instructor_evaluation_drafts")
+        .delete()
+        .eq("submission_id", existingSubmission.id)
+        .eq("instructor_id", authenticatedInstructorId);
+      if (draftError) throw draftError;
     }
 
     const current = getState(slug, studentId);
@@ -854,8 +883,10 @@ export async function saveInstructorFeedback(
         submitted_at: existingSubmission.submitted_at,
       }),
     };
-    await saveLessonState(slug, nextState, studentId);
-    notifyDataUpdated({ type: "feedback", slug, studentToken: studentId });
+    if (isPublished) {
+      await saveLessonState(slug, nextState, studentId);
+      notifyDataUpdated({ type: "feedback", slug, studentToken: studentId });
+    }
     return nextState;
   }
 
@@ -870,7 +901,9 @@ export async function saveInstructorFeedback(
       ? { ...current.submission, status: isPublished ? "evaluated" : current.submission.status }
       : undefined,
   };
-  await saveLessonState(slug, nextState, studentToken);
+  if (isPublished) {
+    await saveLessonState(slug, nextState, studentToken);
+  }
   if (isPublished) {
     await saveStudentProgress(slug, {
       currentStep: "results",
@@ -879,7 +912,9 @@ export async function saveInstructorFeedback(
       updatedAt: evaluatedAt,
     }, studentToken);
   }
-  notifyDataUpdated({ type: "feedback", slug, studentToken });
+  if (isPublished) {
+    notifyDataUpdated({ type: "feedback", slug, studentToken });
+  }
   return nextState;
 }
 

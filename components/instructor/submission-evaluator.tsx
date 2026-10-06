@@ -173,6 +173,7 @@ export function SubmissionEvaluator({
           .select("*")
           .eq("lesson_id", normalizedLessonId)
           .eq("student_id", normalizedStudentId)
+          .eq("is_published", true)
           .maybeSingle(),
       ]);
       if (submission) {
@@ -188,8 +189,26 @@ export function SubmissionEvaluator({
           console.warn("Student lesson rubric could not be loaded:", message);
         }
       }
+      let draftEvaluation: LessonEvaluation | null = null;
+      if (submission && instructorId && UUID_PATTERN.test(instructorId)) {
+        const draftResult = await supabase
+          .from("instructor_evaluation_drafts")
+          .select("evaluation")
+          .eq("submission_id", submission.id)
+          .eq("instructor_id", instructorId)
+          .maybeSingle();
+        if (draftResult.error) {
+          if (!isMissingDatabaseObject(draftResult.error) && draftResult.error.code !== "PGRST116") {
+            console.warn("Instructor evaluation draft could not be loaded:", draftResult.error.message);
+          }
+        } else if (draftResult.data?.evaluation && typeof draftResult.data.evaluation === "object") {
+          draftEvaluation = draftResult.data.evaluation as LessonEvaluation;
+        }
+      }
       const feedback = feedbackResult.data;
-      if (feedback) {
+      if (draftEvaluation) {
+        onUpdateEvaluation?.({ ...draftEvaluation, published: false });
+      } else if (feedback) {
         const rubricScores = feedback.rubric_scores || feedback.scores || feedback.criterion_feedback?.scores || defaultScores;
         onUpdateEvaluation?.({
           scores: rubricScores,
