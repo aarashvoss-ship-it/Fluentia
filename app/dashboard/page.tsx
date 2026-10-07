@@ -1939,7 +1939,7 @@ function DashboardContent() {
                   className="absolute inset-0 h-full w-full object-cover"
                 />
                 <div style={{ opacity: nextLessonBannerDimness / 100 }} className="absolute inset-0 bg-[linear-gradient(90deg,rgba(12,16,23,.72),rgba(12,16,23,.24)),linear-gradient(0deg,rgba(12,16,23,.92),transparent_65%)]" />
-                <span className="absolute left-5 top-4 z-10 rounded-md px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 bg-amber-500/10 border border-amber-500/20">
+                <span className="absolute left-5 top-4 z-10 rounded-md border-none bg-amber-500/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400">
                   Module {activeModuleNumber ?? 1}
                 </span>
                 <div className="relative flex h-full flex-col justify-end p-5 md:p-7">
@@ -1959,7 +1959,7 @@ function DashboardContent() {
                     </p>
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       {nextLessonStatus && (
-                        <span className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${
+                        <span className={`rounded-md border-none px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${
                           nextLessonStatus === "in-progress"
                             ? "bg-sky-500/10 text-sky-400"
                             : nextLessonStatus === "pending-review"
@@ -1987,7 +1987,7 @@ function DashboardContent() {
                       <Link
                         href={getLessonHref(nextLesson, nextLessonStatus || "not-started")}
                         onClick={() => rememberLesson(nextLesson.id)}
-                        className="inline-flex w-fit items-center rounded-md border border-amber-500/30 bg-amber-500/15 px-3.5 py-1.5 text-xs font-medium text-amber-300 transition-colors hover:bg-amber-500/25"
+                        className="inline-flex w-fit items-center rounded-lg border-none bg-amber-500/10 px-4 py-2 text-xs font-medium text-amber-400 transition-all hover:bg-amber-500/20"
                       >
                         {nextLessonStatus === "in-progress" ? "Continue Lesson" : "Start Lesson"}
                         <span className="ml-2" aria-hidden="true">-&gt;</span>
@@ -2128,7 +2128,7 @@ function DashboardContent() {
                           className="h-full w-full object-cover"
                         />
                         <div style={{ opacity: lessonBannerDimness / 100 }} className="absolute inset-0 bg-[linear-gradient(90deg,rgba(12,16,23,.72),rgba(12,16,23,.24)),linear-gradient(0deg,rgba(12,16,23,.92),transparent_65%)]" />
-                        <span className="absolute bottom-4 left-5 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-md">
+                        <span className="absolute bottom-4 left-5 rounded-md border-none bg-amber-500/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400">
                           Module {lesson.content?.moduleNumber || 1}
                         </span>
                       </div>
@@ -2142,7 +2142,7 @@ function DashboardContent() {
                           </div>
                           <Tooltip content={`Lesson status: ${statusCopy.toLowerCase()}`}>
                           <span
-                            className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${
+                            className={`rounded-md border-none px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${
                               status === "completed"
                                 ? "bg-emerald-500/10 text-emerald-400"
                                 : status === "pending-review"
@@ -2184,7 +2184,7 @@ function DashboardContent() {
                               <Link
                                 href={getLessonHref(lesson, status)}
                                 onClick={() => rememberLesson(lesson.id)}
-                                className="inline-flex rounded-md border border-amber-500/30 bg-amber-500/15 px-3.5 py-1.5 text-xs font-medium text-amber-300 transition-colors hover:bg-amber-500/25"
+                                className="inline-flex rounded-lg border-none bg-amber-500/10 px-4 py-2 text-xs font-medium text-amber-400 transition-all hover:bg-amber-500/20"
                               >
                                 {ctaCopy}
                               </Link>
