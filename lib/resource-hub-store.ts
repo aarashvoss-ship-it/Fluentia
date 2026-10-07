@@ -1,77 +1,42 @@
-import type { ResourceAsset } from "@/types/resource-hub";
+"use client";
+
+import { useEffect, useSyncExternalStore } from "react";
+import {
+  createResourceAsset as createResourceAssetRecord,
+  deleteResourceAsset as deleteResourceAssetRecord,
+  fetchResourceAssets,
+  updateResourceAsset as updateResourceAssetRecord,
+} from "@/lib/services/resource-hub-service";
+import type { ResourceAsset, ResourceAssetInput } from "@/types/resource-hub";
+
+export interface ResourceAssetsSnapshot {
+  assets: ResourceAsset[];
+  instructorId: string | null;
+  loading: boolean;
+  error: string | null;
+}
 
 const listeners = new Set<() => void>();
+const initialSnapshot: ResourceAssetsSnapshot = {
+  assets: [],
+  instructorId: null,
+  loading: true,
+  error: null,
+};
 
-let assets: ResourceAsset[] = [
-  {
-    id: "mock-youtube-video",
-    title: "Everyday English: Ordering at a Cafe",
-    description: "A short dialogue for practicing polite requests and ordering food.",
-    mainCategory: "videos",
-    subCategory: "YouTube",
-    url: "https://www.youtube.com/watch?v=example",
-    isExternalLink: true,
-    isDownloadable: false,
-    cefrLevel: "A2",
-    tags: ["speaking", "food", "dialogue"],
-    createdAt: "2026-10-06T10:00:00.000Z",
-  },
-  {
-    id: "mock-pdf-ebook",
-    title: "English Grammar Quick Reference",
-    description: "A printable reference sheet for common grammar structures.",
-    mainCategory: "documents",
-    subCategory: "PDFs",
-    url: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
-    isExternalLink: true,
-    isDownloadable: true,
-    cefrLevel: "B1",
-    tags: ["grammar", "reference", "printable"],
-    createdAt: "2026-10-05T10:00:00.000Z",
-  },
-  {
-    id: "mock-infographic",
-    title: "The Water Cycle",
-    description: "A visual guide to the stages of the water cycle.",
-    mainCategory: "visuals",
-    subCategory: "Infographics",
-    url: "https://commons.wikimedia.org/wiki/File:Water_cycle.png",
-    isExternalLink: true,
-    isDownloadable: false,
-    cefrLevel: "A1",
-    tags: ["science", "vocabulary", "visual"],
-    createdAt: "2026-10-04T10:00:00.000Z",
-  },
-  {
-    id: "mock-podcast",
-    title: "A Week in London",
-    description: "A beginner-friendly listening activity about daily routines.",
-    mainCategory: "audios",
-    subCategory: "Podcasts",
-    url: "https://www.bbc.co.uk/learningenglish/",
-    isExternalLink: true,
-    isDownloadable: false,
-    cefrLevel: "A2",
-    tags: ["listening", "travel", "daily life"],
-    createdAt: "2026-10-03T10:00:00.000Z",
-  },
-  {
-    id: "mock-flashcards",
-    title: "Travel Vocabulary Cards",
-    description: "A set of visual prompts for essential travel vocabulary.",
-    mainCategory: "visuals",
-    subCategory: "Flashcards",
-    url: "https://en.wiktionary.org/wiki/travel",
-    isExternalLink: true,
-    isDownloadable: true,
-    cefrLevel: "All Levels",
-    tags: ["travel", "vocabulary"],
-    createdAt: "2026-10-02T10:00:00.000Z",
-  },
-];
+let snapshot = initialSnapshot;
+let loadedInstructorId: string | null = null;
+let inFlightInstructorId: string | null = null;
+let inFlightLoad: Promise<void> | null = null;
+let loadSequence = 0;
 
-export function getResourceAssets() {
-  return assets;
+function publish(nextSnapshot: ResourceAssetsSnapshot) {
+  snapshot = nextSnapshot;
+  listeners.forEach((listener) => listener());
+}
+
+export function getResourceAssetsSnapshot() {
+  return snapshot;
 }
 
 export function subscribeToResourceAssets(listener: () => void) {
@@ -79,12 +44,79 @@ export function subscribeToResourceAssets(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
-export function addResourceAsset(asset: ResourceAsset) {
-  assets = [asset, ...assets];
-  listeners.forEach((listener) => listener());
+export async function loadResourceAssets(instructorId: string) {
+  if (!instructorId) {
+    publish({ assets: [], instructorId: null, loading: false, error: "An instructor ID is required to load Resource Hub assets." });
+    return;
+  }
+  if (loadedInstructorId === instructorId && !snapshot.error) return;
+  if (inFlightInstructorId === instructorId && inFlightLoad) return inFlightLoad;
+
+  const sequence = ++loadSequence;
+  inFlightInstructorId = instructorId;
+  publish({ assets: snapshot.instructorId === instructorId ? snapshot.assets : [], instructorId, loading: true, error: null });
+  inFlightLoad = fetchResourceAssets(instructorId)
+    .then((assets) => {
+      if (sequence !== loadSequence) return;
+      loadedInstructorId = instructorId;
+      publish({ assets, instructorId, loading: false, error: null });
+    })
+    .catch((error: unknown) => {
+      if (sequence !== loadSequence) return;
+      loadedInstructorId = null;
+      publish({
+        assets: [],
+        instructorId,
+        loading: false,
+        error: error instanceof Error ? error.message : "Unable to load Resource Hub assets.",
+      });
+    })
+    .finally(() => {
+      if (sequence === loadSequence) {
+        inFlightInstructorId = null;
+        inFlightLoad = null;
+      }
+    });
+
+  return inFlightLoad;
 }
 
-export function deleteResourceAsset(assetId: string) {
-  assets = assets.filter(({ id }) => id !== assetId);
-  listeners.forEach((listener) => listener());
+export function useResourceAssets(instructorId: string) {
+  const state = useSyncExternalStore(subscribeToResourceAssets, getResourceAssetsSnapshot, () => initialSnapshot);
+
+  useEffect(() => {
+    void loadResourceAssets(instructorId);
+  }, [instructorId]);
+
+  return state;
+}
+
+export async function addResourceAsset(assetData: ResourceAssetInput) {
+  const asset = await createResourceAssetRecord(assetData);
+  if (snapshot.instructorId && snapshot.instructorId !== asset.instructorId) return asset;
+  loadedInstructorId = asset.instructorId;
+  publish({
+    assets: [asset, ...snapshot.assets.filter(({ id }) => id !== asset.id)],
+    instructorId: asset.instructorId,
+    loading: false,
+    error: null,
+  });
+  return asset;
+}
+
+export async function updateResourceAsset(assetId: string, assetData: Partial<ResourceAssetInput>) {
+  const asset = await updateResourceAssetRecord(assetId, assetData);
+  publish({
+    ...snapshot,
+    assets: snapshot.assets.map((current) => current.id === asset.id ? asset : current),
+  });
+  return asset;
+}
+
+export async function deleteResourceAsset(assetId: string) {
+  await deleteResourceAssetRecord(assetId);
+  publish({
+    ...snapshot,
+    assets: snapshot.assets.filter(({ id }) => id !== assetId),
+  });
 }

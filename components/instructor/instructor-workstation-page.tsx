@@ -4557,7 +4557,7 @@ export default function InstructorWorkstationPage({
           );
         })()}
 
-        {activeTab === "resource-hub" && <ResourceHubPage />}
+        {activeTab === "resource-hub" && <ResourceHubPage instructorId={instructorId} />}
         {activeTab === "music" && <MusicLibraryManager />}
 
         {activeTab === "builder" && <>
@@ -5487,6 +5487,7 @@ export default function InstructorWorkstationPage({
       </div>
       {isResourceHubImportOpen && (
         <ResourceHubImportDialog
+          instructorId={instructorId}
           importedAssetIds={lessonResources.flatMap((resource) => resource.resourceHubAssetId ? [resource.resourceHubAssetId] : [])}
           onClose={() => setIsResourceHubImportOpen(false)}
           onImport={importResourceHubAssets}

@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useMemo, useState } from "react";
 import { Search, X } from "lucide-react";
-import { getResourceAssets, subscribeToResourceAssets } from "@/lib/resource-hub-store";
+import { loadResourceAssets, useResourceAssets } from "@/lib/resource-hub-store";
 import type { MainCategory, ResourceAsset } from "@/types/resource-hub";
 
 const CATEGORY_TABS: { id: MainCategory | "all"; label: string }[] = [
@@ -15,15 +15,17 @@ const CATEGORY_TABS: { id: MainCategory | "all"; label: string }[] = [
 ];
 
 export function ResourceHubImportDialog({
+  instructorId,
   importedAssetIds,
   onClose,
   onImport,
 }: {
+  instructorId: string;
   importedAssetIds: string[];
   onClose: () => void;
   onImport: (assets: ResourceAsset[]) => void;
 }) {
-  const assets = useSyncExternalStore(subscribeToResourceAssets, getResourceAssets, getResourceAssets);
+  const { assets, loading, error } = useResourceAssets(instructorId);
   const [category, setCategory] = useState<MainCategory | "all">("all");
   const [query, setQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
@@ -85,7 +87,14 @@ export function ResourceHubImportDialog({
         </div>
 
         <div className="mt-4 min-h-0 flex-1 overflow-y-auto rounded-lg border border-border">
-          {filteredAssets.length ? (
+          {loading ? (
+            <p className="px-4 py-10 text-center text-sm text-stone-400" role="status">Loading Resource Hub assets...</p>
+          ) : error ? (
+            <div className="px-4 py-10 text-center text-sm text-rose-300" role="alert">
+              <p>{error}</p>
+              <button type="button" onClick={() => void loadResourceAssets(instructorId)} className="mt-3 underline underline-offset-2">Retry</button>
+            </div>
+          ) : filteredAssets.length ? (
             <ul className="divide-y divide-border">
               {filteredAssets.map((asset) => {
                 const alreadyImported = importedAssetIds.includes(asset.id);

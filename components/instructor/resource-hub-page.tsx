@@ -1,9 +1,9 @@
 "use client";
 
 import { ExternalLink, FileText, Film, Grid2X2, Headphones, Image, List, PackageOpen, Plus, Search, Trash2, X } from "lucide-react";
-import { useState, useSyncExternalStore, type FormEvent } from "react";
-import { addResourceAsset, deleteResourceAsset, getResourceAssets, subscribeToResourceAssets } from "@/lib/resource-hub-store";
-import type { CEFRLevel, MainCategory, ResourceAsset, SubCategory } from "@/types/resource-hub";
+import { useState, type FormEvent } from "react";
+import { addResourceAsset, deleteResourceAsset, loadResourceAssets, useResourceAssets } from "@/lib/resource-hub-store";
+import type { CEFRLevel, MainCategory, ResourceAssetInput, SubCategory } from "@/types/resource-hub";
 
 const RESOURCE_CATEGORIES: {
   id: MainCategory;
@@ -73,8 +73,8 @@ function formatCreatedAt(createdAt: string) {
   return new Date(createdAt).toLocaleDateString();
 }
 
-export function ResourceHubPage() {
-  const assets = useSyncExternalStore(subscribeToResourceAssets, getResourceAssets, getResourceAssets);
+export function ResourceHubPage({ instructorId }: { instructorId: string }) {
+  const { assets, loading, error: loadError } = useResourceAssets(instructorId);
   const [selectedCategory, setSelectedCategory] = useState<MainCategory | null>(null);
   const [isAddAssetOpen, setIsAddAssetOpen] = useState(false);
   const [assetDraft, setAssetDraft] = useState(EMPTY_ASSET_DRAFT);
@@ -82,6 +82,9 @@ export function ResourceHubPage() {
   const [cefrFilter, setCefrFilter] = useState<CEFRLevel | "all">("all");
   const [sortBy, setSortBy] = useState<AssetSort>("newest");
   const [view, setView] = useState<AssetView>("grid");
+  const [isSavingAsset, setIsSavingAsset] = useState(false);
+  const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const selectedCategoryDetails = RESOURCE_CATEGORIES.find(({ id }) => id === selectedCategory);
 
   const filteredAssets = assets
@@ -108,40 +111,53 @@ export function ResourceHubPage() {
     setAssetDraft((current) => ({ ...current, mainCategory, subCategory: category.subCategories[0] }));
   };
 
-  const handleCreateAsset = (event: FormEvent<HTMLFormElement>) => {
+  const handleCreateAsset = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const category = RESOURCE_CATEGORIES.find(({ id }) => id === assetDraft.mainCategory);
     if (!category?.subCategories.includes(assetDraft.subCategory)) return;
 
-    const asset: ResourceAsset = {
-      id: crypto.randomUUID(),
+    const asset: ResourceAssetInput = {
       title: assetDraft.title.trim(),
       description: assetDraft.description.trim() || undefined,
       mainCategory: assetDraft.mainCategory,
       subCategory: assetDraft.subCategory,
       url: assetDraft.url.trim(),
-      isExternalLink: /^https?:\/\//i.test(assetDraft.url.trim()),
       isDownloadable: assetDraft.isDownloadable,
       cefrLevel: assetDraft.cefrLevel,
       tags: [...new Set(assetDraft.tags.split(",").map((tag) => tag.trim()).filter(Boolean))],
-      createdAt: new Date().toISOString(),
     };
 
-    addResourceAsset(asset);
-    setSelectedCategory(asset.mainCategory);
-    setSearchQuery("");
-    setCefrFilter("all");
-    setSortBy("newest");
-    setAssetDraft(EMPTY_ASSET_DRAFT);
-    setIsAddAssetOpen(false);
+    setIsSavingAsset(true);
+    setActionError(null);
+    try {
+      const createdAsset = await addResourceAsset(asset);
+      setSelectedCategory(createdAsset.mainCategory);
+      setSearchQuery("");
+      setCefrFilter("all");
+      setSortBy("newest");
+      setAssetDraft(EMPTY_ASSET_DRAFT);
+      setIsAddAssetOpen(false);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Unable to create Resource Hub asset.");
+    } finally {
+      setIsSavingAsset(false);
+    }
   };
 
   const openPreview = (url: string) => {
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  const deleteAsset = (assetId: string) => {
-    deleteResourceAsset(assetId);
+  const deleteAsset = async (assetId: string) => {
+    setDeletingAssetId(assetId);
+    setActionError(null);
+    try {
+      await deleteResourceAsset(assetId);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Unable to delete Resource Hub asset.");
+    } finally {
+      setDeletingAssetId(null);
+    }
   };
 
   return (
@@ -165,6 +181,13 @@ export function ResourceHubPage() {
           </button>
         </div>
       </div>
+
+      {(loadError || actionError) && (
+        <div role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+          {actionError || loadError}
+          {loadError && <button type="button" onClick={() => void loadResourceAssets(instructorId)} className="ml-3 underline underline-offset-2">Retry</button>}
+        </div>
+      )}
 
       <div>
         <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
@@ -287,7 +310,9 @@ export function ResourceHubPage() {
           </div>
         </div>
 
-        {filteredAssets.length === 0 ? (
+        {loading ? (
+          <div className="flex min-h-48 items-center justify-center py-10 text-sm text-stone-400" role="status">Loading Resource Hub assets...</div>
+        ) : filteredAssets.length === 0 ? (
           <div className="flex min-h-48 flex-col items-center justify-center py-10 text-center">
             <span className="rounded-xl border border-border bg-background p-3 text-stone-500">
               <FileText className="h-5 w-5" aria-hidden="true" />
@@ -319,7 +344,7 @@ export function ResourceHubPage() {
                     <button type="button" onClick={() => openPreview(asset.url)} className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-[11px] text-stone-300 transition hover:border-amber-500/40 hover:text-amber-300">
                       Preview <ExternalLink className="h-3 w-3" aria-hidden="true" />
                     </button>
-                    <button type="button" onClick={() => deleteAsset(asset.id)} aria-label={`Delete ${asset.title}`} className="inline-flex items-center justify-center rounded-md border border-border p-1.5 text-stone-400 transition hover:border-rose-500/40 hover:text-rose-300">
+                    <button type="button" onClick={() => void deleteAsset(asset.id)} disabled={deletingAssetId === asset.id} aria-label={`Delete ${asset.title}`} className="inline-flex items-center justify-center rounded-md border border-border p-1.5 text-stone-400 transition hover:border-rose-500/40 hover:text-rose-300 disabled:cursor-wait disabled:opacity-50">
                       <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
                   </div>
@@ -358,7 +383,7 @@ export function ResourceHubPage() {
                         <button type="button" onClick={() => openPreview(asset.url)} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1.5 text-[11px] transition hover:border-amber-500/40 hover:text-amber-300">
                           Preview <ExternalLink className="h-3 w-3" aria-hidden="true" />
                         </button>
-                        <button type="button" onClick={() => deleteAsset(asset.id)} aria-label={`Delete ${asset.title}`} className="inline-flex items-center justify-center rounded-md border border-border p-1.5 text-stone-400 transition hover:border-rose-500/40 hover:text-rose-300">
+                        <button type="button" onClick={() => void deleteAsset(asset.id)} disabled={deletingAssetId === asset.id} aria-label={`Delete ${asset.title}`} className="inline-flex items-center justify-center rounded-md border border-border p-1.5 text-stone-400 transition hover:border-rose-500/40 hover:text-rose-300 disabled:cursor-wait disabled:opacity-50">
                           <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                         </button>
                       </div>
@@ -388,7 +413,8 @@ export function ResourceHubPage() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <form onSubmit={handleCreateAsset} className="mt-5 space-y-4">
+            <form onSubmit={(event) => void handleCreateAsset(event)} className="mt-5 space-y-4">
+              {actionError && <p role="alert" className="rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">{actionError}</p>}
               <label className="block space-y-1.5 text-xs font-medium text-stone-400">
                 Title <span className="text-rose-300">*</span>
                 <input
@@ -480,9 +506,9 @@ export function ResourceHubPage() {
                 <button type="button" onClick={() => setIsAddAssetOpen(false)} className="h-10 rounded-md border border-border px-4 text-xs text-stone-300 transition hover:bg-white/5">
                   Cancel
                 </button>
-                <button type="submit" className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-amber-500/20 px-4 text-xs text-amber-300 transition hover:bg-amber-500/30">
+                <button type="submit" disabled={isSavingAsset} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-amber-500/20 px-4 text-xs text-amber-300 transition hover:bg-amber-500/30 disabled:cursor-wait disabled:opacity-50">
                   <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                  Save Asset
+                  {isSavingAsset ? "Saving..." : "Save Asset"}
                 </button>
               </div>
             </form>
