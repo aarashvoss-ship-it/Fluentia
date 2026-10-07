@@ -1,4 +1,5 @@
 import type { StudentId } from "@/types/database";
+import type { CEFRLevel, MainCategory, SubCategory } from "@/types/resource-hub";
 
 export type StudyStepId =
   | "warm_up"
@@ -131,6 +132,20 @@ export interface ResourceContentBlock extends ContentBlockBase {
   type: "resource";
   resourceUrl: string;
   description?: string;
+}
+
+export interface LessonResource {
+  id: string;
+  title: string;
+  url: string;
+  type: "PDF" | "Article" | "Video" | "Audio" | "Image";
+  description?: string;
+  mainCategory?: MainCategory;
+  subCategory?: SubCategory;
+  cefrLevel?: CEFRLevel;
+  isDownloadable?: boolean;
+  importedFromResourceHub?: boolean;
+  resourceHubAssetId?: string;
 }
 
 export interface QuizContentBlock extends ContentBlockBase {

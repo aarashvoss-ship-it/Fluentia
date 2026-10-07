@@ -9,7 +9,7 @@ import { InstructorBannerManager, type BannerPosition } from "@/components/instr
 import { normalizeBannerDimness } from "@/lib/banner-position";
 import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/submission-evaluator";
 import type { UnifiedReportStage } from "@/components/shared/unified-report-card";
-import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission, StudyStepId } from "@/types/lesson";
+import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission, StudyStepId, type LessonResource } from "@/types/lesson";
 import { assignLessonToAllActiveStudents, assignLessonToStudent, createLesson, deleteLesson, getLessons, publishLessonAndAssign, setLessonAssignments, unassignLesson, updateLesson, type LessonTags, type LessonWithVersion } from "@/lib/lessons";
 import { PublishedLessonState } from "@/lib/lesson-store";
 import { deduplicateStudents, StudentUser } from "@/lib/users";
@@ -41,6 +41,8 @@ import { StudentStudyRoomPreview, STUDENT_PREVIEW_CHANNEL, type StudentPreviewSn
 import { LearningSidebar, type LearningTab } from "@/components/study-room/learning-sidebar";
 import type { StudyHubResource } from "@/components/shared/study-hub-resource-card";
 import { ResourceHubPage } from "@/components/instructor/resource-hub-page";
+import { ResourceHubImportDialog } from "@/components/instructor/resource-hub-import-dialog";
+import type { ResourceAsset } from "@/types/resource-hub";
 
 interface InstructorWorkstationProps {
   instructorId: string;
@@ -482,7 +484,6 @@ function cloneSidebarBlocksByStep(blocks: SidebarBlocksByStep): SidebarBlocksByS
   return out;
 }
 
-type LessonResource = { id: string; title: string; url: string; type: "PDF" | "Article" | "Video" };
 type StudentResourceType = "note" | "reading" | "flashcard" | "flashcards" | "quiz" | "audio" | "data_table" | "file" | "image" | "video";
 type ResourceEditorType = Exclude<StudentResourceType, "flashcards">;
 type FlashcardItem = {
@@ -869,6 +870,11 @@ export default function InstructorWorkstationPage({
   const pendingBuilderBlockRef = useRef<string | null>(null);
   const [sidebarBlocksByStep, setSidebarBlocksByStep] = useState<SidebarBlocksByStep>({});
   const [lessonResources, setLessonResources] = useState<LessonResource[]>([]);
+  const [isResourceHubImportOpen, setIsResourceHubImportOpen] = useState(false);
+  const [manualLessonResourceDraft, setManualLessonResourceDraft] = useState({ title: "", url: "" });
+  const [isManualLessonResourceOpen, setIsManualLessonResourceOpen] = useState(false);
+  const [editingLessonResourceId, setEditingLessonResourceId] = useState<string | null>(null);
+  const [lessonResourceEditDraft, setLessonResourceEditDraft] = useState({ title: "", url: "" });
   const [studentResources, setStudentResources] = useState<StudentResourceEntry[]>([]);
   const [builderResourcesExpanded, setBuilderResourcesExpanded] = useState(false);
   const [resourceStudyHubPreviewOpen, setResourceStudyHubPreviewOpen] = useState(false);
@@ -1131,6 +1137,9 @@ export default function InstructorWorkstationPage({
     setSidebarBlocksByStep({});
     setSidebarStep("warm_up");
     setLessonResources([]);
+    setIsResourceHubImportOpen(false);
+    setIsManualLessonResourceOpen(false);
+    setEditingLessonResourceId(null);
     setSelectedStudentId(studentId || null);
     setNewLesson({ studentId, title: "", slug: "", subtitle: "", instructorGuidance: "", moduleNumber: "", level: "B1", tags: { ...EMPTY_LESSON_TAGS }, customTagsText: "", status: "draft" });
     setWorkstationState((previous) => ({
@@ -1173,6 +1182,9 @@ export default function InstructorWorkstationPage({
       status: "draft",
     });
     setLessonResources([]);
+    setIsResourceHubImportOpen(false);
+    setIsManualLessonResourceOpen(false);
+    setEditingLessonResourceId(null);
   };
 
   const startNewLesson = () => {
@@ -1442,6 +1454,61 @@ export default function InstructorWorkstationPage({
       setSavingInstructorId(null);
     }
   }
+
+  const importResourceHubAssets = (assets: ResourceAsset[]) => {
+    const existingAssetIds = new Set(lessonResources.flatMap((resource) => resource.resourceHubAssetId ? [resource.resourceHubAssetId] : []));
+    const importedResources: LessonResource[] = assets
+      .filter((asset) => !existingAssetIds.has(asset.id))
+      .map((asset) => ({
+        id: crypto.randomUUID(),
+        title: asset.title,
+        url: asset.url,
+        type: asset.mainCategory === "videos"
+          ? "Video"
+          : asset.mainCategory === "audios"
+            ? "Audio"
+            : asset.mainCategory === "visuals"
+              ? "Image"
+              : asset.mainCategory === "documents" && asset.subCategory === "PDFs"
+                ? "PDF"
+                : "Article",
+        description: asset.description,
+        mainCategory: asset.mainCategory,
+        subCategory: asset.subCategory,
+        cefrLevel: asset.cefrLevel,
+        isDownloadable: asset.isDownloadable,
+        importedFromResourceHub: true,
+        resourceHubAssetId: asset.id,
+      }));
+    if (importedResources.length) setLessonResources((current) => [...current, ...importedResources]);
+    setIsResourceHubImportOpen(false);
+  };
+
+  const addManualLessonResource = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const title = manualLessonResourceDraft.title.trim();
+    const url = manualLessonResourceDraft.url.trim();
+    if (!title || !url) return;
+    setLessonResources((current) => [...current, {
+      id: crypto.randomUUID(),
+      title,
+      url,
+      type: "Article",
+      importedFromResourceHub: false,
+    }]);
+    setManualLessonResourceDraft({ title: "", url: "" });
+    setIsManualLessonResourceOpen(false);
+  };
+
+  const saveLessonResourceEdit = (resourceId: string) => {
+    const title = lessonResourceEditDraft.title.trim();
+    const url = lessonResourceEditDraft.url.trim();
+    if (!title || !url) return;
+    setLessonResources((current) => current.map((resource) => (
+      resource.id === resourceId ? { ...resource, title, url } : resource
+    )));
+    setEditingLessonResourceId(null);
+  };
 
   const handleWorkspaceTabChange = (tab: typeof activeTab) => {
     if (tab === "builder") {
@@ -4618,6 +4685,27 @@ export default function InstructorWorkstationPage({
                   type="button"
                   onClick={() => {
                     setBuilderResourcesExpanded(true);
+                    setIsManualLessonResourceOpen((open) => !open);
+                    setEditingLessonResourceId(null);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-xs font-medium text-stone-300 transition hover:border-amber-500/40 hover:text-stone-100"
+                >
+                  <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Add Resource
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBuilderResourcesExpanded(true);
+                    setIsResourceHubImportOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-300 transition hover:bg-amber-500/20"
+                >
+                  Import from Resource Hub
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBuilderResourcesExpanded(true);
                     setResourceStudyHubPreviewOpen(true);
                   }}
                   className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-300 transition hover:bg-amber-500/20"
@@ -4637,6 +4725,118 @@ export default function InstructorWorkstationPage({
               style={{ gridTemplateRows: builderResourcesExpanded ? "1fr" : "0fr" }}
             >
               <div className="min-h-0 overflow-hidden">
+                <div className="mt-4 rounded-lg border border-border bg-background/50 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-sm font-semibold text-stone-100">Lesson Resources</h4>
+                      <p className="mt-1 text-xs text-stone-500">Resources attached to this lesson.</p>
+                    </div>
+                    <span className="rounded-full border border-border px-2 py-0.5 text-[10px] text-stone-400">{lessonResources.length}</span>
+                  </div>
+                  {isManualLessonResourceOpen && (
+                    <form onSubmit={addManualLessonResource} className="mb-3 grid gap-2 rounded-md border border-border bg-background p-3 sm:grid-cols-[1fr_1fr_auto_auto]">
+                      <label className="text-xs text-stone-400">
+                        Title
+                        <input
+                          required
+                          value={manualLessonResourceDraft.title}
+                          onChange={(event) => setManualLessonResourceDraft((current) => ({ ...current, title: event.target.value }))}
+                          placeholder="Resource title"
+                          className="mt-1 w-full rounded-md border border-border bg-surface p-2 text-xs text-stone-200"
+                        />
+                      </label>
+                      <label className="text-xs text-stone-400">
+                        URL
+                        <input
+                          required
+                          type="url"
+                          value={manualLessonResourceDraft.url}
+                          onChange={(event) => setManualLessonResourceDraft((current) => ({ ...current, url: event.target.value }))}
+                          placeholder="https://..."
+                          className="mt-1 w-full rounded-md border border-border bg-surface p-2 text-xs text-stone-200"
+                        />
+                      </label>
+                      <button type="submit" className="self-end rounded-md bg-amber-500/20 px-3 py-2 text-xs font-medium text-amber-300 hover:bg-amber-500/30">Add</button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsManualLessonResourceOpen(false);
+                          setManualLessonResourceDraft({ title: "", url: "" });
+                        }}
+                        className="self-end rounded-md border border-border px-3 py-2 text-xs text-stone-400 hover:text-stone-200"
+                      >Cancel</button>
+                    </form>
+                  )}
+                  {lessonResources.length === 0 ? (
+                    <p className="rounded-md border border-dashed border-border px-3 py-5 text-center text-xs text-stone-500">No lesson resources yet. Add one or import assets from the Resource Hub.</p>
+                  ) : (
+                    <ul className="divide-y divide-border rounded-md border border-border">
+                      {lessonResources.map((resource) => (
+                        <li key={resource.id} className="p-3">
+                          {editingLessonResourceId === resource.id ? (
+                            <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto_auto]">
+                              <label className="text-xs text-stone-400">
+                                Title
+                                <input
+                                  value={lessonResourceEditDraft.title}
+                                  onChange={(event) => setLessonResourceEditDraft((current) => ({ ...current, title: event.target.value }))}
+                                  className="mt-1 w-full rounded-md border border-border bg-surface p-2 text-xs text-stone-200"
+                                />
+                              </label>
+                              <label className="text-xs text-stone-400">
+                                URL
+                                <input
+                                  type="url"
+                                  value={lessonResourceEditDraft.url}
+                                  onChange={(event) => setLessonResourceEditDraft((current) => ({ ...current, url: event.target.value }))}
+                                  className="mt-1 w-full rounded-md border border-border bg-surface p-2 text-xs text-stone-200"
+                                />
+                              </label>
+                              <button type="button" onClick={() => saveLessonResourceEdit(resource.id)} className="self-end rounded-md bg-amber-500/20 px-3 py-2 text-xs font-medium text-amber-300 hover:bg-amber-500/30">Save</button>
+                              <button type="button" onClick={() => setEditingLessonResourceId(null)} className="self-end rounded-md border border-border px-3 py-2 text-xs text-stone-400 hover:text-stone-200">Cancel</button>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-sm font-medium text-stone-100">{resource.title}</span>
+                                  {resource.importedFromResourceHub && (
+                                    <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[9px] font-medium text-amber-300">Imported from Resource Hub</span>
+                                  )}
+                                </div>
+                                <a href={resource.url} target="_blank" rel="noreferrer" className="mt-1 block truncate text-xs text-stone-400 hover:text-amber-300">{resource.url}</a>
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                  {[resource.type, resource.mainCategory, resource.subCategory, resource.cefrLevel].filter(Boolean).map((label) => (
+                                    <span key={label} className="rounded-full border border-border px-2 py-0.5 text-[10px] text-stone-400">{label}</span>
+                                  ))}
+                                  {resource.isDownloadable && <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-300">Downloadable</span>}
+                                </div>
+                              </div>
+                              <div className="flex shrink-0 items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setLessonResourceEditDraft({ title: resource.title, url: resource.url });
+                                    setEditingLessonResourceId(resource.id);
+                                    setIsManualLessonResourceOpen(false);
+                                  }}
+                                  aria-label={`Edit ${resource.title}`}
+                                  className="rounded-md border border-border p-2 text-stone-400 hover:text-stone-100"
+                                ><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
+                                <button
+                                  type="button"
+                                  onClick={() => setLessonResources((current) => current.filter(({ id }) => id !== resource.id))}
+                                  aria-label={`Remove ${resource.title} from this lesson`}
+                                  className="rounded-md border border-border p-2 text-stone-400 hover:border-red-500/40 hover:text-red-300"
+                                ><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>
+                              </div>
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
                 <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Resource type">
                   {([['note', 'Notes'], ['reading', 'Reading'], ['flashcard', 'Flashcards'], ['quiz', 'Quiz'], ['audio', 'Audio'], ['video', 'Video'], ['image', 'Image'], ['data_table', 'Data Table'], ['file', 'File Upload']] as const).map(([type, label]) => (
                     <button
@@ -5285,6 +5485,13 @@ export default function InstructorWorkstationPage({
           </section>
         )}
       </div>
+      {isResourceHubImportOpen && (
+        <ResourceHubImportDialog
+          importedAssetIds={lessonResources.flatMap((resource) => resource.resourceHubAssetId ? [resource.resourceHubAssetId] : [])}
+          onClose={() => setIsResourceHubImportOpen(false)}
+          onImport={importResourceHubAssets}
+        />
+      )}
       {activeTab === "builder" && isSaveBarVisible && <div className="animate-save-bar fixed bottom-6 left-1/2 z-40 -translate-x-1/2 rounded-full border border-slate-800 bg-slate-900/90 px-5 py-2.5 shadow-2xl backdrop-blur">
         {showSuccessCheck && !isDraftDirty ? (
           <span role="status" className="whitespace-nowrap text-sm font-medium text-emerald-400">Saved ✓</span>
