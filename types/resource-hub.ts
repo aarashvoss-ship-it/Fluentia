@@ -1,4 +1,4 @@
-export type MainCategory = "documents" | "videos" | "audios" | "others";
+export type MainCategory = "documents" | "videos" | "audios" | "visuals" | "others";
 
 export type SubCategory =
   | "eBooks"
@@ -13,6 +13,10 @@ export type SubCategory =
   | "Podcasts"
   | "Songs"
   | "Instrumental"
+  | "Infographics"
+  | "Images"
+  | "Diagrams"
+  | "Flashcards"
   | "General";
 
 export type CEFRLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2" | "All Levels";
