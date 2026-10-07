@@ -82,7 +82,7 @@ const AVATAR_PRESETS = Object.values({
   crimson: {
     id: "crimson",
     label: "Rose",
-    backgroundColor: "#a65368",
+    backgroundColor: "#B23838",
     className: "text-white",
   },
 } as const);
@@ -94,6 +94,7 @@ function resolveAvatarColor(color: string, presetId?: ProfilePreferences["avatar
   const normalizedColor = color.trim().toLowerCase();
   if (["#6366f1", "#818cf8"].includes(normalizedColor)) return "#5053C3";
   if (["#34d399", "#059669", "#36b37e"].includes(normalizedColor)) return "#1F7F5B";
+  if (normalizedColor === "#a65368") return "#B23838";
   return color;
 }
 
