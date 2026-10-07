@@ -64,25 +64,25 @@ const AVATAR_PRESETS = [
   {
     id: "amber",
     label: "Muted Amber",
-    backgroundColor: "#b7791f",
+    backgroundColor: "#f59e0b",
     className: "text-white",
   },
   {
     id: "indigo",
     label: "Muted Indigo",
-    backgroundColor: "#4338ca",
+    backgroundColor: "#6366f1",
     className: "text-white",
   },
   {
     id: "emerald",
     label: "Muted Emerald",
-    backgroundColor: "#047857",
+    backgroundColor: "#10b981",
     className: "text-white",
   },
   {
     id: "crimson",
     label: "Muted Rose",
-    backgroundColor: "#be123c",
+    backgroundColor: "#e11d48",
     className: "text-white",
   },
 ] as const;
@@ -1303,14 +1303,14 @@ function DashboardContent() {
                     <button
                       type="button"
                       onClick={() => setProfileTab("profile")}
-                      className={`border-b-2 pb-2 text-[10px]  uppercase tracking-[0.12em] ${profileTab === "profile" ? "border-amber-500/40 text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
+                      className={`border-b-2 pb-2 text-[10px] font-medium uppercase tracking-[0.12em] focus:outline-none focus-visible:outline-none focus-visible:underline focus-visible:decoration-amber-400 focus-visible:underline-offset-4 ${profileTab === "profile" ? "border-amber-400 font-semibold text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
                     >
                       Profile &amp; Preferences
                     </button>
                     <button
                       type="button"
                       onClick={() => setProfileTab("customization")}
-                      className={`border-b-2 pb-2 text-[10px]  uppercase tracking-[0.12em] ${profileTab === "customization" ? "border-amber-500/40 text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
+                      className={`border-b-2 pb-2 text-[10px] font-medium uppercase tracking-[0.12em] focus:outline-none focus-visible:outline-none focus-visible:underline focus-visible:decoration-amber-400 focus-visible:underline-offset-4 ${profileTab === "customization" ? "border-amber-400 font-semibold text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
                     >
                       Customization
                     </button>
@@ -1599,7 +1599,7 @@ function DashboardContent() {
                     <button
                       type="button"
                       onClick={() => setProfileTab("profile")}
-                      className={`border-b-2 pb-2 text-[10px]  uppercase tracking-[0.12em] ${profileTab === "profile" ? "border-amber-500/40 text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
+                      className={`border-b-2 pb-2 text-[10px] font-medium uppercase tracking-[0.12em] focus:outline-none focus-visible:outline-none focus-visible:underline focus-visible:decoration-amber-400 focus-visible:underline-offset-4 ${profileTab === "profile" ? "border-amber-400 font-semibold text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
                     >
                       Profile &amp; Preferences
                     </button>
@@ -1608,7 +1608,7 @@ function DashboardContent() {
                     <button
                       type="button"
                       onClick={() => setProfileTab("customization")}
-                      className={`border-b-2 pb-2 text-[10px]  uppercase tracking-[0.12em] ${profileTab === "customization" ? "border-amber-500/40 text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
+                      className={`border-b-2 pb-2 text-[10px] font-medium uppercase tracking-[0.12em] focus:outline-none focus-visible:outline-none focus-visible:underline focus-visible:decoration-amber-400 focus-visible:underline-offset-4 ${profileTab === "customization" ? "border-amber-400 font-semibold text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
                     >
                       Customization
                     </button>
@@ -1669,7 +1669,7 @@ function DashboardContent() {
                                 }}
                                 aria-label={`Use ${preset.label} badge color`}
                                 aria-pressed={avatarPreset === preset.id}
-                                className={`flex items-center gap-2 rounded-md border px-2 py-2 text-left text-[10px] text-stone-300 ${avatarPreset === preset.id ? "border-amber-500/40" : "border-border hover:border-amber-500/40"}`}
+                                className={`flex items-center gap-2 rounded-md border border-slate-700/50 px-2 py-2 text-left text-[10px] text-stone-300 transition-colors ${avatarPreset === preset.id ? "bg-amber-500/5 text-amber-300" : "hover:border-slate-600"}`}
                               >
                                 <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: preset.backgroundColor }} />
                                 <span className="truncate">{preset.label}</span>
@@ -1687,8 +1687,8 @@ function DashboardContent() {
                             />
                             <span className="mt-1 block text-[10px] text-stone-500">Leave blank to use your name initials.</span>
                           </label>
-                          <div className="mt-3 flex items-center gap-3 rounded-md border border-border bg-background p-2">
-                            <span style={{ backgroundColor: avatarColor }} className={`flex h-10 w-10 items-center justify-center overflow-hidden rounded-full text-xs font-bold ${selectedAvatar.className}`}>
+                          <div className="mt-3 flex items-center gap-3 rounded-md border border-slate-700/50 bg-background p-2">
+                            <span style={{ backgroundColor: `color-mix(in srgb, ${avatarColor} 35%, #121721)` }} className={`flex h-10 w-10 items-center justify-center overflow-hidden rounded-full text-xs font-bold ${selectedAvatar.className}`}>
                               {visibleAvatarInitials}
                             </span>
                             <span className="text-xs text-stone-400">Live badge preview</span>
@@ -1696,7 +1696,7 @@ function DashboardContent() {
                         </div>
                         <div className="space-y-2">
                           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Custom avatar image</p>
-                          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-stone-300 hover:border-amber-500/40">
+                          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-700/50 px-3 py-2 text-xs text-stone-300 transition-colors hover:border-slate-600">
                             <Upload className="h-4 w-4" />{isUploadingAvatar ? "Uploading avatar..." : "Upload avatar image"}
                             <input ref={avatarFileRef} type="file" accept="image/jpeg,image/png,image/webp" disabled={isUploadingAvatar} onChange={(event) => void uploadProfileImage(event.target.files?.[0], "avatar")} className="sr-only" />
                           </label>
@@ -1765,7 +1765,7 @@ function DashboardContent() {
                               className="mt-1 w-full accent-amber-500"
                             />
                           </label>
-                          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-stone-300 hover:border-amber-500/40">
+                          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-700/50 px-3 py-2 text-xs text-stone-300 transition-colors hover:border-slate-600">
                             <Upload className="h-4 w-4" />{isUploadingBanner ? "Uploading banner..." : "Upload banner image"}
                             <input ref={bannerFileRef} type="file" accept="image/jpeg,image/png,image/webp" disabled={isUploadingBanner} onChange={(event) => void uploadProfileImage(event.target.files?.[0], "banner")} className="sr-only" />
                           </label>
