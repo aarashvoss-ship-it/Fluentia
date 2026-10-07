@@ -102,7 +102,7 @@ export function MarkdownContent({ value, className = "", plainCode = false, data
             if (renderPlainCode) return <span {...props}>{children}</span>;
             const isBlock = Boolean(className) || String(children).includes("\n");
             return isBlock ? (
-              <code className="block whitespace-pre-wrap break-words font-mono text-sm text-cyan-100" {...props}>{children}</code>
+              <code className="block whitespace-pre-wrap break-words font-mono text-sm text-indigo-100" {...props}>{children}</code>
             ) : (
               <code className="break-words rounded bg-black/30 px-1.5 py-0.5 font-mono text-[0.9em] text-amber-400" {...props}>{children}</code>
             );

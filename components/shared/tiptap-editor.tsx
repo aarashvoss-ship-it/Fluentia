@@ -524,12 +524,17 @@ export function TiptapEditor({
     if (href?.trim()) editor.chain().focus().setLink({ href: href.trim() }).run();
   };
 
-  const textColors = ["#f3f4f6", "#fbbf24", "#ef4444", "#10b981", "#06b6d4", "#a78bfa", "#f472b6", "#9ca3af"];
+  const textColors = [
+    { label: "Amber", color: "#d97706" },
+    { label: "Indigo", color: "#666f9e" },
+    { label: "Emerald", color: "#3f765e" },
+    { label: "Rose", color: "#a65368" },
+  ];
   const highlightColors = [
-    { label: "Yellow", color: "rgba(234, 179, 8, 0.3)" },
-    { label: "Green", color: "rgba(34, 197, 94, 0.3)" },
-    { label: "Blue", color: "rgba(59, 130, 246, 0.3)" },
-    { label: "Rose", color: "rgba(244, 63, 94, 0.3)" },
+    { label: "Amber", color: "rgba(217, 119, 6, 0.3)" },
+    { label: "Indigo", color: "rgba(102, 111, 158, 0.3)" },
+    { label: "Emerald", color: "rgba(63, 118, 94, 0.3)" },
+    { label: "Rose", color: "rgba(166, 83, 104, 0.3)" },
   ];
   return (
     <div className="tiptap-editor w-full min-w-0 space-y-2">
@@ -606,8 +611,8 @@ export function TiptapEditor({
             <ToolbarButton compact={compact} label="Text color" active={active.textStyle} onClick={() => setIsColorPaletteOpen((open) => !open)}><Palette className="h-3.5 w-3.5" /></ToolbarButton>
             {isColorPaletteOpen && (
               <div className="absolute right-0 top-full z-40 mt-2 grid w-36 grid-cols-4 gap-2 rounded-md border border-border bg-surface p-3 shadow-xl" role="dialog" aria-label="Choose text color">
-                {textColors.map((color) => (
-                  <Tooltip key={color} content={`Set text color ${color}`}>
+                {textColors.map(({ label, color }) => (
+                  <Tooltip key={label} content={`Set text color ${label}`}>
                     <button
                     type="button"
                     onMouseDown={(event) => event.preventDefault()}
@@ -617,7 +622,7 @@ export function TiptapEditor({
                     }}
                     className="h-6 w-6 rounded-full border border-white/30 transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
                     style={{ backgroundColor: color }}
-                    aria-label={`Set text color ${color}`}
+                    aria-label={`Set text color ${label}`}
                   />
                   </Tooltip>
                 ))}
