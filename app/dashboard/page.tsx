@@ -1988,15 +1988,14 @@ function DashboardContent() {
                           {getLessonStatusCopy(nextLessonStatus)}
                         </span>
                       )}
-                      <p className="flex items-center gap-2 text-[11px] text-stone-500">
-                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#d97706] text-base font-bold text-white">
-                          {nextLesson.content?.instructor?.initials ||
-                            assignedInstructorInitials}
-                        </span>{" "}
-                        Guided by{" "}
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#d97706] text-[10px] font-bold text-white">AV</span>
+                        <p className="min-w-0 text-xs text-slate-200">
+                          Guided by{" "}
                         {nextLesson.content?.instructor?.fullName ||
                           assignedInstructorName}
-                      </p>
+                        </p>
+                      </div>
                     </div>
                   </div>
                   <div className="absolute bottom-5 right-5 flex items-end justify-end md:bottom-7 md:right-7">
@@ -2181,15 +2180,14 @@ function DashboardContent() {
                             {lesson.content?.subtitle ||
                               "Continue your personalized language practice."}
                           </p>
-                          <p className="mt-3 flex items-center gap-2 text-[11px] text-stone-500">
-                            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#d97706] text-base font-bold text-white">
-                              {lesson.content?.instructor?.initials ||
-                                assignedInstructorInitials}
-                            </span>{" "}
-                            Guided by{" "}
+                          <div className="mt-3 flex min-w-0 items-center gap-2">
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#d97706] text-[10px] font-bold text-white">AV</span>
+                            <p className="min-w-0 text-xs text-slate-200">
+                              Guided by{" "}
                             {lesson.content?.instructor?.fullName ||
                               assignedInstructorName}
-                          </p>
+                            </p>
+                          </div>
                         </div>
                         <div className="mt-auto flex justify-end pt-5">
                           {status === "pending-review" ? (
