@@ -212,7 +212,7 @@ export function ResourceHubPage() {
   };
 
   return (
-    <section className="mx-auto w-full min-w-0 max-w-6xl space-y-6" aria-labelledby="resource-hub-title">
+    <section className="mx-auto w-full min-w-0 space-y-6" aria-labelledby="resource-hub-title">
       <div className="rounded-2xl border border-border bg-surface/60 p-5 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -249,7 +249,7 @@ export function ResourceHubPage() {
             </button>
           )}
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
           {RESOURCE_CATEGORIES.map(({ id, label, description, icon: Icon }) => {
             const isSelected = selectedCategory === id;
             return (
@@ -297,8 +297,8 @@ export function ResourceHubPage() {
           </div>
         )}
 
-        <div className="grid gap-3 border-b border-border py-4 md:grid-cols-[minmax(220px,1fr)_repeat(2,minmax(140px,180px))_auto]">
-          <label className="relative block">
+        <div className="flex flex-col gap-3 border-b border-border py-4 md:flex-row md:items-end">
+          <label className="relative block w-full md:min-w-0 md:flex-[2]">
             <span className="sr-only">Search assets</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-500" aria-hidden="true" />
             <input
@@ -309,7 +309,7 @@ export function ResourceHubPage() {
               className="h-10 w-full rounded-md border border-border bg-background pl-9 pr-3 text-xs text-stone-200 outline-none placeholder:text-stone-600 focus:border-amber-500/40"
             />
           </label>
-          <label className="flex items-center gap-2 text-xs text-stone-400">
+          <label className="flex w-full items-center gap-2 text-xs text-stone-400 md:flex-1">
             <span className="shrink-0">CEFR</span>
             <select
               value={cefrFilter}
@@ -320,7 +320,7 @@ export function ResourceHubPage() {
               {CEFR_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}
             </select>
           </label>
-          <label className="flex items-center gap-2 text-xs text-stone-400">
+          <label className="flex w-full items-center gap-2 text-xs text-stone-400 md:flex-1">
             <span className="shrink-0">Sort</span>
             <select
               value={sortBy}
@@ -332,7 +332,7 @@ export function ResourceHubPage() {
               <option value="category">Category</option>
             </select>
           </label>
-          <div className="flex items-center justify-end gap-1" role="group" aria-label="Asset view">
+          <div className="flex items-center justify-end gap-1 self-end md:self-auto" role="group" aria-label="Asset view">
             <button
               type="button"
               aria-label="Grid view"
@@ -365,7 +365,7 @@ export function ResourceHubPage() {
             </p>
           </div>
         ) : view === "grid" ? (
-          <div className="grid gap-4 pt-5 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 pt-5 md:grid-cols-2 lg:grid-cols-3">
             {filteredAssets.map((asset) => (
               <article key={asset.id} className="flex min-w-0 flex-col rounded-xl border border-border bg-background/70 p-4">
                 <div className="flex flex-wrap gap-1.5">
