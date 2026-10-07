@@ -1,0 +1,32 @@
+export type MainCategory = "documents" | "videos" | "audios" | "others";
+
+export type SubCategory =
+  | "eBooks"
+  | "PDFs"
+  | "Texts"
+  | "Lyrics"
+  | "YouTube"
+  | "Movies"
+  | "TV Shows"
+  | "Other Videos"
+  | "Audiobooks"
+  | "Podcasts"
+  | "Songs"
+  | "Instrumental"
+  | "General";
+
+export type CEFRLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2" | "All Levels";
+
+export interface ResourceAsset {
+  id: string;
+  title: string;
+  description?: string;
+  mainCategory: MainCategory;
+  subCategory: SubCategory;
+  url: string;
+  isExternalLink: boolean;
+  isDownloadable: boolean;
+  cefrLevel: CEFRLevel;
+  tags: string[];
+  createdAt: string;
+}

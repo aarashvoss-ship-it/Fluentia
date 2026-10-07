@@ -40,13 +40,14 @@ import { StudyHubDownloadButton, StudyHubFlashcardDeck, StudyHubResourceCard } f
 import { StudentStudyRoomPreview, STUDENT_PREVIEW_CHANNEL, type StudentPreviewSnapshot, type StudentPreviewStep } from "@/components/instructor/student-study-room-preview";
 import { LearningSidebar, type LearningTab } from "@/components/study-room/learning-sidebar";
 import type { StudyHubResource } from "@/components/shared/study-hub-resource-card";
+import { ResourceHubPage } from "@/components/instructor/resource-hub-page";
 
 interface InstructorWorkstationProps {
   instructorId: string;
   lessonSlug: string;
 }
 
-type InstructorWorkspaceTab = "dashboard" | "students" | "instructors" | "library" | "builder" | "evaluation" | "music" | "resources";
+type InstructorWorkspaceTab = "dashboard" | "students" | "instructors" | "library" | "builder" | "evaluation" | "music" | "resources" | "resource-hub";
 
 const INSTRUCTOR_WORKSPACE_TABS: InstructorWorkspaceTab[] = [
   "dashboard",
@@ -57,6 +58,7 @@ const INSTRUCTOR_WORKSPACE_TABS: InstructorWorkspaceTab[] = [
   "evaluation",
   "music",
   "resources",
+  "resource-hub",
 ];
 
 function getWorkspaceTabFromUrl(): InstructorWorkspaceTab {
@@ -3621,7 +3623,7 @@ export default function InstructorWorkstationPage({
         <nav className="sticky top-0 z-20 mb-8 border-b border-border bg-background/95 backdrop-blur" aria-label="Instructor workstation views">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-0 flex-wrap gap-x-1">
-              {([["dashboard", "Dashboard"], ["students", "Students Directory"], ["instructors", "Instructors Directory"], ["library", "Lesson Library"], ["builder", "Lesson Builder"], ["evaluation", "Student Evaluation"], ["music", "Music Library"]] as const).map(([tab, label]) => <Tooltip key={tab} content={`Open ${label}`}><button type="button" onClick={() => handleWorkspaceTabChange(tab)} className={`whitespace-nowrap border-b-2 px-3 py-3 text-xs  transition sm:px-4 ${activeTab === tab ? "border-amber-500/40 text-amber-400" : "border-transparent text-stone-500 hover:text-stone-200"}`}>{label}</button></Tooltip>)}
+              {([["dashboard", "Dashboard"], ["students", "Students Directory"], ["instructors", "Instructors Directory"], ["library", "Lesson Library"], ["builder", "Lesson Builder"], ["evaluation", "Student Evaluation"], ["music", "Music Library"], ["resource-hub", "Resource Hub"]] as const).map(([tab, label]) => <Tooltip key={tab} content={`Open ${label}`}><button type="button" onClick={() => handleWorkspaceTabChange(tab)} className={`whitespace-nowrap border-b-2 px-3 py-3 text-xs  transition sm:px-4 ${activeTab === tab ? "border-amber-500/40 text-amber-400" : "border-transparent text-stone-500 hover:text-stone-200"}`}>{label}</button></Tooltip>)}
             </div>
             <Tooltip content="Display and appearance"><DisplaySettingsControl /></Tooltip>
           </div>
@@ -4488,6 +4490,7 @@ export default function InstructorWorkstationPage({
           );
         })()}
 
+        {activeTab === "resource-hub" && <ResourceHubPage />}
         {activeTab === "music" && <MusicLibraryManager />}
 
         {activeTab === "builder" && <>
