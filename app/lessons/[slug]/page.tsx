@@ -1269,7 +1269,7 @@ export default function LessonPage() {
             }
             footer={
               <>
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-600 text-sm font-bold text-white shadow-sm shadow-amber-950/40">{instructor.initials}</span>
+                <span className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-600 text-[28px] font-bold text-white shadow-sm shadow-amber-950/40">{instructor.initials}</span>
                 <span className="text-base font-semibold text-slate-100">Guided by {instructor.fullName}</span>
               </>
             }
