@@ -251,12 +251,8 @@ function AudioResponseBlock({ value, onChange, studentId }: { value?: string; on
 }
 
 function MediaTranscriptAccordion({ transcript, isUnlocked }: { transcript?: string; isUnlocked: boolean }) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
   const contentId = useId();
-
-  useEffect(() => {
-    setIsOpen(isUnlocked);
-  }, [isUnlocked]);
 
   if (!isUnlocked) {
     return (

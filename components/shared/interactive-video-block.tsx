@@ -57,7 +57,7 @@ export function InteractiveVideoBlock({
 }: InteractiveVideoBlockProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const loadedIframeSrcRef = useRef("");
-  const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(true);
+  const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(false);
   const transcriptId = useId();
   const transcriptLines = parseInteractiveTranscript(transcript || "");
   const embedUrl = getVideoEmbedUrl(videoUrl);

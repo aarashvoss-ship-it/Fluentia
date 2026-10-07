@@ -154,7 +154,7 @@ export function LessonBuilderSidebar({
                 {editableSteps.map((stage) => {
                   const stageBlocks = getBlocks(stage.id);
                   return (
-                    <details key={stage.id} open={stage.id === activeStep} className="rounded">
+                    <details key={stage.id} className="rounded">
                       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded px-2 py-1.5 text-[11px] text-stone-400 hover:bg-background hover:text-stone-200">
                         <span className="truncate">{stage.label}</span>
                         <span className="shrink-0 text-[10px] text-stone-600">{stageBlocks.length}</span>

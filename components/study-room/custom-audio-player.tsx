@@ -35,7 +35,7 @@ export function CustomAudioPlayer({ src, label = "Audio", blob, transcript }: { 
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [playbackRate, setPlaybackRate] = useState(1);
-  const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(true);
+  const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(false);
   const transcriptLines = parseInteractiveTranscript(transcript || "");
 
   useEffect(() => {
