@@ -1268,10 +1268,10 @@ export default function LessonPage() {
                 : null
             }
             footer={
-              <div className="inline-flex items-center gap-3 rounded-full border border-slate-600/50 bg-slate-800/60 px-4 py-2 shadow-sm shadow-black/20">
-                <span className="flex h-10 w-10 items-center justify-center rounded-full border border-amber-500/40 bg-amber-500/15 text-sm font-bold text-amber-500">{instructor.initials}</span>
-                <span className="text-base font-medium text-slate-200">Guided by {instructor.fullName}</span>
-              </div>
+              <>
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-600 text-sm font-bold text-white shadow-sm shadow-amber-950/40">{instructor.initials}</span>
+                <span className="text-base font-semibold text-slate-100">Guided by {instructor.fullName}</span>
+              </>
             }
           />
         </HeroBanner>
