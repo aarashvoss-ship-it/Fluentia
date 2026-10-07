@@ -19,6 +19,8 @@ SELECT
   false
 FROM public.ambient_tracks
 CROSS JOIN public.instructors
+JOIN auth.users AS auth_user
+  ON auth_user.id = instructors.id
 WHERE ambient_tracks.is_active = true
   AND NOT EXISTS (
     SELECT 1
