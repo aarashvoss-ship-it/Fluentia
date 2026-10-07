@@ -169,9 +169,21 @@ function AudioResponseBlock({ value, onChange, studentId }: { value?: string; on
       try{
         const Ctx=(window.AudioContext||(window as unknown as {webkitAudioContext:typeof AudioContext}).webkitAudioContext);
         const ctx=new Ctx(); ctxRef.current=ctx;
-        const src=ctx.createMediaStreamSource(stream); const an=ctx.createAnalyser(); an.fftSize=128; src.connect(an);
-        const arr=new Uint8Array(an.frequencyBinCount);
-        const tick=()=>{ an.getByteFrequencyData(arr); setLevels(Array.from({length:48},(_,i)=>Math.max(2,Math.min(24,2+(arr[Math.floor(i/48*arr.length)]||0)*0.09)))); animRef.current=requestAnimationFrame(tick); };
+        const src=ctx.createMediaStreamSource(stream); const an=ctx.createAnalyser(); an.fftSize=256; src.connect(an);
+        const arr=new Uint8Array(an.fftSize);
+        const tick=()=>{
+          an.getByteTimeDomainData(arr);
+          const bars=Array.from({length:48},(_,i)=>{
+            const start=Math.floor(i*arr.length/48);
+            const end=Math.max(start+1,Math.floor((i+1)*arr.length/48));
+            let peak=0;
+            for(let sample=start;sample<end;sample++) peak=Math.max(peak,Math.abs(arr[sample]-128));
+            const intensity=Math.min(1,peak/56);
+            return 2+Math.pow(intensity,0.7)*22;
+          });
+          setLevels(bars);
+          animRef.current=requestAnimationFrame(tick);
+        };
         tick();
       }catch{}
     } catch(err){
@@ -196,9 +208,11 @@ function AudioResponseBlock({ value, onChange, studentId }: { value?: string; on
             {isRecording ? <Square className="h-3.5 w-3.5 fill-current" /> : <Mic className="h-4 w-4" />}
           </button>
         </div>
-        <div className="mx-4 flex h-8 min-w-0 flex-1 items-center gap-px overflow-hidden rounded-full bg-slate-700/50 px-2" aria-hidden>
+        <div className="mx-4 flex h-8 min-w-0 flex-1 items-center overflow-hidden rounded-full bg-slate-700/50 px-2" aria-hidden>
           {isRecording ? (
-            levels.map((h, i) => <span key={i} className="min-w-0 flex-1 rounded-full bg-amber-500/20 shadow-[0_0_8px_rgba(251,191,36,0.22)] transition-[height] duration-100 ease-linear" style={{ height: Math.max(4, h) }} />)
+            <span className="flex h-full w-full items-center justify-between gap-1">
+              {levels.map((h, i) => <span key={i} className="w-[2px] shrink-0 rounded-full bg-amber-500 shadow-[0_0_5px_rgba(217,119,6,0.4)] transition-[height] duration-100 ease-linear" style={{ height: Math.max(2, h) }} />)}
+            </span>
           ) : (
             <span className="h-1.5 w-full rounded-full bg-slate-800/80" />
           )}
