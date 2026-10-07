@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import { LearningSidebar } from "@/components/study-room/learning-sidebar";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { isLearningTab, LearningSidebar, type LearningTab } from "@/components/study-room/learning-sidebar";
 import { getLessonById, type LessonWithVersion } from "@/lib/lessons";
 import { supabase } from "@/lib/supabaseClient";
 import { fetchSavedVocabulary, fetchStudentNotes, removeVocabularyWord, saveStudentNote } from "@/services/storage-service";
@@ -10,7 +10,12 @@ import type { SavedVocabularyWord, StudentNote } from "@/types/lesson";
 
 export default function StudyHubPage() {
   const params = useParams<{ slug: string }>();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
   const lessonSlug = params?.slug;
+  const requestedTab = searchParams.get("tab");
+  const initialTab = isLearningTab(requestedTab) ? requestedTab : "vocab";
   const [lesson, setLesson] = useState<LessonWithVersion | null>(null);
   const [studentId, setStudentId] = useState<string | undefined>();
   const [studentToken, setStudentToken] = useState<string | undefined>();
@@ -90,6 +95,21 @@ export default function StudyHubPage() {
     });
   };
 
+  const handleTabChange = (tab: LearningTab) => {
+    if (searchParams.get("tab") === tab) return;
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set("tab", tab);
+    router.replace(`${pathname}?${nextParams.toString()}`, { scroll: false });
+  };
+
+  useEffect(() => {
+    if (requestedTab && !isLearningTab(requestedTab)) {
+      const nextParams = new URLSearchParams(searchParams.toString());
+      nextParams.set("tab", "vocab");
+      router.replace(`${pathname}?${nextParams.toString()}`, { scroll: false });
+    }
+  }, [pathname, requestedTab, router, searchParams]);
+
   if (loading) {
     return <main className="flex min-h-dvh items-center justify-center bg-background text-sm text-stone-400">Loading Study Hub...</main>;
   }
@@ -106,7 +126,9 @@ export default function StudyHubPage() {
       <LearningSidebar
         open
         standalone
-        onClose={() => window.location.assign(`/lessons/${encodeURIComponent(lessonSlug)}`)}
+        initialTab={initialTab}
+        onTabChange={handleTabChange}
+        onClose={() => router.push(`/lessons/${encodeURIComponent(lessonSlug)}`)}
         words={words}
         notes={notes}
         studentId={studentId}

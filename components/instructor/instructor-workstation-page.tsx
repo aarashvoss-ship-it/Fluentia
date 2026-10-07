@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Check, ChevronDown, ChevronRight, Eye, Grid3X3, Image, List, MoreVertical, Pencil, Plus, Search, Trash2, X, Lightbulb, UploadCloud } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { LessonBuilderSidebar, LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
@@ -43,6 +44,27 @@ import type { StudyHubResource } from "@/components/shared/study-hub-resource-ca
 interface InstructorWorkstationProps {
   instructorId: string;
   lessonSlug: string;
+}
+
+type InstructorWorkspaceTab = "dashboard" | "students" | "instructors" | "library" | "builder" | "evaluation" | "music" | "resources";
+
+const INSTRUCTOR_WORKSPACE_TABS: InstructorWorkspaceTab[] = [
+  "dashboard",
+  "students",
+  "instructors",
+  "library",
+  "builder",
+  "evaluation",
+  "music",
+  "resources",
+];
+
+function getWorkspaceTabFromUrl(): InstructorWorkspaceTab {
+  if (typeof window === "undefined") return "dashboard";
+  const params = new URLSearchParams(window.location.search);
+  if (params.has("lessonId") || params.has("edit")) return "builder";
+  const tab = params.get("tab");
+  return INSTRUCTOR_WORKSPACE_TABS.find((candidate) => candidate === tab) || "dashboard";
 }
 
 function resizeTextareaToContent(textarea: HTMLTextAreaElement | null) {
@@ -776,6 +798,7 @@ export default function InstructorWorkstationPage({
   instructorId,
   lessonSlug,
 }: InstructorWorkstationProps) {
+  const router = useRouter();
   const lessonId = lessonSlug;
   const resetStore = useLessonEditorStore((state) => state.resetStore);
   const bindLesson = useLessonEditorStore((state) => state.bindLesson);
@@ -814,7 +837,7 @@ export default function InstructorWorkstationPage({
   const [publishedLessonCount, setPublishedLessonCount] = useState(0);
   const [draftLessonCount, setDraftLessonCount] = useState(0);
   const [lessonStatus, setLessonStatus] = useState<"draft" | "published">("published");
-  const [activeTab, setActiveTab] = useState<"dashboard" | "students" | "instructors" | "library" | "builder" | "evaluation" | "music" | "resources">("dashboard");
+  const [activeTab, setActiveTab] = useState<InstructorWorkspaceTab>(getWorkspaceTabFromUrl);
   const [studentLevelFilter, setStudentLevelFilter] = useState<"All" | StudentCefrLevel>("All");
   const [studentInstructorFilter, setStudentInstructorFilter] = useState("All instructors");
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
@@ -2361,6 +2384,23 @@ export default function InstructorWorkstationPage({
   }
 
   useEffect(() => setIsMounted(true), []);
+
+  useEffect(() => {
+    if (!isMounted) return;
+    const syncTabFromHistory = () => setActiveTab(getWorkspaceTabFromUrl());
+    window.addEventListener("popstate", syncTabFromHistory);
+    return () => window.removeEventListener("popstate", syncTabFromHistory);
+  }, [isMounted]);
+
+  useEffect(() => {
+    if (!isMounted) return;
+    const url = new URL(window.location.href);
+    const currentTab = getWorkspaceTabFromUrl();
+    if (currentTab === activeTab && (activeTab !== "dashboard" || !url.searchParams.has("tab"))) return;
+    if (activeTab === "dashboard") url.searchParams.delete("tab");
+    else url.searchParams.set("tab", activeTab);
+    router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
+  }, [activeTab, isMounted, router]);
 
   useEffect(() => {
     workstationMountedRef.current = true;

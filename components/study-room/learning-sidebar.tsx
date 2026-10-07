@@ -10,6 +10,12 @@ import { supabase } from "@/lib/supabaseClient";
 import { SavedVocabularyWord, StudentNote } from "@/types/lesson";
 
 export type LearningTab = "vocab" | "notes" | "reading" | "flashcards" | "quizzes" | "audio" | "video" | "image" | "data_table" | "files";
+const LEARNING_TABS: LearningTab[] = ["vocab", "notes", "reading", "flashcards", "quizzes", "audio", "video", "image", "data_table", "files"];
+
+export function isLearningTab(value: string | null): value is LearningTab {
+  return value !== null && LEARNING_TABS.includes(value as LearningTab);
+}
+
 type StudentResource = StudyHubResource & { lesson_id: string | null };
 
 interface LearningSidebarProps {
@@ -22,6 +28,7 @@ interface LearningSidebarProps {
   standalone?: boolean;
   previewResources?: StudyHubResource[];
   initialTab?: LearningTab;
+  onTabChange?: (tab: LearningTab) => void;
   resource?: string;
   resources?: { id: string; title: string; url: string; type: string }[];
   onClose: () => void;
@@ -168,6 +175,7 @@ export function LearningSidebar({
   standalone = false,
   previewResources,
   initialTab,
+  onTabChange,
   resource,
   resources = [],
   onClose,
@@ -397,6 +405,7 @@ export function LearningSidebar({
                 onClick={() => {
                   tabSelectionMade.current = true;
                   setTab(id);
+                  onTabChange?.(id);
                 }}
                 aria-pressed={tab === id}
                 aria-label={`${label}${hasContent ? `, ${itemCount} items` : ", no materials assigned for this lesson"}`}

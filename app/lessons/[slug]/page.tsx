@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { ChatMessage, ContentBlock, SavedVocabularyWord, StudentNote, StudyStepId, STUDY_STEPS, LessonContent, StudentSubmission } from "@/types/lesson";
 import { getLessonById, type LessonWithVersion } from "@/lib/lessons";
@@ -13,7 +13,7 @@ import { supabase } from "@/lib/supabase";
 import { Stepper } from "@/components/study-room/stepper";
 import { CelebrationModal, StepResult } from "@/components/study-room/celebration-modal";
 import { DictionaryModal } from "@/components/study-room/dictionary-modal";
-import { LearningSidebar } from "@/components/study-room/learning-sidebar";
+import { isLearningTab, LearningSidebar, type LearningTab } from "@/components/study-room/learning-sidebar";
 import { ChatWidget } from "@/components/study-room/chat-widget";
 import { AccessCard } from "@/components/access/access-card";
 import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player";
@@ -304,8 +304,12 @@ type QueuedSubmissionSave = {
 export default function LessonPage() {
   const rawSlug = useParams()?.slug;
   const searchParams = useSearchParams();
-  const requestedSearch = searchParams.toString();
+  const pathname = usePathname();
+  const router = useRouter();
   const requestedSubmissionId = searchParams.get("submissionId") || undefined;
+  const reportCardRequested = searchParams.get("stage") === "report-card";
+  const requestedHubTab = searchParams.get("hubTab");
+  const initialHubTab = isLearningTab(requestedHubTab) ? requestedHubTab : undefined;
   const requestedSlug = typeof rawSlug === "string" ? rawSlug : searchParams.get("slug") || searchParams.get("id") || "";
   const [lesson, setLesson] = useState<LessonWithVersion | null>(null);
   const [loading, setLoading] = useState(true);
@@ -343,7 +347,9 @@ export default function LessonPage() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [dictionaryWord, setDictionaryWord] = useState<string | null>(null);
   const [dictionaryAnchor, setDictionaryAnchor] = useState<{ top: number; right: number; bottom: number; left: number } | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("view") === "study-hub",
+  );
   const [guidanceOpen, setGuidanceOpen] = useState(false);
   const [submissionSaveError, setSubmissionSaveError] = useState<string | null>(null);
   const [failedBannerUrls, setFailedBannerUrls] = useState<string[]>([]);
@@ -590,9 +596,8 @@ export default function LessonPage() {
       }
     }
     setCurrentStep("warm_up");
-    const params = new URLSearchParams(requestedSearch);
+    const params = new URLSearchParams(window.location.search);
     const requestedStep = getRequestedStep(params.get("step"));
-    const reportCardRequested = params.get("stage") === "report-card";
     const startStep = params.get("start");
     void fetchStudentProgress(lesson.id, activeToken).then(async (progress) => {
       if (cancelled) return;
@@ -618,6 +623,10 @@ export default function LessonPage() {
       const hydratedSubmission = state?.submission;
       const canShowResults = hydratedSubmission?.status === "submitted" || hydratedSubmission?.status === "pending_evaluation" || hydratedSubmission?.status === "reviewed" || hydratedSubmission?.status === "evaluated";
       const requestedNonResultsStep = requestedStep && requestedStep !== "results" ? requestedStep : null;
+      const allowedRequestedStep = requestedNonResultsStep
+        && !getLockedSteps(progress.completedSteps).includes(requestedNonResultsStep)
+        ? requestedNonResultsStep
+        : null;
       const persistedStep = progress.currentStep !== "results" || canShowResults ? progress.currentStep : "warm_up";
       setPublishedLesson(state?.status !== "draft" ? state : null);
       setSubmission(hydratedSubmission || {
@@ -630,11 +639,11 @@ export default function LessonPage() {
         quizSelections: {},
         audioUploads: {},
       });
-      setCurrentStep(canShowResults
+      setCurrentStep(allowedRequestedStep || (canShowResults
         ? "results"
         : reportCardRequested && state?.evaluation?.published
           ? "results"
-        : requestedNonResultsStep || (startStep === "warm_up" ? "warm_up" : persistedStep));
+          : startStep === "warm_up" ? "warm_up" : persistedStep));
       setCompletedSteps(progress.completedSteps);
       setSubmissionHydrated(true);
       setLessonStateHydrated(true);
@@ -649,7 +658,55 @@ export default function LessonPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeStudent?.id, lessonReady, lessonNotFound, lesson, requestedSearch, studentReady]);
+  }, [activeStudent?.id, lessonReady, lessonNotFound, lesson, reportCardRequested, requestedSubmissionId, studentReady]);
+
+  useEffect(() => {
+    if (!lessonStateHydrated) return;
+    const params = new URLSearchParams(searchParams.toString());
+    const currentUrlStep = getRequestedStep(params.get("step"));
+    if (currentUrlStep === currentStep && !params.has("start")) return;
+
+    params.set("step", currentStep);
+    params.delete("start");
+    if (currentStep !== "results") params.delete("stage");
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [currentStep, lessonStateHydrated, pathname, router, searchParams]);
+
+  useEffect(() => {
+    const syncStepFromHistory = () => {
+      const requestedStep = getRequestedStep(new URLSearchParams(window.location.search).get("step"));
+      if (requestedStep) setCurrentStep(requestedStep);
+    };
+    window.addEventListener("popstate", syncStepFromHistory);
+    return () => window.removeEventListener("popstate", syncStepFromHistory);
+  }, []);
+
+  useEffect(() => {
+    const isStudyHubRequested = searchParams.get("view") === "study-hub";
+    setSidebarOpen(isStudyHubRequested);
+  }, [searchParams]);
+
+  const updateStudyHubUrl = (open: boolean, tab?: LearningTab) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (open) {
+      params.set("view", "study-hub");
+      if (tab) params.set("hubTab", tab);
+    } else {
+      params.delete("view");
+      params.delete("hubTab");
+    }
+    const query = params.toString();
+    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
+
+  const handleStudyHubTabChange = (tab: LearningTab) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (params.get("hubTab") === tab) return;
+    params.set("view", "study-hub");
+    params.set("hubTab", tab);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
 
   useEffect(() => {
     const viewedSubmissionId = publishedLesson?.submissionId || requestedSubmissionId;
@@ -1327,7 +1384,7 @@ export default function LessonPage() {
             <AmbientMusicPlayer src={lessonContent.ambientMusicUrl} studentScope={activeStudent?.id || "anonymous"} />
             <StudyRoomTimer />
             {((typeof lesson.instructor_note === "string" && lesson.instructor_note.trim()) || (typeof rawLessonContent.instructorGuidance === "string" && rawLessonContent.instructorGuidance.trim())) && <Tooltip content="Open lesson guidance"><button type="button" onClick={() => setGuidanceOpen((open) => !open)} aria-expanded={guidanceOpen} aria-label="Open lesson guidance" className={`flex h-8 w-8 items-center justify-center rounded-md border bg-transparent transition-colors duration-200 hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-400 ${guidanceOpen ? "border-amber-500/40 text-amber-400" : "border-slate-700/50 text-slate-400"}`}><Lightbulb className="h-4 w-4" /></button></Tooltip>}
-            <Tooltip content="Open your notes, resources, and study tools"><button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex h-8 items-center gap-1.5 rounded-md border bg-transparent px-3 text-xs transition-colors duration-200 hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-400 ${sidebarOpen ? "border-amber-500/40 text-amber-400" : "border-slate-700/50 text-slate-400"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button></Tooltip>
+            <Tooltip content="Open your notes, resources, and study tools"><button type="button" onClick={() => updateStudyHubUrl(!sidebarOpen, initialHubTab || "vocab")} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex h-8 items-center gap-1.5 rounded-md border bg-transparent px-3 text-xs transition-colors duration-200 hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-400 ${sidebarOpen ? "border-amber-500/40 text-amber-400" : "border-slate-700/50 text-slate-400"}`}><PanelRight className="h-3.5 w-3.5" />Learning Hub</button></Tooltip>
             <Tooltip content="Look up a word"><button type="button" onClick={() => { setDictionaryAnchor(null); setDictionaryWord(""); }} aria-label="Open dictionary" className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-700/50 bg-transparent text-slate-400 transition-colors duration-200 hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-400"><BookOpen className="w-4 h-4" /></button></Tooltip>
             <Tooltip content="Display and appearance"><DisplaySettingsControl /></Tooltip>
             <Tooltip content="Return to your course overview"><Link href="/dashboard" className="flex h-8 items-center gap-1 rounded-md border border-slate-700/50 bg-transparent px-3 text-xs text-slate-400 transition-colors duration-200 hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-400"><ChevronRight className="h-3 w-3 rotate-180" />Course overview</Link></Tooltip>
@@ -1584,7 +1641,7 @@ export default function LessonPage() {
               {(lessonContent.warm_up?.lexicon_notes?.text || lessonContent.lesson || lessonContent.reading || lessonContent.writing || lessonContent.speaking) && <div className="rounded-xl border border-border bg-surface p-5 text-left">
                 <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">Recommended review</p>
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={() => setSidebarOpen(true)} className="rounded-md border border-amber-500/40 bg-amber-500/20 px-2.5 py-1.5 text-xs text-amber-400 hover:bg-amber-500/20">Review lexicon notes</button>
+                  <button type="button" onClick={() => updateStudyHubUrl(true, "notes")} className="rounded-md border border-amber-500/40 bg-amber-500/20 px-2.5 py-1.5 text-xs text-amber-400 hover:bg-amber-500/20">Review lexicon notes</button>
                   <button type="button" onClick={() => setCurrentStep("warm_up")} className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs text-stone-300 hover:border-amber-500/40">Revisit lesson content</button>
                 </div>
               </div>}
@@ -1649,7 +1706,9 @@ export default function LessonPage() {
       />
       <LearningSidebar
         open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
+        initialTab={initialHubTab}
+        onTabChange={handleStudyHubTabChange}
+        onClose={() => updateStudyHubUrl(false)}
         words={savedWords}
         notes={notes}
         studentId={activeStudent?.id}
