@@ -87,6 +87,16 @@ const AVATAR_PRESETS = Object.values({
   },
 } as const);
 
+function resolveAvatarColor(color: string, presetId?: ProfilePreferences["avatarPreset"]) {
+  const preset = AVATAR_PRESETS.find((option) => option.id === presetId);
+  if (preset) return preset.backgroundColor;
+
+  const normalizedColor = color.trim().toLowerCase();
+  if (normalizedColor === "#818cf8") return "#6366f1";
+  if (normalizedColor === "#36b37e") return "#059669";
+  return color;
+}
+
 const BANNER_PRESETS = [
   {
     id: "default-dark",
@@ -252,9 +262,12 @@ function DashboardContent() {
         if (!stored) return;
         const customization = JSON.parse(stored) as Partial<ProfilePreferences>;
         const color = customization.avatar_bg_color;
-        const preset = AVATAR_PRESETS.find((option) => option.backgroundColor === color);
-        if (preset) setAvatarPreset(preset.id);
-        if (color) setAvatarColor(color);
+        if (color) {
+          const resolvedColor = resolveAvatarColor(color);
+          const preset = AVATAR_PRESETS.find((option) => option.backgroundColor === resolvedColor);
+          if (preset) setAvatarPreset(preset.id);
+          setAvatarColor(resolvedColor);
+        }
         setAvatarInitials((customization.avatar_initials || "").replace(/[^a-z0-9]/gi, "").slice(0, 3).toUpperCase());
         const avatarUrl = typeof customization.custom_avatar_url === "string"
           ? customization.custom_avatar_url
@@ -351,8 +364,9 @@ function DashboardContent() {
         const color = readScopedValue("student_badge_color");
         const initials = readScopedValue("student_badge_initials");
         if (color) {
-          setAvatarColor(color);
-          const preset = AVATAR_PRESETS.find((option) => option.backgroundColor === color);
+          const resolvedColor = resolveAvatarColor(color);
+          setAvatarColor(resolvedColor);
+          const preset = AVATAR_PRESETS.find((option) => option.backgroundColor === resolvedColor);
           if (preset) setAvatarPreset(preset.id);
         }
         if (initials !== undefined) setAvatarInitials((initials || "").replace(/[^a-z]/gi, "").slice(0, 3).toUpperCase());
@@ -395,7 +409,8 @@ function DashboardContent() {
         } catch {
           // The persisted profile remains the source of truth if local fallback data is malformed.
         }
-        const savedColor = profile.avatarBgColor || localPreferences.avatar_bg_color || localCustomization.avatar_bg_color || AVATAR_PRESETS[0].backgroundColor;
+        const storedColor = profile.avatarBgColor || localPreferences.avatar_bg_color || localCustomization.avatar_bg_color || AVATAR_PRESETS[0].backgroundColor;
+        const savedColor = resolveAvatarColor(storedColor, localPreferences.avatarPreset);
         setAvatarColor(savedColor);
         const savedPreset = AVATAR_PRESETS.find((preset) => preset.backgroundColor === savedColor);
         setAvatarPreset(savedPreset?.id || localPreferences.avatarPreset || "amber");
@@ -667,7 +682,8 @@ function DashboardContent() {
         const profileAvatarColor = typeof roleProfile?.avatar_bg_color === "string"
           ? roleProfile.avatar_bg_color
           : "";
-        const savedAvatarColor = profileAvatarColor || preferences.avatar_bg_color || localCustomization.avatar_bg_color || metadataAvatarColor;
+        const storedAvatarColor = profileAvatarColor || preferences.avatar_bg_color || localCustomization.avatar_bg_color || metadataAvatarColor;
+        const savedAvatarColor = resolveAvatarColor(storedAvatarColor, preferences.avatarPreset);
         const colorPreset = AVATAR_PRESETS.find((preset) => preset.backgroundColor === savedAvatarColor)?.id;
         setAvatarPreset(colorPreset || preferences.avatarPreset || "amber");
         setAvatarColor(savedAvatarColor || AVATAR_PRESETS[0].backgroundColor);

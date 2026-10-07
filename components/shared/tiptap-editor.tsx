@@ -527,7 +527,7 @@ export function TiptapEditor({
   const textColors = [
     { label: "Amber", color: "#d97706" },
     { label: "Indigo", color: "#818cf8" },
-    { label: "Emerald", color: "#36b37e" },
+    { label: "Emerald", color: "#34d399" },
     { label: "Rose", color: "#a65368" },
   ];
   const highlightColors = [
