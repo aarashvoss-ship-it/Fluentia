@@ -1959,6 +1959,19 @@ function DashboardContent() {
                 <span className="absolute left-5 top-4 z-10 rounded-md border-none bg-amber-500/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400">
                   Module {activeModuleNumber ?? 1}
                 </span>
+                {nextLessonStatus && (
+                  <span className={`absolute right-5 top-4 z-10 rounded-md border-none px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${
+                    nextLessonStatus === "in-progress"
+                      ? "bg-sky-500/10 text-sky-400"
+                      : nextLessonStatus === "pending-review"
+                        ? "bg-amber-500/10 text-amber-400"
+                        : nextLessonStatus === "completed"
+                          ? "bg-emerald-500/10 text-emerald-400"
+                          : "bg-slate-800/40 text-slate-400"
+                  }`}>
+                    {getLessonStatusCopy(nextLessonStatus)}
+                  </span>
+                )}
                 <div className="relative flex h-full flex-col justify-end p-5 md:p-7">
                   <div className="max-w-3xl pr-28 md:pr-36">
                     <div className="flex items-center gap-2 text-slate-400">
@@ -1974,23 +1987,10 @@ function DashboardContent() {
                       {nextLesson.content?.subtitle ||
                         "Continue your personalized language practice."}
                     </p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      {nextLessonStatus && (
-                        <span className={`rounded-md border-none px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${
-                          nextLessonStatus === "in-progress"
-                            ? "bg-sky-500/10 text-sky-400"
-                            : nextLessonStatus === "pending-review"
-                              ? "bg-amber-500/10 text-amber-400"
-                              : nextLessonStatus === "completed"
-                                ? "bg-emerald-500/10 text-emerald-400"
-                                : "bg-slate-800/40 text-slate-400"
-                        }`}>
-                          {getLessonStatusCopy(nextLessonStatus)}
-                        </span>
-                      )}
+                    <div className="mt-3 flex items-center">
                       <div className="flex min-w-0 items-center gap-2">
                         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#d97706] text-[10px] font-bold text-white">AV</span>
-                        <p className="min-w-0 text-xs text-slate-200">
+                        <p className="min-w-0 text-xs text-slate-400">
                           Guided by{" "}
                         {nextLesson.content?.instructor?.fullName ||
                           assignedInstructorName}
@@ -2182,7 +2182,7 @@ function DashboardContent() {
                           </p>
                           <div className="mt-3 flex min-w-0 items-center gap-2">
                             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#d97706] text-[10px] font-bold text-white">AV</span>
-                            <p className="min-w-0 text-xs text-slate-200">
+                            <p className="min-w-0 text-xs text-slate-400">
                               Guided by{" "}
                             {lesson.content?.instructor?.fullName ||
                               assignedInstructorName}
