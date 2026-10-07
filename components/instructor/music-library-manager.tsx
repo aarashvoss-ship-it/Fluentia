@@ -148,7 +148,7 @@ export function MusicLibraryManager({ instructorId }: { instructorId: string }) 
         isDownloadable: false,
         cefrLevel: "All Levels",
         tags: ["study-room", "music"],
-      });
+      }, instructorId);
       setStatus("Track added to the shared library.");
       setTrackTitle("");
       setTrackFile(null);
@@ -192,7 +192,7 @@ export function MusicLibraryManager({ instructorId }: { instructorId: string }) 
         isDownloadable: false,
         cefrLevel: "All Levels",
         tags: ["study-room", "music"],
-      });
+      }, instructorId);
       setTrackTitle("");
       setTrackUrl("");
       setStatus(videoId ? "YouTube track added. Playback uses the embedded YouTube player." : "Track added to the shared library.");

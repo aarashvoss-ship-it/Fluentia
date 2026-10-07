@@ -91,8 +91,8 @@ export function useResourceAssets(instructorId: string) {
   return state;
 }
 
-export async function addResourceAsset(assetData: ResourceAssetInput) {
-  const asset = await createResourceAssetRecord(assetData);
+export async function addResourceAsset(assetData: ResourceAssetInput, instructorId: string) {
+  const asset = await createResourceAssetRecord(assetData, instructorId);
   if (snapshot.instructorId && snapshot.instructorId !== asset.instructorId) return asset;
   loadedInstructorId = asset.instructorId;
   publish({

@@ -138,7 +138,7 @@ export function ResourceHubPage({ instructorId }: { instructorId: string }) {
     setIsSavingAsset(true);
     setActionError(null);
     try {
-      const createdAsset = await addResourceAsset(asset);
+      const createdAsset = await addResourceAsset(asset, instructorId);
       setSelectedCategory(createdAsset.mainCategory);
       setSearchQuery("");
       setCefrFilter("all");

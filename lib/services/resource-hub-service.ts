@@ -64,10 +64,13 @@ function mapResourceAsset(row: ResourceAssetRow): ResourceAsset {
   };
 }
 
-async function getAuthenticatedInstructorId() {
+async function getAuthenticatedInstructorId(expectedInstructorId: string) {
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error) throw new Error(`Unable to verify the signed-in instructor: ${error.message}`);
   if (!user) throw new Error("You must be signed in as an instructor to manage Resource Hub assets.");
+  if (!expectedInstructorId || user.id !== expectedInstructorId) {
+    throw new Error("The signed-in user does not match the active instructor. Refresh the page and try again.");
+  }
   return user.id;
 }
 
@@ -110,8 +113,8 @@ export async function fetchStudyRoomMusicTracks(): Promise<{ title: string; url:
     .map(({ title, url }) => ({ title, url }));
 }
 
-export async function createResourceAsset(assetData: ResourceAssetInput): Promise<ResourceAsset> {
-  const instructorId = await getAuthenticatedInstructorId();
+export async function createResourceAsset(assetData: ResourceAssetInput, expectedInstructorId: string): Promise<ResourceAsset> {
+  const instructorId = await getAuthenticatedInstructorId(expectedInstructorId);
   const { data, error } = await resourceHubSupabase
     .from("resource_assets")
     .insert(toResourceAssetRow(assetData, instructorId))
