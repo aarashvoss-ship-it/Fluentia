@@ -1959,12 +1959,14 @@ function DashboardContent() {
                     </p>
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       {nextLessonStatus && (
-                        <span className={`rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${
+                        <span className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${
                           nextLessonStatus === "in-progress"
-                            ? "border-sky-400/20 bg-sky-950/40 text-sky-400"
+                            ? "bg-sky-500/10 text-sky-400"
                             : nextLessonStatus === "pending-review"
-                              ? "border-amber-500/20 bg-amber-500/10 text-amber-400"
-                              : "border-border bg-surface/80 text-stone-400"
+                              ? "bg-amber-500/10 text-amber-400"
+                              : nextLessonStatus === "completed"
+                                ? "bg-emerald-500/10 text-emerald-400"
+                                : "bg-slate-800/40 text-slate-400"
                         }`}>
                           {getLessonStatusCopy(nextLessonStatus)}
                         </span>
@@ -1985,7 +1987,7 @@ function DashboardContent() {
                       <Link
                         href={getLessonHref(nextLesson, nextLessonStatus || "not-started")}
                         onClick={() => rememberLesson(nextLesson.id)}
-                        className="inline-flex w-fit items-center rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-400 transition hover:bg-amber-500/20"
+                        className="inline-flex w-fit items-center rounded-md border border-amber-500/30 bg-amber-500/15 px-3.5 py-1.5 text-xs font-medium text-amber-300 transition-colors hover:bg-amber-500/25"
                       >
                         {nextLessonStatus === "in-progress" ? "Continue Lesson" : "Start Lesson"}
                         <span className="ml-2" aria-hidden="true">-&gt;</span>
@@ -2140,14 +2142,14 @@ function DashboardContent() {
                           </div>
                           <Tooltip content={`Lesson status: ${statusCopy.toLowerCase()}`}>
                           <span
-                            className={`rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${
+                            className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${
                               status === "completed"
-                                ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+                                ? "bg-emerald-500/10 text-emerald-400"
                                 : status === "pending-review"
-                                  ? "border-amber-500/20 bg-amber-500/10 text-amber-400"
+                                  ? "bg-amber-500/10 text-amber-400"
                                   : status === "in-progress"
-                                    ? "border-sky-400/20 bg-sky-950/40 text-sky-400"
-                                    : "border-border bg-surface text-stone-400"
+                                    ? "bg-sky-500/10 text-sky-400"
+                                    : "bg-slate-800/40 text-slate-400"
                             }`}
                           >
                             {statusCopy}
@@ -2174,7 +2176,7 @@ function DashboardContent() {
                         </div>
                         <div className="mt-auto flex justify-end pt-5">
                           {status === "pending-review" ? (
-                            <span className="inline-flex rounded-md bg-slate-800/50 px-3 py-1.5 text-xs text-slate-400">
+                            <span className="inline-flex rounded-md border-none bg-slate-800/40 px-3 py-1.5 text-xs text-slate-400">
                               {ctaCopy}
                             </span>
                           ) : (
@@ -2182,7 +2184,7 @@ function DashboardContent() {
                               <Link
                                 href={getLessonHref(lesson, status)}
                                 onClick={() => rememberLesson(lesson.id)}
-                                className="inline-flex rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-400 transition hover:bg-amber-500/20"
+                                className="inline-flex rounded-md border border-amber-500/30 bg-amber-500/15 px-3.5 py-1.5 text-xs font-medium text-amber-300 transition-colors hover:bg-amber-500/25"
                               >
                                 {ctaCopy}
                               </Link>
