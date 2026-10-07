@@ -666,9 +666,9 @@ export function SubmissionEvaluator({
                 : isObjectiveAnswer
                   ? "text-rose-100"
                   : "text-stone-200";
-              const modelBoxClass = "border-indigo-500/30 bg-indigo-950/20";
-              const modelLabelClass = "text-indigo-300";
-              const modelTextClass = "text-indigo-100";
+              const modelBoxClass = "border-emerald-500/30 bg-emerald-500/5";
+              const modelLabelClass = "text-emerald-300";
+              const modelTextClass = "text-emerald-100";
               return <article key={task.id} className="space-y-3 rounded-xl border border-border bg-surface p-4">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Student task {task.taskNumber ?? index + 1}</p>

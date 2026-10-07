@@ -198,9 +198,9 @@ export function UnifiedReportCard({
                 : isEvaluationView && isIncorrect
                   ? "text-rose-100"
                   : "text-stone-200";
-              const modelCardClass = "border-indigo-500/30 bg-indigo-950/20 text-indigo-100";
-              const modelLabelClass = "text-indigo-400";
-              const modelTextClass = "text-indigo-100";
+              const modelCardClass = "border-emerald-500/30 bg-emerald-500/5 text-emerald-100";
+              const modelLabelClass = "text-emerald-300";
+              const modelTextClass = "text-emerald-100";
               return <article key={task.id} className="w-full min-w-0 rounded-lg border border-border bg-background p-4">
               <div className="rounded-md border border-zinc-800 bg-zinc-900/90 p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Task Prompt</p>
