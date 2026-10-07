@@ -98,6 +98,18 @@ export async function fetchResourceAssets(instructorId: string): Promise<Resourc
   return (data || []).map(mapResourceAsset);
 }
 
+export async function fetchStudyRoomMusicTracks(): Promise<{ title: string; url: string }[]> {
+  const { data, error } = await resourceHubSupabase
+    .from("resource_assets")
+    .select("title,url,sub_category,tags")
+    .eq("main_category", "audios");
+
+  if (error) throw new Error(`Unable to load Study Room music: ${error.message}`);
+  return (data || [])
+    .filter((asset) => asset.sub_category === "Study Room Music" || asset.tags.includes("study-room"))
+    .map(({ title, url }) => ({ title, url }));
+}
+
 export async function createResourceAsset(assetData: ResourceAssetInput): Promise<ResourceAsset> {
   const instructorId = await getAuthenticatedInstructorId();
   const { data, error } = await resourceHubSupabase

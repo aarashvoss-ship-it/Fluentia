@@ -28,7 +28,6 @@ import { getQuizQuestionPrompt, parseFillInBlanks } from "@/lib/fill-in-blanks";
 import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player";
 import { getStudentDirectory, getStudentProfile, normalizeStudentLevel, saveStudentProfile, STUDENT_CEFR_LEVELS, updateStudentTargetLevel, type StudentCefrLevel } from "@/lib/student-profiles";
 import { getInstructorDirectory, type InstructorDirectoryEntry, type InstructorStatus } from "@/lib/instructors";
-import { MusicLibraryManager } from "@/components/instructor/music-library-manager";
 import { InstructorChatWidget } from "@/components/instructor/instructor-chat-widget";
 import { useLessonEditorStore } from "@/lib/lesson-editor-store";
 import { Tooltip } from "@/components/shared/tooltip";
@@ -49,18 +48,16 @@ interface InstructorWorkstationProps {
   lessonSlug: string;
 }
 
-type InstructorWorkspaceTab = "dashboard" | "students" | "instructors" | "library" | "builder" | "evaluation" | "music" | "resources" | "resource-hub";
+type InstructorWorkspaceTab = "dashboard" | "library" | "builder" | "evaluation" | "directory" | "resources" | "resource-hub";
 
 const INSTRUCTOR_WORKSPACE_TABS: InstructorWorkspaceTab[] = [
   "dashboard",
-  "students",
-  "instructors",
   "library",
   "builder",
   "evaluation",
-  "music",
-  "resources",
   "resource-hub",
+  "directory",
+  "resources",
 ];
 
 function getWorkspaceTabFromUrl(): InstructorWorkspaceTab {
@@ -68,7 +65,15 @@ function getWorkspaceTabFromUrl(): InstructorWorkspaceTab {
   const params = new URLSearchParams(window.location.search);
   if (params.has("lessonId") || params.has("edit")) return "builder";
   const tab = params.get("tab");
+  if (tab === "students" || tab === "instructors") return "directory";
+  if (tab === "music") return "resource-hub";
   return INSTRUCTOR_WORKSPACE_TABS.find((candidate) => candidate === tab) || "dashboard";
+}
+
+function getDirectoryTabFromUrl(): "students" | "instructors" {
+  if (typeof window === "undefined") return "students";
+  const params = new URLSearchParams(window.location.search);
+  return params.get("directory") === "instructors" || params.get("tab") === "instructors" ? "instructors" : "students";
 }
 
 function resizeTextareaToContent(textarea: HTMLTextAreaElement | null) {
@@ -841,6 +846,7 @@ export default function InstructorWorkstationPage({
   const [draftLessonCount, setDraftLessonCount] = useState(0);
   const [lessonStatus, setLessonStatus] = useState<"draft" | "published">("published");
   const [activeTab, setActiveTab] = useState<InstructorWorkspaceTab>(getWorkspaceTabFromUrl);
+  const [directoryTab, setDirectoryTab] = useState<"students" | "instructors">(getDirectoryTabFromUrl);
   const [studentLevelFilter, setStudentLevelFilter] = useState<"All" | StudentCefrLevel>("All");
   const [studentInstructorFilter, setStudentInstructorFilter] = useState("All instructors");
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
@@ -1063,7 +1069,7 @@ export default function InstructorWorkstationPage({
   }, [profileSaveToast]);
 
   useEffect(() => {
-    if (!isMounted || activeTab !== "instructors") return;
+    if (!isMounted || activeTab !== "directory" || directoryTab !== "instructors") return;
     let cancelled = false;
     setInstructorsLoading(true);
     setInstructorsError(null);
@@ -1082,7 +1088,7 @@ export default function InstructorWorkstationPage({
         if (!cancelled) setInstructorsLoading(false);
       });
     return () => { cancelled = true; };
-  }, [activeTab, isMounted, students]);
+  }, [activeTab, directoryTab, isMounted, students]);
 
   const updateBuilderLevel = (level: string) => {
     setNewLesson((previous) => ({ ...previous, level }));
@@ -2456,7 +2462,10 @@ export default function InstructorWorkstationPage({
 
   useEffect(() => {
     if (!isMounted) return;
-    const syncTabFromHistory = () => setActiveTab(getWorkspaceTabFromUrl());
+    const syncTabFromHistory = () => {
+      setActiveTab(getWorkspaceTabFromUrl());
+      setDirectoryTab(getDirectoryTabFromUrl());
+    };
     window.addEventListener("popstate", syncTabFromHistory);
     return () => window.removeEventListener("popstate", syncTabFromHistory);
   }, [isMounted]);
@@ -2465,11 +2474,20 @@ export default function InstructorWorkstationPage({
     if (!isMounted) return;
     const url = new URL(window.location.href);
     const currentTab = getWorkspaceTabFromUrl();
+    if (activeTab === "directory") {
+      const desiredDirectoryTab = directoryTab === "instructors" ? "instructors" : null;
+      if (currentTab === activeTab && url.searchParams.get("directory") === desiredDirectoryTab) return;
+      url.searchParams.set("tab", "directory");
+      if (desiredDirectoryTab) url.searchParams.set("directory", desiredDirectoryTab);
+      else url.searchParams.delete("directory");
+      router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
+      return;
+    }
     if (currentTab === activeTab && (activeTab !== "dashboard" || !url.searchParams.has("tab"))) return;
     if (activeTab === "dashboard") url.searchParams.delete("tab");
     else url.searchParams.set("tab", activeTab);
     router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
-  }, [activeTab, isMounted, router]);
+  }, [activeTab, directoryTab, isMounted, router]);
 
   useEffect(() => {
     workstationMountedRef.current = true;
@@ -3541,7 +3559,8 @@ export default function InstructorWorkstationPage({
       actionLabel: "Resume",
       onAction: () => {
         void handleStudentChange(selectedStudent);
-        setActiveTab("students");
+        setDirectoryTab("students");
+        setActiveTab("directory");
       },
     }] : []),
   ].sort((first, second) => second.timestamp - first.timestamp).slice(0, 5);
@@ -3690,11 +3709,28 @@ export default function InstructorWorkstationPage({
         <nav className="sticky top-0 z-20 mb-8 border-b border-border bg-background/95 backdrop-blur" aria-label="Instructor workstation views">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-0 flex-wrap gap-x-1">
-              {([["dashboard", "Dashboard"], ["students", "Students Directory"], ["instructors", "Instructors Directory"], ["library", "Lesson Library"], ["builder", "Lesson Builder"], ["evaluation", "Student Evaluation"], ["music", "Music Library"], ["resource-hub", "Resource Hub"]] as const).map(([tab, label]) => <Tooltip key={tab} content={`Open ${label}`}><button type="button" onClick={() => handleWorkspaceTabChange(tab)} className={`whitespace-nowrap border-b-2 px-3 py-3 text-xs  transition sm:px-4 ${activeTab === tab ? "border-amber-500/40 text-amber-400" : "border-transparent text-stone-500 hover:text-stone-200"}`}>{label}</button></Tooltip>)}
+              {([["dashboard", "Dashboard"], ["library", "Lesson Library"], ["builder", "Lesson Builder"], ["resource-hub", "Resource Hub"], ["directory", "Directory"], ["evaluation", "Student Evaluation"]] as const).map(([tab, label]) => <Tooltip key={tab} content={`Open ${label}`}><button type="button" onClick={() => handleWorkspaceTabChange(tab)} className={`whitespace-nowrap border-b-2 px-3 py-3 text-xs  transition sm:px-4 ${activeTab === tab ? "border-amber-500/40 text-amber-400" : "border-transparent text-stone-500 hover:text-stone-200"}`}>{label}</button></Tooltip>)}
             </div>
             <Tooltip content="Display and appearance"><DisplaySettingsControl /></Tooltip>
           </div>
         </nav>
+
+        {activeTab === "directory" && (
+          <div className="mb-6 flex gap-2 border-b border-border" role="tablist" aria-label="Directory type">
+            {(["students", "instructors"] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                role="tab"
+                aria-selected={directoryTab === tab}
+                onClick={() => setDirectoryTab(tab)}
+                className={`border-b-2 px-4 py-3 text-sm transition ${directoryTab === tab ? "border-amber-500/40 text-amber-400" : "border-transparent text-stone-500 hover:text-stone-200"}`}
+              >
+                {tab === "students" ? "Students" : "Instructors"}
+              </button>
+            ))}
+          </div>
+        )}
 
         {activeTab === "dashboard" && <section className="space-y-6" aria-label="Instructor dashboard overview">
           <div className="grid items-start gap-4 md:grid-cols-4">
@@ -3972,7 +4008,7 @@ export default function InstructorWorkstationPage({
           {quickTagEditor && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !quickTagSaving) setQuickTagEditor(null); }}><section role="dialog" aria-modal="true" aria-labelledby="quick-tag-editor-title" className="w-full max-w-lg rounded-lg border border-border bg-surface p-5 shadow-2xl"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Lesson metadata</p><h3 id="quick-tag-editor-title" className="mt-1 text-lg font-semibold text-stone-100">Edit level & tags</h3></div><button type="button" aria-label="Close tag editor" disabled={quickTagSaving} onClick={() => setQuickTagEditor(null)} className="rounded border border-border p-1.5 text-stone-400 hover:text-stone-100 disabled:opacity-50"><X className="h-4 w-4" /></button></div><div className="mt-5 grid gap-3 sm:grid-cols-2"><label className="text-xs text-stone-400">CEFR Level<select value={quickTagEditor.level} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, level: event.target.value } : current)} className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-white [color-scheme:dark]">{CEFR_LEVELS.map((level) => <option key={level}>{level}</option>)}</select></label><label className="text-xs text-stone-400">Domain<input value={quickTagEditor.tags.domain} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, domain: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Skill Focus<input value={quickTagEditor.tags.skill_focus} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, skill_focus: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Practice Type<input value={quickTagEditor.tags.practice_type} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, practice_type: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400 sm:col-span-2">Custom Tags<input value={quickTagEditor.customTagsText} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, customTagsText: event.target.value } : current)} placeholder="Comma-separated custom tags" className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200" /></label></div>{quickTagError && <p role="alert" className="mt-3 text-xs text-red-300">{quickTagError}</p>}<div className="mt-5 flex justify-end gap-2"><button type="button" disabled={quickTagSaving} onClick={() => setQuickTagEditor(null)} className="rounded-md border border-border px-3 py-2 text-xs text-stone-300 disabled:opacity-50">Cancel</button><button type="button" disabled={quickTagSaving} onClick={() => void saveQuickTagEditor()} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/20 px-3 py-2 text-xs  text-amber-400 disabled:opacity-50">{quickTagSaving ? "Saving..." : <><Check className="h-3.5 w-3.5" />Save tags</>}</button></div></section></div>}
         </section>}
 
-        {activeTab === "students" && <section className="w-full min-w-0 space-y-5" aria-labelledby="students-profile-title">
+        {activeTab === "directory" && directoryTab === "students" && <section className="w-full min-w-0 space-y-5" aria-labelledby="students-profile-title">
           {profileSaveToast && <div role="status" aria-live="polite" className="fixed right-6 top-6 z-[70] flex items-center gap-2.5 rounded-lg border border-emerald-400/40 bg-[#11251d] px-4 py-3 text-sm font-medium text-emerald-200 shadow-xl"><Check className="h-4 w-4 shrink-0" aria-hidden="true" />{profileSaveToast}</div>}
           <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4">
             <div>
@@ -4086,7 +4122,7 @@ export default function InstructorWorkstationPage({
           </div> : <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center text-sm text-stone-500">No student profiles match this level.</div>}
         </section>}
 
-        {activeTab === "instructors" && <section className="w-full min-w-0 space-y-5" aria-labelledby="instructors-profile-title">
+        {activeTab === "directory" && directoryTab === "instructors" && <section className="w-full min-w-0 space-y-5" aria-labelledby="instructors-profile-title">
           <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Instructor Directory</p>
@@ -4558,7 +4594,6 @@ export default function InstructorWorkstationPage({
         })()}
 
         {activeTab === "resource-hub" && <ResourceHubPage instructorId={instructorId} />}
-        {activeTab === "music" && <MusicLibraryManager />}
 
         {activeTab === "builder" && <>
           {!isInlineStudentViewOpen && <section className="mb-6 rounded-xl border border-border bg-surface/60 p-5" aria-labelledby="lesson-details-title">

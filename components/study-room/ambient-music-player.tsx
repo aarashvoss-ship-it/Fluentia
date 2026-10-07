@@ -161,8 +161,8 @@ export function AmbientMusicPlayer({ src, studentScope = "student" }: AmbientMus
     const subscriptionTimer = window.setTimeout(() => {
       if (!mounted || !isSupabaseConfigured()) return;
       channel = supabase
-        .channel(`ambient-tracks-${crypto.randomUUID()}`)
-        .on("postgres_changes", { event: "*", schema: "public", table: "ambient_tracks" }, () => {
+        .channel(`resource-hub-music-${crypto.randomUUID()}`)
+        .on("postgres_changes", { event: "*", schema: "public", table: "resource_assets" }, () => {
           void refreshTracks();
         })
         .subscribe();

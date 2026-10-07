@@ -13,6 +13,7 @@ export type SubCategory =
   | "Podcasts"
   | "Songs"
   | "Instrumental"
+  | "Study Room Music"
   | "Infographics"
   | "Images"
   | "Diagrams"

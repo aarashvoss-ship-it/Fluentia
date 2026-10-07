@@ -2,6 +2,7 @@
 
 import { ExternalLink, FileText, Film, Grid2X2, Headphones, Image, List, PackageOpen, Plus, Search, Trash2, X } from "lucide-react";
 import { useState, type FormEvent } from "react";
+import { MusicLibraryManager } from "@/components/instructor/music-library-manager";
 import { addResourceAsset, deleteResourceAsset, loadResourceAssets, useResourceAssets } from "@/lib/resource-hub-store";
 import type { CEFRLevel, MainCategory, ResourceAssetInput, SubCategory } from "@/types/resource-hub";
 
@@ -30,7 +31,7 @@ const RESOURCE_CATEGORIES: {
     id: "audios",
     label: "Audios",
     description: "Listening and audio materials",
-    subCategories: ["Audiobooks", "Podcasts", "Songs", "Instrumental"],
+    subCategories: ["Audiobooks", "Podcasts", "Songs", "Instrumental", "Study Room Music"],
     icon: Headphones,
   },
   {
@@ -73,6 +74,12 @@ function formatCreatedAt(createdAt: string) {
   return new Date(createdAt).toLocaleDateString();
 }
 
+function isStudyRoomMusicAsset(asset: { mainCategory: MainCategory; subCategory: SubCategory; tags: string[] }) {
+  return asset.mainCategory === "audios" && (
+    asset.subCategory === "Study Room Music" || asset.tags.includes("study-room")
+  );
+}
+
 export function ResourceHubPage({ instructorId }: { instructorId: string }) {
   const { assets, loading, error: loadError } = useResourceAssets(instructorId);
   const [selectedCategory, setSelectedCategory] = useState<MainCategory | null>(null);
@@ -87,7 +94,8 @@ export function ResourceHubPage({ instructorId }: { instructorId: string }) {
   const [actionError, setActionError] = useState<string | null>(null);
   const selectedCategoryDetails = RESOURCE_CATEGORIES.find(({ id }) => id === selectedCategory);
 
-  const filteredAssets = assets
+  const browsableAssets = assets.filter((asset) => !isStudyRoomMusicAsset(asset));
+  const filteredAssets = browsableAssets
     .filter((asset) => !selectedCategory || asset.mainCategory === selectedCategory)
     .filter((asset) => cefrFilter === "all" || asset.cefrLevel === cefrFilter)
     .filter((asset) => {
@@ -238,7 +246,7 @@ export function ResourceHubPage({ instructorId }: { instructorId: string }) {
               {selectedCategoryDetails ? `${selectedCategoryDetails.label} resources` : "All resources"}
             </h3>
             <p className="mt-1 text-xs text-stone-500">
-              Showing {filteredAssets.length} of {assets.length} assets
+              Showing {filteredAssets.length} of {browsableAssets.length} assets
             </p>
           </div>
         </div>
@@ -515,6 +523,7 @@ export function ResourceHubPage({ instructorId }: { instructorId: string }) {
           </section>
         </div>
       )}
+      {selectedCategory === "audios" && <MusicLibraryManager instructorId={instructorId} />}
     </section>
   );
 }

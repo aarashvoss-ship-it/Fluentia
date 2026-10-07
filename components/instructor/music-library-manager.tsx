@@ -3,16 +3,31 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Check, Pause, Play, Plus, Trash2, Upload, Volume2, VolumeX, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { createAmbientTrack, deleteAmbientTrack } from "@/lib/music-library";
-import { DEFAULT_LESSON_AUDIO_TRACKS, getYoutubeVideoId, isYoutubeUrl } from "@/lib/musicTracks";
-import type { AmbientTrackRow } from "@/lib/supabase";
+import { addResourceAsset, deleteResourceAsset, useResourceAssets } from "@/lib/resource-hub-store";
+import type { ResourceAsset } from "@/types/resource-hub";
+import { getYoutubeVideoId, isYoutubeUrl } from "@/lib/musicTracks";
 import { Tooltip } from "@/components/shared/tooltip";
 import { YoutubeAudioController } from "@/components/shared/youtube-audio-controller";
 
-export function MusicLibraryManager() {
-  const [tracks, setTracks] = useState<AmbientTrackRow[]>([]);
+function isUploadedTrack(url: string) {
+  try {
+    const parsedUrl = new URL(url);
+    const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL
+      ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).origin
+      : "";
+    return parsedUrl.origin === supabaseOrigin && parsedUrl.pathname.includes("/storage/v1/object/public/ambient-music/");
+  } catch {
+    return false;
+  }
+}
+
+export function MusicLibraryManager({ instructorId }: { instructorId: string }) {
+  const { assets, loading, error: loadError } = useResourceAssets(instructorId);
+  const tracks = assets.filter((asset) => asset.mainCategory === "audios" && (
+    asset.subCategory === "Study Room Music" || asset.tags.includes("study-room")
+  ));
   const [playingId, setPlayingId] = useState<string | null>(null);
-  const [previewedYoutubeTrack, setPreviewedYoutubeTrack] = useState<AmbientTrackRow | null>(null);
+  const [previewedYoutubeTrack, setPreviewedYoutubeTrack] = useState<ResourceAsset | null>(null);
   const [previewVolume, setPreviewVolume] = useState(0.4);
   const [status, setStatus] = useState<string | null>(null);
   const [isAddTrackOpen, setIsAddTrackOpen] = useState(false);
@@ -21,46 +36,12 @@ export function MusicLibraryManager() {
   const [trackFile, setTrackFile] = useState<File | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isResolvingYoutube, setIsResolvingYoutube] = useState(false);
-  const [trackPendingDelete, setTrackPendingDelete] = useState<AmbientTrackRow | null>(null);
+  const [trackPendingDelete, setTrackPendingDelete] = useState<ResourceAsset | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const showFallbackTracks = (message: string) => {
-    setTracks(DEFAULT_LESSON_AUDIO_TRACKS.map((track, index) => ({
-      id: `fallback-${index}`,
-      title: track.title,
-      url: track.url,
-      source_type: "url",
-      sort_order: index + 1,
-      is_active: true,
-      created_at: new Date(0).toISOString(),
-    })));
-    setStatus(message);
-  };
-
-  const loadTracks = async () => {
-    try {
-      const { data, error } = await supabase.from("ambient_tracks").select("*").order("sort_order").order("created_at");
-      if (error) {
-        console.error('Supabase Error Details:', error);
-        showFallbackTracks("Showing default tracks. Apply migration 025 and verify instructor permissions to manage shared audio.");
-        return;
-      }
-      if (!data || data.length === 0) {
-        showFallbackTracks("Showing default tracks. Apply migration 025 to seed the shared library.");
-        return;
-      }
-      setTracks(data as AmbientTrackRow[]);
-      setStatus(null);
-    } catch (error) {
-      console.error('Supabase Error Details:', error);
-      showFallbackTracks("Showing default tracks. Apply migration 025 and verify instructor permissions to manage shared audio.");
-    }
-  };
-
   useEffect(() => {
-    void loadTracks();
     return () => {
       audioRef.current?.pause();
       audioRef.current = null;
@@ -110,7 +91,7 @@ export function MusicLibraryManager() {
     };
   }, [trackUrl]);
 
-  const togglePreview = async (track: AmbientTrackRow) => {
+  const togglePreview = async (track: ResourceAsset) => {
     if (playingId === track.id) {
       audioRef.current?.pause();
       setPlayingId(null);
@@ -159,8 +140,15 @@ export function MusicLibraryManager() {
       if (upload.error) throw upload.error;
       fileUploaded = true;
       const { data } = supabase.storage.from("ambient-music").getPublicUrl(path);
-      await createAmbientTrack(title, data.publicUrl, "upload");
-      await loadTracks();
+      await addResourceAsset({
+        title,
+        mainCategory: "audios",
+        subCategory: "Study Room Music",
+        url: data.publicUrl,
+        isDownloadable: false,
+        cefrLevel: "All Levels",
+        tags: ["study-room", "music"],
+      });
       setStatus("Track added to the shared library.");
       setTrackTitle("");
       setTrackFile(null);
@@ -196,29 +184,40 @@ export function MusicLibraryManager() {
     try {
       const videoId = getYoutubeVideoId(url);
       const normalizedUrl = videoId ? `https://www.youtube.com/watch?v=${videoId}` : url;
-      await createAmbientTrack(title, normalizedUrl, videoId ? "youtube" : "url");
+      await addResourceAsset({
+        title,
+        mainCategory: "audios",
+        subCategory: "Study Room Music",
+        url: normalizedUrl,
+        isDownloadable: false,
+        cefrLevel: "All Levels",
+        tags: ["study-room", "music"],
+      });
       setTrackTitle("");
       setTrackUrl("");
-      await loadTracks();
       setStatus(videoId ? "YouTube track added. Playback uses the embedded YouTube player." : "Track added to the shared library.");
     } catch (error) {
-      const errorDetails = error && typeof error === "object" ? error as { code?: string; message?: string } : null;
-      const detail = errorDetails?.code === "23505"
-        ? "A track with this URL is already in the shared library."
-        : errorDetails?.message || "Check database permissions and apply the latest music library migration.";
-      setStatus(`Unable to add track: ${detail}`);
+      setStatus(`Unable to add track: ${error instanceof Error ? error.message : "Check Resource Hub permissions."}`);
     } finally {
       setIsSaving(false);
     }
   };
 
   const removeTrack = async () => {
-    if (!trackPendingDelete || isDeleting || trackPendingDelete.id.startsWith("fallback-")) return;
+    if (!trackPendingDelete || isDeleting) return;
     const track = trackPendingDelete;
     setIsDeleting(true);
     try {
-      const storageCleaned = await deleteAmbientTrack(track.id, track.url);
-      setTracks((current) => current.filter((item) => item.id !== track.id));
+      await deleteResourceAsset(track.id);
+      let storageCleaned = true;
+      if (isUploadedTrack(track.url)) {
+        const parsedUrl = new URL(track.url);
+        const path = decodeURIComponent(parsedUrl.pathname.split("/storage/v1/object/public/ambient-music/")[1] || "");
+        if (path) {
+          const { error } = await supabase.storage.from("ambient-music").remove([path]);
+          storageCleaned = !error;
+        }
+      }
       if (playingId === track.id) {
         audioRef.current?.pause();
         audioRef.current = null;
@@ -226,7 +225,7 @@ export function MusicLibraryManager() {
       }
       if (previewedYoutubeTrack?.id === track.id) setPreviewedYoutubeTrack(null);
       setTrackPendingDelete(null);
-      setStatus(storageCleaned ? "Track removed from the shared library." : "Track removed. Its stored audio file could not be cleaned up.");
+      setStatus(storageCleaned ? "Track removed from the Resource Hub." : "Track removed. Its stored audio file could not be cleaned up.");
     } catch (error) {
       setStatus(error instanceof Error ? `Unable to remove track: ${error.message}` : "Unable to remove this track.");
     } finally {
@@ -234,11 +233,12 @@ export function MusicLibraryManager() {
     }
   };
 
-  return <section className="space-y-5" aria-labelledby="music-library-title">
+  return <section className="space-y-5" aria-labelledby="study-room-music-title">
     <div className="flex flex-col justify-between gap-4 border-b border-border pb-5 sm:flex-row sm:items-end">
-      <div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Shared Student Audio</p><h2 id="music-library-title" className="mt-1 font-sans text-2xl font-semibold text-stone-100">Music Library</h2><p className="mt-2 text-sm text-stone-500">Every active track here appears in student lesson headers.</p></div>
+      <div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Resource Hub · Audios</p><h2 id="study-room-music-title" className="mt-1 font-sans text-2xl font-semibold text-stone-100">Study Room Music</h2><p className="mt-2 text-sm text-stone-500">These audio assets are shared with students who are assigned to your published lessons.</p></div>
       <Tooltip content="Add a shared audio upload or stream URL"><button type="button" onClick={() => setIsAddTrackOpen((open) => !open)} aria-expanded={isAddTrackOpen} className="inline-flex items-center gap-2 rounded-md bg-amber-500/20 px-4 py-2.5 text-xs  text-amber-400 transition hover:bg-amber-500/20"><Plus className="h-4 w-4" />Add New Track</button></Tooltip>
     </div>
+    {loadError && <p className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300" role="alert">{loadError}</p>}
     {status && <p className="rounded-md border border-amber-500/40 bg-amber-500/20 p-3 text-xs text-amber-400" role="status">{status}</p>}
     {previewedYoutubeTrack && getYoutubeVideoId(previewedYoutubeTrack.url) && <div className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-background px-3 py-2">
       <YoutubeAudioController videoId={getYoutubeVideoId(previewedYoutubeTrack.url)!} isPlaying={playingId === previewedYoutubeTrack.id} volume={previewVolume} onError={() => setStatus("YouTube audio could not be started. Check that the video allows embedding.")} />
@@ -263,7 +263,7 @@ export function MusicLibraryManager() {
         <Tooltip content="Upload the selected audio file to the shared student library"><button type="button" disabled={!trackFile || isSaving} onClick={() => void uploadTrack(trackFile || undefined)} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/20 px-3 py-2 text-xs  text-amber-400 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"><Upload className="h-3.5 w-3.5" />{isSaving ? "Uploading..." : "Upload track"}</button></Tooltip>
       </div>
     </section>}
-    <div className="overflow-hidden rounded-xl border border-border bg-surface/60"><table className="w-full text-left text-xs"><thead className="border-b border-border bg-background text-[10px] uppercase tracking-[0.12em] text-stone-500"><tr><th className="px-5 py-3">Track Title</th><th className="px-4 py-3">Source</th><th className="px-4 py-3">URL</th><th className="px-4 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-border">{tracks.map((track) => <tr key={track.id}><td className="px-5 py-4 font-medium text-stone-200">{track.title}</td><td className="px-4 py-4 text-stone-400">{track.source_type === "upload" ? "Uploaded file" : track.source_type === "youtube" || getYoutubeVideoId(track.url) ? "YouTube" : "Stream / URL"}</td><td className="max-w-[360px] truncate px-4 py-4 text-stone-500">{track.url}</td><td className="px-4 py-4"><div className="flex justify-end gap-2"><Tooltip content={`Preview ${track.title}`}><button type="button" onClick={() => void togglePreview(track)} aria-label={`${playingId === track.id ? "Pause" : "Play"} ${track.title}`} className="flex h-8 w-8 items-center justify-center rounded-md border border-amber-500/40 text-amber-400 hover:bg-amber-500/20">{playingId === track.id ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</button></Tooltip><Tooltip content={`Delete ${track.title} from the shared library`}><button type="button" onClick={() => setTrackPendingDelete(track)} aria-label={`Remove ${track.title}`} disabled={track.id.startsWith("fallback-")} className="flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-40"><Trash2 className="h-4 w-4" /></button></Tooltip></div></td></tr>)}{tracks.length === 0 && <tr><td colSpan={4} className="px-5 py-10 text-center text-stone-500">No tracks in the shared library.</td></tr>}</tbody></table></div>
+    <div className="overflow-hidden rounded-xl border border-border bg-surface/60"><table className="w-full text-left text-xs"><thead className="border-b border-border bg-background text-[10px] uppercase tracking-[0.12em] text-stone-500"><tr><th className="px-5 py-3">Track Title</th><th className="px-4 py-3">Source</th><th className="px-4 py-3">URL</th><th className="px-4 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-border">{loading ? <tr><td colSpan={4} className="px-5 py-10 text-center text-stone-500">Loading Study Room music...</td></tr> : tracks.map((track) => <tr key={track.id}><td className="px-5 py-4 font-medium text-stone-200">{track.title}</td><td className="px-4 py-4 text-stone-400">{isUploadedTrack(track.url) ? "Uploaded file" : getYoutubeVideoId(track.url) ? "YouTube" : "Stream / URL"}</td><td className="max-w-[360px] truncate px-4 py-4 text-stone-500">{track.url}</td><td className="px-4 py-4"><div className="flex justify-end gap-2"><Tooltip content={`Preview ${track.title}`}><button type="button" onClick={() => void togglePreview(track)} aria-label={`${playingId === track.id ? "Pause" : "Play"} ${track.title}`} className="flex h-8 w-8 items-center justify-center rounded-md border border-amber-500/40 text-amber-400 hover:bg-amber-500/20">{playingId === track.id ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</button></Tooltip><Tooltip content={`Delete ${track.title} from the Resource Hub`}><button type="button" onClick={() => setTrackPendingDelete(track)} aria-label={`Remove ${track.title}`} className="flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button></Tooltip></div></td></tr>)}{!loading && tracks.length === 0 && <tr><td colSpan={4} className="px-5 py-10 text-center text-stone-500">No Study Room music assets. Add a track above.</td></tr>}</tbody></table></div>
     {trackPendingDelete && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !isDeleting) setTrackPendingDelete(null); }}><section role="dialog" aria-modal="true" aria-labelledby="delete-track-title" aria-describedby="delete-track-warning" className="w-full max-w-md rounded-lg border border-red-500/30 bg-surface p-5 shadow-2xl"><div className="flex items-start justify-between gap-3"><h3 id="delete-track-title" className="text-lg font-semibold text-stone-100">Delete shared track?</h3><button type="button" disabled={isDeleting} onClick={() => setTrackPendingDelete(null)} aria-label="Close confirmation" className="rounded border border-border p-1.5 text-stone-400 hover:text-stone-100 disabled:opacity-50"><X className="h-4 w-4" /></button></div><p id="delete-track-warning" className="mt-3 text-sm leading-relaxed text-stone-400">This removes the track from the shared student library. Students currently listening may hear the audio stop.</p><p className="mt-2 truncate text-xs text-amber-400">{trackPendingDelete.title}</p><div className="mt-5 flex justify-end gap-2"><button type="button" disabled={isDeleting} onClick={() => setTrackPendingDelete(null)} className="rounded-md border border-border px-3 py-2 text-xs text-stone-300 disabled:opacity-50">Cancel</button><button type="button" disabled={isDeleting} onClick={() => void removeTrack()} className="inline-flex items-center gap-1.5 rounded-md bg-red-500 px-3 py-2 text-xs  text-white hover:bg-red-400 disabled:opacity-50">{isDeleting ? "Deleting..." : <><Check className="h-3.5 w-3.5" />Delete track</>}</button></div></section></div>}
   </section>;
 }
