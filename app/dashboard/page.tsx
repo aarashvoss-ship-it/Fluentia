@@ -63,25 +63,25 @@ type LessonStatus =
 const AVATAR_PRESETS = [
   {
     id: "amber",
-    label: "Muted Amber",
+    label: "Amber",
     backgroundColor: "#f59e0b",
     className: "text-white",
   },
   {
     id: "indigo",
-    label: "Muted Indigo",
+    label: "Indigo",
     backgroundColor: "#6366f1",
     className: "text-white",
   },
   {
     id: "emerald",
-    label: "Muted Emerald",
+    label: "Emerald",
     backgroundColor: "#10b981",
     className: "text-white",
   },
   {
     id: "crimson",
-    label: "Muted Rose",
+    label: "Rose",
     backgroundColor: "#e11d48",
     className: "text-white",
   },
@@ -839,7 +839,7 @@ function DashboardContent() {
   const selectedAvatar =
     AVATAR_PRESETS.find((preset) => preset.id === avatarPreset) ||
     AVATAR_PRESETS[0];
-  const badgeColor = activeStudent.profile?.avatarBgColor || avatarColor || "#fbbf24";
+  const badgeColor = `color-mix(in srgb, ${avatarColor || activeStudent.profile?.avatarBgColor || "#f59e0b"} 35%, #121721)`;
   const selectedBanner =
     BANNER_PRESETS.find((preset) => preset.id === bannerPreset) ||
     BANNER_PRESETS[0];
@@ -1358,7 +1358,7 @@ function DashboardContent() {
                           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">
                             Student Avatar
                           </p>
-                          <div className="mt-2 grid grid-cols-3 gap-2">
+                          <div className="mt-2 grid grid-cols-4 gap-2">
                             {AVATAR_PRESETS.map((preset) => (
                               <button
                                 key={preset.id}
@@ -1369,7 +1369,7 @@ function DashboardContent() {
                                   setCustomAvatarUrl("");
                                 }}
                                 aria-label={`Use ${preset.label} avatar`}
-                                className={`flex flex-col items-center gap-1 rounded-md border p-2 text-[10px] text-stone-400 transition ${avatarPreset === preset.id && !avatarImage                                 ? "border-amber-500/20 bg-amber-500/10 text-amber-400" : "border-border hover:border-amber-500/40"}`}
+                                className={`flex flex-col items-center gap-1 rounded-md border p-2 text-[11px] text-stone-400 transition ${avatarPreset === preset.id && !avatarImage                                 ? "border-amber-500/20 bg-amber-500/10 text-amber-400" : "border-border hover:border-amber-500/40"}`}
                               >
                                 <span
                                   style={{
@@ -1388,7 +1388,7 @@ function DashboardContent() {
                               style={
                                 !avatarImage
                                   ? {
-                                      backgroundColor: avatarColor,
+                                      backgroundColor: badgeColor,
                                     }
                                   : undefined
                               }
@@ -1672,7 +1672,7 @@ function DashboardContent() {
                                 className={`flex items-center gap-2 rounded-md border border-slate-700/50 px-2 py-2 text-left text-[10px] text-stone-300 transition-colors ${avatarPreset === preset.id ? "bg-amber-500/5 text-amber-300" : "hover:border-slate-600"}`}
                               >
                                 <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: preset.backgroundColor }} />
-                                <span className="truncate">{preset.label}</span>
+                                <span className="whitespace-nowrap text-[11px]">{preset.label}</span>
                               </button>
                             ))}
                           </div>
@@ -1688,7 +1688,7 @@ function DashboardContent() {
                             <span className="mt-1 block text-[10px] text-stone-500">Leave blank to use your name initials.</span>
                           </label>
                           <div className="mt-3 flex items-center gap-3 rounded-md border border-slate-700/50 bg-background p-2">
-                            <span style={{ backgroundColor: `color-mix(in srgb, ${avatarColor} 35%, #121721)` }} className={`flex h-10 w-10 items-center justify-center overflow-hidden rounded-full text-xs font-bold ${selectedAvatar.className}`}>
+                            <span style={{ backgroundColor: badgeColor }} className={`flex h-10 w-10 items-center justify-center overflow-hidden rounded-full text-xs font-bold ${selectedAvatar.className}`}>
                               {visibleAvatarInitials}
                             </span>
                             <span className="text-xs text-stone-400">Live badge preview</span>
