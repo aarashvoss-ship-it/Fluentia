@@ -3,12 +3,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Image, Upload, Check, LoaderCircle, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
-import { getBannerPositionStyles } from "@/lib/banner-position";
+import { getBannerOverlayStyles, getBannerPositionStyles, type BannerFocalPosition } from "@/lib/banner-position";
+import { BannerPositionControls } from "@/components/shared/banner-position-controls";
 
-export interface BannerPosition {
-  x: number;
-  y: number;
-}
+export type BannerPosition = BannerFocalPosition;
 
 interface BannerManagerProps {
   bannerUrl?: string;
@@ -194,34 +192,18 @@ export function InstructorBannerManager({
             No banner selected
           </div>
         )}
-        {selectedUrl && <div style={{ opacity: dimness / 100 }} className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(12,16,23,.72),rgba(12,16,23,.24)),linear-gradient(0deg,rgba(12,16,23,.92),transparent_65%)]" />}
+        {selectedUrl && <div style={getBannerOverlayStyles(dimness)} className="pointer-events-none absolute inset-0" />}
         {selectedUrl && <div className="pointer-events-none absolute inset-0 flex items-end p-3"><span className="text-xs text-[#d9dce0]">Current Live Banner · drag to reposition</span></div>}
       </div>
-      {onUpdatePosition && (
-        <div className="mb-3 grid gap-2 sm:grid-cols-2">
-          <label className="text-[10px] text-stone-400">
-            Horizontal position <span className="float-right text-stone-500">{position.x}%</span>
-            <input type="range" min="0" max="100" value={position.x} onChange={(event) => onUpdatePosition({ ...position, x: Number(event.target.value) })} aria-label="Banner horizontal focal position" className="mt-1 w-full accent-amber-500" />
-          </label>
-          <label className="text-[10px] text-stone-400">
-            Vertical position <span className="float-right text-stone-500">{position.y}%</span>
-            <input type="range" min="0" max="100" value={position.y} onChange={(event) => onUpdatePosition({ ...position, y: Number(event.target.value) })} aria-label="Banner vertical focal position" className="mt-1 w-full accent-amber-500" />
-          </label>
-        </div>
-      )}
-      {onUpdateDimness && (
-        <label className="mb-3 block text-[10px] text-stone-400">
-          Banner dimness <span className="float-right text-stone-500">{dimness}%</span>
-          <input
-            type="range"
-            min="0"
-            max="100"
-            value={dimness}
-            onChange={(event) => onUpdateDimness(Number(event.target.value))}
-            aria-label="Lesson banner dimness"
-            className="mt-1 w-full accent-amber-500"
+      {onUpdatePosition && onUpdateDimness && (
+        <div className="mb-3">
+          <BannerPositionControls
+            position={position}
+            dimness={dimness}
+            onPositionChange={onUpdatePosition}
+            onDimnessChange={onUpdateDimness}
           />
-        </label>
+        </div>
       )}
       {uploadedBannerPath && (
         <button

@@ -9,6 +9,13 @@ export function normalizeBannerDimness(value: unknown, fallback = 20): number {
     : fallback;
 }
 
+export function getBannerOverlayStyles(dimness: unknown) {
+  return {
+    opacity: normalizeBannerDimness(dimness) / 100,
+    background: "linear-gradient(90deg,rgba(12,16,23,.72),rgba(12,16,23,.24)),linear-gradient(0deg,rgba(12,16,23,.92),transparent 65%)",
+  };
+}
+
 export function normalizeBannerPosition(value: unknown): BannerFocalPosition {
   const position = typeof value === "number"
     ? { x: 50, y: value }

@@ -45,8 +45,9 @@ import {
   saveStudentProfile,
 } from "@/lib/student-profiles";
 import { createBrowserClient } from "@supabase/ssr";
-import { getBannerPositionStyles, normalizeBannerDimness, normalizeBannerPosition } from "@/lib/banner-position";
+import { getBannerOverlayStyles, getBannerPositionStyles, normalizeBannerDimness, normalizeBannerPosition, type BannerFocalPosition } from "@/lib/banner-position";
 import { HeroBanner, HeroBannerContent, HeroBannerLogo } from "@/components/shared/hero-banner";
+import { BannerPositionControls } from "@/components/shared/banner-position-controls";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -131,8 +132,10 @@ type ProfilePreferences = {
   customAvatarUrl?: string;
   bannerPreset?: (typeof BANNER_PRESETS)[number]["id"];
   customBannerUrl?: string;
-  bannerPosition?: number;
-  banner_position?: number;
+  bannerPosition?: BannerFocalPosition | number;
+  banner_position?: BannerFocalPosition | number;
+  bannerDimness?: number;
+  banner_dimness?: number;
   dashboardBannerDimness?: number;
   dashboard_banner_dimness?: number;
 };
@@ -223,7 +226,7 @@ function DashboardContent() {
   const [bannerPreset, setBannerPreset] =
     useState<ProfilePreferences["bannerPreset"]>("default-dark");
   const [customBannerUrl, setCustomBannerUrl] = useState("");
-  const [bannerPosition, setBannerPosition] = useState(50);
+  const [bannerPosition, setBannerPosition] = useState<BannerFocalPosition>({ x: 50, y: 50 });
   const [dashboardBannerDimness, setDashboardBannerDimness] = useState(20);
   const [profileImageStatus, setProfileImageStatus] = useState<string | null>(null);
   const [profileSaveNotice, setProfileSaveNotice] = useState<string | null>(null);
@@ -275,10 +278,8 @@ function DashboardContent() {
           : customization.avatar_url || "";
         setCustomAvatarUrl(avatarUrl);
         setCustomBannerUrl(customization.banner_url || "");
-        if (typeof customization.banner_position === "number") {
-          setBannerPosition(customization.banner_position);
-        }
-        setDashboardBannerDimness(normalizeBannerDimness(customization.dashboard_banner_dimness ?? customization.dashboardBannerDimness));
+        setBannerPosition(normalizeBannerPosition(customization.bannerPosition ?? customization.banner_position));
+        setDashboardBannerDimness(normalizeBannerDimness(customization.bannerDimness ?? customization.banner_dimness ?? customization.dashboard_banner_dimness ?? customization.dashboardBannerDimness));
         setActiveStudent((current) => current ? {
           ...current,
           profile: {
@@ -420,10 +421,12 @@ function DashboardContent() {
         setCustomAvatarUrl(profile.avatarUrl || localPreferences.customAvatarUrl || localPreferences.avatar_url || localCustomization.custom_avatar_url || localCustomization.avatar_url || "");
         setCustomBannerUrl(profile.bannerUrl || localPreferences.customBannerUrl || localPreferences.banner_url || localCustomization.banner_url || "");
         setBannerPreset(localPreferences.bannerPreset || "default-dark");
-        const savedBannerPosition = localPreferences.bannerPosition ?? localPreferences.banner_position ?? localCustomization.banner_position;
-        setBannerPosition(typeof savedBannerPosition === "number" ? savedBannerPosition : 50);
+        const savedBannerPosition = localPreferences.bannerPosition ?? localPreferences.banner_position ?? localCustomization.bannerPosition ?? localCustomization.banner_position;
+        setBannerPosition(normalizeBannerPosition(savedBannerPosition));
         setDashboardBannerDimness(normalizeBannerDimness(
-          localPreferences.dashboardBannerDimness ?? localPreferences.dashboard_banner_dimness
+          localPreferences.bannerDimness ?? localPreferences.banner_dimness
+            ?? localPreferences.dashboardBannerDimness ?? localPreferences.dashboard_banner_dimness
+            ?? localCustomization.bannerDimness ?? localCustomization.banner_dimness
             ?? localCustomization.dashboard_banner_dimness ?? localCustomization.dashboardBannerDimness,
         ));
         console.log("[Student Profile Modal] profile load identifier:", {
@@ -717,11 +720,16 @@ function DashboardContent() {
         setCustomBannerUrl(
           active.profile.bannerUrl || preferences.customBannerUrl || preferences.banner_url || localCustomization.banner_url || "",
         );
-        const savedBannerPosition = preferences.bannerPosition ?? preferences.banner_position ?? localCustomization.banner_position ?? userMetadata.banner_position;
-        setBannerPosition(typeof savedBannerPosition === "number" && Number.isFinite(savedBannerPosition) ? savedBannerPosition : 50);
+        const savedBannerPosition = preferences.bannerPosition ?? preferences.banner_position
+          ?? localCustomization.bannerPosition ?? localCustomization.banner_position
+          ?? userMetadata.bannerPosition ?? userMetadata.banner_position;
+        setBannerPosition(normalizeBannerPosition(savedBannerPosition));
         setDashboardBannerDimness(normalizeBannerDimness(
-          preferences.dashboardBannerDimness ?? preferences.dashboard_banner_dimness
+          preferences.bannerDimness ?? preferences.banner_dimness
+            ?? preferences.dashboardBannerDimness ?? preferences.dashboard_banner_dimness
+            ?? localCustomization.bannerDimness ?? localCustomization.banner_dimness
             ?? localCustomization.dashboard_banner_dimness ?? localCustomization.dashboardBannerDimness
+            ?? userMetadata.bannerDimness ?? userMetadata.banner_dimness
             ?? userMetadata.dashboard_banner_dimness,
         ));
         setIsMounted(true);
@@ -1017,6 +1025,8 @@ function DashboardContent() {
       customBannerUrl: bannerUrl,
       bannerPosition,
       banner_position: bannerPosition,
+      bannerDimness: dashboardBannerDimness,
+      banner_dimness: dashboardBannerDimness,
       dashboardBannerDimness,
       dashboard_banner_dimness: dashboardBannerDimness,
     };
@@ -1026,7 +1036,10 @@ function DashboardContent() {
       avatar_url: avatarUrl,
       custom_avatar_url: avatarUrl,
       banner_url: bannerUrl,
+      bannerPosition,
       banner_position: bannerPosition,
+      bannerDimness: dashboardBannerDimness,
+      banner_dimness: dashboardBannerDimness,
       dashboard_banner_dimness: dashboardBannerDimness,
     };
     try {
@@ -1066,7 +1079,10 @@ function DashboardContent() {
           avatar_url: avatarUrl,
           custom_avatar_url: avatarUrl,
           banner_url: bannerUrl,
+          bannerPosition,
           banner_position: bannerPosition,
+          bannerDimness: dashboardBannerDimness,
+          banner_dimness: dashboardBannerDimness,
           dashboard_banner_dimness: dashboardBannerDimness,
         },
       });
@@ -1217,7 +1233,7 @@ function DashboardContent() {
       <div className="mx-auto max-w-7xl px-4 pt-6 md:px-6">
         <HeroBanner
           imageUrl={dashboardHeaderBanner}
-          position={normalizeBannerPosition({ x: 50, y: bannerPosition })}
+          position={bannerPosition}
           dimness={dashboardBannerDimness}
           onImageError={() => setBannerLoadFailed(true)}
         >
@@ -1753,35 +1769,18 @@ function DashboardContent() {
                             <img
                               src={activeBannerUrl}
                               alt="Banner preview"
-                              style={getBannerPositionStyles(normalizeBannerPosition({ x: 50, y: bannerPosition }))}
+                              style={getBannerPositionStyles(bannerPosition)}
                               className="h-full w-full object-cover"
                             />
-                            <div style={{ opacity: dashboardBannerDimness / 100 }} className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(12,16,23,.72),rgba(12,16,23,.24)),linear-gradient(0deg,rgba(12,16,23,.92),transparent_65%)]" />
+                            <div style={getBannerOverlayStyles(dashboardBannerDimness)} className="pointer-events-none absolute inset-0" />
                           </div>
-                          <label className="block text-[10px] text-stone-400">
-                            Vertical position <span className="float-right text-stone-500">{bannerPosition}%</span>
-                            <input
-                              type="range"
-                              min="0"
-                              max="100"
-                              value={bannerPosition}
-                              onChange={(event) => setBannerPosition(Number(event.target.value))}
-                              aria-label="Banner vertical position"
-                              className="mt-1 w-full accent-amber-500"
-                            />
-                          </label>
-                          <label className="block text-[10px] text-stone-400">
-                            Dashboard banner dimness <span className="float-right text-stone-500">{dashboardBannerDimness}%</span>
-                            <input
-                              type="range"
-                              min="0"
-                              max="100"
-                              value={dashboardBannerDimness}
-                              onChange={(event) => setDashboardBannerDimness(Number(event.target.value))}
-                              aria-label="Dashboard banner dimness"
-                              className="mt-1 w-full accent-amber-500"
-                            />
-                          </label>
+                          <BannerPositionControls
+                            position={bannerPosition}
+                            dimness={dashboardBannerDimness}
+                            onPositionChange={setBannerPosition}
+                            onDimnessChange={setDashboardBannerDimness}
+                            dimnessLabel="Dashboard banner dimness"
+                          />
                           <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-700/50 px-3 py-2 text-xs text-stone-300 transition-colors hover:border-slate-600">
                             <Upload className="h-4 w-4" />{isUploadingBanner ? "Uploading banner..." : "Upload banner image"}
                             <input ref={bannerFileRef} type="file" accept="image/jpeg,image/png,image/webp" disabled={isUploadingBanner} onChange={(event) => void uploadProfileImage(event.target.files?.[0], "banner")} className="sr-only" />

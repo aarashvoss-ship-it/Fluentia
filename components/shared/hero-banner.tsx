@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { getBannerPositionStyles, normalizeBannerDimness, type BannerFocalPosition } from "@/lib/banner-position";
+import { getBannerOverlayStyles, getBannerPositionStyles, type BannerFocalPosition } from "@/lib/banner-position";
 
 interface HeroBannerProps {
   imageUrl?: string;
@@ -67,8 +67,8 @@ export function HeroBanner({
         <div className="absolute inset-0 bg-slate-950" aria-hidden="true" />
       )}
       <div
-        style={{ opacity: normalizeBannerDimness(dimness) / 100 }}
-        className="absolute inset-0 bg-[linear-gradient(90deg,rgba(12,16,23,.72),rgba(12,16,23,.24)),linear-gradient(0deg,rgba(12,16,23,.92),transparent_65%)]"
+        style={getBannerOverlayStyles(dimness)}
+        className="absolute inset-0"
         aria-hidden="true"
       />
       <div className="absolute inset-0 z-10 flex flex-col items-start justify-start p-6 text-left md:p-8">
