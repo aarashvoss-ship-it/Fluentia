@@ -1989,7 +1989,7 @@ function DashboardContent() {
                         </span>
                       )}
                       <p className="flex items-center gap-2 text-[11px] text-stone-500">
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-surface text-[8px] font-semibold text-amber-400">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#d97706] text-base font-bold text-white">
                           {nextLesson.content?.instructor?.initials ||
                             assignedInstructorInitials}
                         </span>{" "}
@@ -2182,7 +2182,7 @@ function DashboardContent() {
                               "Continue your personalized language practice."}
                           </p>
                           <p className="mt-3 flex items-center gap-2 text-[11px] text-stone-500">
-                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-surface text-[8px] font-semibold text-amber-400">
+                            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#d97706] text-base font-bold text-white">
                               {lesson.content?.instructor?.initials ||
                                 assignedInstructorInitials}
                             </span>{" "}
