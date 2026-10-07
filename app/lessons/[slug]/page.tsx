@@ -23,7 +23,7 @@ import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { UnifiedReportCard, type UnifiedReportStage } from "@/components/shared/unified-report-card";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { FillInBlanksMarkdown } from "@/components/study-room/fill-in-blanks-markdown";
-import { normalizeBannerDimness, normalizeBannerPosition } from "@/lib/banner-position";
+import { DEFAULT_BANNER_IMAGE_URL, getFirstNonEmptyBannerUrl, normalizeBannerDimness, normalizeBannerPosition } from "@/lib/banner-position";
 import { HeroBanner, HeroBannerContent, HeroBannerLogo } from "@/components/shared/hero-banner";
 import { ExerciseQuestions } from "@/components/study-room/exercise-questions";
 import { WritingBlockRenderer } from "@/components/shared/writing-block";
@@ -350,7 +350,10 @@ export default function LessonPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [guidanceOpen, setGuidanceOpen] = useState(false);
   const [submissionSaveError, setSubmissionSaveError] = useState<string | null>(null);
-  const [bannerLoadFailed, setBannerLoadFailed] = useState(false);
+  const [failedBannerUrls, setFailedBannerUrls] = useState<string[]>([]);
+  useEffect(() => {
+    setFailedBannerUrls([]);
+  }, [lesson?.id, activeStudent?.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -408,7 +411,7 @@ export default function LessonPage() {
 
         const [studentResult, profileResult] = await Promise.all([
           supabase.from("students").select("name, email, token").eq("id", user.id).maybeSingle(),
-          supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
+          supabase.from("profiles").select("full_name, banner_url").eq("id", user.id).maybeSingle(),
         ]);
         if (!isCurrentRequest()) return;
 
@@ -452,6 +455,24 @@ export default function LessonPage() {
             fullName: name,
             level: "",
             targetGoal: "",
+            bannerUrl: getFirstNonEmptyBannerUrl(
+              profile?.banner_url,
+              user.user_metadata?.customBannerUrl,
+              user.user_metadata?.banner_url,
+            ),
+            customBannerUrl: getFirstNonEmptyBannerUrl(
+              profile?.banner_url,
+              user.user_metadata?.customBannerUrl,
+              user.user_metadata?.banner_url,
+            ),
+            bannerPosition: normalizeBannerPosition(
+              user.user_metadata?.bannerPosition ?? user.user_metadata?.banner_position,
+            ),
+            bannerDimness: normalizeBannerDimness(
+              user.user_metadata?.bannerDimness
+                ?? user.user_metadata?.banner_dimness
+                ?? user.user_metadata?.dashboard_banner_dimness,
+            ),
             weaknesses: [],
             teacherNotes: "",
             attendanceRate: 0,
@@ -798,17 +819,35 @@ export default function LessonPage() {
       : null;
   const lessonLevel = (lesson?.grade || "English B1").replace(/\s+Intermediate$/i, "").toUpperCase();
   const instructor = { fullName: INSTRUCTOR_USER.name, initials: "AV" };
-  const lessonBanner = typeof lessonContent.coverImage === "string"
-    ? lessonContent.coverImage
-    : typeof lessonContent.bannerUrl === "string"
-      ? lessonContent.bannerUrl
-      : typeof lesson?.banner_url === "string"
-        ? lesson.banner_url
-        : undefined;
-  const heroBanner = bannerLoadFailed ? undefined : lessonBanner;
+  const lessonBanner = getFirstNonEmptyBannerUrl(
+    rawLessonContent.customBannerUrl,
+    lessonContent.customBannerUrl,
+    lesson?.banner_url,
+    rawLessonContent.bannerUrl,
+    lessonContent.bannerUrl,
+    rawLessonContent.coverImage,
+    lessonContent.coverImage,
+  );
+  const studentBanner = getFirstNonEmptyBannerUrl(
+    activeStudent?.profile.customBannerUrl,
+    activeStudent?.profile.bannerUrl,
+  );
+  const bannerCandidates = [lessonBanner, studentBanner, DEFAULT_BANNER_IMAGE_URL]
+    .filter((url, index, candidates): url is string => Boolean(url) && candidates.indexOf(url) === index);
+  const heroBanner = bannerCandidates.find((url) => !failedBannerUrls.includes(url));
+  const usesLessonBanner = Boolean(lessonBanner && heroBanner === lessonBanner);
+  const usesStudentBanner = Boolean(studentBanner && heroBanner === studentBanner && !usesLessonBanner);
   const rawBannerPosition = rawLessonContent.bannerPosition ?? rawLessonContent.banner_position;
-  const bannerPosition = normalizeBannerPosition(rawBannerPosition);
-  const bannerDimness = normalizeBannerDimness(rawLessonContent.bannerDimness ?? rawLessonContent.banner_dimness);
+  const bannerPosition = usesLessonBanner
+    ? normalizeBannerPosition(rawBannerPosition)
+    : usesStudentBanner
+      ? normalizeBannerPosition(activeStudent?.profile.bannerPosition)
+      : normalizeBannerPosition(undefined);
+  const bannerDimness = usesLessonBanner
+    ? normalizeBannerDimness(rawLessonContent.bannerDimness ?? rawLessonContent.banner_dimness)
+    : usesStudentBanner
+      ? normalizeBannerDimness(activeStudent?.profile.bannerDimness)
+      : normalizeBannerDimness(undefined);
   const evaluation = publishedLesson?.evaluation;
   const isEvaluationPublished = evaluation?.published === true;
   const totalScore = evaluation?.totalScore ?? (evaluation
@@ -1249,7 +1288,14 @@ export default function LessonPage() {
         </p>
       )}
       {!isResultsStep && (
-        <HeroBanner imageUrl={heroBanner} position={bannerPosition} dimness={bannerDimness} onImageError={() => setBannerLoadFailed(true)}>
+        <HeroBanner
+          imageUrl={heroBanner}
+          position={bannerPosition}
+          dimness={bannerDimness}
+          onImageError={() => {
+            if (heroBanner) setFailedBannerUrls((failed) => [...failed, heroBanner]);
+          }}
+        >
           <HeroBannerContent
             logo={<HeroBannerLogo />}
             badge={

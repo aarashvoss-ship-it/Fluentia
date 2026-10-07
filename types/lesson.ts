@@ -297,6 +297,9 @@ export interface StudentProfile {
   fullName: string;
   avatarUrl?: string;
   bannerUrl?: string;
+  customBannerUrl?: string;
+  bannerPosition?: { x: number; y: number };
+  bannerDimness?: number;
   avatarBgColor?: string;
   avatarInitials?: string;
   email?: string;

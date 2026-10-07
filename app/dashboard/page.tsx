@@ -45,7 +45,7 @@ import {
   saveStudentProfile,
 } from "@/lib/student-profiles";
 import { createBrowserClient } from "@supabase/ssr";
-import { getBannerOverlayStyles, getBannerPositionStyles, normalizeBannerDimness, normalizeBannerPosition, type BannerFocalPosition } from "@/lib/banner-position";
+import { DEFAULT_BANNER_IMAGE_URL, getBannerOverlayStyles, getBannerPositionStyles, getFirstNonEmptyBannerUrl, normalizeBannerDimness, normalizeBannerPosition, type BannerFocalPosition } from "@/lib/banner-position";
 import { HeroBanner, HeroBannerContent, HeroBannerLogo } from "@/components/shared/hero-banner";
 import { BannerPositionControls } from "@/components/shared/banner-position-controls";
 
@@ -103,8 +103,7 @@ const BANNER_PRESETS = [
   {
     id: "default-dark",
     label: "Default",
-    image:
-      "https://images.unsplash.com/photo-1460551204960-763bc82b7d8f?q=80&w=1172&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+    image: DEFAULT_BANNER_IMAGE_URL,
   },
   {
     id: "mountains",
@@ -888,16 +887,13 @@ function DashboardContent() {
       : typeof nextLesson?.module_number === "number"
         ? nextLesson.module_number
         : null;
-  const instructorLessonBanner =
-    typeof lessonRecord?.cover_image === "string"
-      ? lessonRecord.cover_image
-      : typeof lessonRecord?.banner_url === "string"
-        ? lessonRecord.banner_url
-        : typeof nextLesson?.content?.coverImage === "string"
-          ? nextLesson.content.coverImage
-          : typeof nextLesson?.content?.bannerUrl === "string"
-            ? nextLesson.content.bannerUrl
-            : undefined;
+  const instructorLessonBanner = getFirstNonEmptyBannerUrl(
+    lessonContent.customBannerUrl,
+    lessonRecord?.banner_url,
+    lessonRecord?.cover_image,
+    lessonContent.bannerUrl,
+    lessonContent.coverImage,
+  );
   const nextLessonBannerPosition = normalizeBannerPosition(
     lessonContent.bannerPosition ?? lessonContent.banner_position,
   );
@@ -2132,11 +2128,11 @@ function DashboardContent() {
                       <div className="relative h-44 overflow-hidden border-b border-border">
                         <img
                           src={
-                            (typeof lesson.content?.coverImage === "string"
-                              ? lesson.content.coverImage
-                              : typeof lesson.content?.bannerUrl === "string"
-                                ? lesson.content.bannerUrl
-                                : undefined) || BANNER_PRESETS[0].image
+                            getFirstNonEmptyBannerUrl(
+                              (lesson.content as Record<string, unknown> | undefined)?.customBannerUrl,
+                              (lesson.content as Record<string, unknown> | undefined)?.bannerUrl,
+                              (lesson.content as Record<string, unknown> | undefined)?.coverImage,
+                            ) || BANNER_PRESETS[0].image
                           }
                           alt=""
                           style={getBannerPositionStyles(lessonBannerPosition)}
