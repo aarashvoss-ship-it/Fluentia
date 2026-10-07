@@ -70,13 +70,13 @@ const AVATAR_PRESETS = Object.values({
   indigo: {
     id: "indigo",
     label: "Indigo",
-    backgroundColor: "#818cf8",
+    backgroundColor: "#6366f1",
     className: "text-white",
   },
   emerald: {
     id: "emerald",
     label: "Emerald",
-    backgroundColor: "#36b37e",
+    backgroundColor: "#059669",
     className: "text-white",
   },
   crimson: {
