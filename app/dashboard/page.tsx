@@ -70,13 +70,13 @@ const AVATAR_PRESETS = Object.values({
   indigo: {
     id: "indigo",
     label: "Indigo",
-    backgroundColor: "#6366f1",
+    backgroundColor: "#5053C3",
     className: "text-white",
   },
   emerald: {
     id: "emerald",
     label: "Emerald",
-    backgroundColor: "#059669",
+    backgroundColor: "#1F7F5B",
     className: "text-white",
   },
   crimson: {
@@ -92,8 +92,8 @@ function resolveAvatarColor(color: string, presetId?: ProfilePreferences["avatar
   if (preset) return preset.backgroundColor;
 
   const normalizedColor = color.trim().toLowerCase();
-  if (normalizedColor === "#818cf8") return "#6366f1";
-  if (normalizedColor === "#36b37e") return "#059669";
+  if (["#6366f1", "#818cf8"].includes(normalizedColor)) return "#5053C3";
+  if (["#34d399", "#059669", "#36b37e"].includes(normalizedColor)) return "#1F7F5B";
   return color;
 }
 
