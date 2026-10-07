@@ -60,32 +60,32 @@ type LessonStatus =
   | "pending-review"
   | "completed";
 
-const AVATAR_PRESETS = [
-  {
+const AVATAR_PRESETS = Object.values({
+  amber: {
     id: "amber",
     label: "Amber",
     backgroundColor: "#f59e0b",
     className: "text-white",
   },
-  {
+  indigo: {
     id: "indigo",
     label: "Indigo",
     backgroundColor: "#6366f1",
     className: "text-white",
   },
-  {
+  emerald: {
     id: "emerald",
     label: "Emerald",
     backgroundColor: "#10b981",
     className: "text-white",
   },
-  {
+  crimson: {
     id: "crimson",
     label: "Rose",
-    backgroundColor: "#e11d48",
+    backgroundColor: "#f43f5e",
     className: "text-white",
   },
-] as const;
+} as const);
 
 const BANNER_PRESETS = [
   {
@@ -839,7 +839,7 @@ function DashboardContent() {
   const selectedAvatar =
     AVATAR_PRESETS.find((preset) => preset.id === avatarPreset) ||
     AVATAR_PRESETS[0];
-  const badgeColor = `color-mix(in srgb, ${avatarColor || activeStudent.profile?.avatarBgColor || "#f59e0b"} 35%, #121721)`;
+  const badgeColor = avatarColor || activeStudent.profile?.avatarBgColor || AVATAR_PRESETS[0].backgroundColor;
   const selectedBanner =
     BANNER_PRESETS.find((preset) => preset.id === bannerPreset) ||
     BANNER_PRESETS[0];
