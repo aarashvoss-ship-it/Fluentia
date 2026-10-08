@@ -68,19 +68,31 @@ export function WordCountedTextarea({
   };
 
   return (
-    <div className="relative">
-      <textarea
-        value={value}
-        onChange={handleChange}
-        rows={rows}
-        placeholder={placeholder}
-        readOnly={readOnly}
-        spellCheck={!config.disableSpellcheck}
-        autoCorrect={config.disableSpellcheck ? "off" : undefined}
-        autoCapitalize={config.disableSpellcheck ? "off" : undefined}
-        className={`${className}${counterEnabled ? " pb-8" : ""}`}
-        aria-label={ariaLabel}
-      />
+    <div>
+      <div className="relative" style={{ position: "relative" }}>
+        <textarea
+          value={value}
+          onChange={handleChange}
+          rows={rows}
+          placeholder={placeholder}
+          readOnly={readOnly}
+          spellCheck={!config.disableSpellcheck}
+          autoCorrect={config.disableSpellcheck ? "off" : undefined}
+          autoCapitalize={config.disableSpellcheck ? "off" : undefined}
+          className={className}
+          style={counterEnabled ? { paddingBottom: "2rem" } : undefined}
+          aria-label={ariaLabel}
+        />
+        {counterEnabled && (
+          <span
+            className={`pointer-events-none text-[11px] font-medium ${getCounterColor(wordCount, config)}`}
+            style={{ position: "absolute", bottom: "0.5rem", right: "0.75rem", zIndex: 1 }}
+            aria-live="polite"
+          >
+            {wordCount}{maxWords !== undefined && maxWords > 0 ? ` / ${maxWords}` : ""} words
+          </span>
+        )}
+      </div>
       {saveStatus && (
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
           <span className={`inline-flex items-center gap-1.5 text-xs ${
@@ -99,14 +111,6 @@ export function WordCountedTextarea({
             </button>
           )}
         </div>
-      )}
-      {counterEnabled && (
-        <span
-          className={`pointer-events-none absolute bottom-2 right-3 text-[11px] font-medium ${getCounterColor(wordCount, config)}`}
-          aria-live="polite"
-        >
-          {wordCount}{maxWords !== undefined && maxWords > 0 ? ` / ${maxWords}` : ""} words
-        </span>
       )}
     </div>
   );
