@@ -18,6 +18,7 @@ interface BannerManagerProps {
   dimness?: number;
   onUpdateDimness?: (dimness: number) => void;
   embedded?: boolean;
+  onSaveBanner?: () => Promise<boolean>;
 }
 
 const PRESET_BANNERS = [
@@ -38,11 +39,13 @@ export function InstructorBannerManager({
   dimness = 20,
   onUpdateDimness,
   embedded = false,
+  onSaveBanner,
 }: BannerManagerProps) {
   const [selectedUrl, setSelectedUrl] = useState<string>(bannerUrl);
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
+  const [bannerToast, setBannerToast] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isDraggingRef = useRef(false);
 
@@ -50,10 +53,24 @@ export function InstructorBannerManager({
     setSelectedUrl(bannerUrl);
   }, [bannerUrl]);
 
+  useEffect(() => {
+    if (!bannerToast) return;
+    const timeout = window.setTimeout(() => setBannerToast(null), 3000);
+    return () => window.clearTimeout(timeout);
+  }, [bannerToast]);
+
   const handleSelect = (url: string) => {
     setSelectedUrl(url);
     setUploadMessage(null);
     onUpdateBanner(url);
+    setBannerToast("Hero banner updated.");
+  };
+
+  const handleSaveBanner = async () => {
+    if (!onSaveBanner) return;
+    setBannerToast(null);
+    const saved = await onSaveBanner();
+    setBannerToast(saved ? "Hero banner settings saved." : "Unable to save hero banner settings.");
   };
 
   const getUploadedBannerPath = (url: string) => {
@@ -155,6 +172,7 @@ export function InstructorBannerManager({
 
   return (
     <div className={embedded ? "text-[#d9dce0]" : "rounded-xl border border-border bg-surface/60 p-5 text-[#d9dce0]"}>
+      {bannerToast && <p role="status" aria-live="polite" className={`mb-3 rounded-md border px-3 py-2 text-xs ${bannerToast.startsWith("Unable") ? "border-red-500/30 bg-red-950/30 text-red-200" : "border-emerald-500/30 bg-emerald-950/20 text-emerald-200"}`}>{bannerToast}</p>}
       {!embedded && <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h3 className="flex min-w-0 shrink items-center gap-2 whitespace-nowrap font-sans text-xl font-semibold">
           <Image aria-hidden="true" focusable="false" className="h-5 w-5 shrink-0 text-amber-400" />
@@ -283,6 +301,16 @@ export function InstructorBannerManager({
             </button>
           </div>
         </div>
+        {onSaveBanner && (
+          <button
+            type="button"
+            onClick={() => void handleSaveBanner()}
+            disabled={isUploading || isDeleting}
+            className="inline-flex w-full items-center justify-center rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-xs font-semibold text-amber-300 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Save Banner
+          </button>
+        )}
       </div>
     </div>
   );

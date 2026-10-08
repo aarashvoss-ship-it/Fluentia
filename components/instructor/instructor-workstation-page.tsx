@@ -1230,7 +1230,7 @@ export default function InstructorWorkstationPage({
     ? isDirty
     : currentDraftSignature !== lastSavedDraftSignature.current;
   const isSaveBarVisible = isDraftDirty || saveIndicator === "saving" || showSuccessCheck;
-  const saveLessonChangesRef = useRef<((status: "draft" | "published", isAutoSave?: boolean, isPublishAction?: boolean) => Promise<void>) | null>(null);
+  const saveLessonChangesRef = useRef<((status: "draft" | "published", isAutoSave?: boolean, isPublishAction?: boolean) => Promise<boolean>) | null>(null);
 
   async function handleStudentChange(student: StudentUser) {
     const id = student?.id?.trim();
@@ -2803,10 +2803,10 @@ export default function InstructorWorkstationPage({
 
   const saveLessonChanges = async (status: "draft" | "published", isAutoSave = false, isPublishAction = false) => {
     const selectedLessonId = databaseLessonId;
-    if (selectedLessonId && activeLessonIdRef.current !== selectedLessonId) return;
+    if (selectedLessonId && activeLessonIdRef.current !== selectedLessonId) return false;
     if (isAutoSave && saveInFlight.current) {
       pendingAutoSave.current = true;
-      return;
+      return false;
     }
     saveInFlight.current = true;
     const title = newLesson.title.trim() || "Untitled Lesson";
@@ -2822,7 +2822,7 @@ export default function InstructorWorkstationPage({
         setValidationErrors(errors);
         setPublishStatus("Fix the highlighted fields before publishing.");
         saveInFlight.current = false;
-        return;
+        return false;
       }
     }
     setValidationErrors({});
@@ -2838,7 +2838,7 @@ export default function InstructorWorkstationPage({
       setPublishStatus("Select a valid student before publishing.");
       if (!isAutoSave) setIsPublishing(false);
       saveInFlight.current = false;
-      return;
+      return false;
     }
     const content = {
       ...workstationState.content,
@@ -2897,7 +2897,7 @@ export default function InstructorWorkstationPage({
             changes_summary: `Initial lesson created as ${status}`,
           });
       const savedSlug = typeof lesson.content?.slug === "string" ? lesson.content.slug : slug;
-      if (requestId !== saveRequestId.current || activeLessonIdRef.current !== selectedLessonId) return;
+      if (requestId !== saveRequestId.current || activeLessonIdRef.current !== selectedLessonId) return false;
       saveSucceeded = true;
       const savedDraftSignature = getDraftSignature(
         workstationState.content,
@@ -2955,8 +2955,9 @@ export default function InstructorWorkstationPage({
       }
       console.log("Lesson saved successfully", { lessonId: lesson.id, status });
       if (!isAutoSave) setPublishStatus(`Lesson saved as ${status}.${assignmentSyncWarning || " Synced with student view."}`);
+      return true;
     } catch (error) {
-      if (requestId !== saveRequestId.current || activeLessonIdRef.current !== selectedLessonId) return;
+      if (requestId !== saveRequestId.current || activeLessonIdRef.current !== selectedLessonId) return false;
       console.error("Lesson save failed raw:", JSON.stringify(error, Object.getOwnPropertyNames(error)), error);
       const details = error && typeof error === "object"
         ? error as { code?: string; message?: string; details?: string; hint?: string; status?: number }
@@ -2978,6 +2979,7 @@ export default function InstructorWorkstationPage({
       }
       setSaveIndicator("error");
       if (!isAutoSave) setPublishStatus("Lesson save failed. Check the Supabase connection and try again.");
+      return false;
     } finally {
       if (requestId === saveRequestId.current) {
         saveInFlight.current = false;
@@ -2998,6 +3000,8 @@ export default function InstructorWorkstationPage({
     console.log("Saving lesson...", { ...newLesson, content: workstationState.content });
     void saveLessonChanges(lessonStatus);
   };
+
+  const handleSaveBanner = async () => saveLessonChanges(lessonStatus);
 
   const openQuickTagEditor = (lesson: LessonWithVersion) => {
     const content = (lesson.content || {}) as Record<string, any>;
@@ -3659,6 +3663,7 @@ export default function InstructorWorkstationPage({
           onUpdatePosition={(bannerPosition) => setWorkstationState((previous) => ({ ...previous, bannerPosition }))}
           onUpdateDimness={(bannerDimness) => setWorkstationState((previous) => ({ ...previous, bannerDimness }))}
           onUpdateCustomInput={(customBannerUrl) => setWorkstationState((previous) => ({ ...previous, customBannerUrl }))}
+          onSaveBanner={handleSaveBanner}
         />
       </div>
     </details>
@@ -3675,7 +3680,7 @@ export default function InstructorWorkstationPage({
 
   return (
     <div className="min-h-screen w-full bg-background font-sans text-[#e8e7e4]">
-      <div className={`mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 md:py-8 lg:px-8 ${activeTab === "builder" ? "pb-28" : ""}`}>
+      <div className={`mx-auto w-full ${activeTab === "builder" ? "max-w-none px-4 md:px-8" : "max-w-7xl px-4 sm:px-6 lg:px-8"} py-6 md:py-8 ${activeTab === "builder" ? "pb-28" : ""}`}>
         <div className="mb-6 flex items-center">
           <img src="/logo.png" alt="Fluentia" className="h-10 w-auto object-contain" />
         </div>
