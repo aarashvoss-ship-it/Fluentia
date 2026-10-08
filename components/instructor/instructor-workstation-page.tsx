@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, ChevronRight, Eye, Grid3X3, Image, List, MoreVertical, Pencil, Plus, Search, Trash2, X, Lightbulb, UploadCloud } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Eye, FileText, Grid3X3, Image, List, MoreVertical, Pencil, Plus, Search, Trash2, X, Lightbulb, UploadCloud } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { LessonBuilderSidebar, LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
 import { InstructorBannerManager, type BannerPosition } from "@/components/instructor/banner-manager";
@@ -861,6 +861,7 @@ export default function InstructorWorkstationPage({
   const [librarySearch, setLibrarySearch] = useState("");
   const [libraryLevel, setLibraryLevel] = useState("all");
   const [libraryDomain, setLibraryDomain] = useState("all");
+  const [libraryStatusTab, setLibraryStatusTab] = useState<"published" | "draft">("published");
   const [librarySortBy, setLibrarySortBy] = useState<"title" | "domain" | "practiceType" | "skillFocus">("title");
   const [libraryView, setLibraryView] = useState<"grid" | "table">("grid");
   const [expandedLibraryMetadata, setExpandedLibraryMetadata] = useState<Set<string>>(() => new Set());
@@ -3441,7 +3442,10 @@ export default function InstructorWorkstationPage({
       return next;
     });
   };
-  const filteredLibraryLessons = createdLessons.filter((lesson) => {
+  const publishedLibraryCount = createdLessons.filter((lesson) => lesson.status === "published").length;
+  const draftLibraryCount = createdLessons.filter((lesson) => lesson.status === "draft").length;
+  const statusLibraryLessons = createdLessons.filter((lesson) => lesson.status === libraryStatusTab);
+  const filteredLibraryLessons = statusLibraryLessons.filter((lesson) => {
     const metadata = getLessonMetadata(lesson);
     const query = librarySearch.trim().toLowerCase();
     return (!query || lesson.title.toLowerCase().includes(query) || metadata.subtitle.toLowerCase().includes(query))
@@ -3895,8 +3899,28 @@ export default function InstructorWorkstationPage({
         {activeTab === "library" && <section className="space-y-5" aria-labelledby="lesson-library-title">
           <div className="flex flex-col gap-4 rounded-xl border border-border bg-surface/60 p-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
-              <div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Lesson Management</p><h2 id="lesson-library-title" className="mt-1 font-sans text-2xl font-semibold text-stone-100">Lesson Library</h2><p className="mt-1 text-sm text-stone-500">{filteredLibraryLessons.length} of {createdLessons.length} lessons</p></div>
+              <div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Lesson Management</p><h2 id="lesson-library-title" className="mt-1 font-sans text-2xl font-semibold text-stone-100">Lesson Library</h2><p className="mt-1 text-sm text-stone-500">{filteredLibraryLessons.length} of {statusLibraryLessons.length} {libraryStatusTab} lessons</p></div>
               <Tooltip content="Start a new lesson draft"><button type="button" onClick={startNewLesson} className="rounded-md bg-amber-500/20 px-3 py-2 text-xs  text-amber-400 transition hover:bg-amber-500/20">Create New Lesson</button></Tooltip>
+            </div>
+            <div className="flex w-fit rounded-lg border border-border bg-background/70 p-1" role="tablist" aria-label="Filter lesson library by status">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={libraryStatusTab === "published"}
+                onClick={() => setLibraryStatusTab("published")}
+                className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-xs transition ${libraryStatusTab === "published" ? "bg-emerald-500/15 text-emerald-300" : "text-stone-400 hover:text-stone-200"}`}
+              >
+                <span aria-hidden="true">●</span>Published<span className="rounded-full bg-background/70 px-2 py-0.5 text-[10px]">{publishedLibraryCount}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={libraryStatusTab === "draft"}
+                onClick={() => setLibraryStatusTab("draft")}
+                className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-xs transition ${libraryStatusTab === "draft" ? "bg-amber-500/15 text-amber-300" : "text-stone-400 hover:text-stone-200"}`}
+              >
+                <FileText className="h-3.5 w-3.5" aria-hidden="true" />Drafts<span className="rounded-full bg-background/70 px-2 py-0.5 text-[10px]">{draftLibraryCount}</span>
+              </button>
             </div>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
               <label className="relative min-w-0 flex-1"><span className="sr-only">Search lessons</span><Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-stone-500" /><input value={librarySearch} onChange={(event) => setLibrarySearch(event.target.value)} placeholder="Search by title or subtitle" className="w-full rounded-md border border-border bg-background py-2.5 pl-9 pr-3 text-xs text-stone-200 outline-none focus:border-amber-500/40" /></label>
@@ -4010,7 +4034,15 @@ export default function InstructorWorkstationPage({
               </table>
             </div>
           )}
-          {filteredLibraryLessons.length === 0 && <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-stone-500">No lessons match these filters.</div>}
+          {filteredLibraryLessons.length === 0 && (
+            <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-stone-500">
+              {statusLibraryLessons.length === 0
+                ? libraryStatusTab === "draft"
+                  ? "No draft lessons found. Click 'Create New Lesson' to start one."
+                  : "No published lessons found."
+                : `No ${libraryStatusTab} lessons match these filters.`}
+            </div>
+          )}
           {quickTagEditor && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !quickTagSaving) setQuickTagEditor(null); }}><section role="dialog" aria-modal="true" aria-labelledby="quick-tag-editor-title" className="w-full max-w-lg rounded-lg border border-border bg-surface p-5 shadow-2xl"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Lesson metadata</p><h3 id="quick-tag-editor-title" className="mt-1 text-lg font-semibold text-stone-100">Edit level & tags</h3></div><button type="button" aria-label="Close tag editor" disabled={quickTagSaving} onClick={() => setQuickTagEditor(null)} className="rounded border border-border p-1.5 text-stone-400 hover:text-stone-100 disabled:opacity-50"><X className="h-4 w-4" /></button></div><div className="mt-5 grid gap-3 sm:grid-cols-2"><label className="text-xs text-stone-400">CEFR Level<select value={quickTagEditor.level} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, level: event.target.value } : current)} className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-white [color-scheme:dark]">{CEFR_LEVELS.map((level) => <option key={level}>{level}</option>)}</select></label><label className="text-xs text-stone-400">Domain<input value={quickTagEditor.tags.domain} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, domain: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Skill Focus<input value={quickTagEditor.tags.skill_focus} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, skill_focus: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400">Practice Type<input value={quickTagEditor.tags.practice_type} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, tags: { ...current.tags, practice_type: event.target.value } } : current)} className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200" /></label><label className="text-xs text-stone-400 sm:col-span-2">Custom Tags<input value={quickTagEditor.customTagsText} onChange={(event) => setQuickTagEditor((current) => current ? { ...current, customTagsText: event.target.value } : current)} placeholder="Comma-separated custom tags" className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200" /></label></div>{quickTagError && <p role="alert" className="mt-3 text-xs text-red-300">{quickTagError}</p>}<div className="mt-5 flex justify-end gap-2"><button type="button" disabled={quickTagSaving} onClick={() => setQuickTagEditor(null)} className="rounded-md border border-border px-3 py-2 text-xs text-stone-300 disabled:opacity-50">Cancel</button><button type="button" disabled={quickTagSaving} onClick={() => void saveQuickTagEditor()} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/20 px-3 py-2 text-xs  text-amber-400 disabled:opacity-50">{quickTagSaving ? "Saving..." : <><Check className="h-3.5 w-3.5" />Save tags</>}</button></div></section></div>}
         </section>}
 
