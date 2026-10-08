@@ -3,7 +3,7 @@ ALTER TABLE public.student_resources
 
 ALTER TABLE public.student_resources
   ADD CONSTRAINT student_resources_resource_type_check
-  CHECK (resource_type IN ('note', 'reading', 'flashcard', 'quiz', 'audio', 'data_table', 'file', 'image', 'video'));
+  CHECK (resource_type IN ('note', 'reading', 'flashcard', 'flashcards', 'quiz', 'audio', 'data_table', 'file', 'image', 'video'));
 
 ALTER TABLE public.student_resources
   ADD COLUMN IF NOT EXISTS storage_path text,
