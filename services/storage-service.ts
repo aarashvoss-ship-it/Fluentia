@@ -496,7 +496,7 @@ export async function fetchLessonState(
             } else {
               const result = await supabase
                 .from("submissions")
-                .select("id,status,submitted_at,evaluationViewedAt:answers->>evaluationViewedAt")
+                .select("id,answers,status,submitted_at,evaluationViewedAt:answers->>evaluationViewedAt")
                 .eq("lesson_id", lessonId)
                 .eq("student_id", authenticatedStudentId)
                 .order("submitted_at", { ascending: false })
@@ -785,7 +785,7 @@ async function persistStudentSubmission(
       } else {
         console.error("[Lesson Submission] Supabase final save failed:", { slug, studentToken, error });
       }
-      if (!demoDataEnabled()) throw toStorageError(error, `Unable to save submission for ${slug}`);
+      throw toStorageError(error, `Unable to save submission for ${slug}`);
     }
   }
     // Supabase lesson not found — fall through to local save instead of throwing

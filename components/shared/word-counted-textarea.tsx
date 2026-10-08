@@ -12,6 +12,8 @@ interface WordCountedTextareaProps {
   className: string;
   ariaLabel: string;
   readOnly?: boolean;
+  saveStatus?: "saving" | "saved" | "unsaved";
+  onSaveProgress?: () => void;
 }
 
 function countWords(value: string) {
@@ -46,6 +48,8 @@ export function WordCountedTextarea({
   className,
   ariaLabel,
   readOnly = false,
+  saveStatus,
+  onSaveProgress,
 }: WordCountedTextareaProps) {
   const counterEnabled = wordCountConfig?.enabled === true;
   const config = wordCountConfig ?? { enabled: false };
@@ -77,6 +81,25 @@ export function WordCountedTextarea({
         className={`${className}${counterEnabled ? " pb-8" : ""}`}
         aria-label={ariaLabel}
       />
+      {saveStatus && (
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+          <span className={`inline-flex items-center gap-1.5 text-xs ${
+            saveStatus === "saving" ? "text-amber-300" : saveStatus === "saved" ? "text-emerald-400" : "text-red-300"
+          }`} role="status" aria-live="polite">
+            <span aria-hidden="true">●</span>
+            {saveStatus === "saving" ? "Saving..." : saveStatus === "saved" ? "All changes saved" : "Unsaved changes (Local backup kept)"}
+          </span>
+          {onSaveProgress && (
+            <button
+              type="button"
+              onClick={onSaveProgress}
+              className="rounded border border-border px-2.5 py-1 text-xs text-stone-300 transition hover:border-amber-500/50 hover:text-amber-300"
+            >
+              Save Progress
+            </button>
+          )}
+        </div>
+      )}
       {counterEnabled && (
         <span
           className={`pointer-events-none absolute bottom-2 right-3 text-[11px] font-medium ${getCounterColor(wordCount, config)}`}

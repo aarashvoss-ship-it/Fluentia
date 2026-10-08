@@ -21,6 +21,7 @@ import { StudyRoomTimer } from "@/components/study-room/study-room-timer";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { WordCountedTextarea } from "@/components/shared/word-counted-textarea";
+import { readStudentResponseDraft, removeStudentResponseDraft, writeStudentResponseDraft } from "@/lib/student-response-drafts";
 import { UnifiedReportCard, type UnifiedReportStage } from "@/components/shared/unified-report-card";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { FillInBlanksMarkdown } from "@/components/study-room/fill-in-blanks-markdown";
@@ -339,6 +340,7 @@ export default function LessonPage() {
     audioUploads: {},
   });
   const submissionSaveQueue = useRef<Promise<void>>(Promise.resolve());
+  const submissionSaveInFlight = useRef<Promise<boolean> | null>(null);
   const evaluationViewedSubmissionRef = useRef<string | null>(null);
   const submissionSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSubmissionSave = useRef<QueuedSubmissionSave | null>(null);
@@ -353,6 +355,8 @@ export default function LessonPage() {
   );
   const [guidanceOpen, setGuidanceOpen] = useState(false);
   const [submissionSaveError, setSubmissionSaveError] = useState<string | null>(null);
+  const [submissionSyncStatus, setSubmissionSyncStatus] = useState<"saving" | "saved" | "unsaved">("saved");
+  const [pendingExitHref, setPendingExitHref] = useState<string | null>(null);
   const [failedBannerUrls, setFailedBannerUrls] = useState<string[]>([]);
   useEffect(() => {
     setFailedBannerUrls([]);
@@ -386,6 +390,8 @@ export default function LessonPage() {
       setCurrentStep("warm_up");
       setIsModalOpen(false);
       setSubmissionSaveError(null);
+      setSubmissionSyncStatus("saved");
+      setPendingExitHref(null);
       if (submissionSaveTimer.current) clearTimeout(submissionSaveTimer.current);
       submissionSaveTimer.current = null;
       pendingSubmissionSave.current?.resolve(false);
@@ -630,7 +636,7 @@ export default function LessonPage() {
         : null;
       const persistedStep = progress.currentStep !== "results" || canShowResults ? progress.currentStep : "warm_up";
       setPublishedLesson(state?.status !== "draft" ? state : null);
-      setSubmission(hydratedSubmission || {
+      const restoredSubmission: StudentSubmission = hydratedSubmission || {
         status: "in_progress",
         listeningAnswers: {},
         readingAnswers: {},
@@ -639,7 +645,41 @@ export default function LessonPage() {
         blockResponses: {},
         quizSelections: {},
         audioUploads: {},
-      });
+      };
+      let restoredNewerLocalDraft = false;
+      if (restoredSubmission.status === "in_progress" && typeof window !== "undefined") {
+        const content = lesson.content as Record<string, unknown>;
+        const responseBlockIds = new Set<string>();
+        Object.values(content).forEach((stepValue) => {
+          if (!stepValue || typeof stepValue !== "object") return;
+          const blocks = (stepValue as { blocks?: unknown }).blocks;
+          if (!Array.isArray(blocks)) return;
+          blocks.forEach((block) => {
+            if (!block || typeof block !== "object") return;
+            const candidate = block as { id?: unknown; type?: unknown; hasStudentResponseInput?: unknown; studentResponseConfig?: { enabled?: unknown } };
+            if (candidate.type === "text"
+              && typeof candidate.id === "string"
+              && (candidate.hasStudentResponseInput === true || candidate.studentResponseConfig?.enabled === true)) {
+              responseBlockIds.add(candidate.id);
+            }
+          });
+        });
+        const remoteUpdatedAt = Date.parse(restoredSubmission.submittedAt || "");
+        const blockResponses = { ...(restoredSubmission.blockResponses || {}) };
+        responseBlockIds.forEach((blockId) => {
+          const localDraft = readStudentResponseDraft(lesson.id, blockId, activeToken);
+          if (!localDraft || !Number.isFinite(Date.parse(localDraft.updatedAt))) return;
+          const localUpdatedAt = Date.parse(localDraft.updatedAt);
+          if (!Number.isFinite(remoteUpdatedAt) || localUpdatedAt > remoteUpdatedAt) {
+            blockResponses[blockId] = localDraft.value;
+            restoredNewerLocalDraft = true;
+          } else {
+            removeStudentResponseDraft(lesson.id, blockId, activeToken);
+          }
+        });
+        restoredSubmission.blockResponses = blockResponses;
+      }
+      setSubmission(restoredSubmission);
       setCurrentStep(allowedRequestedStep || (canShowResults
         ? "results"
         : reportCardRequested && state?.evaluation?.published
@@ -648,6 +688,10 @@ export default function LessonPage() {
       setCompletedSteps(progress.completedSteps);
       setSubmissionHydrated(true);
       setLessonStateHydrated(true);
+      setSubmissionSyncStatus(restoredNewerLocalDraft ? "saving" : "saved");
+      if (restoredNewerLocalDraft) {
+        void persistSubmission(restoredSubmission, undefined, true);
+      }
     }).catch((error) => {
       if (cancelled) return;
       console.error("Failed to hydrate lesson state:", error);
@@ -810,9 +854,26 @@ export default function LessonPage() {
     submissionSaveTimer.current = null;
     const queued = pendingSubmissionSave.current;
     pendingSubmissionSave.current = null;
-    if (!queued) return Promise.resolve(false);
+    if (!queued) return submissionSaveInFlight.current || Promise.resolve(false);
     const save = persistSubmissionNow(queued.submission, queued.progress, true);
-    void save.then(queued.resolve);
+    submissionSaveInFlight.current = save;
+    void save.then((saved) => {
+      if (submissionSaveInFlight.current === save) submissionSaveInFlight.current = null;
+      if (saved) {
+        const studentId = activeStudent?.id;
+        if (studentId) {
+          Object.entries(queued.submission.blockResponses || {}).forEach(([blockId, value]) => {
+            if (readStudentResponseDraft(lesson?.id || "", blockId, studentId)?.value === value) {
+              removeStudentResponseDraft(lesson?.id || "", blockId, studentId);
+            }
+          });
+        }
+      }
+      if (!pendingSubmissionSave.current && !submissionSaveTimer.current) {
+        setSubmissionSyncStatus(saved ? "saved" : "unsaved");
+      }
+      queued.resolve(saved);
+    });
     return save;
   }
 
@@ -824,6 +885,7 @@ export default function LessonPage() {
   ): Promise<boolean> {
     if (!lesson) return Promise.resolve(false);
     if (optimistic) setSubmission(nextSubmission);
+    setSubmissionSyncStatus("saving");
     if (nextSubmission.status === "pending_evaluation" || nextSubmission.status === "submitted") setSubmissionSaveError(null);
     const progress = {
       currentStep: nextProgress?.currentStep || currentStep,
@@ -840,19 +902,91 @@ export default function LessonPage() {
         submissionSaveTimer.current = setTimeout(() => {
           submissionSaveTimer.current = null;
           void flushPendingSubmissionSave();
-        }, 500);
+        }, 1750);
       }
     });
   }
 
+  function saveSubmissionProgress(): Promise<boolean> {
+    return (async () => {
+      let saved = true;
+      while (pendingSubmissionSave.current || submissionSaveInFlight.current) {
+        saved = await flushPendingSubmissionSave();
+        if (!saved) return false;
+      }
+      if (submissionSyncStatus === "unsaved") {
+        return persistSubmission(submission, undefined, true, true);
+      }
+      return saved;
+    })();
+  }
+
+  function updateTextResponse(blockId: string, value: string): void {
+    if (lesson && activeStudent?.id) {
+      writeStudentResponseDraft(lesson.id, blockId, activeStudent.id, value);
+    }
+    void persistSubmission({
+      ...submission,
+      blockResponses: { ...(submission.blockResponses || {}), [blockId]: value },
+    });
+  }
+
+  function discardPendingChangesAndExit(): void {
+    if (!pendingExitHref) return;
+    if (submissionSaveTimer.current) clearTimeout(submissionSaveTimer.current);
+    submissionSaveTimer.current = null;
+    pendingSubmissionSave.current?.resolve(false);
+    pendingSubmissionSave.current = null;
+    if (lesson && activeStudent?.id) {
+      Object.keys(submission.blockResponses || {}).forEach((blockId) => {
+        removeStudentResponseDraft(lesson.id, blockId, activeStudent.id);
+      });
+    }
+    const destination = pendingExitHref;
+    setPendingExitHref(null);
+    setSubmissionSyncStatus("saved");
+    router.push(destination);
+  }
+
+  async function saveChangesAndExit(): Promise<void> {
+    if (!pendingExitHref) return;
+    const saved = await saveSubmissionProgress();
+    if (!saved) return;
+    const destination = pendingExitHref;
+    setPendingExitHref(null);
+    router.push(destination);
+  }
+
+  useEffect(() => {
+    if (submissionSyncStatus === "saved") return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    const handleInternalNavigation = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const anchor = target.closest("a[href]") as HTMLAnchorElement | null;
+      if (!anchor || anchor.target === "_blank" || anchor.hasAttribute("download")) return;
+      const destination = new URL(anchor.href, window.location.href);
+      if (destination.origin !== window.location.origin || destination.pathname === window.location.pathname) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setPendingExitHref(destination.href);
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    document.addEventListener("click", handleInternalNavigation, true);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("click", handleInternalNavigation, true);
+    };
+  }, [submissionSyncStatus]);
+
   useEffect(() => () => {
     if (submissionSaveTimer.current) clearTimeout(submissionSaveTimer.current);
     submissionSaveTimer.current = null;
-    const queued = pendingSubmissionSave.current;
-    pendingSubmissionSave.current = null;
-    if (queued) {
-      void persistSubmissionNow(queued.submission, queued.progress, true).then(queued.resolve);
-    }
+    if (pendingSubmissionSave.current) void flushPendingSubmissionSave();
   }, [lesson?.id, activeStudent?.id]);
 
   const lessonContent = (lesson?.content || {}) as any;
@@ -1283,7 +1417,7 @@ export default function LessonPage() {
         const article = (
         <article key={block.id} className="rounded-xl border border-border bg-surface p-5">
           {block.title && <h3 className="mb-3 flex items-center gap-2 font-sans text-xl font-semibold text-stone-100">{block.icon && <DynamicLucideIcon name={block.icon} className="h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />}{block.title}</h3>}
-          {block.type === "text" && <><MarkdownContent value={block.body} className="text-sm leading-relaxed text-stone-300" />{hasStudentResponse(block) && (() => { const responseType = getStudentResponseType(block); if (responseType === "voice" || responseType === "audio") return <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />; if (responseType === "file") return <FileResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value } })} />; return <WordCountedTextarea value={submission.blockResponses?.[block.id] || ""} onChange={(value) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [block.id]: value } })} wordCountConfig={block.wordCountConfig} rows={8} placeholder="Write your response here..." className="mt-4 w-full min-h-[200px] resize-y rounded-lg border border-border bg-background p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" ariaLabel={`${block.title || "Text"} response`} />; })()}</>}
+          {block.type === "text" && <><MarkdownContent value={block.body} className="text-sm leading-relaxed text-stone-300" />{hasStudentResponse(block) && (() => { const responseType = getStudentResponseType(block); if (responseType === "voice" || responseType === "audio") return <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />; if (responseType === "file") return <FileResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value } })} />; return <WordCountedTextarea value={submission.blockResponses?.[block.id] || ""} onChange={(value) => updateTextResponse(block.id, value)} wordCountConfig={block.wordCountConfig} rows={8} placeholder="Write your response here..." className="mt-4 w-full min-h-[200px] resize-y rounded-lg border border-border bg-background p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" ariaLabel={`${block.title || "Text"} response`} saveStatus={submissionSyncStatus} onSaveProgress={() => void saveSubmissionProgress()} />; })()}</>}
           {block.type === "audio" && <>{block.audioUrl && <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio assignment"} />}{block.allowStudentVoiceResponse === true && <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />}<MediaTranscriptAccordion transcript={block.transcript} isUnlocked={areTranscriptsUnlocked} /></>}
           {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} transcriptLocked={!areTranscriptsUnlocked} />{!areTranscriptsUnlocked && <MediaTranscriptAccordion transcript={block.transcript} isUnlocked={false} />}{block.show_reflection_prompt !== false && block.reflection_prompt_text?.trim() && <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/20 p-4"><p className="text-sm font-semibold text-amber-400">Reflection Question</p><MarkdownContent value={block.reflection_prompt_text.trim()} className="mt-2 text-sm leading-relaxed text-stone-300" /><textarea value={submission.blockResponses?.[`${block.id}-reflection`] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [`${block.id}-reflection`]: event.target.value } })} rows={5} placeholder="Write your reflection here..." className="mt-3 w-full resize-y rounded-lg border border-border bg-background p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" aria-label="Reflection question response" /></div>}</>}
           {block.type === "fill-in-the-blanks" && renderFillInTheBlanks(block)}
@@ -1340,6 +1474,32 @@ export default function LessonPage() {
         <p role="alert" className="mb-4 rounded-md border border-red-500/30 bg-red-950/30 px-4 py-3 text-sm text-red-200">
           Your submission could not be saved: {submissionSaveError}
         </p>
+      )}
+      {pendingExitHref && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" role="presentation">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="unsaved-response-title"
+            className="w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-2xl"
+          >
+            <h2 id="unsaved-response-title" className="text-lg font-semibold text-stone-100">Unsaved response changes</h2>
+            <p className="mt-2 text-sm leading-relaxed text-stone-400">
+              Your latest responses have a local backup, but may not be synced to the server yet.
+            </p>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={() => setPendingExitHref(null)} className="rounded-md border border-border px-3 py-2 text-sm text-stone-300 hover:text-white">
+                Cancel
+              </button>
+              <button type="button" onClick={discardPendingChangesAndExit} className="rounded-md border border-red-500/40 px-3 py-2 text-sm text-red-200 hover:bg-red-950/30">
+                Discard &amp; Exit
+              </button>
+              <button type="button" onClick={() => void saveChangesAndExit()} className="rounded-md bg-amber-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-400">
+                Save &amp; Exit
+              </button>
+            </div>
+          </section>
+        </div>
       )}
       {!isResultsStep && (
         <HeroBanner
