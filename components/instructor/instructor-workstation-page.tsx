@@ -2247,9 +2247,6 @@ export default function InstructorWorkstationPage({
         )) {
           throw new Error("Apply migration 029 before saving flashcard decks.");
         }
-        if ((resourceType === "image" || resourceType === "video") && error.code === "23514") {
-          throw new Error("Apply migration 028 before saving image and video resources.");
-        }
         throw error;
       }
 
@@ -2307,8 +2304,11 @@ export default function InstructorWorkstationPage({
         (typeof errorObject?.message === "string" && errorObject.message) ||
         (typeof errorObject?.error_description === "string" && errorObject.error_description) ||
         (serializedError && serializedError !== "{}" ? serializedError : fallbackMessage);
-      console.error("Student resource save failed:", message);
-      setResourceStatus(`Resource save failed: ${message}`);
+      const details = typeof errorObject?.details === "string" ? errorObject.details : "";
+      const hint = typeof errorObject?.hint === "string" ? errorObject.hint : "";
+      const diagnostic = [details, hint].filter(Boolean).join(" ");
+      console.error("Student resource save failed:", { message, details, hint, code: errorObject?.code, constraint: errorObject?.constraint });
+      setResourceStatus(`Resource save failed: ${message}${diagnostic ? ` (${diagnostic})` : ""}`);
     }
   };
 
