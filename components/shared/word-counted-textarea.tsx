@@ -71,6 +71,9 @@ export function WordCountedTextarea({
         rows={rows}
         placeholder={placeholder}
         readOnly={readOnly}
+        spellCheck={!config.disableSpellcheck}
+        autoCorrect={config.disableSpellcheck ? "off" : undefined}
+        autoCapitalize={config.disableSpellcheck ? "off" : undefined}
         className={`${className}${counterEnabled ? " pb-8" : ""}`}
         aria-label={ariaLabel}
       />

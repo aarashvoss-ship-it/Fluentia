@@ -108,6 +108,7 @@ export interface WordCountConfig {
   minWords?: number;
   maxWords?: number;
   enforceHardLimit?: boolean;
+  disableSpellcheck?: boolean;
 }
 
 export interface TextContentBlock extends ContentBlockBase {

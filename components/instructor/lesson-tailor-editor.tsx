@@ -820,6 +820,10 @@ export function LessonTailorEditor({
                     Lock text on max words (Hard Limit)
                   </label>
                 </div>}
+                <label className="flex cursor-pointer items-start gap-2 text-xs text-stone-300">
+                  <input type="checkbox" checked={block.wordCountConfig?.disableSpellcheck === true} onChange={(event) => updateDynamicBlock(step, index, { wordCountConfig: { ...(block.wordCountConfig ?? { enabled: false }), disableSpellcheck: event.target.checked } })} className="mt-0.5 h-4 w-4 accent-amber-500" />
+                  Disable Browser Spellcheck (e.g. for formal tests/quizzes)
+                </label>
                 <WordCountedTextarea value="" onChange={() => undefined} wordCountConfig={block.wordCountConfig} rows={6} placeholder="Write your response here..." readOnly className="min-h-[140px] w-full resize-y rounded border border-border bg-surface p-3 text-sm text-stone-400" ariaLabel="Student response field preview" />
               </>}
               {(block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true) && (block.studentResponseType === "voice" || block.studentResponseType === "audio") && <div className="flex items-center gap-2 rounded border border-border bg-surface p-3 text-xs text-stone-400"><Mic className="h-4 w-4 text-amber-400" />Voice recorder preview</div>}
