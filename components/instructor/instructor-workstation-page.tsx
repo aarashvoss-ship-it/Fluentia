@@ -10,7 +10,7 @@ import { normalizeBannerDimness } from "@/lib/banner-position";
 import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/submission-evaluator";
 import type { UnifiedReportStage } from "@/components/shared/unified-report-card";
 import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission, StudyStepId, type LessonResource } from "@/types/lesson";
-import { assignLessonToAllActiveStudents, assignLessonToStudent, createLesson, deleteLesson, getLessons, publishLessonAndAssign, setLessonAssignments, unassignLesson, updateLesson, type LessonTags, type LessonWithVersion } from "@/lib/lessons";
+import { assignLessonToAllActiveStudents, createLesson, deleteLesson, getLessons, publishLessonAndAssign, setLessonAssignments, unassignLesson, updateLesson, type LessonTags, type LessonWithVersion } from "@/lib/lessons";
 import { PublishedLessonState } from "@/lib/lesson-store";
 import { deduplicateStudents, StudentUser } from "@/lib/users";
 import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/storage-service";
@@ -1740,30 +1740,50 @@ export default function InstructorWorkstationPage({
     }
   };
 
-  const getAssignedStudentNames = (lesson: LessonWithVersion) => {
+  const isAssignedToAllStudents = (lesson: LessonWithVersion) => {
     const metadata = (lesson.content || {}) as Record<string, any>;
-    const assignedAll = metadata.assignedAllStudents === true
+    return metadata.assignedAllStudents === true
       || metadata.assigned_all_students === true
       || metadata.assignmentMode === "all";
-    if (assignedAll) return ["All Students"];
+  };
 
+  const hasDisplayableStudentName = (student: StudentUser) =>
+    Boolean(student.name.trim()) && !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(student.name.trim());
+
+  const getAssignedStudentRecords = (lesson: LessonWithVersion) => {
+    if (isAssignedToAllStudents(lesson)) return [];
+    const metadata = (lesson.content || {}) as Record<string, any>;
     const assignedStudents = lesson.assigned_student_ids?.length
       ? lesson.assigned_student_ids
       : metadata.assignedStudents || metadata.assigned_students;
     if (Array.isArray(assignedStudents) && assignedStudents.length > 0) {
-      return assignedStudents.map((assignedStudent: unknown) => {
+      const resolvedStudents = assignedStudents.map((assignedStudent: unknown) => {
         const identifier = typeof assignedStudent === "string"
           ? assignedStudent
           : typeof assignedStudent === "object" && assignedStudent !== null
             ? String((assignedStudent as Record<string, unknown>).id || (assignedStudent as Record<string, unknown>).token || (assignedStudent as Record<string, unknown>).name || "")
             : "";
-        return students.find((student) => student.id === identifier || student.token === identifier)?.name || identifier;
-      }).filter(Boolean);
+        return students.find((student) =>
+          student.id === identifier
+          || student.token === identifier
+          || student.name.trim().toLowerCase() === identifier.trim().toLowerCase(),
+        ) || null;
+      }).filter((student): student is StudentUser => Boolean(student));
+      return resolvedStudents.filter((student, index, all) =>
+        hasDisplayableStudentName(student) && all.findIndex((candidate) => candidate.id === student.id) === index,
+      );
     }
 
     const assignedStudentId = getSavedStudentId(lesson);
-    const assignedStudentName = students.find((student) => student.id === assignedStudentId || student.token === assignedStudentId)?.name;
-    return assignedStudentName || assignedStudentId ? [assignedStudentName || assignedStudentId!] : [];
+    const assignedStudent = students.find((student) =>
+      student.id === assignedStudentId || student.token === assignedStudentId,
+    );
+    return assignedStudent && hasDisplayableStudentName(assignedStudent) ? [assignedStudent] : [];
+  };
+
+  const getAssignedStudentNames = (lesson: LessonWithVersion) => {
+    if (isAssignedToAllStudents(lesson)) return ["All Students"];
+    return getAssignedStudentRecords(lesson).map((student) => student.name);
   };
 
   const renderAssignedStudents = (lesson: LessonWithVersion) => {
@@ -1852,12 +1872,16 @@ export default function InstructorWorkstationPage({
 
   const handleAssignStudent = async (lesson: LessonWithVersion, studentId: string) => {
     const normalizedStudentId = studentId.trim();
-    if (!lesson.id.trim() || !normalizedStudentId) {
+    if (!lesson.id.trim() || !normalizedStudentId || !students.some((student) => student.id === normalizedStudentId)) {
       setPublishStatus("Select a valid lesson and student before assigning.");
       return;
     }
     try {
-      const updatedLesson = await assignLessonToStudent(lesson.id.trim(), normalizedStudentId);
+      const assignedIds = getAssignedStudentIds(lesson);
+      const updatedLesson = await setLessonAssignments(
+        lesson.id.trim(),
+        [...new Set([...assignedIds, normalizedStudentId])],
+      );
       await refreshLessonListAfterAssignment(updatedLesson);
       setPublishStatus("Lesson assigned to the selected student.");
     } catch (error) {
@@ -1867,10 +1891,7 @@ export default function InstructorWorkstationPage({
   };
 
   const getAssignedStudentIds = (lesson: LessonWithVersion) => {
-    if (lesson.assigned_student_ids) return lesson.assigned_student_ids;
-    return getAssignedStudentNames(lesson)
-      .map((name) => students.find((student) => student.name === name)?.id)
-      .filter((id): id is string => Boolean(id));
+    return getAssignedStudentRecords(lesson).map((student) => student.id);
   };
 
   const handleAssignmentToggle = async (lesson: LessonWithVersion, studentId: string) => {
@@ -3935,7 +3956,7 @@ export default function InstructorWorkstationPage({
               {filteredLibraryLessons.map((lesson) => {
                 const metadata = getLessonMetadata(lesson);
                 const tags = getLibraryMetadataTags(metadata);
-                const assignedIds = getAssignedStudentIds(lesson);
+                const assignedStudents = getAssignedStudentRecords(lesson);
                 return (
                   <article key={lesson.id} className="flex h-full flex-col rounded-xl border border-border bg-surface/60 p-5 transition hover:border-amber-500/40">
                     <div className="flex items-start justify-between gap-3">
@@ -3961,19 +3982,18 @@ export default function InstructorWorkstationPage({
                     <div className="relative mt-auto border-t border-border pt-4" onClick={(event) => event.stopPropagation()}>
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex min-w-0 flex-wrap gap-1">
-                          {assignedIds.length === 0 ? <span className="text-xs text-stone-500">No students assigned</span> : assignedIds.map((id) => {
-                            const student = students.find((item) => item.id === id);
-                            return <span key={id} title={student?.name || id} className="flex h-7 w-7 items-center justify-center rounded-full border border-amber-500/40 bg-amber-500/20 text-[10px] font-semibold text-amber-400">{(student?.name || id).slice(0, 2).toUpperCase()}</span>;
-                          })}
+                          {assignedStudents.length === 0 ? <span className="text-xs text-stone-500">{isAssignedToAllStudents(lesson) ? "All Students" : "No students assigned"}</span> : assignedStudents.map((student) => (
+                            <span key={student.id} title={student.name} aria-label={student.name} className="flex h-7 w-7 items-center justify-center rounded-full border border-amber-500/40 bg-amber-500/20 text-[10px] font-semibold text-amber-400">{student.name.trim().slice(0, 2).toUpperCase()}</span>
+                          ))}
                         </div>
                         <button type="button" onClick={() => setAssignmentEditorLessonId((current) => current === lesson.id ? null : lesson.id)} className="rounded-md border border-amber-500/40 px-2.5 py-1.5 text-[11px] text-amber-400">Assign</button>
                       </div>
                       {assignmentEditorLessonId === lesson.id && <div className="absolute left-0 right-0 top-full z-30 mt-2 rounded-lg border border-border bg-surface p-3 shadow-xl">
                         <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Assign students</p>
                         {students.map((student) => <label key={student.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs text-stone-300 hover:bg-border">
-                          <input type="checkbox" checked={assignedIds.includes(student.id)} onChange={() => void handleAssignmentToggle(lesson, student.id)} className="accent-amber-500" />
+                          <input type="checkbox" checked={assignedStudents.some((assignedStudent) => assignedStudent.id === student.id)} onChange={() => void handleAssignmentToggle(lesson, student.id)} className="accent-amber-500" />
                           <span className="min-w-0 flex-1 truncate">{student.name}</span>
-                          {assignedIds.includes(student.id) && <Check className="h-3.5 w-3.5 text-amber-400" />}
+                          {assignedStudents.some((assignedStudent) => assignedStudent.id === student.id) && <Check className="h-3.5 w-3.5 text-amber-400" />}
                         </label>)}
                         <button type="button" onClick={() => setAssignmentEditorLessonId(null)} className="mt-2 w-full rounded border border-border px-2 py-1.5 text-[11px] text-stone-400">Done</button>
                       </div>}
