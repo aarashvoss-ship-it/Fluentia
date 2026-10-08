@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ContentBlock, StrictStepContent, StudyStepId } from "@/types/lesson";
 import { DynamicLucideIcon } from "@/components/shared/lucide-icon-picker";
 import { WritingBlockRenderer } from "@/components/shared/writing-block";
+import { WordCountedTextarea } from "@/components/shared/word-counted-textarea";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { FillInBlanksMarkdown } from "@/components/study-room/fill-in-blanks-markdown";
@@ -132,7 +133,7 @@ export function StudentStudyRoomPreview({
                   {block.title}
                 </h3>
               )}
-              {block.type === "text" && <><MarkdownContent value={block.body || ""} className="text-sm leading-relaxed text-stone-300" />{block.hasStudentResponseInput === true && <textarea rows={6} placeholder="Write your response here..." readOnly className="mt-4 min-h-[140px] w-full resize-y rounded border border-border bg-surface p-3 text-sm text-stone-400" aria-label="Student response field preview" />}</>}
+              {block.type === "text" && <><MarkdownContent value={block.body || ""} className="text-sm leading-relaxed text-stone-300" />{(block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true) && <WordCountedTextarea value="" onChange={() => undefined} wordCountConfig={block.wordCountConfig} rows={6} placeholder="Write your response here..." readOnly className="mt-4 min-h-[140px] w-full resize-y rounded border border-border bg-surface p-3 text-sm text-stone-400" ariaLabel="Student response field preview" />}</>}
               {block.type === "image" && <>{block.imageUrl && <img src={block.imageUrl} alt={block.caption || block.title || "Lesson image"} className="max-h-72 w-full rounded-md object-cover" onError={(event) => { event.currentTarget.style.display = "none"; }} />}{block.caption && <p className="mt-2 text-xs text-stone-500">{block.caption}</p>}</>}
               {block.type === "audio" && block.audioUrl && <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio lesson"} />}
               {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} />{block.show_reflection_prompt !== false && block.reflection_prompt_text?.trim() && <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/20 p-4"><p className="text-sm font-semibold text-amber-400">Reflection Question</p><MarkdownContent value={block.reflection_prompt_text.trim()} className="mt-2 text-sm leading-relaxed text-stone-300" /><textarea rows={4} placeholder="Write your reflection here..." readOnly className="mt-3 w-full resize-y rounded border border-border bg-surface p-3 text-sm text-stone-400" aria-label="Reflection question response preview" /></div>}</>}

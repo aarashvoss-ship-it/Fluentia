@@ -18,6 +18,7 @@ import { AccessCard } from "@/components/access/access-card";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { ExerciseQuestions } from "@/components/study-room/exercise-questions";
 import { WritingBlockRenderer } from "@/components/shared/writing-block";
+import { WordCountedTextarea } from "@/components/shared/word-counted-textarea";
 import { DataTableResource, getDataTableResourceTitle, isDataTableResourceTitle } from "@/components/shared/data-table-resource";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
@@ -3372,7 +3373,7 @@ export default function InstructorWorkstationPage({
         const article = (
         <article key={block.id} className="rounded-xl border border-border bg-surface p-5">
           {block.title && <h3 className="mb-3 font-sans text-xl font-semibold text-stone-100">{block.title}</h3>}
-          {block.type === "text" && <>{<MarkdownContent value={block.body || ""} className="text-sm leading-relaxed text-stone-300" />}{block.hasStudentResponseInput === true && <textarea rows={6} placeholder="Write your response here..." readOnly className="mt-4 min-h-[140px] w-full resize-y rounded border border-border bg-surface p-3 text-sm text-stone-400" aria-label="Student response field preview" />}</>}
+          {block.type === "text" && <>{<MarkdownContent value={block.body || ""} className="text-sm leading-relaxed text-stone-300" />}{(block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true) && <WordCountedTextarea value="" onChange={() => undefined} wordCountConfig={block.wordCountConfig} rows={6} placeholder="Write your response here..." readOnly className="mt-4 min-h-[140px] w-full resize-y rounded border border-border bg-surface p-3 text-sm text-stone-400" ariaLabel="Student response field preview" />}</>}
           {block.type === "image" && <>{block.imageUrl && <img src={block.imageUrl} alt={block.caption || block.title || "Lesson image"} className="max-h-72 w-full rounded-md object-cover" onError={(e)=>{(e.target as HTMLImageElement).style.display="none";}} />}{block.caption && <p className="mt-2 text-xs text-stone-500">{block.caption}</p>}</>}
           {block.type === "audio" && block.audioUrl && <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio lesson"} />}
           {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} />{block.show_reflection_prompt !== false && block.reflection_prompt_text?.trim() && <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/20 p-4"><p className="text-sm font-semibold text-amber-400">Reflection Question</p><MarkdownContent value={block.reflection_prompt_text.trim()} className="mt-2 text-sm leading-relaxed text-stone-300" /><textarea rows={4} placeholder="Write your reflection here..." readOnly className="mt-3 w-full resize-y rounded border border-border bg-surface p-3 text-sm text-stone-400" aria-label="Reflection question response preview" /></div>}</>}

@@ -103,9 +103,17 @@ export interface ContentBlockBase {
   studentResponseConfig?: StudentResponseConfig;
 }
 
+export interface WordCountConfig {
+  enabled: boolean;
+  minWords?: number;
+  maxWords?: number;
+  enforceHardLimit?: boolean;
+}
+
 export interface TextContentBlock extends ContentBlockBase {
   type: "text";
   body: string;
+  wordCountConfig?: WordCountConfig;
 }
 
 export interface AudioContentBlock extends ContentBlockBase {

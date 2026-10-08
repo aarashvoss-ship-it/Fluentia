@@ -12,6 +12,7 @@ import { getQuizQuestionPrompt, parseFillInBlanks } from "@/lib/fill-in-blanks";
 import { uploadLessonAsset, uploadLessonMedia } from "@/services/storage-service";
 import { DynamicLucideIcon, LucideIconPicker } from "@/components/shared/lucide-icon-picker";
 import { TiptapEditor } from "@/components/shared/tiptap-editor";
+import { WordCountedTextarea } from "@/components/shared/word-counted-textarea";
 import { parseInteractiveTranscript } from "@/lib/transcripts";
 import { ExternalLink, Eye, FileText, Layers, LoaderCircle, MoveDown, MoveUp, Plus, Rocket, Save, Trash2, UploadCloud, X, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Mic, Square } from "lucide-react";
 import { Tooltip } from "@/components/shared/tooltip";
@@ -806,7 +807,21 @@ export function LessonTailorEditor({
               </label>
               {(block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true) && <label className="block text-xs text-stone-500">Student response type<select value={block.studentResponseType || "text"} onChange={(event) => updateDynamicBlock(step, index, { studentResponseType: event.target.value as "text" | "voice" | "audio" | "file" })} className="mt-1 w-full rounded border border-border bg-background p-2 text-xs text-stone-200 [color-scheme:dark]" aria-label="Student response type"><option value="text">Text response</option><option value="voice">Voice response</option><option value="audio">Audio response</option><option value="file">File upload</option></select></label>}
               <TiptapEditor value={block.body} onChange={(value) => updateDynamicBlock(step, index, { body: value })} placeholder="Start typing lesson content or use formatting options..." ariaLabel="Text block body" />
-              {(block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true) && (block.studentResponseType || "text") === "text" && <textarea rows={6} placeholder="Write your response here..." readOnly className="min-h-[140px] w-full resize-y rounded border border-border bg-surface p-3 text-sm text-stone-400" aria-label="Student response field preview" />}
+              {(block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true) && (block.studentResponseType || "text") === "text" && <>
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-stone-300">
+                  <input type="checkbox" checked={block.wordCountConfig?.enabled === true} onChange={(event) => updateDynamicBlock(step, index, { wordCountConfig: { ...(block.wordCountConfig || { enabled: false }), enabled: event.target.checked } })} className="h-4 w-4 accent-amber-500" />
+                  Enable Word Counter
+                </label>
+                {block.wordCountConfig?.enabled === true && <div className="grid gap-3 rounded border border-border bg-background/60 p-3 sm:grid-cols-2">
+                  <label className="text-xs text-stone-500">Min Words<input type="number" min="0" step="1" value={block.wordCountConfig.minWords ?? ""} onChange={(event) => updateDynamicBlock(step, index, { wordCountConfig: { ...(block.wordCountConfig ?? { enabled: true }), minWords: event.target.value === "" ? undefined : Math.max(0, Math.floor(Number(event.target.value))) } })} className="mt-1 w-full rounded border border-border bg-background p-2 text-xs text-stone-200" /></label>
+                  <label className="text-xs text-stone-500">Max Words<input type="number" min="1" step="1" value={block.wordCountConfig.maxWords ?? ""} onChange={(event) => updateDynamicBlock(step, index, { wordCountConfig: { ...(block.wordCountConfig ?? { enabled: true }), maxWords: event.target.value === "" ? undefined : Math.max(1, Math.floor(Number(event.target.value))) } })} className="mt-1 w-full rounded border border-border bg-background p-2 text-xs text-stone-200" /></label>
+                  <label className="flex cursor-pointer items-center gap-2 text-xs text-stone-300 sm:col-span-2">
+                    <input type="checkbox" checked={block.wordCountConfig.enforceHardLimit === true} onChange={(event) => updateDynamicBlock(step, index, { wordCountConfig: { ...(block.wordCountConfig ?? { enabled: true }), enforceHardLimit: event.target.checked } })} className="h-4 w-4 accent-amber-500" />
+                    Lock text on max words (Hard Limit)
+                  </label>
+                </div>}
+                <WordCountedTextarea value="" onChange={() => undefined} wordCountConfig={block.wordCountConfig} rows={6} placeholder="Write your response here..." readOnly className="min-h-[140px] w-full resize-y rounded border border-border bg-surface p-3 text-sm text-stone-400" ariaLabel="Student response field preview" />
+              </>}
               {(block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true) && (block.studentResponseType === "voice" || block.studentResponseType === "audio") && <div className="flex items-center gap-2 rounded border border-border bg-surface p-3 text-xs text-stone-400"><Mic className="h-4 w-4 text-amber-400" />Voice recorder preview</div>}
               {(block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true) && block.studentResponseType === "file" && <div className="rounded border border-border bg-surface p-3 text-xs text-stone-400">File upload preview</div>}
             </div>}
