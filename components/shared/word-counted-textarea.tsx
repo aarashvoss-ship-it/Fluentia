@@ -68,8 +68,8 @@ export function WordCountedTextarea({
   };
 
   return (
-    <div>
-      <div className="relative" style={{ position: "relative" }}>
+    <div className="h-auto min-h-max min-w-0 overflow-visible pb-4">
+      <div className="relative h-auto min-h-max min-w-0 overflow-visible">
         <textarea
           value={value}
           onChange={handleChange}
@@ -94,7 +94,7 @@ export function WordCountedTextarea({
         )}
       </div>
       {saveStatus && (
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="mt-2 flex shrink-0 flex-wrap items-center justify-between gap-2 pb-1">
           <span className={`inline-flex items-center gap-1.5 text-xs ${
             saveStatus === "saving" ? "text-amber-300" : saveStatus === "saved" ? "text-emerald-400" : "text-red-300"
           }`} role="status" aria-live="polite">

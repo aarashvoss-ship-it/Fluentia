@@ -43,7 +43,7 @@ export function ExerciseQuestions({
   const [revealedSamples, setRevealedSamples] = useState<Record<string, boolean>>({});
 
   return (
-    <div className="space-y-6">
+    <div className="h-auto min-h-max space-y-6 overflow-visible pb-4">
       {questions.map((question, index) => {
         const type = getExerciseQuestionType(question);
         const questionPrompt = getQuizQuestionPrompt(question);
@@ -55,7 +55,7 @@ export function ExerciseQuestions({
           || (type === "short_answer" ? question.sample_answer : "");
 
         return (
-          <section key={question.id} className="space-y-3 border-b border-border pb-5 last:border-0 last:pb-0">
+          <section key={question.id} className="h-auto min-h-max space-y-3 overflow-visible border-b border-border pb-6 last:border-0 last:pb-1">
             {question.sectionHeader?.trim() && (
               <div className="text-sm leading-relaxed text-stone-300 [&_p]:m-0">
                 <MarkdownContent value={question.sectionHeader.trim()} />

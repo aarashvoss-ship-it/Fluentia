@@ -1405,7 +1405,7 @@ export default function LessonPage() {
       .filter((sidebarBlock): sidebarBlock is (typeof currentStepSidebarBlocks)[number] => Boolean(sidebarBlock))
       .filter((sidebarBlock, sidebarIndex, sidebarBlocks) => sidebarBlocks.findIndex((candidate) => candidate.id === sidebarBlock.id) === sidebarIndex);
     return (
-    <div className="w-full space-y-6 pb-6">
+    <div className="h-auto min-h-max w-full space-y-6 overflow-visible pb-8">
       {visibleBlocks.map((block, blockIndex) => {
         if (block.type === "question" && block !== questionBlocks[0]) return null;
         const sidebarBlock = currentStepSidebarBlocks.find((candidate) => candidate.parentMainBlockId === block.id)
@@ -1415,7 +1415,7 @@ export default function LessonPage() {
         const rowEmptyMode = block.rowEmptyMode || block.whenEmpty;
         const expandsInlineRow = block.layoutMode === "inline-row" && !sidebarBlock && rowEmptyMode === "full";
         const article = (
-        <article key={block.id} className="h-auto min-h-fit rounded-xl border border-border bg-surface p-5 pb-7">
+        <article key={block.id} className="flex h-auto min-h-max flex-col overflow-visible rounded-xl border border-border bg-surface p-5 pb-8">
           {block.title && <h3 className="mb-3 flex items-center gap-2 font-sans text-xl font-semibold text-stone-100">{block.icon && <DynamicLucideIcon name={block.icon} className="h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />}{block.title}</h3>}
           {block.type === "text" && <><MarkdownContent value={block.body} className="text-sm leading-relaxed text-stone-300" />{hasStudentResponse(block) && (() => { const responseType = getStudentResponseType(block); if (responseType === "voice" || responseType === "audio") return <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />; if (responseType === "file") return <FileResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value } })} />; return <WordCountedTextarea value={submission.blockResponses?.[block.id] || ""} onChange={(value) => updateTextResponse(block.id, value)} wordCountConfig={block.wordCountConfig} rows={8} placeholder="Write your response here..." className="mt-4 w-full min-h-[200px] resize-y rounded-lg border border-border bg-background p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" ariaLabel={`${block.title || "Text"} response`} saveStatus={submissionSyncStatus} onSaveProgress={() => void saveSubmissionProgress()} />; })()}</>}
           {block.type === "audio" && <>{block.audioUrl && <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio assignment"} />}{block.allowStudentVoiceResponse === true && <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />}<MediaTranscriptAccordion transcript={block.transcript} isUnlocked={areTranscriptsUnlocked} /></>}
@@ -1468,7 +1468,7 @@ export default function LessonPage() {
   };
 
   return (
-    <div className="fluentia-study-room min-h-screen bg-background text-[#e8e7e4]">
+    <div className="fluentia-study-room h-auto min-h-screen overflow-visible bg-background text-[#e8e7e4]">
       <div className="mx-auto max-w-7xl px-4 pt-6 md:px-6">
       {submissionSaveError && (
         <p role="alert" className="mb-4 rounded-md border border-red-500/30 bg-red-950/30 px-4 py-3 text-sm text-red-200">
@@ -1564,12 +1564,12 @@ export default function LessonPage() {
       <div className="w-full">
       <div className="w-full">
 
-      <main className="h-auto min-h-fit pb-12 pt-8 text-[15px] leading-relaxed">
+      <main className="h-auto min-h-max overflow-visible pb-12 pt-8 text-[15px] leading-relaxed">
         {/* Hero Banner */}
         <div className="border-t border-border" />
 
         {/* Step Content */}
-        <div className="h-auto min-h-fit space-y-7 pb-10 pt-9">
+        <div className="h-auto min-h-max space-y-7 overflow-visible pb-10 pt-9">
           {/* Warm Up */}
           {currentStep === "warm_up" && (
             <section className="space-y-5">
