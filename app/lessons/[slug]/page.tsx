@@ -1417,7 +1417,7 @@ export default function LessonPage() {
         const article = (
         <article key={block.id} className="flex h-auto min-h-max flex-col overflow-visible rounded-xl border border-border bg-surface p-5 pb-8">
           {block.title && <h3 className="mb-3 flex items-center gap-2 font-sans text-xl font-semibold text-stone-100">{block.icon && <DynamicLucideIcon name={block.icon} className="h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />}{block.title}</h3>}
-          {block.type === "text" && <><MarkdownContent value={block.body} className="text-sm leading-relaxed text-stone-300" />{hasStudentResponse(block) && (() => { const responseType = getStudentResponseType(block); if (responseType === "voice" || responseType === "audio") return <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />; if (responseType === "file") return <FileResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value } })} />; return <WordCountedTextarea value={submission.blockResponses?.[block.id] || ""} onChange={(value) => updateTextResponse(block.id, value)} wordCountConfig={block.wordCountConfig} rows={8} placeholder="Write your response here..." className="mt-4 w-full min-h-[200px] resize-y rounded-lg border border-border bg-background p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" ariaLabel={`${block.title || "Text"} response`} saveStatus={submissionSyncStatus} onSaveProgress={() => void saveSubmissionProgress()} />; })()}</>}
+          {block.type === "text" && <><MarkdownContent value={block.body} className="text-sm leading-relaxed text-stone-300" />{hasStudentResponse(block) && (() => { const responseType = getStudentResponseType(block); if (responseType === "voice" || responseType === "audio") return <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />; if (responseType === "file") return <FileResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value } })} />; return <WordCountedTextarea value={submission.blockResponses?.[block.id] || ""} onChange={(value) => updateTextResponse(block.id, value)} wordCountConfig={block.wordCountConfig} rows={8} placeholder="Write your response here..." className="mt-4 w-full min-h-[200px] resize-y rounded-lg border border-border bg-background p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" ariaLabel={`${block.title || "Text"} response`} />; })()}</>}
           {block.type === "audio" && <>{block.audioUrl && <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio assignment"} />}{block.allowStudentVoiceResponse === true && <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />}<MediaTranscriptAccordion transcript={block.transcript} isUnlocked={areTranscriptsUnlocked} /></>}
           {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} transcriptLocked={!areTranscriptsUnlocked} />{!areTranscriptsUnlocked && <MediaTranscriptAccordion transcript={block.transcript} isUnlocked={false} />}{block.show_reflection_prompt !== false && block.reflection_prompt_text?.trim() && <div className="mt-4 flex h-auto min-h-fit flex-col overflow-visible rounded-lg border border-amber-500/40 bg-amber-500/20 p-4 pb-6"><p className="text-sm font-semibold text-amber-400">Reflection Question</p><MarkdownContent value={block.reflection_prompt_text.trim()} className="mt-2 text-sm leading-relaxed text-stone-300" /><textarea value={submission.blockResponses?.[`${block.id}-reflection`] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [`${block.id}-reflection`]: event.target.value } })} rows={5} placeholder="Write your reflection here..." className="mt-3 w-full resize-y rounded-lg border border-border bg-background p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" aria-label="Reflection question response" /></div>}</>}
           {block.type === "fill-in-the-blanks" && renderFillInTheBlanks(block)}
@@ -1822,9 +1822,41 @@ export default function LessonPage() {
 
 
 
+        {/* Save status and progress action are stage-level so they remain available without response fields. */}
+        {!isResultsStep && (
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+            <span
+              className={`inline-flex items-center gap-1.5 text-xs ${
+                submissionSyncStatus === "saving"
+                  ? "text-amber-300"
+                  : submissionSyncStatus === "saved"
+                    ? "text-emerald-400"
+                    : "text-red-300"
+              }`}
+              role="status"
+              aria-live="polite"
+            >
+              <span aria-hidden="true">●</span>
+              {submissionSyncStatus === "saving"
+                ? "Saving..."
+                : submissionSyncStatus === "saved"
+                  ? "All changes saved"
+                  : "Unsaved changes (Local backup kept)"}
+            </span>
+            <button
+              type="button"
+              onClick={() => void saveSubmissionProgress()}
+              disabled={submissionSyncStatus === "saving"}
+              className="rounded border border-border px-2.5 py-1 text-xs text-stone-300 transition hover:border-amber-500/50 hover:text-amber-300 disabled:cursor-wait disabled:opacity-60"
+            >
+              Save Progress
+            </button>
+          </div>
+        )}
+
         {/* Bottom Navigation */}
         {!isResultsStep && (
-          <div className="mt-6 flex items-center justify-between border-t border-border pt-8">
+          <div className="mt-4 flex items-center justify-between border-t border-border pt-6">
             <Tooltip content="Return to the previous lesson step"><button
               onClick={handlePrev}
               disabled={currentIndex === 0}
