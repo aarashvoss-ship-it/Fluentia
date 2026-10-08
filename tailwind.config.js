@@ -56,7 +56,8 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ["var(--font-inter, system-ui)", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
+        sans: ["var(--font-inter, system-ui)", "var(--font-vazirmatn)", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
+        vazirmatn: ["var(--font-vazirmatn)", "system-ui", "sans-serif"],
       },
     },
   },

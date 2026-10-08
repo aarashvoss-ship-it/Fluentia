@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Vazirmatn } from "next/font/google";
 import { ChunkErrorRecoveryReset } from "@/components/shared/chunk-error-recovery";
 import { DisplaySettingsProvider } from "@/components/shared/display-settings";
 import "./globals.css";
@@ -7,6 +7,12 @@ import "./globals.css";
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
+  display: "swap",
+});
+
+const vazirmatn = Vazirmatn({
+  subsets: ["latin", "arabic"],
+  variable: "--font-vazirmatn",
   display: "swap",
 });
 
@@ -24,8 +30,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${inter.variable} font-sans`}>
-      <body suppressHydrationWarning className={`${inter.className} antialiased bg-background text-text-primary selection:bg-accent/20 selection:text-accent`}>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${vazirmatn.variable} font-sans`}>
+      <body suppressHydrationWarning className="antialiased bg-background text-text-primary selection:bg-accent/20 selection:text-accent">
         <ChunkErrorRecoveryReset />
         <DisplaySettingsProvider>{children}</DisplaySettingsProvider>
       </body>
