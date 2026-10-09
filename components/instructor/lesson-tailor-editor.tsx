@@ -643,7 +643,7 @@ export function LessonTailorEditor({
           aria-controls={`transcript-${block.id}`}
           className="flex w-full items-center justify-between px-2 py-1.5 text-left text-xs text-stone-400 hover:text-amber-400"
         >
-          <span className="text-[11px]  uppercase tracking-[0.08em]">{block.type === "video" ? "Video Transcript" : "Audio Transcript"}{preview ? ` · ${transcriptLines.length || preview.length} items` : " (optional)"}</span>
+          <span className="text-[11px] uppercase tracking-[0.08em]">{block.type === "video" ? "Video Transcript" : "Audio Transcript"}{transcriptLines.length > 0 ? ` · ${transcriptLines.length} items` : preview ? "" : " (optional)"}</span>
           {isOpen ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-amber-400" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-amber-400" />}
         </button>
         {isOpen && (
