@@ -28,14 +28,14 @@ export function SidebarBlockCard({
   return (
     <article className="min-w-0 overflow-hidden rounded-xl border border-border bg-surface">
       {imageUrl && !imageFailed && (
-        <div className="aspect-[4/3] w-full overflow-hidden bg-background">
+        <div className="w-full bg-background">
           <img
             src={imageUrl}
             alt={altText || ""}
             loading="lazy"
             onLoad={() => setImageLoaded(true)}
             onError={() => setImageFailed(true)}
-            className={`h-full w-full object-cover transition duration-300 hover:scale-[1.02] ${imageLoaded ? "opacity-100" : "animate-pulse opacity-0"}`}
+            className={`h-auto w-full max-w-full object-contain transition-opacity duration-300 ${imageLoaded ? "opacity-100" : "animate-pulse opacity-0"}`}
           />
         </div>
       )}

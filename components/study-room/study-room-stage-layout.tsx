@@ -38,7 +38,7 @@ export function StudyRoomStageLayout({ items }: StudyRoomStageLayoutProps) {
             {section.items.map((item) => <div key={item.id} className="min-w-0">{item.main}</div>)}
           </div>
           <aside className="min-w-0 space-y-4 overflow-visible md:col-span-4">
-            {section.items.map((item) => item.sidebar ? <div key={item.id} className="min-w-0">{item.sidebar}</div> : null)}
+            {section.items.map((item) => item.sidebar ? <div key={item.id} className="min-w-0 space-y-4">{item.sidebar}</div> : null)}
           </aside>
         </div>
       ) : (
