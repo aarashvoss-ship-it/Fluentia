@@ -54,7 +54,7 @@ export function MediaTranscriptAccordion({
       </button>
       <div className={`overflow-hidden transition-[max-height,opacity] duration-300 ease-out ${isOpen ? "max-h-[350px] opacity-100" : "max-h-0 opacity-0"}`}>
         <div id={contentId} className="max-h-[350px] overflow-y-auto border-t border-border px-3 py-3 pr-2">
-          {showIntonationNote && <p className="mb-3 text-xs leading-relaxed text-amber-300">{INTONATION_NOTE}</p>}
+          {showIntonationNote && <p className="mb-3 text-sm leading-relaxed text-slate-400">{INTONATION_NOTE}</p>}
           {transcript?.trim() ? <MarkdownContent value={transcript} className="text-sm leading-relaxed text-stone-300" /> : <p className="text-xs text-stone-500">No transcript was provided for this media.</p>}
         </div>
       </div>
