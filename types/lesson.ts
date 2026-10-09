@@ -121,6 +121,7 @@ export interface AudioContentBlock extends ContentBlockBase {
   type: "audio";
   audioUrl: string;
   transcript?: string;
+  transcriptUnlockedByDefault?: boolean;
 }
 
 export interface VideoContentBlock extends ContentBlockBase {
