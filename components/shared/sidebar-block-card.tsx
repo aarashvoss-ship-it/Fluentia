@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { DynamicLucideIcon } from "@/components/shared/lucide-icon-picker";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 
@@ -17,13 +17,8 @@ export function SidebarBlockCard({
   imageUrl?: string;
   altText?: string;
 }) {
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [imageFailed, setImageFailed] = useState(false);
-
-  useEffect(() => {
-    setImageLoaded(false);
-    setImageFailed(false);
-  }, [imageUrl]);
+  const [failedImageUrl, setFailedImageUrl] = useState<string>();
+  const imageFailed = Boolean(imageUrl && failedImageUrl === imageUrl);
 
   return (
     <article className="h-auto min-h-fit w-full shrink-0 rounded-xl border border-border bg-surface">
@@ -33,9 +28,8 @@ export function SidebarBlockCard({
             src={imageUrl}
             alt={altText || ""}
             loading="lazy"
-            onLoad={() => setImageLoaded(true)}
-            onError={() => setImageFailed(true)}
-            className={`h-auto w-full max-w-full object-contain transition-opacity duration-300 ${imageLoaded ? "opacity-100" : "animate-pulse opacity-0"}`}
+            onError={() => setFailedImageUrl(imageUrl)}
+            className="h-auto w-full max-w-full object-contain"
           />
         </div>
       )}
