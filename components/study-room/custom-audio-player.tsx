@@ -37,6 +37,7 @@ export function CustomAudioPlayer({ src, label = "Audio", blob, transcript }: { 
   const [playbackRate, setPlaybackRate] = useState(1);
   const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(false);
   const transcriptLines = parseInteractiveTranscript(transcript || "");
+  const isAudioPrompt = /\baudio\s+prompt\b/i.test(label);
 
   useEffect(() => {
     setPlaybackSrc("");
@@ -172,6 +173,7 @@ export function CustomAudioPlayer({ src, label = "Audio", blob, transcript }: { 
           </button>
           {isTranscriptExpanded && (
             <div id={transcriptId} className="max-h-[320px] overflow-y-auto overscroll-contain border-t border-border scroll-smooth pr-2">
+              {isAudioPrompt && <p className="px-4 pt-3 text-xs leading-relaxed text-amber-300">Words in ALL CAPS indicate key stress points—emphasize them with higher pitch while shadowing.</p>}
               <div className="space-y-1 p-2">
                 {transcriptLines.map((line) => (
                   <div key={`${line.seconds}-${line.text}`} className="flex min-w-0 items-start gap-2 rounded px-2 py-1.5 text-xs text-stone-300">
