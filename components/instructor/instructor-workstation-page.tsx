@@ -23,7 +23,7 @@ import { DataTableResource, getDataTableResourceTitle, isDataTableResourceTitle 
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { Stepper } from "@/components/study-room/stepper";
-import { StudyRoomBlockRow } from "@/components/study-room/study-room-block-row";
+import { StudyRoomStageLayout } from "@/components/study-room/study-room-stage-layout";
 import { parseInteractiveTranscript } from "@/lib/transcripts";
 import { getQuizQuestionPrompt, parseFillInBlanks } from "@/lib/fill-in-blanks";
 import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player";
@@ -3388,13 +3388,13 @@ export default function InstructorWorkstationPage({
         .filter((id): id is string => Boolean(id)),
     ]);
     const topSidebarBlocks = previewSidebarBlocks.filter((sidebarBlock) => !linkedSidebarIds.has(sidebarBlock.id));
-    return (
-    <div className="w-full space-y-6">
-      {previewBlocks.map((block: ContentBlock, blockIndex) => {
-        const sidebarBlock = (sidebarBlocksByStep[previewStep as keyof SidebarBlocksByStep] || []).find((candidate) => candidate.parentMainBlockId === block.id)
-          || (block.layoutMode === "inline-row" && (block.sidebarBlockId || block.alignNextTo)
-            ? (sidebarBlocksByStep[previewStep as keyof SidebarBlocksByStep] || []).find((candidate) => candidate.id === (block.sidebarBlockId || block.alignNextTo))
-            : undefined);
+    const stageItems = previewBlocks.map((block: ContentBlock, blockIndex) => {
+        const attachedSidebarBlocks = previewSidebarBlocks.filter((candidate) => candidate.parentMainBlockId === block.id);
+        const linkedSidebarBlocks = attachedSidebarBlocks.length > 0
+          ? attachedSidebarBlocks
+          : block.layoutMode === "inline-row" && (block.sidebarBlockId || block.alignNextTo)
+            ? previewSidebarBlocks.filter((candidate) => candidate.id === (block.sidebarBlockId || block.alignNextTo))
+            : [];
         const rowEmptyMode = block.rowEmptyMode || block.whenEmpty;
         const article = (
         <article key={block.id} className="rounded-xl border border-border bg-surface p-5">
@@ -3409,27 +3409,26 @@ export default function InstructorWorkstationPage({
           {block.type === "writing" && <WritingBlockRenderer block={block} isPreview />}
         </article>
         );
-        return (
-          <StudyRoomBlockRow
-            fullWidth={block.layoutMode === "inline-row" && !sidebarBlock && rowEmptyMode === "full"}
-            key={block.id}
-            sidebar={(
+        return {
+            id: block.id,
+            layoutMode: block.layoutMode || "global",
+            main: article,
+            sidebar: blockIndex === 0 || linkedSidebarBlocks.length > 0 ? (
               <>
                 {blockIndex === 0 && topSidebarBlocks.map((sidebarItem) => (
                   <SidebarBlockCard key={sidebarItem.id} {...sidebarItem} />
                 ))}
-                {sidebarBlock && (
-                  <SidebarBlockCard {...sidebarBlock} />
-                )}
+                {linkedSidebarBlocks.map((sidebarItem) => <SidebarBlockCard key={sidebarItem.id} {...sidebarItem} />)}
               </>
-            )}
-          >
-            {article}
-          </StudyRoomBlockRow>
-        );
-      })}
+            ) : undefined,
+            fullWidth: block.layoutMode === "inline-row" && linkedSidebarBlocks.length === 0 && rowEmptyMode === "full",
+          };
+        });
+    return (
+      <>
+        <StudyRoomStageLayout items={stageItems} />
       {previewBlocks.length === 0 && <p className="rounded-lg border border-dashed border-border p-6 text-sm text-stone-500">This step has no content blocks yet.</p>}
-    </div>
+      </>
   );};
 
   const getLessonMetadata = (lesson: LessonWithVersion) => {

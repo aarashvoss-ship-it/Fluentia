@@ -29,7 +29,7 @@ import { DEFAULT_BANNER_IMAGE_URL, getFirstNonEmptyBannerUrl, normalizeBannerDim
 import { HeroBanner, HeroBannerContent, HeroBannerLogo } from "@/components/shared/hero-banner";
 import { ExerciseQuestions } from "@/components/study-room/exercise-questions";
 import { WritingBlockRenderer } from "@/components/shared/writing-block";
-import { StudyRoomBlockRow } from "@/components/study-room/study-room-block-row";
+import { StudyRoomStageLayout } from "@/components/study-room/study-room-stage-layout";
 import { Tooltip } from "@/components/shared/tooltip";
 import { DisplaySettingsControl } from "@/components/shared/display-settings";
 import { DynamicLucideIcon } from "@/components/shared/lucide-icon-picker";
@@ -1404,16 +1404,17 @@ export default function LessonPage() {
       .map((questionBlock) => currentStepSidebarBlocks.find((candidate) => candidate.parentMainBlockId === questionBlock.id))
       .filter((sidebarBlock): sidebarBlock is (typeof currentStepSidebarBlocks)[number] => Boolean(sidebarBlock))
       .filter((sidebarBlock, sidebarIndex, sidebarBlocks) => sidebarBlocks.findIndex((candidate) => candidate.id === sidebarBlock.id) === sidebarIndex);
-    return (
-    <div className="h-auto min-h-max w-full space-y-6 overflow-visible pb-8">
-      {visibleBlocks.map((block, blockIndex) => {
-        if (block.type === "question" && block !== questionBlocks[0]) return null;
-        const sidebarBlock = currentStepSidebarBlocks.find((candidate) => candidate.parentMainBlockId === block.id)
-          || (block.layoutMode === "inline-row" && (block.sidebarBlockId || block.alignNextTo)
-            ? currentStepSidebarBlocks.find((candidate) => candidate.id === (block.sidebarBlockId || block.alignNextTo))
-            : undefined);
+    const renderableBlocks = visibleBlocks.filter((block) => block.type !== "question" || block === questionBlocks[0]);
+    const stageItems = renderableBlocks.map((block, blockIndex) => {
+        const attachedSidebarBlocks = block.type === "question"
+          ? questionSidebarBlocks
+          : currentStepSidebarBlocks.filter((candidate) => candidate.parentMainBlockId === block.id);
+        const linkedSidebarBlocks = attachedSidebarBlocks.length > 0
+          ? attachedSidebarBlocks
+          : block.layoutMode === "inline-row" && (block.sidebarBlockId || block.alignNextTo)
+            ? currentStepSidebarBlocks.filter((candidate) => candidate.id === (block.sidebarBlockId || block.alignNextTo))
+            : [];
         const rowEmptyMode = block.rowEmptyMode || block.whenEmpty;
-        const expandsInlineRow = block.layoutMode === "inline-row" && !sidebarBlock && rowEmptyMode === "full";
         const article = (
         <article key={block.id} className="flex h-auto min-h-max flex-col overflow-visible rounded-xl border border-border bg-surface p-5 pb-8">
           {block.title && <h3 className="mb-3 flex items-center gap-2 font-sans text-xl font-semibold text-stone-100">{block.icon && <DynamicLucideIcon name={block.icon} className="h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />}{block.title}</h3>}
@@ -1453,17 +1454,24 @@ export default function LessonPage() {
         </article>
         );
         const sidebarContent = (
-          <div className="lg:col-span-1 h-full w-full space-y-4">
+          <>
             {blockIndex === 0 && topSidebarBlocks.map((topSidebarBlock) => <div key={topSidebarBlock.id}>{renderSidebarBlock(topSidebarBlock)}</div>)}
-            {(block.type === "question" ? questionSidebarBlocks : sidebarBlock ? [sidebarBlock] : []).map((sidebarItem) => <div key={sidebarItem.id}>{renderSidebarBlock(sidebarItem)}</div>)}
-          </div>
+            {linkedSidebarBlocks.map((sidebarItem) => <div key={sidebarItem.id}>{renderSidebarBlock(sidebarItem)}</div>)}
+          </>
         );
-        return (
-          <StudyRoomBlockRow key={block.id} fullWidth={expandsInlineRow} sidebar={sidebarContent}>{article}</StudyRoomBlockRow>
-        );
-      })}
+        return {
+          id: block.id,
+          layoutMode: block.layoutMode || "global",
+          main: article,
+          sidebar: blockIndex === 0 || linkedSidebarBlocks.length > 0 ? sidebarContent : undefined,
+          fullWidth: block.layoutMode === "inline-row" && linkedSidebarBlocks.length === 0 && rowEmptyMode === "full",
+        };
+      });
+    return (
+    <>
+      <StudyRoomStageLayout items={stageItems} />
       {visibleBlocks.length === 0 && <p className="rounded-xl border border-dashed border-border p-6 text-sm text-stone-500">This step has no content blocks yet.</p>}
-    </div>
+    </>
     );
   };
 

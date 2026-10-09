@@ -11,7 +11,7 @@ import { FillInBlanksMarkdown } from "@/components/study-room/fill-in-blanks-mar
 import { ExerciseQuestions } from "@/components/study-room/exercise-questions";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { AmbientMusicPlayer } from "@/components/study-room/ambient-music-player";
-import { StudyRoomBlockRow } from "@/components/study-room/study-room-block-row";
+import { StudyRoomStageLayout } from "@/components/study-room/study-room-stage-layout";
 import { Stepper } from "@/components/study-room/stepper";
 import { HeroBanner } from "@/components/shared/hero-banner";
 import { SidebarBlockCard } from "@/components/shared/sidebar-block-card";
@@ -116,15 +116,14 @@ export function StudentStudyRoomPreview({
       );
     }
 
-    return (
-      <div className="h-auto min-h-fit w-full space-y-6 overflow-visible pb-8">
-        {blocks.map((block, blockIndex) => {
-          const sidebarBlock = sidebarBlocks.find((candidate) => candidate.parentMainBlockId === block.id)
-            || (block.layoutMode === "inline-row" && (block.sidebarBlockId || block.alignNextTo)
-              ? sidebarBlocks.find((candidate) => candidate.id === (block.sidebarBlockId || block.alignNextTo))
-              : undefined);
+    const stageItems = blocks.map((block, blockIndex) => {
+          const attachedSidebarBlocks = sidebarBlocks.filter((candidate) => candidate.parentMainBlockId === block.id);
+          const linkedSidebarBlocks = attachedSidebarBlocks.length > 0
+            ? attachedSidebarBlocks
+            : block.layoutMode === "inline-row" && (block.sidebarBlockId || block.alignNextTo)
+              ? sidebarBlocks.filter((candidate) => candidate.id === (block.sidebarBlockId || block.alignNextTo))
+              : [];
           const rowEmptyMode = block.rowEmptyMode || block.whenEmpty;
-          const expandsInlineRow = block.layoutMode === "inline-row" && !sidebarBlock && rowEmptyMode === "full";
           const article = (
             <article key={block.id} className="flex h-auto min-h-fit flex-col overflow-visible rounded-xl border border-border bg-surface p-5 pb-8">
               {block.title && (
@@ -145,25 +144,28 @@ export function StudentStudyRoomPreview({
             </article>
           );
 
-          return (
-            <StudyRoomBlockRow
-              key={block.id}
-              fullWidth={expandsInlineRow}
-              sidebar={(
-                <div className="h-full w-full space-y-4">
-                  {blockIndex === 0 && topSidebarBlocks.map((sidebarItem) => (
-                    <SidebarBlockCard key={sidebarItem.id} {...sidebarItem} />
-                  ))}
-                  {sidebarBlock && <SidebarBlockCard {...sidebarBlock} />}
-                </div>
-              )}
-            >
-              {article}
-            </StudyRoomBlockRow>
-          );
-        })}
+          return {
+            id: block.id,
+            layoutMode: block.layoutMode || "global",
+            main: article,
+            sidebar: blockIndex === 0 || linkedSidebarBlocks.length > 0 ? (
+              <div className="w-full space-y-4">
+                {blockIndex === 0 && topSidebarBlocks.map((sidebarItem) => (
+                  <SidebarBlockCard key={sidebarItem.id} {...sidebarItem} />
+                ))}
+                {linkedSidebarBlocks.map((sidebarItem) => (
+                  <SidebarBlockCard key={sidebarItem.id} {...sidebarItem} />
+                ))}
+              </div>
+            ) : undefined,
+            fullWidth: block.layoutMode === "inline-row" && linkedSidebarBlocks.length === 0 && rowEmptyMode === "full",
+          };
+        });
+    return (
+      <>
+        <StudyRoomStageLayout items={stageItems} />
         {blocks.length === 0 && <p className="rounded-lg border border-dashed border-border p-6 text-sm text-stone-500">This step has no content blocks yet.</p>}
-      </div>
+      </>
     );
   };
 
