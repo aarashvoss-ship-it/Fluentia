@@ -53,6 +53,7 @@ export function ExerciseQuestions({
         const correctAnswer = question.correct_answer
           || question.correctAnswer
           || (type === "short_answer" ? question.sample_answer : "");
+        const hideQuestionNumber = questions.length === 1 && type === "fill_in_the_blanks";
 
         return (
           <section key={question.id} className="h-auto min-h-max space-y-3 overflow-visible border-b border-border pb-6 last:border-0 last:pb-1">
@@ -62,7 +63,7 @@ export function ExerciseQuestions({
               </div>
             )}
             <div id={`exercise-question-${question.id}`} role="heading" aria-level={4} className="flex items-baseline gap-1 text-base leading-relaxed text-stone-100">
-              <span className="mr-1 shrink-0 font-semibold text-amber-400">{index + 1}.</span>
+              {!hideQuestionNumber && <span className="mr-1 shrink-0 font-semibold text-amber-400">{index + 1}.</span>}
               {type === "fill_in_the_blanks" ? (
                 <FillInBlanksMarkdown
                   blockId={question.id}
