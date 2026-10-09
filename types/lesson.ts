@@ -120,7 +120,6 @@ export interface TextContentBlock extends ContentBlockBase {
 export interface AudioContentBlock extends ContentBlockBase {
   type: "audio";
   audioUrl: string;
-  targetText?: string;
   transcript?: string;
 }
 

@@ -430,7 +430,7 @@ export function LessonTailorEditor({
       : `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const base = { id, type, enabled: true, is_active: true };
     if (type === "text") return { ...base, type: "text", title: "Text block", body: "", hasStudentResponseInput: false, studentResponseType: "text", studentResponseConfig: { enabled: false, allowedTypes: ["text"] } };
-    if (type === "audio") return { ...base, type: "audio", title: "Audio lesson", audioUrl: "", targetText: "", transcript: "", allowStudentVoiceResponse: false };
+    if (type === "audio") return { ...base, type: "audio", title: "Audio lesson", audioUrl: "", transcript: "", allowStudentVoiceResponse: false };
     if (type === "video") return { ...base, type: "video", title: "Video lesson", videoUrl: "", transcript: "", show_reflection_prompt: true, reflection_prompt_text: "" };
     if (type === "image") return { ...base, type: "image", title: "Image", imageUrl: "", caption: "" };
     if (type === "resource") return { ...base, type: "resource", title: "Document", resourceUrl: "", description: "" };
@@ -836,17 +836,6 @@ export function LessonTailorEditor({
               return (
                 <div className="space-y-2">
                   <MediaAssetInput kind="audio" value={block.audioUrl.startsWith("data:") ? "" : block.audioUrl} onChange={(value) => updateDynamicBlock(step, index, { audioUrl: value })} disabled={isRecording || isUploading} />
-                  <label className="block text-xs font-semibold text-stone-300">
-                    Target sentence / shadowing text
-                    <textarea
-                      value={block.targetText || ""}
-                      onChange={(event) => updateDynamicBlock(step, index, { targetText: event.target.value })}
-                      placeholder="Enter the sentence students should read while listening."
-                      rows={3}
-                      className="mt-1 w-full resize-y rounded border border-border bg-background p-2 text-sm font-normal leading-relaxed text-stone-200 outline-none focus:border-amber-500/40"
-                      aria-label="Audio target sentence or shadowing text"
-                    />
-                  </label>
                   <label className="flex cursor-pointer items-start gap-3 rounded border border-border bg-background/60 p-3">
                     <input type="checkbox" checked={block.allowStudentVoiceResponse === true} onChange={(event) => updateDynamicBlock(step, index, { allowStudentVoiceResponse: event.target.checked })} className="mt-0.5 h-4 w-4 shrink-0 accent-amber-500" />
                     <span><span className="block text-xs font-semibold text-stone-200">Allow Student Voice Response / Shadowing Record</span><span className="mt-1 block text-[11px] leading-relaxed text-stone-500">Lets students record a response beneath this audio lesson.</span></span>
