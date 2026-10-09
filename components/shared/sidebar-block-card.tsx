@@ -26,9 +26,9 @@ export function SidebarBlockCard({
   }, [imageUrl]);
 
   return (
-    <article className="min-w-0 overflow-hidden rounded-xl border border-border bg-surface">
+    <article className="h-auto min-h-fit w-full shrink-0 rounded-xl border border-border bg-surface">
       {imageUrl && !imageFailed && (
-        <div className="w-full bg-background">
+        <div className="h-auto min-h-fit w-full bg-background">
           <img
             src={imageUrl}
             alt={altText || ""}
