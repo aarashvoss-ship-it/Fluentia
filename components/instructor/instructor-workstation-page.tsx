@@ -2063,12 +2063,12 @@ export default function InstructorWorkstationPage({
       return;
     }
 
+    const resourceType = resourceDraft.type;
     const trimmedTitle = resourceDraft.title.trim();
-    if (!trimmedTitle) {
+    if (!trimmedTitle && resourceType !== "data_table") {
       setResourceStatus("Add a title before saving this resource.");
       return;
     }
-    const resourceType = resourceDraft.type;
     const resourceBeingEdited = editingStudentResourceId
       ? studentResources.find((resource) => resource.id === editingStudentResourceId) || null
       : null;
@@ -2108,8 +2108,12 @@ export default function InstructorWorkstationPage({
       return;
     }
 
-    if (resourceType === "data_table" && !resourceDraft.body.trim()) {
-      setResourceStatus("Add content before saving this Data Table.");
+    if (resourceType === "data_table"
+      && !trimmedTitle
+      && !resourceDraft.linkUrl.trim()
+      && !resourceFile
+      && !resourceDraft.body.trim()) {
+      setResourceStatus("Add a title, data source URL, file, or table content before saving this Data Table.");
       return;
     }
 
@@ -2188,7 +2192,9 @@ export default function InstructorWorkstationPage({
         lesson_id: resolvedLessonId,
         type: storedResourceType,
         resource_type: storedResourceType,
-        title: trimmedTitle,
+        title: trimmedTitle || (resourceType === "data_table"
+          ? resourceFile?.name.replace(/\.[^.]+$/, "") || "Data Table"
+          : trimmedTitle),
         updated_at: new Date().toISOString(),
         body: ["note", "reading", "quiz", "audio", "data_table"].includes(resourceType)
           ? resourceDraft.body.trim() || null
