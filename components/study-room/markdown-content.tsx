@@ -44,7 +44,10 @@ function normalizeMarkdown(value: string) {
 }
 
 function renderLucideIconTokens(value: string) {
-  return value.replace(/\{\{lucide:([A-Za-z][A-Za-z0-9]*)\}\}/g, '<span data-lucide-icon="$1"></span>');
+  return value.replace(
+    /\{\{lucide:([A-Za-z][A-Za-z0-9]*)(?:\|(#[A-Fa-f0-9]{3,8}))?\}\}/g,
+    (_match, iconName: string, color?: string) => `<span data-lucide-icon="${iconName}"${color ? ` style="color: ${color}"` : ""}></span>`,
+  );
 }
 
 export function MarkdownContent({ value, className = "", plainCode = false, dataTables = false }: { value: string; className?: string; plainCode?: boolean; dataTables?: boolean }) {
@@ -55,10 +58,10 @@ export function MarkdownContent({ value, className = "", plainCode = false, data
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw]}
         components={{
-          span: ({ children, ...props }) => {
+          span: ({ children, style, ...props }) => {
             const iconName = (props as { "data-lucide-icon"?: string })["data-lucide-icon"];
-            if (iconName) return <DynamicLucideIcon name={iconName} className="mx-1 inline-block h-4 w-4 align-middle text-amber-400" aria-label={iconName} />;
-            return <span {...props}>{children}</span>;
+            if (iconName) return <DynamicLucideIcon name={iconName} className="mx-1 inline-block h-4 w-4 align-middle text-current" style={style} aria-label={iconName} />;
+            return <span {...props} style={style}>{children}</span>;
           },
           mark: ({ children, ...props }) => <mark {...props} className="rounded-sm px-0.5 text-inherit">{children}</mark>,
           h1: ({ children }) => <h1 className="text-stone-100">{children}</h1>,

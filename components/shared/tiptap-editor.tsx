@@ -16,6 +16,7 @@ import { Table } from "@tiptap/extension-table";
 import TableRow from "@tiptap/extension-table-row";
 import TableCell from "@tiptap/extension-table-cell";
 import TableHeader from "@tiptap/extension-table-header";
+import { NodeSelection } from "@tiptap/pm/state";
 import {
   Bold,
   Code2,
@@ -423,6 +424,12 @@ export function TiptapEditor({
       underline: currentEditor?.isActive("underline") ?? false,
       highlight: currentEditor?.isActive("highlight") ?? false,
       highlightColor: currentEditor?.getAttributes("highlight").color as string | undefined,
+      iconSelected: currentEditor?.state.selection instanceof NodeSelection
+        && currentEditor.state.selection.node.type.name === "inlineLucideIcon",
+      iconColor: currentEditor?.state.selection instanceof NodeSelection
+        && currentEditor.state.selection.node.type.name === "inlineLucideIcon"
+        ? currentEditor.state.selection.node.attrs.color as string | undefined
+        : currentEditor?.getAttributes("textStyle").color as string | undefined,
       bulletList: currentEditor?.isActive("bulletList") ?? false,
       orderedList: currentEditor?.isActive("orderedList") ?? false,
       blockquote: currentEditor?.isActive("blockquote") ?? false,
@@ -446,6 +453,8 @@ export function TiptapEditor({
     underline: false,
     highlight: false,
     highlightColor: undefined,
+    iconSelected: false,
+    iconColor: undefined,
     bulletList: false,
     orderedList: false,
     blockquote: false,
@@ -526,6 +535,17 @@ export function TiptapEditor({
     }
     const href = window.prompt("Enter link URL", "https://");
     if (href?.trim()) editor.chain().focus().setLink({ href: href.trim() }).run();
+  };
+
+  const applyTextColor = (color: string | null) => {
+    if (!editor) return;
+    const chain = editor.chain().focus();
+    if (active.iconSelected) {
+      chain.updateAttributes("inlineLucideIcon", { color }).run();
+      return;
+    }
+    if (color) chain.setColor(color).run();
+    else chain.unsetColor().run();
   };
 
   const textColors = [
@@ -614,7 +634,7 @@ export function TiptapEditor({
             <TiptapIconPicker editor={editor} compact={compact} />
           </div>
           <div ref={colorPaletteRef} className="relative shrink-0">
-            <ToolbarButton compact={compact} label="Text color" active={active.textStyle} onClick={() => setIsColorPaletteOpen((open) => !open)}><Palette className="h-3.5 w-3.5" style={{ color: active.textColor }} /></ToolbarButton>
+            <ToolbarButton compact={compact} label="Text color" active={active.textStyle || active.iconSelected} onClick={() => setIsColorPaletteOpen((open) => !open)}><Palette className="h-3.5 w-3.5" style={{ color: active.iconColor }} /></ToolbarButton>
             {isColorPaletteOpen && (
               <div className="absolute right-0 top-full z-40 mt-2 grid w-44 grid-cols-5 gap-2 rounded-md border border-border bg-surface p-3 shadow-xl" role="dialog" aria-label="Choose text color">
                 {textColors.map(({ label, color }) => (
@@ -623,7 +643,7 @@ export function TiptapEditor({
                     type="button"
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => {
-                      editor?.chain().focus().setColor(color).run();
+                      applyTextColor(color);
                       setIsColorPaletteOpen(false);
                     }}
                     className="h-6 w-6 rounded-full border border-white/30 transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
@@ -636,7 +656,7 @@ export function TiptapEditor({
                   type="button"
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => {
-                    editor?.chain().focus().unsetColor().run();
+                    applyTextColor(null);
                     setIsColorPaletteOpen(false);
                   }}
                   className="col-span-4 rounded border border-border px-2 py-1 text-[10px] text-stone-300 hover:border-amber-500/40"
