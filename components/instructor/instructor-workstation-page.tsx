@@ -4721,6 +4721,9 @@ export default function InstructorWorkstationPage({
               </button>
               {isLessonGuidanceExpanded && <div className="border-t border-border p-3"><TiptapEditor value={newLesson.instructorGuidance} onChange={(instructorGuidance) => setNewLesson((previous) => ({ ...previous, instructorGuidance }))} placeholder="Guidance shown inside this lesson's Study Room" ariaLabel="Lesson-specific guidance" compact /></div>}
             </div>
+            <div className="mt-4">
+              {heroBannerPanel}
+            </div>
           </section>}
           {isInlineStudentViewOpen ? (
             <section className="min-w-0" aria-label="Student lesson preview">
@@ -4747,7 +4750,6 @@ export default function InstructorWorkstationPage({
                   <div className="h-[calc(100dvh-20rem)] min-h-[480px] min-w-0 space-y-6 overflow-y-auto overscroll-contain pr-1">
                     <div className="min-w-0 space-y-5" style={{ zoom: 0.85 }}>
                       {lessonEditorPanel}
-                      {heroBannerPanel}
                       {sidebarEditorPanel}
                     </div>
                   </div>
@@ -4761,7 +4763,6 @@ export default function InstructorWorkstationPage({
                   <main className="grid min-w-0 grid-cols-1 items-stretch gap-6 lg:grid-cols-12">
                     <div className="h-full min-w-0 lg:col-span-8">{lessonEditorPanel}</div>
                     <aside className="h-full min-w-0 space-y-6 lg:col-span-4">
-                      {heroBannerPanel}
                       {sidebarEditorPanel}
                     </aside>
                   </main>
