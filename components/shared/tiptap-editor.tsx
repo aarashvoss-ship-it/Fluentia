@@ -422,12 +422,14 @@ export function TiptapEditor({
       strike: currentEditor?.isActive("strike") ?? false,
       underline: currentEditor?.isActive("underline") ?? false,
       highlight: currentEditor?.isActive("highlight") ?? false,
+      highlightColor: currentEditor?.getAttributes("highlight").color as string | undefined,
       bulletList: currentEditor?.isActive("bulletList") ?? false,
       orderedList: currentEditor?.isActive("orderedList") ?? false,
       blockquote: currentEditor?.isActive("blockquote") ?? false,
       codeBlock: currentEditor?.isActive("codeBlock") ?? false,
       link: currentEditor?.isActive("link") ?? false,
       textStyle: currentEditor?.isActive("textStyle") ?? false,
+      textColor: currentEditor?.getAttributes("textStyle").color as string | undefined,
       table: currentEditor?.isActive("table") ?? false,
     }),
   });
@@ -443,12 +445,14 @@ export function TiptapEditor({
     strike: false,
     underline: false,
     highlight: false,
+    highlightColor: undefined,
     bulletList: false,
     orderedList: false,
     blockquote: false,
     codeBlock: false,
     link: false,
     textStyle: false,
+    textColor: undefined,
     table: false,
   };
 
@@ -529,12 +533,14 @@ export function TiptapEditor({
     { label: "Indigo", color: "#5053C3" },
     { label: "Emerald", color: "#1F7F5B" },
     { label: "Rose", color: "#B23838" },
+    { label: "Muted gray", color: "#94a3b8" },
   ];
   const highlightColors = [
     { label: "Amber", color: "rgba(217, 119, 6, 0.3)" },
     { label: "Indigo", color: "rgba(129, 140, 248, 0.3)" },
     { label: "Emerald", color: "rgba(54, 179, 126, 0.3)" },
     { label: "Rose", color: "rgba(166, 83, 104, 0.3)" },
+    { label: "Muted gray", color: "rgba(51, 65, 85, 0.6)" },
   ];
   return (
     <div className="tiptap-editor w-full min-w-0 space-y-2">
@@ -553,7 +559,7 @@ export function TiptapEditor({
           <ToolbarButton compact={compact} label="Underline (Ctrl/Cmd+U)" active={active.underline} onClick={() => editor?.chain().focus().toggleUnderline().run()}><UnderlineIcon className="h-3.5 w-3.5" /></ToolbarButton>
           <ToolbarButton compact={compact} label="Strikethrough" active={active.strike} onClick={() => editor?.chain().focus().toggleStrike().run()}><Strikethrough className="h-3.5 w-3.5" /></ToolbarButton>
           <div ref={highlightPaletteRef} className="relative shrink-0">
-            <ToolbarButton compact={compact} label="Highlight color" active={active.highlight} onClick={() => setIsHighlightPaletteOpen((open) => !open)}><Highlighter className="h-3.5 w-3.5" /></ToolbarButton>
+            <ToolbarButton compact={compact} label="Highlight color" active={active.highlight} onClick={() => setIsHighlightPaletteOpen((open) => !open)}><Highlighter className="h-3.5 w-3.5" style={{ color: active.highlightColor }} /></ToolbarButton>
             {isHighlightPaletteOpen && (
               <div className="absolute left-0 top-full z-40 mt-2 flex gap-2 rounded-md border border-border bg-surface p-2 shadow-xl" role="dialog" aria-label="Choose highlight color">
                 {highlightColors.map(({ label, color }) => (
@@ -608,9 +614,9 @@ export function TiptapEditor({
             <TiptapIconPicker editor={editor} compact={compact} />
           </div>
           <div ref={colorPaletteRef} className="relative shrink-0">
-            <ToolbarButton compact={compact} label="Text color" active={active.textStyle} onClick={() => setIsColorPaletteOpen((open) => !open)}><Palette className="h-3.5 w-3.5" /></ToolbarButton>
+            <ToolbarButton compact={compact} label="Text color" active={active.textStyle} onClick={() => setIsColorPaletteOpen((open) => !open)}><Palette className="h-3.5 w-3.5" style={{ color: active.textColor }} /></ToolbarButton>
             {isColorPaletteOpen && (
-              <div className="absolute right-0 top-full z-40 mt-2 grid w-36 grid-cols-4 gap-2 rounded-md border border-border bg-surface p-3 shadow-xl" role="dialog" aria-label="Choose text color">
+              <div className="absolute right-0 top-full z-40 mt-2 grid w-44 grid-cols-5 gap-2 rounded-md border border-border bg-surface p-3 shadow-xl" role="dialog" aria-label="Choose text color">
                 {textColors.map(({ label, color }) => (
                   <Tooltip key={label} content={`Set text color ${label}`}>
                     <button
