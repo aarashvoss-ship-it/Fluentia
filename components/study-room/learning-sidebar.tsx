@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, BookMarked, Check, Copy, ExternalLink, FileDown, FileText, Headphones, Image as ImageIcon, Layers3, Library, Table, Trash2, Video, X } from "lucide-react";
+import { ArrowLeft, BookMarked, Check, Copy, ExternalLink, FileDown, FileText, Headphones, Image as ImageIcon, Layers3, Library, Link2, Table, Trash2, Video, X } from "lucide-react";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { isDataTableResourceTitle } from "@/components/shared/data-table-resource";
 import { getStudyHubResourceHref, StudyHubDownloadButton, StudyHubFlashcardDeck, StudyHubResourceCard, type StudyHubResource } from "@/components/shared/study-hub-resource-card";
@@ -9,8 +9,8 @@ import { Tooltip } from "@/components/shared/tooltip";
 import { supabase } from "@/lib/supabaseClient";
 import { SavedVocabularyWord, StudentNote } from "@/types/lesson";
 
-export type LearningTab = "vocab" | "notes" | "reading" | "flashcards" | "quizzes" | "audio" | "video" | "image" | "data_table" | "files";
-const LEARNING_TABS: LearningTab[] = ["vocab", "notes", "reading", "flashcards", "quizzes", "audio", "video", "image", "data_table", "files"];
+export type LearningTab = "vocab" | "notes" | "reading" | "flashcards" | "quizzes" | "audio" | "video" | "image" | "data_table" | "files" | "links";
+const LEARNING_TABS: LearningTab[] = ["vocab", "notes", "reading", "flashcards", "quizzes", "audio", "video", "image", "data_table", "files", "links"];
 
 export function isLearningTab(value: string | null): value is LearningTab {
   return value !== null && LEARNING_TABS.includes(value as LearningTab);
@@ -308,8 +308,9 @@ export function LearningSidebar({
     ["audio", "Audio", Headphones],
     ["video", "Video", Video],
     ["image", "Images", ImageIcon],
-    ["data_table", "Data Table", Table],
+    ["data_table", "Table", Table],
     ["files", "Files", FileText],
+    ["links", "Links", Link2],
   ] as const;
 
   const noteResources = assignedResources.filter((item) => item.resource_type === "note" && !isDataTableResourceTitle(item.title));
@@ -320,6 +321,7 @@ export function LearningSidebar({
   const imageResources = assignedResources.filter((item) => item.resource_type === "image");
   const dataTableResources = assignedResources.filter((item) => item.resource_type === "data_table" || isDataTableResourceTitle(item.title));
   const fileResources = assignedResources.filter((item) => item.resource_type === "file");
+  const linkResources = assignedResources.filter((item) => item.resource_type === "links");
   const tabItemCounts: Record<LearningTab, number> = {
     vocab: words.length,
     notes: noteResources.length + (resource?.trim() ? 1 : 0) + notes.filter((note) => note.text.trim()).length,
@@ -331,6 +333,7 @@ export function LearningSidebar({
     image: imageResources.length,
     data_table: dataTableResources.length,
     files: fileResources.length,
+    links: linkResources.length,
   };
   const firstPopulatedTab = (Object.keys(tabItemCounts) as LearningTab[])
     .find((candidate) => tabItemCounts[candidate] > 0) || "vocab";
@@ -394,7 +397,7 @@ export function LearningSidebar({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 border-b border-border p-3 min-[380px]:grid-cols-3 sm:grid-cols-5">
+        <div className="grid grid-cols-6 gap-1 border-b border-border p-2">
           {tabs.map(([id, label, Icon]) => {
             const itemCount = tabItemCounts[id];
             const hasContent = itemCount > 0;
@@ -409,10 +412,10 @@ export function LearningSidebar({
                 }}
                 aria-pressed={tab === id}
                 aria-label={`${label}${hasContent ? `, ${itemCount} items` : ", no materials assigned for this lesson"}`}
-                className={`flex min-h-16 min-w-0 w-full flex-col items-center justify-center gap-1 rounded-md border px-1.5 py-2 text-[10px] transition-all ${tab === id ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-transparent text-stone-500 hover:border-border hover:bg-surface hover:text-stone-300"} ${hasContent ? "" : "opacity-40 hover:opacity-70"}`}
+                className={`flex min-h-12 min-w-0 w-full flex-col items-center justify-center gap-0.5 rounded-md border px-0.5 py-1 text-[9px] leading-tight transition-all ${tab === id ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-transparent text-stone-500 hover:border-border hover:bg-surface hover:text-stone-300"} ${hasContent ? "" : "opacity-40 hover:opacity-70"}`}
               >
                 <span className="relative inline-flex">
-                  <Icon className="h-4 w-4" />
+                  <Icon className="h-3.5 w-3.5" />
                   {hasContent && <span aria-hidden="true" className="absolute -right-2 -top-1 min-w-3 rounded-full bg-amber-400 px-1 text-center text-[8px] font-bold leading-3 text-background">{itemCount > 99 ? "99+" : itemCount}</span>}
                 </span>
                 <span className="w-full truncate text-center">{label}</span>
@@ -477,6 +480,15 @@ export function LearningSidebar({
                   <DownloadMaterialButton title={item.title || item.type} href={href} />
                 </div>;
               })}
+            </section>
+          )}
+
+          {tab === "links" && (
+            <section className="space-y-3" aria-label="Instructor links">
+              <h3 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Links</h3>
+              {linkResources.length === 0 ? <p className="text-sm text-stone-500">Your instructor has not added any links yet.</p> : linkResources.map((item) => (
+                <StudyHubResourceCard key={item.id} resource={item} />
+              ))}
             </section>
           )}
 

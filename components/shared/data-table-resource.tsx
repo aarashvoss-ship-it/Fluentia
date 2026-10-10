@@ -83,7 +83,7 @@ function printTables(title: string, tables: ParsedTable[], fallbackText: string)
   return true;
 }
 
-export function DataTableResource({ title, markdown, html }: { title: string; markdown: string; html?: string }) {
+export function DataTableResource({ title, markdown, html, sourceUrl }: { title: string; markdown: string; html?: string; sourceUrl?: string | null }) {
   const [status, setStatus] = useState("");
   const content = html ?? markdown;
   const [tables, setTables] = useState<ParsedTable[]>([]);
@@ -118,6 +118,11 @@ export function DataTableResource({ title, markdown, html }: { title: string; ma
         <h3 className="min-w-0 flex-1 break-words text-sm font-semibold text-stone-100">{title}</h3>
         <img src="/logo.png" alt="Fluentia" className="h-9 w-auto max-w-24 shrink-0 object-contain" />
       </header>
+      {sourceUrl && (
+        <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="mb-3 inline-flex max-w-full items-center gap-1.5 break-all text-xs text-amber-300 hover:text-amber-200">
+          Source link <span className="truncate">{sourceUrl}</span>
+        </a>
+      )}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <button type="button" onClick={() => { if (!printTables(title, tables, getPlainText())) setStatus("Allow pop-ups to print this table as PDF."); }} className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 px-2.5 py-1.5 text-[11px]  text-amber-400 transition hover:bg-amber-500/20">
           <FileDown className="h-3.5 w-3.5" /> Download PDF

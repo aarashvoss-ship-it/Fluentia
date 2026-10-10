@@ -38,7 +38,7 @@ import { DisplaySettingsControl } from "@/components/shared/display-settings";
 import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import { DynamicLucideIcon, LucideIconPicker } from "@/components/shared/lucide-icon-picker";
 import { SidebarBlockCard } from "@/components/shared/sidebar-block-card";
-import { StudyHubDownloadButton, StudyHubFlashcardDeck, StudyHubResourceCard } from "@/components/shared/study-hub-resource-card";
+import { getStudyHubResourceHref, StudyHubDownloadButton, StudyHubFlashcardDeck, StudyHubResourceCard } from "@/components/shared/study-hub-resource-card";
 import { StudentStudyRoomPreview, STUDENT_PREVIEW_CHANNEL, type StudentPreviewSnapshot, type StudentPreviewStep } from "@/components/instructor/student-study-room-preview";
 import { LearningSidebar, type LearningTab } from "@/components/study-room/learning-sidebar";
 import type { StudyHubResource } from "@/components/shared/study-hub-resource-card";
@@ -498,7 +498,7 @@ function cloneSidebarBlocksByStep(blocks: SidebarBlocksByStep): SidebarBlocksByS
   return out;
 }
 
-type StudentResourceType = "note" | "reading" | "flashcard" | "flashcards" | "quiz" | "audio" | "data_table" | "file" | "image" | "video";
+type StudentResourceType = "note" | "reading" | "flashcard" | "flashcards" | "quiz" | "audio" | "data_table" | "file" | "image" | "video" | "links";
 type ResourceEditorType = Exclude<StudentResourceType, "flashcards">;
 type FlashcardItem = {
   id?: string;
@@ -2111,6 +2111,17 @@ export default function InstructorWorkstationPage({
       return;
     }
 
+    if (resourceType === "links" && !resourceDraft.linkUrl.trim()) {
+      setResourceStatus("Add a URL for this link.");
+      return;
+    }
+
+    if ((resourceType === "links" || (resourceType === "data_table" && resourceDraft.linkUrl.trim()))
+      && !getResourcePreviewHref(resourceDraft.linkUrl)) {
+      setResourceStatus("Enter a valid URL starting with http:// or https://.");
+      return;
+    }
+
     if (["audio", "file", "image", "video"].includes(resourceType) && !usesMediaUrl && !usesMediaUpload) {
       setResourceStatus(`Add a ${resourceType} URL or choose a file to upload.`);
       return;
@@ -2175,7 +2186,7 @@ export default function InstructorWorkstationPage({
         body: ["note", "reading", "quiz", "audio", "data_table"].includes(resourceType)
           ? resourceDraft.body.trim() || null
           : null,
-        link_url: ["reading", "audio", "file", "image", "video"].includes(resourceType)
+        link_url: ["reading", "audio", "file", "image", "video", "data_table", "links"].includes(resourceType)
           ? resourceUrl || null
           : null,
         ...(["reading", "audio", "file", "image", "video"].includes(resourceType)
@@ -3513,14 +3524,17 @@ export default function InstructorWorkstationPage({
     image: "image",
     data_table: "data_table",
     file: "files",
+    links: "links",
   };
   const studyHubPreviewResources: StudyHubResource[] = studentResources.map((resource) => ({
     ...resource,
     resource_type: resource.resource_type,
   }));
-  const draftPreviewHref = resourceInputMode === "upload"
-    ? activeResourceType === "audio" ? audioFilePreviewUrl : resourceFilePreviewUrl
-    : getResourcePreviewHref(resourceDraft.linkUrl);
+  const draftPreviewHref = activeResourceType === "links" || activeResourceType === "data_table"
+    ? getResourcePreviewHref(resourceDraft.linkUrl)
+    : resourceInputMode === "upload"
+      ? activeResourceType === "audio" ? audioFilePreviewUrl : resourceFilePreviewUrl
+      : getResourcePreviewHref(resourceDraft.linkUrl);
   const draftResourceHasContent = Boolean(
     editingStudentResourceId
     || resourceDraft.title.trim()
@@ -4314,7 +4328,7 @@ export default function InstructorWorkstationPage({
               <div className="grid min-w-0 grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.35fr)]">
                 <div className="w-full min-w-0 rounded-2xl border border-border bg-surface/60 p-5">
                   <div className="mb-4 flex flex-wrap gap-2">
-                    {([['note', 'Notes'], ['reading', 'Reading'], ['flashcard', 'Flashcards'], ['quiz', 'Quiz'], ['audio', 'Audio'], ['data_table', 'Data Table']] as const).map(([type, label]) => (
+                    {([['note', 'Notes'], ['reading', 'Reading'], ['flashcard', 'Flashcards'], ['quiz', 'Quiz'], ['audio', 'Audio'], ['data_table', 'Data Table'], ['links', 'Links']] as const).map(([type, label]) => (
                       <button
                         key={type}
                         type="button"
@@ -4328,7 +4342,7 @@ export default function InstructorWorkstationPage({
 
                   <div className="space-y-3">
                     <label className="block text-xs text-stone-400">
-                      Title
+                      {resourceDraft.type === "links" ? "Link Title" : "Title"}
                       <input
                         value={resourceDraft.title}
                         onChange={(event) => setResourceDraft((previous) => ({ ...previous, title: event.target.value }))}
@@ -4336,6 +4350,19 @@ export default function InstructorWorkstationPage({
                         className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                       />
                     </label>
+
+                    {resourceDraft.type === "links" && (
+                      <label className="block text-xs text-stone-400">
+                        URL
+                        <input
+                          type="url"
+                          value={resourceDraft.linkUrl}
+                          onChange={(event) => setResourceDraft((previous) => ({ ...previous, linkUrl: event.target.value }))}
+                          placeholder="https://..."
+                          className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                        />
+                      </label>
+                    )}
 
                     {resourceDraft.type === "reading" && (
                       <>
@@ -4396,16 +4423,28 @@ export default function InstructorWorkstationPage({
                     )}
 
                     {resourceDraft.type === "data_table" && (
-                      <label className="block text-xs text-stone-400">
-                        Data table content
-                        <TiptapEditor
-                          value={resourceDraft.body}
-                          onChange={(body) => setResourceDraft((previous) => ({ ...previous, body }))}
-                          onHtmlChange={setResourceBodyHtml}
-                          placeholder="Write content or insert a table with the toolbar."
-                          ariaLabel="Data table content"
-                        />
-                      </label>
+                      <>
+                        <label className="block text-xs text-stone-400">
+                          URL / Source Link (optional)
+                          <input
+                            type="url"
+                            value={resourceDraft.linkUrl}
+                            onChange={(event) => setResourceDraft((previous) => ({ ...previous, linkUrl: event.target.value }))}
+                            placeholder="https://..."
+                            className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                          />
+                        </label>
+                        <label className="block text-xs text-stone-400">
+                          Data table content
+                          <TiptapEditor
+                            value={resourceDraft.body}
+                            onChange={(body) => setResourceDraft((previous) => ({ ...previous, body }))}
+                            onHtmlChange={setResourceBodyHtml}
+                            placeholder="Write content or insert a table with the toolbar."
+                            ariaLabel="Data table content"
+                          />
+                        </label>
+                      </>
                     )}
 
                     {(resourceDraft.type === "note" || resourceDraft.type === "quiz") && (
@@ -4651,7 +4690,8 @@ export default function InstructorWorkstationPage({
                               {resource.body && <AudioTranscriptAccordion resourceId={resource.id} transcript={resource.body} />}
                             </div>
                           )}
-                          {isDataTable && resource.body && <div className="mt-3"><DataTableResource title={resourceTitle} markdown={resource.body} /></div>}
+                          {resource.resource_type === "links" && <div className="mt-3"><StudyHubResourceCard resource={resource} /></div>}
+                          {isDataTable && resource.body && <div className="mt-3"><DataTableResource title={resourceTitle} markdown={resource.body} sourceUrl={getStudyHubResourceHref(resource.link_url)} /></div>}
                           {resource.resource_type === "reading" && resource.body && <MarkdownContent value={resource.body} className="mt-3 text-sm leading-relaxed text-stone-300" />}
                           {resource.resource_type === "note" && !isDataTable && resource.body && <MarkdownContent value={resource.body} className="mt-3 text-sm leading-relaxed text-stone-300" />}
                           {resource.resource_type === "quiz" && resource.body && <MarkdownContent value={resource.body} className="mt-3 text-sm leading-relaxed text-stone-300" />}
@@ -4950,15 +4990,15 @@ export default function InstructorWorkstationPage({
                     </ul>
                   )}
                 </div>
-                <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Resource type">
-                  {([['note', 'Notes'], ['reading', 'Reading'], ['flashcard', 'Flashcards'], ['quiz', 'Quiz'], ['audio', 'Audio'], ['video', 'Video'], ['image', 'Image'], ['data_table', 'Data Table'], ['file', 'File Upload']] as const).map(([type, label]) => (
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5" role="group" aria-label="Resource type">
+                  {([['note', 'Notes'], ['reading', 'Reading'], ['flashcard', 'Flashcards'], ['quiz', 'Quiz'], ['audio', 'Audio'], ['video', 'Video'], ['image', 'Image'], ['data_table', 'Data Table'], ['file', 'File Upload'], ['links', 'Links']] as const).map(([type, label]) => (
                     <button
                       key={type}
                       type="button"
                       disabled={Boolean(editingStudentResourceId && activeResourceType !== type)}
                       aria-pressed={activeResourceType === type}
                       onClick={() => setResourceDraft((previous) => ({ ...previous, type }))}
-                      className={`rounded-md border px-3 py-2 text-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${activeResourceType === type ? 'border-amber-500/40 bg-amber-500/20 text-amber-400 shadow-sm' : 'border-border bg-background text-stone-400 hover:border-amber-500/40 hover:text-stone-100'}`}
+                      className={`min-w-0 truncate rounded-md border px-2 py-2 text-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${activeResourceType === type ? 'border-amber-500/40 bg-amber-500/20 text-amber-400 shadow-sm' : 'border-border bg-background text-stone-400 hover:border-amber-500/40 hover:text-stone-100'}`}
                     >
                       {label}
                     </button>
@@ -4975,20 +5015,33 @@ export default function InstructorWorkstationPage({
                     <div id="student-resource-editor" className="mb-4 border-b border-border pb-3">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">{editingStudentResourceId ? "Edit saved resource" : "Resource Editor"}</p>
                       <h4 className="mt-1 font-sans text-lg font-semibold text-stone-100">
-                        {activeResourceType === "note" ? "Note Editor" : activeResourceType === "reading" ? "Reading Editor" : activeResourceType === "flashcard" ? "Flashcard Builder" : activeResourceType === "quiz" ? "Quiz Editor" : activeResourceType === "audio" ? "Audio Editor" : activeResourceType === "video" ? "Video Editor" : activeResourceType === "image" ? "Image Editor" : activeResourceType === "file" ? "File Upload" : "Data Table Editor"}
+                        {activeResourceType === "note" ? "Note Editor" : activeResourceType === "reading" ? "Reading Editor" : activeResourceType === "flashcard" ? "Flashcard Builder" : activeResourceType === "quiz" ? "Quiz Editor" : activeResourceType === "audio" ? "Audio Editor" : activeResourceType === "video" ? "Video Editor" : activeResourceType === "image" ? "Image Editor" : activeResourceType === "file" ? "File Upload" : activeResourceType === "links" ? "Links Editor" : "Data Table Editor"}
                       </h4>
                     </div>
 
                     <div className="space-y-3">
                       <label className="block text-xs text-stone-400">
-                        Title
+                        {activeResourceType === "links" ? "Link Title" : "Title"}
                         <input
                           value={resourceDraft.title}
                           onChange={(event) => setResourceDraft((previous) => ({ ...previous, title: event.target.value }))}
-                          placeholder={resourceDraft.type === "audio" ? "Podcast / Deep Dive Audio" : resourceDraft.type === "data_table" ? "Lesson 3: Core Summary Matrix" : resourceDraft.type === "file" ? "Resource title" : "Vocabulary set / reading summary / quiz idea"}
+                          placeholder={resourceDraft.type === "audio" ? "Podcast / Deep Dive Audio" : resourceDraft.type === "data_table" ? "Lesson 3: Core Summary Matrix" : resourceDraft.type === "links" ? "Helpful website or learning resource" : resourceDraft.type === "file" ? "Resource title" : "Vocabulary set / reading summary / quiz idea"}
                           className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                         />
                       </label>
+
+                      {resourceDraft.type === "links" && (
+                        <label className="block text-xs text-stone-400">
+                          URL
+                          <input
+                            type="url"
+                            value={resourceDraft.linkUrl}
+                            onChange={(event) => setResourceDraft((previous) => ({ ...previous, linkUrl: event.target.value }))}
+                            placeholder="https://..."
+                            className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                          />
+                        </label>
+                      )}
 
                       {(["reading", "audio", "file", "image", "video"] as StudentResourceType[]).includes(resourceDraft.type) && (
                         <div className="grid grid-cols-2 rounded-md border border-border bg-background p-1" role="tablist" aria-label="Media input method">
@@ -5090,16 +5143,28 @@ export default function InstructorWorkstationPage({
                       )}
 
                       {resourceDraft.type === "data_table" && (
-                        <label className="block text-xs text-stone-400">
-                          Data table content
-                          <TiptapEditor
-                            value={resourceDraft.body}
-                            onChange={(body) => setResourceDraft((previous) => ({ ...previous, body }))}
-                            onHtmlChange={setResourceBodyHtml}
-                            placeholder="Write content or insert a table with the toolbar."
-                            ariaLabel="Data table content"
-                          />
-                        </label>
+                        <>
+                          <label className="block text-xs text-stone-400">
+                            URL / Source Link (optional)
+                            <input
+                              type="url"
+                              value={resourceDraft.linkUrl}
+                              onChange={(event) => setResourceDraft((previous) => ({ ...previous, linkUrl: event.target.value }))}
+                              placeholder="https://..."
+                              className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
+                            />
+                          </label>
+                          <label className="block text-xs text-stone-400">
+                            Data table content
+                            <TiptapEditor
+                              value={resourceDraft.body}
+                              onChange={(body) => setResourceDraft((previous) => ({ ...previous, body }))}
+                              onHtmlChange={setResourceBodyHtml}
+                              placeholder="Write content or insert a table with the toolbar."
+                              ariaLabel="Data table content"
+                            />
+                          </label>
+                        </>
                       )}
 
                       {(resourceDraft.type === "note" || resourceDraft.type === "quiz") && (

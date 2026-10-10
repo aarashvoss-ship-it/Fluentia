@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Check, Download, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Download, ExternalLink, Link2, X } from "lucide-react";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { InteractiveVideoBlock } from "@/components/shared/interactive-video-block";
 import { DataTableResource, getDataTableResourceTitle, isDataTableResourceTitle } from "@/components/shared/data-table-resource";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { StudyHubMarkdownResource } from "@/components/shared/study-hub-markdown-resource";
 
-export type StudyHubResourceType = "note" | "reading" | "flashcard" | "flashcards" | "quiz" | "audio" | "data_table" | "file" | "image" | "video";
+export type StudyHubResourceType = "note" | "reading" | "flashcard" | "flashcards" | "quiz" | "audio" | "data_table" | "file" | "image" | "video" | "links";
 
 export type StudyHubResource = {
   id: string;
@@ -136,6 +136,34 @@ export function StudyHubResourceCard({
     );
   }
 
+  if (resource.resource_type === "links") {
+    return (
+      <article className="rounded-lg border border-border bg-background p-3">
+        <div className="flex items-start gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-amber-500/30 bg-amber-500/10 text-amber-300">
+            <Link2 className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h4 className="break-words text-sm font-semibold text-stone-100">{title}</h4>
+            {href ? (
+              <a href={href} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex max-w-full items-center gap-1.5 text-xs text-amber-300 transition hover:text-amber-200">
+                <span className="truncate">{new URL(href, "https://fluentia.invalid").hostname}</span>
+                <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
+              </a>
+            ) : (
+              <p className="mt-1 break-all text-xs text-stone-500">Link is not available.</p>
+            )}
+          </div>
+        </div>
+        {href && (
+          <a href={href} target="_blank" rel="noopener noreferrer" className="mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-300 transition hover:bg-amber-500/20">
+            Open link <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+          </a>
+        )}
+      </article>
+    );
+  }
+
   const cardClass = resource.resource_type === "reading"
     ? "rounded-lg border border-border bg-background p-3"
     : "space-y-3 rounded-lg border border-border bg-background p-3";
@@ -170,7 +198,7 @@ export function StudyHubResourceCard({
         </>
       )}
 
-      {resource.resource_type === "data_table" && resource.body && <DataTableResource title={title} markdown={resource.body} html={resource.bodyHtml || undefined} />}
+      {resource.resource_type === "data_table" && resource.body && <DataTableResource title={title} markdown={resource.body} html={resource.bodyHtml || undefined} sourceUrl={getStudyHubResourceHref(resource.link_url)} />}
 
       {resource.resource_type === "file" && (
         <>
