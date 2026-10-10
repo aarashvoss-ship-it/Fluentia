@@ -199,6 +199,11 @@ export function StudyHubResourceCard({
       )}
 
       {resource.resource_type === "data_table" && resource.body && <DataTableResource title={title} markdown={resource.body} html={resource.bodyHtml || undefined} sourceUrl={getStudyHubResourceHref(resource.link_url)} />}
+      {resource.resource_type === "data_table" && href && (resource.original_filename || resource.media_type || !resource.body) && (
+        <ResourceLink href={href} download={Boolean(resource.original_filename)}>
+          {resource.original_filename ? `Download ${resource.original_filename}` : "Open data source"}
+        </ResourceLink>
+      )}
 
       {resource.resource_type === "file" && (
         <>

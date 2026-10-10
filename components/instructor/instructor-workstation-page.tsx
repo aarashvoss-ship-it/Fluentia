@@ -1018,7 +1018,7 @@ export default function InstructorWorkstationPage({
   const livePreviewSnapshot: StudentPreviewSnapshot = {
     content: workstationState.content,
     sidebarBlocksByStep,
-    studyHubResources: studentResources.map(({ id, lesson_id, resource_type, title, body, link_url, question, answer, explanation, subtitle, sub_title, example, cards, original_filename, media_type }) => ({
+    studyHubResources: studentResources.map(({ id, lesson_id, resource_type, title, body, link_url, question, answer, explanation, subtitle, sub_title, example, cards, original_filename, media_type, storage_path }) => ({
       id,
       lesson_id,
       resource_type,
@@ -1034,6 +1034,7 @@ export default function InstructorWorkstationPage({
       cards,
       original_filename,
       media_type,
+      storage_path,
     })),
     step: previewStep,
     title: newLesson.title,
@@ -2094,11 +2095,12 @@ export default function InstructorWorkstationPage({
     }
 
     const mediaUploadFile = resourceType === "audio" ? audioFile : resourceFile;
-    const usesMediaUrl = ["reading", "audio", "file", "image", "video"].includes(resourceType)
+    const usesMediaUrl = ["reading", "audio", "file", "image", "video", "data_table"].includes(resourceType)
       && Boolean(resourceDraft.linkUrl.trim())
       && !(resourceInputMode === "upload" && mediaUploadFile);
-    const usesMediaUpload = ["reading", "audio", "file", "image", "video"].includes(resourceType)
+    const usesMediaUpload = (["reading", "audio", "file", "image", "video"].includes(resourceType)
       && resourceInputMode === "upload"
+      || resourceType === "data_table")
       && Boolean(mediaUploadFile);
 
     if (resourceType === "reading" && !resourceDraft.linkUrl.trim() && !resourceDraft.body.trim() && !resourceFile) {
@@ -2116,7 +2118,7 @@ export default function InstructorWorkstationPage({
       return;
     }
 
-    if ((resourceType === "links" || (resourceType === "data_table" && resourceDraft.linkUrl.trim()))
+    if ((resourceType === "links" || (resourceType === "data_table" && resourceDraft.linkUrl.trim() && !usesMediaUpload))
       && !getResourcePreviewHref(resourceDraft.linkUrl)) {
       setResourceStatus("Enter a valid URL starting with http:// or https://.");
       return;
@@ -2160,6 +2162,11 @@ export default function InstructorWorkstationPage({
     const storedResourceType: StudentResourceType = resourceType === "flashcard" ? "flashcards" : resourceType;
     let resourceFileStoragePath: string | null = null;
     let oldFileCleanupFailed = false;
+    const preserveExistingAttachment = Boolean(
+      resourceBeingEdited?.link_url
+      && resourceBeingEdited.link_url === resourceDraft.linkUrl.trim()
+      && (resourceBeingEdited.storage_path || resourceBeingEdited.original_filename || resourceBeingEdited.media_type),
+    );
     try {
       let resourceUrl = resourceDraft.linkUrl.trim();
       if (usesMediaUpload && mediaUploadFile && resourceFileMediaType) {
@@ -2189,14 +2196,17 @@ export default function InstructorWorkstationPage({
         link_url: ["reading", "audio", "file", "image", "video", "data_table", "links"].includes(resourceType)
           ? resourceUrl || null
           : null,
-        ...(["reading", "audio", "file", "image", "video"].includes(resourceType)
+        storage_path: usesMediaUpload
+          ? resourceFileStoragePath
+          : preserveExistingAttachment ? resourceBeingEdited?.storage_path || null : null,
+        ...(["reading", "audio", "file", "image", "video", "data_table"].includes(resourceType)
           ? {
               original_filename: usesMediaUpload && mediaUploadFile
                 ? mediaUploadFile.name
-                : resourceBeingEdited?.original_filename || null,
+                : preserveExistingAttachment ? resourceBeingEdited?.original_filename || null : null,
               media_type: usesMediaUpload
                 ? resourceFileMediaType
-                : resourceBeingEdited?.media_type || null,
+                : preserveExistingAttachment ? resourceBeingEdited?.media_type || null : null,
             }
           : {}),
         ...(resourceType === "flashcard"
@@ -2208,7 +2218,7 @@ export default function InstructorWorkstationPage({
             }
           : {}),
       } as Pick<StudentResourceEntry, "student_id" | "student_token" | "lesson_id" | "resource_type" | "title">
-        & Partial<Pick<StudentResourceEntry, "type" | "body" | "link_url" | "question" | "answer" | "explanation" | "cards" | "original_filename" | "media_type">>
+        & Partial<Pick<StudentResourceEntry, "type" | "body" | "link_url" | "question" | "answer" | "explanation" | "cards" | "original_filename" | "media_type" | "storage_path">>
         & { updated_at: string };
 
       if (resourceBeingEdited?.id.startsWith("local-")) {
@@ -2243,6 +2253,7 @@ export default function InstructorWorkstationPage({
           resourceFileStoragePath = null;
         }
         if (!resourceBeingEdited && (error.code === "PGRST205" || /does not exist|42P01/i.test(error.message || ""))) {
+          if (usesMediaUpload) throw new Error("Apply migration 028 before saving uploaded resource attachments.");
           if (resourceType === "file" || resourceType === "image" || resourceType === "video") throw new Error("Apply migration 028 before saving image and video resources.");
           const localEntry: StudentResourceEntry = {
             id: `local-${Date.now()}`,
@@ -3531,7 +3542,9 @@ export default function InstructorWorkstationPage({
     resource_type: resource.resource_type,
   }));
   const draftPreviewHref = activeResourceType === "links" || activeResourceType === "data_table"
-    ? getResourcePreviewHref(resourceDraft.linkUrl)
+    ? activeResourceType === "data_table" && resourceFile
+      ? resourceFilePreviewUrl
+      : getResourcePreviewHref(resourceDraft.linkUrl)
     : resourceInputMode === "upload"
       ? activeResourceType === "audio" ? audioFilePreviewUrl : resourceFilePreviewUrl
       : getResourcePreviewHref(resourceDraft.linkUrl);
@@ -4425,7 +4438,7 @@ export default function InstructorWorkstationPage({
                     {resourceDraft.type === "data_table" && (
                       <>
                         <label className="block text-xs text-stone-400">
-                          URL / Source Link (optional)
+                          Attach File / CSV / Data Source (URL)
                           <input
                             type="url"
                             value={resourceDraft.linkUrl}
@@ -4433,6 +4446,20 @@ export default function InstructorWorkstationPage({
                             placeholder="https://..."
                             className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                           />
+                        </label>
+                        <label className="block text-xs text-stone-400">
+                          Attach File / CSV / Data Source (upload)
+                          <input
+                            type="file"
+                            accept=".csv,.txt,.pdf,.doc,.docx,.rtf,.odt"
+                            onChange={(event) => handleResourceFileSelection(event.target.files?.[0])}
+                            className="mt-1 block w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-300 file:mr-3 file:rounded file:border-0 file:bg-amber-500/20 file:px-3 file:py-1.5 file:text-xs file:text-amber-400"
+                          />
+                          {(resourceFile || (editingStudentResourceId && studentResources.find((resource) => resource.id === editingStudentResourceId)?.original_filename)) && (
+                            <span className="mt-1 block truncate text-[11px] text-stone-500">
+                              {resourceFile?.name || studentResources.find((resource) => resource.id === editingStudentResourceId)?.original_filename}
+                            </span>
+                          )}
                         </label>
                         <label className="block text-xs text-stone-400">
                           Data table content
@@ -4692,6 +4719,11 @@ export default function InstructorWorkstationPage({
                           )}
                           {resource.resource_type === "links" && <div className="mt-3"><StudyHubResourceCard resource={resource} /></div>}
                           {isDataTable && resource.body && <div className="mt-3"><DataTableResource title={resourceTitle} markdown={resource.body} sourceUrl={getStudyHubResourceHref(resource.link_url)} /></div>}
+                          {isDataTable && resource.link_url && resource.original_filename && (
+                            <a href={getStudyHubResourceHref(resource.link_url) || undefined} download={resource.original_filename} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-md border border-amber-500/40 px-3 py-2 text-xs text-amber-300 hover:bg-amber-500/10">
+                              Download {resource.original_filename}
+                            </a>
+                          )}
                           {resource.resource_type === "reading" && resource.body && <MarkdownContent value={resource.body} className="mt-3 text-sm leading-relaxed text-stone-300" />}
                           {resource.resource_type === "note" && !isDataTable && resource.body && <MarkdownContent value={resource.body} className="mt-3 text-sm leading-relaxed text-stone-300" />}
                           {resource.resource_type === "quiz" && resource.body && <MarkdownContent value={resource.body} className="mt-3 text-sm leading-relaxed text-stone-300" />}
@@ -5145,7 +5177,7 @@ export default function InstructorWorkstationPage({
                       {resourceDraft.type === "data_table" && (
                         <>
                           <label className="block text-xs text-stone-400">
-                            URL / Source Link (optional)
+                            Attach File / CSV / Data Source (URL)
                             <input
                               type="url"
                               value={resourceDraft.linkUrl}
@@ -5153,6 +5185,20 @@ export default function InstructorWorkstationPage({
                               placeholder="https://..."
                               className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40"
                             />
+                          </label>
+                          <label className="block text-xs text-stone-400">
+                            Attach File / CSV / Data Source (upload)
+                            <input
+                              type="file"
+                              accept=".csv,.txt,.pdf,.doc,.docx,.rtf,.odt"
+                              onChange={(event) => handleResourceFileSelection(event.target.files?.[0])}
+                              className="mt-1 block w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-300 file:mr-3 file:rounded file:border-0 file:bg-amber-500/20 file:px-3 file:py-1.5 file:text-xs file:text-amber-400"
+                            />
+                            {(resourceFile || (editingStudentResourceId && studentResources.find((resource) => resource.id === editingStudentResourceId)?.original_filename)) && (
+                              <span className="mt-1 block truncate text-[11px] text-stone-500">
+                                {resourceFile?.name || studentResources.find((resource) => resource.id === editingStudentResourceId)?.original_filename}
+                              </span>
+                            )}
                           </label>
                           <label className="block text-xs text-stone-400">
                             Data table content
@@ -5379,9 +5425,11 @@ export default function InstructorWorkstationPage({
                       title={resourceDraft.title.trim()}
                       body={resourceDraft.body.trim() ? resourceBodyHtml : ""}
                       bodyHtml={resourceBodyHtml}
-                      href={resourceInputMode === "upload"
-                        ? activeResourceType === "audio" ? audioFilePreviewUrl : resourceFilePreviewUrl
-                        : getResourcePreviewHref(resourceDraft.linkUrl)}
+                      href={activeResourceType === "data_table" && resourceFile
+                        ? resourceFilePreviewUrl
+                        : resourceInputMode === "upload"
+                          ? activeResourceType === "audio" ? audioFilePreviewUrl : resourceFilePreviewUrl
+                          : getResourcePreviewHref(resourceDraft.linkUrl)}
                       mediaType={resourceFile ? getSupportedResourceMediaType(resourceFile) || undefined : audioFile ? getSupportedResourceMediaType(audioFile) || undefined : undefined}
                       filename={resourceFile?.name || audioFile?.name}
                     />
