@@ -33,6 +33,7 @@ import { getInstructorDirectory, type InstructorDirectoryEntry, type InstructorS
 import { InstructorChatWidget } from "@/components/instructor/instructor-chat-widget";
 import { useLessonEditorStore } from "@/lib/lesson-editor-store";
 import { Tooltip } from "@/components/shared/tooltip";
+import { DeleteConfirmationDialog, type DeleteConfirmationRequest } from "@/components/shared/delete-confirmation-dialog";
 import { DisplaySettingsControl } from "@/components/shared/display-settings";
 import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import { DynamicLucideIcon, LucideIconPicker } from "@/components/shared/lucide-icon-picker";
@@ -160,6 +161,7 @@ function StepSidebarEditorPanel({
 }) {
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [imageUploadStatus, setImageUploadStatus] = useState<Record<string, string>>({});
+  const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmationRequest | null>(null);
   const contentId = "step-sidebar-editor-content";
   const updateSidebarBlock = (blockId: string, patch: Partial<SidebarBlock>) => {
     setSidebarBlocksByStep((current) => ({
@@ -257,10 +259,14 @@ function StepSidebarEditorPanel({
               <Tooltip content="Delete sidebar block">
               <button
                 type="button"
-                onClick={() => setSidebarBlocksByStep((current) => ({
-                  ...current,
-                  [sidebarStep]: (current[sidebarStep] || []).filter((item) => item.id !== block.id),
-                }))}
+                onClick={() => setDeleteConfirmation({
+                  title: `Delete ${block.title || "sidebar block"}?`,
+                  description: "Are you sure you want to delete this sidebar block? This action cannot be undone.",
+                  onConfirm: () => setSidebarBlocksByStep((current) => ({
+                    ...current,
+                    [sidebarStep]: (current[sidebarStep] || []).filter((item) => item.id !== block.id),
+                  })),
+                })}
                 aria-label={`Delete ${block.title}`}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-border text-stone-400 transition hover:border-red-500/60 hover:text-red-300"
               >
@@ -362,6 +368,7 @@ function StepSidebarEditorPanel({
           </div>
         </div>
       </div>
+      <DeleteConfirmationDialog request={deleteConfirmation} onCancel={() => setDeleteConfirmation(null)} />
     </section>
   );
 }
@@ -989,6 +996,7 @@ export default function InstructorWorkstationPage({
   const [createdLessons, setCreatedLessons] = useState<LessonWithVersion[]>([]);
   const [lessonPendingDelete, setLessonPendingDelete] = useState<LessonWithVersion | null>(null);
   const [isDeletingLesson, setIsDeletingLesson] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmationRequest | null>(null);
   const activeBuilderStudent = selectedStudent;
   const activeBuilderLessonId = resourceLessonId || databaseLessonId || null;
   const [openLessonMenuId, setOpenLessonMenuId] = useState<string | null>(null);
@@ -2315,7 +2323,7 @@ export default function InstructorWorkstationPage({
 
   const deleteStudentResource = async (resource: StudentResourceEntry) => {
     const resolvedStudent = selectedStudent ?? (selectedStudentId ? students.find((student) => student.id === selectedStudentId) ?? null : null);
-    if (!resolvedStudent) return;
+    if (!resolvedStudent) throw new Error("Select a student before deleting this resource.");
     const studentToken = resolvedStudent.token || resolvedStudent.id;
 
     if (resource.id.startsWith("local-")) {
@@ -2333,8 +2341,7 @@ export default function InstructorWorkstationPage({
 
     if (error) {
       console.error("Student resource delete failed:", error.message);
-      setResourceStatus("Resource could not be deleted. Check the Supabase permissions and try again.");
-      return;
+      throw new Error("Resource could not be deleted. Check the Supabase permissions and try again.");
     }
 
     const next = studentResources.filter((item) => item.id !== resource.id);
@@ -4455,10 +4462,14 @@ export default function InstructorWorkstationPage({
                         </button>
                         <FlashcardDraftList
                           cards={resourceDraft.cards}
-                          onRemove={(index) => setResourceDraft((previous) => ({
-                            ...previous,
-                            cards: previous.cards.filter((_, cardIndex) => cardIndex !== index),
-                          }))}
+                          onRemove={(index) => setDeleteConfirmation({
+                            title: `Remove flashcard ${index + 1}?`,
+                            description: "Are you sure you want to remove this card from the draft deck? This action cannot be undone.",
+                            onConfirm: () => setResourceDraft((previous) => ({
+                              ...previous,
+                              cards: previous.cards.filter((_, cardIndex) => cardIndex !== index),
+                            })),
+                          })}
                         />
                       </>
                     )}
@@ -4617,7 +4628,11 @@ export default function InstructorWorkstationPage({
                               <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400">{isDataTable ? "data_table" : isFlashcardDeck ? "Flashcard Deck" : resource.resource_type}</p>
                               {!isDataTable && <h4 className="mt-1 font-semibold text-stone-100">{resourceTitle}{isFlashcardDeck ? ` (${resourceCards.length} ${resourceCards.length === 1 ? "Card" : "Cards"})` : ""}</h4>}
                             </div>
-                            <button type="button" onClick={() => void deleteStudentResource(resource)} className="text-stone-500 hover:text-red-300" aria-label={`Delete ${resource.title}`}>
+                            <button type="button" onClick={() => setDeleteConfirmation({
+                              title: `Delete ${resource.title}?`,
+                              description: "This permanently deletes the saved student resource. This action cannot be undone.",
+                              onConfirm: () => deleteStudentResource(resource),
+                            })} className="text-stone-500 hover:text-red-300" aria-label={`Delete ${resource.title}`}>
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </div>
@@ -4918,7 +4933,11 @@ export default function InstructorWorkstationPage({
                                 ><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
                                 <button
                                   type="button"
-                                  onClick={() => setLessonResources((current) => current.filter(({ id }) => id !== resource.id))}
+                                  onClick={() => setDeleteConfirmation({
+                                    title: `Remove ${resource.title} from this lesson?`,
+                                    description: "This removes the resource from the lesson. The source resource itself will not be deleted.",
+                                    onConfirm: () => setLessonResources((current) => current.filter(({ id }) => id !== resource.id)),
+                                  })}
                                   aria-label={`Remove ${resource.title} from this lesson`}
                                   className="rounded-md border border-border p-2 text-stone-400 hover:border-red-500/40 hover:text-red-300"
                                 ><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>
@@ -5136,10 +5155,14 @@ export default function InstructorWorkstationPage({
                           </button>
                           <FlashcardDraftList
                             cards={resourceDraft.cards}
-                            onRemove={(index) => setResourceDraft((previous) => ({
-                              ...previous,
-                              cards: previous.cards.filter((_, cardIndex) => cardIndex !== index),
-                            }))}
+                            onRemove={(index) => setDeleteConfirmation({
+                              title: `Remove flashcard ${index + 1}?`,
+                              description: "Are you sure you want to remove this card from the draft deck? This action cannot be undone.",
+                              onConfirm: () => setResourceDraft((previous) => ({
+                                ...previous,
+                                cards: previous.cards.filter((_, cardIndex) => cardIndex !== index),
+                              })),
+                            })}
                           />
                         </>
                       )}
@@ -5357,7 +5380,11 @@ export default function InstructorWorkstationPage({
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => void deleteStudentResource(resource)}
+                                  onClick={() => setDeleteConfirmation({
+                                    title: `Delete ${resource.title}?`,
+                                    description: "This permanently deletes the saved student resource. This action cannot be undone.",
+                                    onConfirm: () => deleteStudentResource(resource),
+                                  })}
                                   className="rounded-md p-1.5 text-stone-500 transition hover:bg-red-500/10 hover:text-red-400"
                                   aria-label={`Delete ${resource.title}`}
                                 >
@@ -5613,6 +5640,7 @@ export default function InstructorWorkstationPage({
     lessonContext={newLesson.title || newLesson.slug || lessonId}
   />
       {lessonPendingDelete && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-lesson-title" aria-describedby="delete-lesson-warning"><div className="w-full max-w-md rounded-xl border border-red-500/30 bg-surface p-6 shadow-2xl"><h2 id="delete-lesson-title" className="font-sans text-xl font-semibold text-stone-100">Delete lesson permanently?</h2><p id="delete-lesson-warning" className="mt-3 text-sm leading-relaxed text-stone-300">This permanently deletes the lesson, its versions, assignments, submissions, feedback, and lesson-linked student resources. This action cannot be undone.</p><p className="mt-2 truncate text-xs text-amber-400">{lessonPendingDelete.title}</p><div className="mt-6 flex justify-end gap-3"><button type="button" disabled={isDeletingLesson} onClick={() => setLessonPendingDelete(null)} className="rounded-md border border-border px-4 py-2 text-xs  text-stone-300 hover:border-stone-300 disabled:cursor-not-allowed disabled:opacity-50">Cancel</button><button type="button" disabled={isDeletingLesson} onClick={() => void handleDeleteLesson()} className="rounded-md bg-red-500 px-4 py-2 text-xs  text-white hover:bg-red-400 disabled:cursor-wait disabled:opacity-60">{isDeletingLesson ? "Deleting..." : "Delete lesson"}</button></div></div></div>}
+      <DeleteConfirmationDialog request={deleteConfirmation} onCancel={() => setDeleteConfirmation(null)} />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { Image, Upload, Check, LoaderCircle, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { getBannerOverlayStyles, getBannerPositionStyles, type BannerFocalPosition } from "@/lib/banner-position";
 import { BannerPositionControls } from "@/components/shared/banner-position-controls";
+import { DeleteConfirmationDialog, type DeleteConfirmationRequest } from "@/components/shared/delete-confirmation-dialog";
 
 export type BannerPosition = BannerFocalPosition;
 
@@ -46,6 +47,7 @@ export function InstructorBannerManager({
   const [isDeleting, setIsDeleting] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [bannerToast, setBannerToast] = useState<string | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmationRequest | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isDraggingRef = useRef(false);
 
@@ -104,6 +106,7 @@ export function InstructorBannerManager({
       const details = error && typeof error === "object" ? error as { message?: string } : undefined;
       console.error("Hero banner deletion failed:", error);
       setUploadMessage(details?.message ? `Delete failed: ${details.message}` : "Delete failed. Check the lesson-assets bucket permissions and try again.");
+      throw error;
     } finally {
       setIsDeleting(false);
     }
@@ -226,7 +229,11 @@ export function InstructorBannerManager({
       {uploadedBannerPath && (
         <button
           type="button"
-          onClick={() => void handleDeleteBanner()}
+          onClick={() => setDeleteConfirmation({
+            title: "Delete uploaded banner?",
+            description: "This permanently deletes the uploaded banner from storage. This action cannot be undone.",
+            onConfirm: handleDeleteBanner,
+          })}
           disabled={isDeleting || isUploading}
           className="mb-3 inline-flex items-center gap-1.5 rounded border border-red-500/40 px-3 py-2 text-xs text-red-300 transition hover:bg-red-500/10 disabled:cursor-wait disabled:opacity-50"
         >
@@ -312,6 +319,7 @@ export function InstructorBannerManager({
           </button>
         )}
       </div>
+      <DeleteConfirmationDialog request={deleteConfirmation} onCancel={() => setDeleteConfirmation(null)} />
     </div>
   );
 }

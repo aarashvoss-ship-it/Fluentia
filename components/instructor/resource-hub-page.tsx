@@ -3,6 +3,7 @@
 import { ExternalLink, FileText, Film, Grid2X2, Headphones, Image, List, PackageOpen, Plus, Search, Trash2, X } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { MusicLibraryManager } from "@/components/instructor/music-library-manager";
+import { DeleteConfirmationDialog, type DeleteConfirmationRequest } from "@/components/shared/delete-confirmation-dialog";
 import { addResourceAsset, deleteResourceAsset, loadResourceAssets, useResourceAssets } from "@/lib/resource-hub-store";
 import type { CEFRLevel, MainCategory, ResourceAssetInput, SubCategory } from "@/types/resource-hub";
 
@@ -92,6 +93,7 @@ export function ResourceHubPage({ instructorId }: { instructorId: string }) {
   const [isSavingAsset, setIsSavingAsset] = useState(false);
   const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmationRequest | null>(null);
   const selectedCategoryDetails = RESOURCE_CATEGORIES.find(({ id }) => id === selectedCategory);
 
   const browsableAssets = assets.filter((asset) => !isStudyRoomMusicAsset(asset));
@@ -163,6 +165,7 @@ export function ResourceHubPage({ instructorId }: { instructorId: string }) {
       await deleteResourceAsset(assetId);
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Unable to delete Resource Hub asset.");
+      throw error;
     } finally {
       setDeletingAssetId(null);
     }
@@ -352,7 +355,11 @@ export function ResourceHubPage({ instructorId }: { instructorId: string }) {
                     <button type="button" onClick={() => openPreview(asset.url)} className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-[11px] text-stone-300 transition hover:border-amber-500/40 hover:text-amber-300">
                       Preview <ExternalLink className="h-3 w-3" aria-hidden="true" />
                     </button>
-                    <button type="button" onClick={() => void deleteAsset(asset.id)} disabled={deletingAssetId === asset.id} aria-label={`Delete ${asset.title}`} className="inline-flex items-center justify-center rounded-md border border-border p-1.5 text-stone-400 transition hover:border-rose-500/40 hover:text-rose-300 disabled:cursor-wait disabled:opacity-50">
+                    <button type="button" onClick={() => setDeleteConfirmation({
+                      title: `Delete ${asset.title}?`,
+                      description: "This permanently deletes the Resource Hub asset. This action cannot be undone.",
+                      onConfirm: () => deleteAsset(asset.id),
+                    })} disabled={deletingAssetId === asset.id} aria-label={`Delete ${asset.title}`} className="inline-flex items-center justify-center rounded-md border border-border p-1.5 text-stone-400 transition hover:border-rose-500/40 hover:text-rose-300 disabled:cursor-wait disabled:opacity-50">
                       <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
                   </div>
@@ -391,7 +398,11 @@ export function ResourceHubPage({ instructorId }: { instructorId: string }) {
                         <button type="button" onClick={() => openPreview(asset.url)} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1.5 text-[11px] transition hover:border-amber-500/40 hover:text-amber-300">
                           Preview <ExternalLink className="h-3 w-3" aria-hidden="true" />
                         </button>
-                        <button type="button" onClick={() => void deleteAsset(asset.id)} disabled={deletingAssetId === asset.id} aria-label={`Delete ${asset.title}`} className="inline-flex items-center justify-center rounded-md border border-border p-1.5 text-stone-400 transition hover:border-rose-500/40 hover:text-rose-300 disabled:cursor-wait disabled:opacity-50">
+                        <button type="button" onClick={() => setDeleteConfirmation({
+                          title: `Delete ${asset.title}?`,
+                          description: "This permanently deletes the Resource Hub asset. This action cannot be undone.",
+                          onConfirm: () => deleteAsset(asset.id),
+                        })} disabled={deletingAssetId === asset.id} aria-label={`Delete ${asset.title}`} className="inline-flex items-center justify-center rounded-md border border-border p-1.5 text-stone-400 transition hover:border-rose-500/40 hover:text-rose-300 disabled:cursor-wait disabled:opacity-50">
                           <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                         </button>
                       </div>
@@ -524,6 +535,7 @@ export function ResourceHubPage({ instructorId }: { instructorId: string }) {
         </div>
       )}
       {selectedCategory === "audios" && <MusicLibraryManager instructorId={instructorId} />}
+      <DeleteConfirmationDialog request={deleteConfirmation} onCancel={() => setDeleteConfirmation(null)} />
     </section>
   );
 }

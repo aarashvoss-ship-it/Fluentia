@@ -16,6 +16,7 @@ import { WordCountedTextarea } from "@/components/shared/word-counted-textarea";
 import { parseInteractiveTranscript } from "@/lib/transcripts";
 import { ExternalLink, Eye, FileText, Layers, LoaderCircle, MoveDown, MoveUp, Plus, Rocket, Save, Trash2, UploadCloud, X, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Mic, Square } from "lucide-react";
 import { Tooltip } from "@/components/shared/tooltip";
+import { DeleteConfirmationDialog, type DeleteConfirmationRequest } from "@/components/shared/delete-confirmation-dialog";
 
 interface LessonTailorEditorProps {
   content: StrictStepContent;
@@ -259,6 +260,7 @@ function MediaAssetInput({
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmationRequest | null>(null);
   const rules = mediaRules[kind];
   const inputId = `media-upload-${kind}`;
 
@@ -305,11 +307,16 @@ function MediaAssetInput({
           {value && <div className="flex items-center gap-3 rounded border border-emerald-500/30 bg-emerald-500/5 p-2">
             {kind === "image" ? <img src={value} alt="Uploaded media preview" className="h-14 w-20 rounded object-cover" /> : kind === "audio" ? <audio controls src={value} className="h-8 min-w-0 flex-1" /> : kind === "video" ? <video controls src={value} className="h-14 w-24 rounded object-cover" /> : <FileText className="h-8 w-8 shrink-0 text-amber-400" />}
             <span className="min-w-0 flex-1 truncate text-[11px] text-emerald-200">File uploaded</span>
-            <button type="button" onClick={() => onChange("")} disabled={disabled || isUploading} className="shrink-0 text-[11px]  text-stone-400 underline hover:text-red-300 disabled:opacity-50">Remove / Replace</button>
+            <button type="button" onClick={() => setDeleteConfirmation({
+              title: `Remove ${kind} from this block?`,
+              description: "This removes the current media from the block. This action cannot be undone.",
+              onConfirm: () => onChange(""),
+            })} disabled={disabled || isUploading} className="shrink-0 text-[11px] text-stone-400 underline hover:text-red-300 disabled:opacity-50">Remove / Replace</button>
           </div>}
         </>
       )}
       {error && <p className="text-[11px] text-red-300" role="alert">{error}</p>}
+      <DeleteConfirmationDialog request={deleteConfirmation} onCancel={() => setDeleteConfirmation(null)} />
     </div>
   );
 }
@@ -337,6 +344,7 @@ export function LessonTailorEditor({
   const [fillBlankModes, setFillBlankModes] = useState<Record<string, "edit" | "preview">>({});
   const [fillBlankPreviewValues, setFillBlankPreviewValues] = useState<Record<string, string>>({});
   const [recordingByBlockId, setRecordingByBlockId] = useState<Record<string, { status: "recording" | "uploading" | "error"; error?: string; elapsed?: number; levels?: number[] }>>({});
+  const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmationRequest | null>(null);
   const recorderRef = useRef<Map<string, MediaRecorder>>(new Map());
   const streamRef = useRef<Map<string, MediaStream>>(new Map());
   const chunksRef = useRef<Map<string, BlobPart[]>>(new Map());
@@ -423,6 +431,11 @@ export function LessonTailorEditor({
   };
 
   const updateBlocks = (step: StudyStepId, blocks: ContentBlock[]) => updateStepValue(step, "blocks", blocks);
+  const requestDelete = (title: string, onConfirm: () => void) => setDeleteConfirmation({
+    title,
+    description: "Are you sure you want to delete this item? This action cannot be undone.",
+    onConfirm,
+  });
 
   const createBlock = (type: ContentBlockType): ContentBlock => {
     const id = typeof crypto !== "undefined" && crypto.randomUUID
@@ -765,7 +778,7 @@ export function LessonTailorEditor({
                 </button>
                 <button type="button" onClick={() => moveBlock(index, -1)} disabled={index === 0} className="rounded p-1 text-stone-400 hover:bg-background hover:text-amber-400 disabled:opacity-30" aria-label="Move block up"><MoveUp className="h-3.5 w-3.5" /></button>
                 <button type="button" onClick={() => moveBlock(index, 1)} disabled={index === blocks.length - 1} className="rounded p-1 text-stone-400 hover:bg-background hover:text-amber-400 disabled:opacity-30" aria-label="Move block down"><MoveDown className="h-3.5 w-3.5" /></button>
-                <button type="button" onClick={() => handleDeleteBlock(index, block.id)} className="rounded p-1 text-stone-400 hover:bg-background hover:text-red-300" aria-label="Delete block"><Trash2 className="h-3.5 w-3.5" /></button>
+                <button type="button" onClick={() => requestDelete(`Delete ${block.title || block.type} block?`, () => handleDeleteBlock(index, block.id))} className="rounded p-1 text-stone-400 hover:bg-background hover:text-red-300" aria-label="Delete block"><Trash2 className="h-3.5 w-3.5" /></button>
               </div>
             </div>
             <div id={`block-content-${block.id}`} className={`transition-opacity duration-200 ${isExpanded ? "h-auto overflow-visible opacity-100" : "h-0 overflow-hidden opacity-0"}`} aria-hidden={!isExpanded}>
@@ -911,7 +924,7 @@ export function LessonTailorEditor({
                     {block.options.map((option, optionIndex) => (
                       <div key={`${block.id}-${optionIndex}`} className="flex gap-2">
                         <input value={option} onChange={(event) => updateDynamicBlock(step, index, { options: block.options.map((value, valueIndex) => valueIndex === optionIndex ? event.target.value : value) })} placeholder={`Option ${optionIndex + 1} (optional)`} className="min-w-0 flex-1 rounded border border-border bg-background p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40" aria-label={`Question option ${optionIndex + 1}`} />
-                        <button type="button" onClick={() => updateDynamicBlock(step, index, { options: block.options.filter((_, valueIndex) => valueIndex !== optionIndex) })} disabled={block.options.length <= 1} aria-label={`Remove question option ${optionIndex + 1}`} className="rounded border border-border px-2 text-stone-500 hover:border-red-400 hover:text-red-300 disabled:opacity-30"><X className="h-3.5 w-3.5" /></button>
+                        <button type="button" onClick={() => requestDelete(`Remove option ${optionIndex + 1}?`, () => updateDynamicBlock(step, index, { options: block.options.filter((_, valueIndex) => valueIndex !== optionIndex) }))} disabled={block.options.length <= 1} aria-label={`Remove question option ${optionIndex + 1}`} className="rounded border border-border px-2 text-stone-500 hover:border-red-400 hover:text-red-300 disabled:opacity-30"><X className="h-3.5 w-3.5" /></button>
                       </div>
                     ))}
                     <button type="button" onClick={() => updateDynamicBlock(step, index, { options: [...block.options, ""] })} className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-400"><Plus className="h-3 w-3" /> Add option</button>
@@ -951,7 +964,7 @@ export function LessonTailorEditor({
                         <h4 className="text-xs font-semibold text-stone-200">Question {questionIndex + 1}</h4>
                         <button
                           type="button"
-                          onClick={() => updateDynamicBlock(step, index, { questions: block.questions.filter((_, itemIndex) => itemIndex !== questionIndex) })}
+                          onClick={() => requestDelete(`Delete question ${questionIndex + 1}?`, () => updateDynamicBlock(step, index, { questions: block.questions.filter((_, itemIndex) => itemIndex !== questionIndex) }))}
                           disabled={block.questions.length <= 1}
                           aria-label={`Remove question ${questionIndex + 1}`}
                           className="rounded p-1 text-stone-500 hover:bg-surface hover:text-red-300 disabled:opacity-30"
@@ -1034,7 +1047,7 @@ export function LessonTailorEditor({
                               />
                               <button
                                 type="button"
-                                onClick={() => updateQuestion({ options: (question.options || []).filter((_, valueIndex) => valueIndex !== optionIndex) })}
+                                onClick={() => requestDelete(`Remove option ${optionIndex + 1} from question ${questionIndex + 1}?`, () => updateQuestion({ options: (question.options || []).filter((_, valueIndex) => valueIndex !== optionIndex) }))}
                                 disabled={(question.options || []).length <= 2}
                                 aria-label={`Remove question ${questionIndex + 1} option ${optionIndex + 1}`}
                                 className="rounded border border-border px-2 text-stone-500 hover:text-red-300 disabled:opacity-30"
@@ -1137,6 +1150,7 @@ export function LessonTailorEditor({
       )}
 
       <div className="min-w-0 space-y-4">{renderDynamicBuilder(activeStep)}</div>
+      <DeleteConfirmationDialog request={deleteConfirmation} onCancel={() => setDeleteConfirmation(null)} />
     </div>
   );
 }
