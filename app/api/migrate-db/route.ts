@@ -14,24 +14,17 @@ export async function GET() {
 
   const client = new Client({
     connectionString,
+    ssl: { rejectUnauthorized: false }
   });
 
   try {
     await client.connect();
-    
-    // خواندن فایل schema.sql از روت پروژه
     const filePath = path.join(process.cwd(), 'schema.sql');
-    if (!fs.existsSync(filePath)) {
-      return NextResponse.json({ error: 'schema.sql file not found in root directory' }, { status: 404 });
-    }
-
     const sql = fs.readFileSync(filePath, 'utf8');
-
-    // اجرای دستورات SQL روی دیتابیس پاستا
     await client.query(sql);
-
     await client.end();
-    return NextResponse.json({ success: true, message: 'All tables created successfully on Paasta database!' });
+    
+    return NextResponse.json({ success: true, message: 'Tables created successfully!' });
   } catch (error: any) {
     await client.end();
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
