@@ -6,14 +6,12 @@ import pkg from 'pg';
 const { Client } = pkg;
 
 export async function GET() {
-  const connectionString = process.env.DATABASE_URL;
-
-  if (!connectionString) {
-    return NextResponse.json({ error: 'DATABASE_URL is not set' }, { status: 500 });
-  }
-
   const client = new Client({
-    connectionString,
+    host: process.env.PGHOST || 'database-280116ce-08a',
+    port: Number(process.env.PGPORT) || 5432,
+    database: process.env.PGDATABASE || 'paasta',
+    user: process.env.PGUSER || 'paasta',
+    password: process.env.PGPASSWORD || 'uYHJSWYQry9mFelZA2A8M29ksfpzgwPW',
     ssl: { rejectUnauthorized: false }
   });
 
