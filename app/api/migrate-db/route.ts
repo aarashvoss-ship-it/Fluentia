@@ -6,6 +6,7 @@ import pkg from 'pg';
 const { Client } = pkg;
 
 export async function GET() {
+  // استفاده از پارامترهای صریح برای اتصال داخلی پاستا
   const client = new Client({
     host: process.env.PGHOST || 'database-280116ce-08a',
     port: Number(process.env.PGPORT) || 5432,
