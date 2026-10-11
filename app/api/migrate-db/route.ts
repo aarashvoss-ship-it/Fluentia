@@ -6,12 +6,14 @@ import pkg from 'pg';
 const { Client } = pkg;
 
 export async function GET() {
+  const connectionString = process.env.DATABASE_URL;
+
+  if (!connectionString) {
+    return NextResponse.json({ error: 'DATABASE_URL is not set' }, { status: 500 });
+  }
+
   const client = new Client({
-    host: '127.0.0.1',
-    port: 5432,
-    database: 'paasta',
-    user: 'paasta',
-    password: 'uYHJSWYQry9mFelZA2A8M29ksfpzgwPW',
+    connectionString,
     ssl: { rejectUnauthorized: false }
   });
 
