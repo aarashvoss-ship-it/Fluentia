@@ -6,13 +6,12 @@ import pkg from 'pg';
 const { Client } = pkg;
 
 export async function GET() {
-  // استفاده از پارامترهای صریح برای اتصال داخلی پاستا
   const client = new Client({
-    host: process.env.PGHOST || 'database-280116ce-08a',
-    port: Number(process.env.PGPORT) || 5432,
-    database: process.env.PGDATABASE || 'paasta',
-    user: process.env.PGUSER || 'paasta',
-    password: process.env.PGPASSWORD || 'uYHJSWYQry9mFelZA2A8M29ksfpzgwPW',
+    host: '127.0.0.1',
+    port: 5432,
+    database: 'paasta',
+    user: 'paasta',
+    password: 'uYHJSWYQry9mFelZA2A8M29ksfpzgwPW',
     ssl: { rejectUnauthorized: false }
   });
 
