@@ -63,12 +63,12 @@ export function ExerciseQuestions({
               </div>
             )}
             {type === "fill_in_the_blanks" ? (
-              <div className="space-y-3">
-                {!hideQuestionNumber && <p className="m-0 text-base font-semibold text-amber-400">{index + 1}.</p>}
+              <div>
                 <FillInBlanksMarkdown
                   blockId={question.id}
                   text={removeManualQuestionNumber(questionPrompt)}
                   acceptableAnswers={question.acceptableAnswers || []}
+                  prefix={hideQuestionNumber ? undefined : `${index + 1}.`}
                   wordBank={question.wordBank}
                   caseSensitive={question.caseSensitive}
                   values={textAnswers}
