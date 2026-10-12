@@ -62,9 +62,9 @@ export function ExerciseQuestions({
                 <MarkdownContent value={question.sectionHeader.trim()} />
               </div>
             )}
-            <div id={`exercise-question-${question.id}`} role="heading" aria-level={4} className="flex items-baseline gap-1 text-base leading-relaxed text-stone-100">
-              {!hideQuestionNumber && <span className="mr-1 shrink-0 font-semibold text-amber-400">{index + 1}.</span>}
-              {type === "fill_in_the_blanks" ? (
+            {type === "fill_in_the_blanks" ? (
+              <div className="space-y-3">
+                {!hideQuestionNumber && <p className="m-0 text-base font-semibold text-amber-400">{index + 1}.</p>}
                 <FillInBlanksMarkdown
                   blockId={question.id}
                   text={removeManualQuestionNumber(questionPrompt)}
@@ -77,12 +77,15 @@ export function ExerciseQuestions({
                   isEvaluationView={isReview}
                   showFeedback={isReview}
                   showResults={isReview}
-                  className="min-w-0 flex-1 text-base leading-relaxed text-stone-100 [&_p]:m-0"
+                  className="w-full min-w-0 text-base leading-relaxed text-stone-100 [&_p]:m-0"
                 />
-              ) : (
+              </div>
+            ) : (
+              <div id={`exercise-question-${question.id}`} role="heading" aria-level={4} className="flex items-baseline gap-1 text-base leading-relaxed text-stone-100">
+                <span className="mr-1 shrink-0 font-semibold text-amber-400">{index + 1}.</span>
                 <MarkdownContent value={removeManualQuestionNumber(questionPrompt)} className="min-w-0 flex-1 text-base leading-relaxed text-stone-100 [&_p]:m-0" />
-              )}
-            </div>
+              </div>
+            )}
 
             {type === "short_answer" ? (
               <textarea
