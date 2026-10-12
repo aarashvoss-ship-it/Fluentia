@@ -13,7 +13,6 @@ type FillInBlanksMarkdownProps = {
   blockId: string;
   text: string;
   acceptableAnswers: string[][];
-  prefix?: string;
   wordBank?: string[];
   caseSensitive?: boolean;
   values: Record<string, string>;
@@ -29,7 +28,6 @@ export function FillInBlanksMarkdown({
   blockId,
   text,
   acceptableAnswers,
-  prefix,
   wordBank = [],
   caseSensitive = false,
   values,
@@ -41,7 +39,6 @@ export function FillInBlanksMarkdown({
   className = "",
 }: FillInBlanksMarkdownProps) {
   let globalBlankIndex = 0;
-  let hasRenderedPrefix = false;
   const blankAnswers = Array.from(text.matchAll(BRACKET_PATTERN), (match) =>
     match[1].trim().replace(/^blank\s*:\s*/i, "").trim(),
   );
@@ -66,11 +63,7 @@ export function FillInBlanksMarkdown({
     h2: ({ children }) => <h2 className="mb-3 mt-5 text-xl font-semibold leading-tight text-stone-100">{children}</h2>,
     h3: ({ children }) => <h3 className="mb-3 mt-4 text-lg font-semibold leading-tight text-stone-100">{children}</h3>,
     h4: ({ children }) => <h4 className="mb-2 mt-3 text-[1.0625rem] font-semibold leading-tight text-stone-100">{children}</h4>,
-    p: ({ children }) => {
-      const renderPrefix = prefix && !hasRenderedPrefix;
-      hasRenderedPrefix = true;
-      return <p className="mb-4 whitespace-pre-wrap leading-7 last:mb-0">{renderPrefix && <span className="mr-1 font-semibold text-amber-400">{prefix}</span>}{children}</p>;
-    },
+    p: ({ children }) => <p className="mb-4 whitespace-pre-wrap leading-7 last:mb-0">{children}</p>,
     ul: ({ children }) => <ul className="mb-4 mt-2 list-disc space-y-1 pl-5 leading-7">{children}</ul>,
     ol: ({ children }) => <ol className="mb-4 mt-2 list-decimal space-y-1 pl-5 leading-7">{children}</ol>,
     li: ({ children }) => <li className="pl-1 text-slate-300">{children}</li>,

@@ -8,10 +8,6 @@ import { getQuizQuestionPrompt } from "@/lib/fill-in-blanks";
 
 const TRUE_FALSE_NOT_GIVEN_OPTIONS = ["True", "False", "Not Given"];
 
-function removeManualQuestionNumber(prompt: string) {
-  return prompt.replace(/^(\s*(?:<[^>]+>\s*)*)\d+[.)]\s+/, "$1");
-}
-
 function normalizeAnswer(value: string) {
   return value.trim().toLowerCase().replace(/^(?:[a-z]|\d+)\s*[).]\s*/, "").trim();
 }
@@ -53,7 +49,6 @@ export function ExerciseQuestions({
         const correctAnswer = question.correct_answer
           || question.correctAnswer
           || (type === "short_answer" ? question.sample_answer : "");
-        const hideQuestionNumber = questions.length === 1 && type === "fill_in_the_blanks";
 
         return (
           <section key={question.id} className="h-auto min-h-max space-y-3 overflow-visible border-b border-border pb-6 last:border-0 last:pb-1">
@@ -66,9 +61,8 @@ export function ExerciseQuestions({
               <div>
                 <FillInBlanksMarkdown
                   blockId={question.id}
-                  text={removeManualQuestionNumber(questionPrompt)}
+                  text={questionPrompt}
                   acceptableAnswers={question.acceptableAnswers || []}
-                  prefix={hideQuestionNumber ? undefined : `${index + 1}.`}
                   wordBank={question.wordBank}
                   caseSensitive={question.caseSensitive}
                   values={textAnswers}
@@ -81,9 +75,8 @@ export function ExerciseQuestions({
                 />
               </div>
             ) : (
-              <div id={`exercise-question-${question.id}`} role="heading" aria-level={4} className="flex items-baseline gap-1 text-base leading-relaxed text-stone-100">
-                <span className="mr-1 shrink-0 font-semibold text-amber-400">{index + 1}.</span>
-                <MarkdownContent value={removeManualQuestionNumber(questionPrompt)} className="min-w-0 flex-1 text-base leading-relaxed text-stone-100 [&_p]:m-0" />
+              <div id={`exercise-question-${question.id}`} role="heading" aria-level={4} className="text-base leading-relaxed text-stone-100">
+                <MarkdownContent value={questionPrompt} className="min-w-0 text-base leading-relaxed text-stone-100 [&_p]:m-0" />
               </div>
             )}
 
