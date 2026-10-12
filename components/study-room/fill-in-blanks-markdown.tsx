@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useCallback, useMemo, useRef } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
@@ -38,17 +38,50 @@ export function FillInBlanksMarkdown({
   isEvaluationView = false,
   className = "",
 }: FillInBlanksMarkdownProps) {
-  let globalBlankIndex = 0;
   const blankAnswers = Array.from(text.matchAll(BRACKET_PATTERN), (match) =>
     match[1].trim().replace(/^blank\s*:\s*/i, "").trim(),
   );
+  const globalBlankIndex = useRef(0);
+  const inputState = useRef({
+    blankAnswers,
+    acceptableAnswers,
+    caseSensitive,
+    values,
+    onChange,
+    readOnly,
+    showFeedback,
+    showResults,
+    isEvaluationView,
+  });
+  inputState.current = {
+    blankAnswers,
+    acceptableAnswers,
+    caseSensitive,
+    values,
+    onChange,
+    readOnly,
+    showFeedback,
+    showResults,
+    isEvaluationView,
+  };
   let replacementIndex = 0;
   const markdownWithInputs = text.replace(BRACKET_PATTERN, () => {
     const index = replacementIndex++;
     return `<input data-fill-blank-index="${index}" />`;
   });
 
-  const renderInput = (blankIndex: number) => {
+  const renderInput = useCallback((blankIndex: number) => {
+    const {
+      blankAnswers,
+      acceptableAnswers,
+      caseSensitive,
+      values,
+      onChange,
+      readOnly,
+      showFeedback,
+      showResults,
+      isEvaluationView,
+    } = inputState.current;
     const answer = blankAnswers[blankIndex] || "";
     const responseKey = `${blockId}-blank-${blankIndex}`;
     const acceptable = acceptableAnswers[blankIndex]?.length ? acceptableAnswers[blankIndex] : [answer || DEFAULT_ANSWER];
@@ -56,9 +89,9 @@ export function FillInBlanksMarkdown({
     const shouldShowFeedback = isEvaluationView && showResults && showFeedback;
     const isCorrect = shouldShowFeedback && response.trim().length > 0 && isFillInBlankAnswerCorrect(response, acceptable, caseSensitive);
     return <React.Fragment key={responseKey}><input type="text" value={response} onChange={(event) => onChange?.(blankIndex, event.target.value)} onDragOver={(event) => { if (!readOnly) event.preventDefault(); }} onDrop={(event) => { if (readOnly) return; event.preventDefault(); const droppedWord = event.dataTransfer.getData("text/plain").trim(); if (droppedWord) onChange?.(blankIndex, droppedWord); }} readOnly={readOnly} disabled={readOnly} placeholder={readOnly ? answer || "answer" : "Drop or type"} aria-label={`Blank ${blankIndex + 1}`} className={`ml-1 mr-0 inline-block min-w-24 max-w-full border-b-2 bg-transparent px-2 py-0.5 text-center align-baseline text-inherit text-stone-100 outline-none focus:border-amber-500/40 ${shouldShowFeedback ? (isCorrect ? "border-emerald-400" : "border-red-400") : "border-amber-500/40"}`} data-acceptable-answer-count={acceptable.length} />{shouldShowFeedback && <span className={`text-xs ${isCorrect ? "text-emerald-300" : "text-red-300"}`}>{isCorrect ? "Correct" : "Incorrect"}</span>}</React.Fragment>;
-  };
+  }, [blockId]);
 
-  const components: Components = {
+  const components = useMemo<Components>(() => ({
     h1: ({ children }) => <h1 className="mb-4 mt-6 text-2xl font-semibold leading-tight text-stone-100">{children}</h1>,
     h2: ({ children }) => <h2 className="mb-3 mt-5 text-xl font-semibold leading-tight text-stone-100">{children}</h2>,
     h3: ({ children }) => <h3 className="mb-3 mt-4 text-lg font-semibold leading-tight text-stone-100">{children}</h3>,
@@ -73,10 +106,11 @@ export function FillInBlanksMarkdown({
     a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="text-amber-400 underline decoration-amber-400 underline-offset-2 hover:text-amber-400">{children}</a>,
     input: ({ node }) => {
       const properties = (node as unknown as { properties?: { dataFillBlankIndex?: number | string } }).properties;
-      const blankIndex = Number(properties?.dataFillBlankIndex ?? globalBlankIndex++);
+      const blankIndex = Number(properties?.dataFillBlankIndex ?? globalBlankIndex.current++);
       return renderInput(blankIndex);
     },
-  };
+  }), [renderInput]);
+  globalBlankIndex.current = 0;
 
   return (
     <div className={`flex h-auto min-h-0 flex-col ${className}`}>
