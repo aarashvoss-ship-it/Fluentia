@@ -79,6 +79,7 @@ function toStudentLessonResource(resource: LessonResource) {
     body: resource.description || null,
     link_url: resource.url,
     original_filename: resource.type === "PDF" ? resource.title : null,
+    resourceHubAssetId: resource.resourceHubAssetId || null,
     is_external_url: !resource.url.includes("/storage/v1/object/"),
   };
 }
@@ -214,6 +215,35 @@ export async function clearStudentLessonResources(lessonId: string, studentIds: 
     .filter((path): path is string => typeof path === "string" && path.length > 0);
   if (paths.length > 0) {
     const { error: storageError } = await supabase.storage.from("student-resources").remove(paths);
+    if (storageError) throw storageError;
+  }
+}
+
+export async function removeStudentLessonCustomResource(
+  studentId: string,
+  lessonId: string,
+  sourceResourceId: string,
+): Promise<void> {
+  const { data, error: selectError } = await supabase
+    .from("student_lesson_resources")
+    .select("resource")
+    .eq("student_id", studentId)
+    .eq("lesson_id", lessonId)
+    .eq("source_type", "custom")
+    .eq("source_resource_id", sourceResourceId)
+    .maybeSingle();
+  if (selectError) throw selectError;
+  const { error } = await supabase
+    .from("student_lesson_resources")
+    .delete()
+    .eq("student_id", studentId)
+    .eq("lesson_id", lessonId)
+    .eq("source_type", "custom")
+    .eq("source_resource_id", sourceResourceId);
+  if (error) throw error;
+  const storagePath = data?.resource?.storage_path;
+  if (typeof storagePath === "string" && storagePath) {
+    const { error: storageError } = await supabase.storage.from("student-resources").remove([storagePath]);
     if (storageError) throw storageError;
   }
 }

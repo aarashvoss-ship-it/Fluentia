@@ -10,7 +10,7 @@ import { normalizeBannerDimness } from "@/lib/banner-position";
 import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/submission-evaluator";
 import type { UnifiedReportStage } from "@/components/shared/unified-report-card";
 import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission, StudyStepId, type LessonResource } from "@/types/lesson";
-import { assignLessonToAllActiveStudents, clearStudentLessonResources, createLesson, deleteLesson, getLessons, publishLessonAndAssign, setLessonAssignments, setStudentLessonResourceSelected, unassignLesson, updateLesson, type LessonAssignmentResourceOptions, type LessonTags, type LessonWithVersion } from "@/lib/lessons";
+import { assignLessonToAllActiveStudents, clearStudentLessonResources, createLesson, deleteLesson, getLessons, publishLessonAndAssign, removeStudentLessonCustomResource, setLessonAssignments, setStudentLessonResourceSelected, unassignLesson, updateLesson, type LessonAssignmentResourceOptions, type LessonTags, type LessonWithVersion } from "@/lib/lessons";
 import { PublishedLessonState } from "@/lib/lesson-store";
 import { deduplicateStudents, StudentUser } from "@/lib/users";
 import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/storage-service";
@@ -879,6 +879,7 @@ export default function InstructorWorkstationPage({
   const [isSavingAssignmentResources, setIsSavingAssignmentResources] = useState(false);
   const [assignmentResourceError, setAssignmentResourceError] = useState<string | null>(null);
   const [studentLessonResourceIds, setStudentLessonResourceIds] = useState<string[]>([]);
+  const [studentLessonCustomResources, setStudentLessonCustomResources] = useState<Array<{ source_resource_id: string; resource: Record<string, unknown> }>>([]);
   const [studentLessonResourceError, setStudentLessonResourceError] = useState<string | null>(null);
   const [savingStudentLessonResourceId, setSavingStudentLessonResourceId] = useState<string | null>(null);
   const [quickTagEditor, setQuickTagEditor] = useState<{ lessonId: string; level: string; tags: LessonTags; customTagsText: string } | null>(null);
@@ -2900,22 +2901,27 @@ export default function InstructorWorkstationPage({
   useEffect(() => {
     let cancelled = false;
     setStudentLessonResourceIds([]);
+    setStudentLessonCustomResources([]);
     setStudentLessonResourceError(null);
     if (!selectedStudent || !resourceLessonId) return () => { cancelled = true; };
 
     void (async () => {
       const { data, error } = await supabase
         .from("student_lesson_resources")
-        .select("source_resource_id")
+        .select("source_resource_id, source_type, resource")
         .eq("student_id", selectedStudent.id)
-        .eq("lesson_id", resourceLessonId)
-        .eq("source_type", "lesson");
+        .eq("lesson_id", resourceLessonId);
       if (cancelled) return;
       if (error) {
         setStudentLessonResourceError(error.message);
         return;
       }
-      setStudentLessonResourceIds((data || []).map((row) => String(row.source_resource_id)));
+      setStudentLessonResourceIds((data || [])
+        .filter((row) => row.source_type === "lesson")
+        .map((row) => String(row.source_resource_id)));
+      setStudentLessonCustomResources((data || [])
+        .filter((row) => row.source_type === "custom" && row.resource && typeof row.resource === "object")
+        .map((row) => ({ source_resource_id: String(row.source_resource_id), resource: row.resource as Record<string, unknown> })));
     })().catch((error: unknown) => {
         if (!cancelled) setStudentLessonResourceError(error instanceof Error ? error.message : "Unable to load lesson resource assignments.");
       });
@@ -2938,6 +2944,19 @@ export default function InstructorWorkstationPage({
       setStudentLessonResourceError(error instanceof Error ? error.message : "Unable to update this student's lesson resources.");
     } finally {
       setSavingStudentLessonResourceId(null);
+    }
+  };
+
+  const deleteStudentLessonCustomResource = async (sourceResourceId: string) => {
+    if (!selectedStudent || !resourceLessonId) return;
+    const previousResources = studentLessonCustomResources;
+    setStudentLessonCustomResources((current) => current.filter((item) => item.source_resource_id !== sourceResourceId));
+    setStudentLessonResourceError(null);
+    try {
+      await removeStudentLessonCustomResource(selectedStudent.id, resourceLessonId, sourceResourceId);
+    } catch (error) {
+      setStudentLessonCustomResources(previousResources);
+      setStudentLessonResourceError(error instanceof Error ? error.message : "Unable to remove this student's custom lesson resource.");
     }
   };
 
@@ -4501,6 +4520,30 @@ export default function InstructorWorkstationPage({
                         </li>
                       ))}
                     </ul>}
+                  <div className="mt-4">
+                    <h4 className="text-xs font-semibold text-stone-200">Custom resources for this student</h4>
+                    <p className="mt-1 text-[11px] text-stone-500">These assignment-only resources do not affect the lesson pool. Add more using the student resource form below.</p>
+                    {studentLessonCustomResources.length > 0 ? (
+                      <ul className="mt-2 divide-y divide-border rounded-md border border-border">
+                        {studentLessonCustomResources.map(({ source_resource_id, resource }) => (
+                          <li key={source_resource_id} className="flex items-center gap-3 px-3 py-2.5">
+                            <span className="min-w-0 flex-1 truncate text-xs text-stone-300">
+                              {typeof resource.title === "string" ? resource.title : "Custom resource"}
+                            </span>
+                            <span className="text-[10px] text-stone-500">{typeof resource.type === "string" ? resource.type : "resource"}</span>
+                            <button
+                              type="button"
+                              onClick={() => void deleteStudentLessonCustomResource(source_resource_id)}
+                              className="text-[11px] text-rose-300 transition hover:text-rose-200"
+                              aria-label={`Remove ${typeof resource.title === "string" ? resource.title : "custom resource"} from ${selectedStudent.name}`}
+                            >
+                              Remove
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : <p className="mt-2 text-[11px] text-stone-500">No custom resources assigned to this student.</p>}
+                  </div>
                 </section>
               )}
 
