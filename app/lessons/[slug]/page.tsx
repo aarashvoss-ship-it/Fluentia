@@ -951,7 +951,6 @@ export default function LessonPage() {
 
   const lessonContent = (lesson?.content || {}) as any;
   const rawLessonContent = lessonContent as Record<string, unknown>;
-  const lessonPageResources = (rawLessonContent.lessonResources as { id: string; title: string; url: string; type: string }[] | undefined) || [];
   const lessonMetadata = lessonContent as LessonContent;
   const lessonTitle = typeof lessonContent.title === "string" ? lessonContent.title : lesson?.title || "";
   const displayLessonTitle = lessonTitle.replace(/\s+\((?:A1|A2|B1|B2|C1|C2)\b[^)]*\)$/i, "");
@@ -1875,7 +1874,7 @@ export default function LessonPage() {
         studentId={activeStudent?.id}
         studentToken={activeStudent?.id}
         activeLessonId={lesson?.id}
-        resource={evaluation?.studyHubPrescription} resources={lessonPageResources}
+        resource={evaluation?.studyHubPrescription}
         onSaveNote={(note) => {
           setNotes([note, ...notes.filter((item) => item.id !== note.id)]);
           void saveStudentNote(lessonStudentToken, note);

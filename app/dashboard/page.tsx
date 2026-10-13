@@ -820,11 +820,6 @@ function DashboardContent() {
   const studentLevel = activeStudent.profile?.level?.trim() || "Not set";
   const studentLearningGoal =
     activeStudent.profile?.targetGoal?.trim() || "Not set";
-  const dashboardResources =
-    ((lessonStates[displayLessons[0]?.id] as unknown as Record<string, unknown>)
-      ?.lessonResources as
-      | { id: string; title: string; url: string; type: string }[]
-      | undefined) || [];
   const latestReport = lessonStates[displayLessons[0]?.id]?.evaluation;
   const currentCard = savedWords[cardIndex % Math.max(savedWords.length, 1)];
   const inProgressLessons = displayLessons.filter(
@@ -2219,7 +2214,6 @@ function DashboardContent() {
         studentToken={token}
         activeLessonId={nextLesson?.id}
         resource={latestReport?.studyHubPrescription}
-        resources={dashboardResources}
         onSaveNote={(note) => {
           setNotes([note, ...notes.filter((item) => item.id !== note.id)]);
           void saveStudentNote(token, note);
