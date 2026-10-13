@@ -1928,6 +1928,7 @@ export default function InstructorWorkstationPage({
     setIsSavingAssignmentResources(true);
     setAssignmentResourceError(null);
     const uploadedPaths: string[] = [];
+    let resourceRowsWriteStarted = false;
     try {
       const customResourcesByStudentId: NonNullable<LessonAssignmentResourceOptions["customResourcesByStudentId"]> = {};
       for (const studentId of assignmentResourceRequest.studentIds) {
@@ -1977,6 +1978,7 @@ export default function InstructorWorkstationPage({
 
       const options = { ...resourceOptions, customResourcesByStudentId };
       let updatedLesson: LessonWithVersion;
+      resourceRowsWriteStarted = true;
       if (assignmentResourceRequest.assignAll) {
         updatedLesson = await assignLessonToAllActiveStudents(
           assignmentResourceRequest.lesson.id,
@@ -1997,7 +1999,10 @@ export default function InstructorWorkstationPage({
         : "Lesson and resources assigned to the selected student.");
       setAssignmentResourceRequest(null);
     } catch (error) {
-      await supabase.storage.from("student-resources").remove(uploadedPaths);
+      if (!resourceRowsWriteStarted && uploadedPaths.length > 0) {
+        const { error: cleanupError } = await supabase.storage.from("student-resources").remove(uploadedPaths);
+        if (cleanupError) console.error("Failed to clean up unassigned lesson resource uploads:", cleanupError);
+      }
       logAssignmentError("Lesson resource assignment failed:", error);
       setAssignmentResourceError(error instanceof Error ? error.message : "Lesson resources could not be assigned.");
     } finally {
@@ -2502,7 +2507,10 @@ export default function InstructorWorkstationPage({
   const handleUnassignLesson = async (lesson: LessonWithVersion) => {
     try {
       await refreshLessonListAfterAssignment(await unassignLesson(lesson.id));
-      await clearStudentLessonResources(lesson.id, getAssignedStudentIds(lesson));
+      await clearStudentLessonResources(
+        lesson.id,
+        isAssignedToAllStudents(lesson) ? students.map((student) => student.id) : getAssignedStudentIds(lesson),
+      );
       setPublishStatus("Lesson unassigned.");
     } catch (error) {
       logAssignmentError("Lesson unassignment failed:", error);
@@ -2888,6 +2896,50 @@ export default function InstructorWorkstationPage({
     }
     void loadStudentResources(selectedStudent, resourceLessonId);
   }, [selectedStudent?.id, selectedStudent?.token, resourceLessonId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setStudentLessonResourceIds([]);
+    setStudentLessonResourceError(null);
+    if (!selectedStudent || !resourceLessonId) return () => { cancelled = true; };
+
+    void (async () => {
+      const { data, error } = await supabase
+        .from("student_lesson_resources")
+        .select("source_resource_id")
+        .eq("student_id", selectedStudent.id)
+        .eq("lesson_id", resourceLessonId)
+        .eq("source_type", "lesson");
+      if (cancelled) return;
+      if (error) {
+        setStudentLessonResourceError(error.message);
+        return;
+      }
+      setStudentLessonResourceIds((data || []).map((row) => String(row.source_resource_id)));
+    })().catch((error: unknown) => {
+        if (!cancelled) setStudentLessonResourceError(error instanceof Error ? error.message : "Unable to load lesson resource assignments.");
+      });
+
+    return () => { cancelled = true; };
+  }, [selectedStudent?.id, resourceLessonId]);
+
+  const toggleStudentLessonResource = async (resource: LessonResource, selected: boolean) => {
+    if (!selectedStudent || !resourceLessonId) return;
+    const previousIds = studentLessonResourceIds;
+    setStudentLessonResourceIds(selected
+      ? [...new Set([...previousIds, resource.id])]
+      : previousIds.filter((id) => id !== resource.id));
+    setSavingStudentLessonResourceId(resource.id);
+    setStudentLessonResourceError(null);
+    try {
+      await setStudentLessonResourceSelected(selectedStudent.id, resourceLessonId, resource, selected);
+    } catch (error) {
+      setStudentLessonResourceIds(previousIds);
+      setStudentLessonResourceError(error instanceof Error ? error.message : "Unable to update this student's lesson resources.");
+    } finally {
+      setSavingStudentLessonResourceId(null);
+    }
+  };
 
   const flashcards = collectStudentFlashcards(studentResources);
 
@@ -4382,6 +4434,10 @@ export default function InstructorWorkstationPage({
         {activeTab === "resources" && (() => {
           const flashcards = collectStudentFlashcards(studentResources);
           const currentFlashcard = flashcards[flashcardIndex] || null;
+          const selectedResourceLesson = createdLessons.find((lesson) => lesson.id === resourceLessonId);
+          const lessonPoolResources = Array.isArray(selectedResourceLesson?.content?.lessonResources)
+            ? selectedResourceLesson.content.lessonResources as LessonResource[]
+            : [];
           return (
             <section className="mx-auto w-full min-w-0 max-w-6xl space-y-6" aria-label="Student resources panel">
               <div className="rounded-2xl border border-border bg-surface/60 p-5">
@@ -4421,6 +4477,32 @@ export default function InstructorWorkstationPage({
                   </label>
                 </div>
               </div>
+
+              {selectedStudent && resourceLessonId && (
+                <section className="rounded-xl border border-border bg-surface/60 p-4" aria-label="Lesson resource assignment override">
+                  <h3 className="text-sm font-semibold text-stone-100">Lesson resource defaults for {selectedStudent.name}</h3>
+                  <p className="mt-1 text-xs text-stone-500">Choose which resources from the lesson pool appear in this student’s study room. Changes here do not modify the lesson template.</p>
+                  {studentLessonResourceError && <p role="alert" className="mt-2 text-xs text-red-300">Resource assignments could not be loaded or saved: {studentLessonResourceError}</p>}
+                  {lessonPoolResources.length === 0
+                    ? <p className="mt-3 rounded-md border border-dashed border-border p-3 text-xs text-stone-500">This lesson has no resources in its default pool.</p>
+                    : <ul className="mt-3 divide-y divide-border rounded-md border border-border">
+                      {lessonPoolResources.map((resource) => (
+                        <li key={resource.id} className="flex items-center gap-3 px-3 py-2.5">
+                          <input
+                            type="checkbox"
+                            checked={studentLessonResourceIds.includes(resource.id)}
+                            disabled={savingStudentLessonResourceId === resource.id}
+                            onChange={(event) => void toggleStudentLessonResource(resource, event.target.checked)}
+                            className="accent-amber-500"
+                            aria-label={`Include ${resource.title} for ${selectedStudent.name}`}
+                          />
+                          <span className="min-w-0 flex-1 truncate text-xs text-stone-300">{resource.title}</span>
+                          <span className="text-[10px] text-stone-500">{resource.type}</span>
+                        </li>
+                      ))}
+                    </ul>}
+                </section>
+              )}
 
               <div className="grid min-w-0 grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.35fr)]">
                 <div className="w-full min-w-0 rounded-2xl border border-border bg-surface/60 p-5">
@@ -5837,6 +5919,19 @@ export default function InstructorWorkstationPage({
         instructorId={instructorId}
     lessonContext={newLesson.title || newLesson.slug || lessonId}
   />
+      {assignmentResourceRequest && <LessonAssignmentResourceDialog
+        lessonTitle={assignmentResourceRequest.lesson.title}
+        targetLabel={assignmentResourceRequest.assignAll
+          ? `${assignmentResourceRequest.studentIds.length} active students`
+          : students.find((student) => student.id === assignmentResourceRequest.studentIds[0])?.name || "the selected student"}
+        resources={Array.isArray(assignmentResourceRequest.lesson.content?.lessonResources)
+          ? assignmentResourceRequest.lesson.content.lessonResources as LessonResource[]
+          : []}
+        isSaving={isSavingAssignmentResources}
+        error={assignmentResourceError}
+        onCancel={() => setAssignmentResourceRequest(null)}
+        onAssign={(options, customResources) => void saveAssignmentWithResources(options, customResources)}
+      />}
       {lessonPendingDelete && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-lesson-title" aria-describedby="delete-lesson-warning"><div className="w-full max-w-md rounded-xl border border-red-500/30 bg-surface p-6 shadow-2xl"><h2 id="delete-lesson-title" className="font-sans text-xl font-semibold text-stone-100">Delete lesson permanently?</h2><p id="delete-lesson-warning" className="mt-3 text-sm leading-relaxed text-stone-300">This permanently deletes the lesson, its versions, assignments, submissions, feedback, and lesson-linked student resources. This action cannot be undone.</p><p className="mt-2 truncate text-xs text-amber-400">{lessonPendingDelete.title}</p><div className="mt-6 flex justify-end gap-3"><button type="button" disabled={isDeletingLesson} onClick={() => setLessonPendingDelete(null)} className="rounded-md border border-border px-4 py-2 text-xs  text-stone-300 hover:border-stone-300 disabled:cursor-not-allowed disabled:opacity-50">Cancel</button><button type="button" disabled={isDeletingLesson} onClick={() => void handleDeleteLesson()} className="rounded-md bg-red-500 px-4 py-2 text-xs  text-white hover:bg-red-400 disabled:cursor-wait disabled:opacity-60">{isDeletingLesson ? "Deleting..." : "Delete lesson"}</button></div></div></div>}
       <DeleteConfirmationDialog request={deleteConfirmation} onCancel={() => setDeleteConfirmation(null)} />
     </div>

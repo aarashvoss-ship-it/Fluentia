@@ -232,16 +232,36 @@ export function LearningSidebar({
     setResourcesError(null);
     const loadResources = async () => {
       const query = supabase.from("student_resources").select("*");
-      const result = studentId
+      const studentResourcesResult = studentId
         ? await query.eq("student_id", studentId).eq("lesson_id", activeLessonId).order("created_at", { ascending: false })
         : await query.eq("student_token", studentToken!).eq("lesson_id", activeLessonId).order("created_at", { ascending: false });
+      const lessonResourcesResult = studentId
+        ? await supabase.from("student_lesson_resources").select("id, resource, created_at").eq("student_id", studentId).eq("lesson_id", activeLessonId).order("created_at", { ascending: false })
+        : await supabase.from("student_lesson_resources").select("id, resource, created_at").eq("student_token", studentToken!).eq("lesson_id", activeLessonId).order("created_at", { ascending: false });
       if (cancelled) return;
-      if (result.error) {
+      if (studentResourcesResult.error || lessonResourcesResult.error) {
         setResourcesError("Your assigned materials could not be loaded.");
         setAssignedResources([]);
-        console.error("Unable to load assigned student resources:", result.error.message);
+        console.error("Unable to load assigned student resources:", studentResourcesResult.error || lessonResourcesResult.error);
       } else {
-        setAssignedResources((result.data || []) as StudentResource[]);
+        const lessonResources = (lessonResourcesResult.data || []).flatMap((entry) => {
+          if (!entry.resource || typeof entry.resource !== "object") return [];
+          const resource = entry.resource as Partial<StudentResource>;
+          if (typeof resource.title !== "string" || typeof resource.resource_type !== "string") return [];
+          return [{
+            ...resource,
+            id: String(entry.id),
+            lesson_id: activeLessonId,
+            resource_type: resource.resource_type as StudentResource["resource_type"],
+            title: resource.title,
+            created_at: entry.created_at,
+          } as StudentResource];
+        });
+        const byId = new Map<string, StudentResource>();
+        [...lessonResources, ...((studentResourcesResult.data || []) as StudentResource[])].forEach((resource) => {
+          byId.set(resource.id, resource);
+        });
+        setAssignedResources([...byId.values()]);
       }
       setResourcesLoading(false);
       setResourcesReady(true);

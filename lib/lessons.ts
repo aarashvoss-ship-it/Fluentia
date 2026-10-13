@@ -123,7 +123,7 @@ export async function syncStudentLessonResources(
     ];
     const { data: existingRows, error: existingError } = await supabase
       .from("student_lesson_resources")
-      .select("source_resource_id, source_type")
+      .select("source_resource_id, source_type, resource")
       .eq("student_id", studentId)
       .eq("lesson_id", lessonId);
     if (existingError) throw existingError;
@@ -133,6 +133,7 @@ export async function syncStudentLessonResources(
       (row.source_type === "lesson" || customResources)
       && !desiredKeys.has(String(row.source_resource_id))
     ));
+    const staleStoragePaths: string[] = [];
     for (const staleRow of staleRows) {
       const { error } = await supabase
         .from("student_lesson_resources")
@@ -140,6 +141,12 @@ export async function syncStudentLessonResources(
         .eq("student_id", studentId)
         .eq("lesson_id", lessonId)
         .eq("source_resource_id", staleRow.source_resource_id);
+      if (error) throw error;
+      const storagePath = staleRow.resource?.storage_path;
+      if (typeof storagePath === "string" && storagePath) staleStoragePaths.push(storagePath);
+    }
+    if (staleStoragePaths.length > 0) {
+      const { error } = await supabase.storage.from("student-resources").remove(staleStoragePaths);
       if (error) throw error;
     }
 
@@ -819,6 +826,17 @@ export async function publishLessonAndAssign(lessonId: string, studentId: string
   if (lessonError) throw lessonError;
 
   await upsertLessonAssignment(normalizedLessonId, normalizedStudentId);
+  const lesson = await getLessonById(normalizedLessonId);
+  if (!lesson) throw new Error(`Published lesson ${normalizedLessonId} could not be loaded for resource assignment.`);
+  const lessonResources = Array.isArray(lesson.content?.lessonResources)
+    ? lesson.content.lessonResources as LessonResource[]
+    : [];
+  await syncStudentLessonResources(
+    normalizedLessonId,
+    [normalizedStudentId],
+    lessonResources,
+    { resourceIds: lessonResources.map((resource) => resource.id) },
+  );
 }
 
 export async function assignLessonToAllActiveStudents(
