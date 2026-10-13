@@ -10,7 +10,7 @@ import { normalizeBannerDimness } from "@/lib/banner-position";
 import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/submission-evaluator";
 import type { UnifiedReportStage } from "@/components/shared/unified-report-card";
 import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission, StudyStepId, type LessonResource } from "@/types/lesson";
-import { assignLessonToAllActiveStudents, createLesson, deleteLesson, getLessons, publishLessonAndAssign, setLessonAssignments, unassignLesson, updateLesson, type LessonTags, type LessonWithVersion } from "@/lib/lessons";
+import { assignLessonToAllActiveStudents, clearStudentLessonResources, createLesson, deleteLesson, getLessons, publishLessonAndAssign, setLessonAssignments, setStudentLessonResourceSelected, unassignLesson, updateLesson, type LessonAssignmentResourceOptions, type LessonTags, type LessonWithVersion } from "@/lib/lessons";
 import { PublishedLessonState } from "@/lib/lesson-store";
 import { deduplicateStudents, StudentUser } from "@/lib/users";
 import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/storage-service";
@@ -44,6 +44,7 @@ import { LearningSidebar, type LearningTab } from "@/components/study-room/learn
 import type { StudyHubResource } from "@/components/shared/study-hub-resource-card";
 import { ResourceHubPage } from "@/components/instructor/resource-hub-page";
 import { ResourceHubImportDialog } from "@/components/instructor/resource-hub-import-dialog";
+import { LessonAssignmentResourceDialog, type LessonAssignmentCustomResourceDraft } from "@/components/instructor/lesson-assignment-resource-dialog";
 import type { ResourceAsset } from "@/types/resource-hub";
 
 interface InstructorWorkstationProps {
@@ -874,6 +875,12 @@ export default function InstructorWorkstationPage({
   const [libraryView, setLibraryView] = useState<"grid" | "table">("grid");
   const [expandedLibraryMetadata, setExpandedLibraryMetadata] = useState<Set<string>>(() => new Set());
   const [assignmentEditorLessonId, setAssignmentEditorLessonId] = useState<string | null>(null);
+  const [assignmentResourceRequest, setAssignmentResourceRequest] = useState<{ lesson: LessonWithVersion; studentIds: string[]; assignAll: boolean } | null>(null);
+  const [isSavingAssignmentResources, setIsSavingAssignmentResources] = useState(false);
+  const [assignmentResourceError, setAssignmentResourceError] = useState<string | null>(null);
+  const [studentLessonResourceIds, setStudentLessonResourceIds] = useState<string[]>([]);
+  const [studentLessonResourceError, setStudentLessonResourceError] = useState<string | null>(null);
+  const [savingStudentLessonResourceId, setSavingStudentLessonResourceId] = useState<string | null>(null);
   const [quickTagEditor, setQuickTagEditor] = useState<{ lessonId: string; level: string; tags: LessonTags; customTagsText: string } | null>(null);
   const [quickTagSaving, setQuickTagSaving] = useState(false);
   const [quickTagError, setQuickTagError] = useState<string | null>(null);
@@ -1880,24 +1887,14 @@ export default function InstructorWorkstationPage({
     selectSubmissionForReview(pendingSubmission);
   };
 
-  const handleAssignStudent = async (lesson: LessonWithVersion, studentId: string) => {
-    const normalizedStudentId = studentId.trim();
-    if (!lesson.id.trim() || !normalizedStudentId || !students.some((student) => student.id === normalizedStudentId)) {
-      setPublishStatus("Select a valid lesson and student before assigning.");
+  const openAssignmentResourceDialog = (lesson: LessonWithVersion, studentIds: string[], assignAll = false) => {
+    const validStudentIds = [...new Set(studentIds.filter((studentId) => students.some((student) => student.id === studentId)))];
+    if (validStudentIds.length === 0) {
+      setPublishStatus("Select at least one valid student before assigning.");
       return;
     }
-    try {
-      const assignedIds = getAssignedStudentIds(lesson);
-      const updatedLesson = await setLessonAssignments(
-        lesson.id.trim(),
-        [...new Set([...assignedIds, normalizedStudentId])],
-      );
-      await refreshLessonListAfterAssignment(updatedLesson);
-      setPublishStatus("Lesson assigned to the selected student.");
-    } catch (error) {
-      logAssignmentError("Lesson assignment failed:", error);
-      setPublishStatus("Lesson assignment failed. Check the assignment details and try again.");
-    }
+    setAssignmentResourceError(null);
+    setAssignmentResourceRequest({ lesson, studentIds: validStudentIds, assignAll });
   };
 
   const getAssignedStudentIds = (lesson: LessonWithVersion) => {
@@ -1906,15 +1903,105 @@ export default function InstructorWorkstationPage({
 
   const handleAssignmentToggle = async (lesson: LessonWithVersion, studentId: string) => {
     const currentIds = getAssignedStudentIds(lesson);
+    if (!currentIds.includes(studentId)) {
+      openAssignmentResourceDialog(lesson, [studentId]);
+      return;
+    }
     const nextIds = currentIds.includes(studentId)
       ? currentIds.filter((id) => id !== studentId)
       : [...currentIds, studentId];
     try {
-      await refreshLessonListAfterAssignment(await setLessonAssignments(lesson.id, nextIds));
+      await refreshLessonListAfterAssignment(await setLessonAssignments(lesson.id, nextIds, undefined, []));
+      await clearStudentLessonResources(lesson.id, [studentId]);
       setPublishStatus(nextIds.length ? "Lesson assignments updated." : "Lesson unassigned.");
     } catch (error) {
       logAssignmentError("Lesson assignments update failed:", error);
       setPublishStatus("Lesson assignments update failed. Check the assignment details and try again.");
+    }
+  };
+
+  const saveAssignmentWithResources = async (
+    resourceOptions: LessonAssignmentResourceOptions,
+    customResources: LessonAssignmentCustomResourceDraft[],
+  ) => {
+    if (!assignmentResourceRequest) return;
+    setIsSavingAssignmentResources(true);
+    setAssignmentResourceError(null);
+    const uploadedPaths: string[] = [];
+    try {
+      const customResourcesByStudentId: NonNullable<LessonAssignmentResourceOptions["customResourcesByStudentId"]> = {};
+      for (const studentId of assignmentResourceRequest.studentIds) {
+        const student = students.find((candidate) => candidate.id === studentId);
+        if (!student) throw new Error("A selected student is no longer available.");
+        const studentResources = [];
+        for (const customResource of customResources) {
+          let linkUrl: string | null = null;
+          let storagePath: string | null = null;
+          let resourceType: "links" | "note" | "file";
+          if (customResource.kind === "file") {
+            const file = customResource.file;
+            if (!file) throw new Error(`Choose a file for ${customResource.title}.`);
+            const safeFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+            storagePath = `lesson-assignments/${assignmentResourceRequest.lesson.id}/${student.id}/${customResource.id}/${safeFilename}`;
+            const { error: uploadError } = await supabase.storage
+              .from("student-resources")
+              .upload(storagePath, file, { upsert: false, contentType: file.type || undefined });
+            if (uploadError) throw uploadError;
+            uploadedPaths.push(storagePath);
+            const { data } = supabase.storage.from("student-resources").getPublicUrl(storagePath);
+            linkUrl = data.publicUrl;
+            resourceType = "file";
+          } else if (customResource.kind === "note") {
+            resourceType = "note";
+          } else {
+            resourceType = "links";
+            linkUrl = customResource.url.trim();
+          }
+          studentResources.push({
+            id: customResource.id,
+            resource: {
+              id: customResource.id,
+              resource_type: resourceType,
+              title: customResource.title,
+              body: customResource.kind === "note" ? customResource.note.trim() : null,
+              link_url: linkUrl,
+              original_filename: customResource.file?.name || null,
+              media_type: customResource.file?.type || null,
+              storage_path: storagePath,
+              is_external_url: customResource.kind === "url",
+            },
+          });
+        }
+        customResourcesByStudentId[student.id] = studentResources;
+      }
+
+      const options = { ...resourceOptions, customResourcesByStudentId };
+      let updatedLesson: LessonWithVersion;
+      if (assignmentResourceRequest.assignAll) {
+        updatedLesson = await assignLessonToAllActiveStudents(
+          assignmentResourceRequest.lesson.id,
+          assignmentResourceRequest.studentIds,
+          options,
+        );
+      } else {
+        updatedLesson = await setLessonAssignments(
+          assignmentResourceRequest.lesson.id,
+          [...new Set([...getAssignedStudentIds(assignmentResourceRequest.lesson), ...assignmentResourceRequest.studentIds])],
+          options,
+          assignmentResourceRequest.studentIds,
+        );
+      }
+      await refreshLessonListAfterAssignment(updatedLesson);
+      setPublishStatus(assignmentResourceRequest.assignAll
+        ? "Lesson and resources assigned to all active students."
+        : "Lesson and resources assigned to the selected student.");
+      setAssignmentResourceRequest(null);
+    } catch (error) {
+      await supabase.storage.from("student-resources").remove(uploadedPaths);
+      logAssignmentError("Lesson resource assignment failed:", error);
+      setAssignmentResourceError(error instanceof Error ? error.message : "Lesson resources could not be assigned.");
+    } finally {
+      setIsSavingAssignmentResources(false);
     }
   };
 
@@ -2402,29 +2489,20 @@ export default function InstructorWorkstationPage({
 
   const handleAssignmentChange = async (lesson: LessonWithVersion, value: string) => {
     if (value === "__all_active__") {
-      await handleAssignAllStudents(lesson);
+      openAssignmentResourceDialog(lesson, students.map((student) => student.id), true);
       return;
     }
     if (value === "__unassign__") {
       await handleUnassignLesson(lesson);
       return;
     }
-    await handleAssignStudent(lesson, value);
-  };
-
-  const handleAssignAllStudents = async (lesson: LessonWithVersion) => {
-    try {
-      await refreshLessonListAfterAssignment(await assignLessonToAllActiveStudents(lesson.id));
-      setPublishStatus("Lesson assigned to all active students.");
-    } catch (error) {
-      logAssignmentError("Bulk lesson assignment failed:", error);
-      setPublishStatus("Bulk lesson assignment failed. Check the assignment details and try again.");
-    }
+    openAssignmentResourceDialog(lesson, [value]);
   };
 
   const handleUnassignLesson = async (lesson: LessonWithVersion) => {
     try {
       await refreshLessonListAfterAssignment(await unassignLesson(lesson.id));
+      await clearStudentLessonResources(lesson.id, getAssignedStudentIds(lesson));
       setPublishStatus("Lesson unassigned.");
     } catch (error) {
       logAssignmentError("Lesson unassignment failed:", error);

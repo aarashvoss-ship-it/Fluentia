@@ -1,7 +1,7 @@
 import { type LessonRow, type LessonVersionRow, isSupabaseConfigured } from "@/lib/supabase";
 import { supabase } from "@/lib/supabaseClient";
 import type { StudentId } from "@/types/database";
-import type { LessonContent, InstructorLessonMock } from "@/types/lesson";
+import type { LessonContent, InstructorLessonMock, LessonResource } from "@/types/lesson";
 
 /**
  * Service layer for lesson management with Supabase integration.
@@ -50,6 +50,165 @@ export interface UpdateLessonInput {
   is_published?: boolean;
   content?: Record<string, any>;
   changes_summary?: string;
+}
+
+export interface LessonAssignmentCustomResource {
+  id: string;
+  resource: Record<string, unknown>;
+}
+
+export interface LessonAssignmentResourceOptions {
+  resourceIds: string[];
+  customResourcesByStudentId?: Record<string, LessonAssignmentCustomResource[]>;
+}
+
+function toStudentLessonResource(resource: LessonResource) {
+  const resourceType = resource.type === "Audio"
+    ? "audio"
+    : resource.type === "Video"
+      ? "video"
+      : resource.type === "Image"
+        ? "image"
+        : resource.type === "PDF"
+          ? "file"
+          : "reading";
+  return {
+    id: resource.id,
+    resource_type: resourceType,
+    title: resource.title,
+    body: resource.description || null,
+    link_url: resource.url,
+    original_filename: resource.type === "PDF" ? resource.title : null,
+    is_external_url: !resource.url.includes("/storage/v1/object/"),
+  };
+}
+
+export async function syncStudentLessonResources(
+  lessonId: string,
+  studentIds: string[],
+  lessonResources: LessonResource[],
+  options: LessonAssignmentResourceOptions,
+): Promise<void> {
+  const normalizedStudentIds = [...new Set(studentIds.map((studentId) => studentId.trim()).filter(Boolean))];
+  if (!lessonId.trim() || normalizedStudentIds.length === 0) return;
+  const selectedIds = new Set(options.resourceIds);
+  const selectedResources = lessonResources.filter((resource) => selectedIds.has(resource.id));
+  const { data: students, error: studentError } = await supabase
+    .from("students")
+    .select("id, token")
+    .in("id", normalizedStudentIds);
+  if (studentError) throw studentError;
+
+  for (const student of students || []) {
+    const studentId = String(student.id);
+    const studentToken = String(student.token);
+    const customResources = options.customResourcesByStudentId?.[studentId];
+    const desiredRows = [
+      ...selectedResources.map((resource) => ({
+        student_id: studentId,
+        student_token: studentToken,
+        lesson_id: lessonId,
+        source_resource_id: resource.id,
+        source_type: "lesson",
+        resource: toStudentLessonResource(resource),
+      })),
+      ...(customResources || []).map(({ id, resource }) => ({
+        student_id: studentId,
+        student_token: studentToken,
+        lesson_id: lessonId,
+        source_resource_id: `custom:${id}`,
+        source_type: "custom",
+        resource,
+      })),
+    ];
+    const { data: existingRows, error: existingError } = await supabase
+      .from("student_lesson_resources")
+      .select("source_resource_id, source_type")
+      .eq("student_id", studentId)
+      .eq("lesson_id", lessonId);
+    if (existingError) throw existingError;
+
+    const desiredKeys = new Set(desiredRows.map((row) => row.source_resource_id));
+    const staleRows = (existingRows || []).filter((row) => (
+      (row.source_type === "lesson" || customResources)
+      && !desiredKeys.has(String(row.source_resource_id))
+    ));
+    for (const staleRow of staleRows) {
+      const { error } = await supabase
+        .from("student_lesson_resources")
+        .delete()
+        .eq("student_id", studentId)
+        .eq("lesson_id", lessonId)
+        .eq("source_resource_id", staleRow.source_resource_id);
+      if (error) throw error;
+    }
+
+    if (desiredRows.length > 0) {
+      const { error } = await supabase
+        .from("student_lesson_resources")
+        .upsert(desiredRows, { onConflict: "student_id,lesson_id,source_resource_id" });
+      if (error) throw error;
+    }
+  }
+}
+
+export async function setStudentLessonResourceSelected(
+  studentId: string,
+  lessonId: string,
+  resource: LessonResource,
+  selected: boolean,
+): Promise<void> {
+  if (selected) {
+    const { data: student, error: studentError } = await supabase
+      .from("students")
+      .select("id, token")
+      .eq("id", studentId)
+      .maybeSingle();
+    if (studentError) throw studentError;
+    if (!student) throw new Error("Student not found while assigning the lesson resource.");
+    const { error } = await supabase
+      .from("student_lesson_resources")
+      .upsert({
+        student_id: student.id,
+        student_token: student.token,
+        lesson_id: lessonId,
+        source_resource_id: resource.id,
+        source_type: "lesson",
+        resource: toStudentLessonResource(resource),
+      }, { onConflict: "student_id,lesson_id,source_resource_id" });
+    if (error) throw error;
+    return;
+  }
+  const { error } = await supabase
+    .from("student_lesson_resources")
+    .delete()
+    .eq("student_id", studentId)
+    .eq("lesson_id", lessonId)
+    .eq("source_resource_id", resource.id);
+  if (error) throw error;
+}
+
+export async function clearStudentLessonResources(lessonId: string, studentIds: string[]): Promise<void> {
+  if (!lessonId || studentIds.length === 0) return;
+  const { data: rows, error: selectError } = await supabase
+    .from("student_lesson_resources")
+    .select("student_id, resource")
+    .eq("lesson_id", lessonId)
+    .in("student_id", studentIds);
+  if (selectError) throw selectError;
+  const { error } = await supabase
+    .from("student_lesson_resources")
+    .delete()
+    .eq("lesson_id", lessonId)
+    .in("student_id", studentIds);
+  if (error) throw error;
+  const paths = (rows || [])
+    .map((row) => row.resource?.storage_path)
+    .filter((path): path is string => typeof path === "string" && path.length > 0);
+  if (paths.length > 0) {
+    const { error: storageError } = await supabase.storage.from("student-resources").remove(paths);
+    if (storageError) throw storageError;
+  }
 }
 
 export interface LessonTags {
@@ -569,7 +728,12 @@ async function upsertLessonAssignment(lessonId: string, studentId: string) {
   }
 }
 
-export async function setLessonAssignments(lessonId: string, studentIds: string[]): Promise<LessonWithVersion> {
+export async function setLessonAssignments(
+  lessonId: string,
+  studentIds: string[],
+  resourceOptions?: LessonAssignmentResourceOptions,
+  resourceStudentIds?: string[],
+): Promise<LessonWithVersion> {
   const normalizedLessonId = lessonId.trim();
   const normalizedStudentIds = [...new Set(studentIds.map((studentId) => studentId.trim()).filter(Boolean))];
   if (!normalizedLessonId) throw new Error("A lesson is required for assignment");
@@ -604,6 +768,18 @@ export async function setLessonAssignments(lessonId: string, studentIds: string[
     content,
     changes_summary: "Updated lesson assignments",
   });
+  const lessonResources = Array.isArray(lesson.content?.lessonResources)
+    ? lesson.content.lessonResources as LessonResource[]
+    : [];
+  const targetResourceStudentIds = resourceStudentIds ?? normalizedStudentIds;
+  if (targetResourceStudentIds.length > 0) {
+    await syncStudentLessonResources(
+      normalizedLessonId,
+      targetResourceStudentIds,
+      lessonResources,
+      resourceOptions || { resourceIds: lessonResources.map((resource) => resource.id) },
+    );
+  }
   return { ...updated, assigned_student_ids: normalizedStudentIds };
 }
 
@@ -645,11 +821,26 @@ export async function publishLessonAndAssign(lessonId: string, studentId: string
   await upsertLessonAssignment(normalizedLessonId, normalizedStudentId);
 }
 
-export async function assignLessonToAllActiveStudents(lessonId: string): Promise<LessonWithVersion> {
+export async function assignLessonToAllActiveStudents(
+  lessonId: string,
+  studentIds: string[] = [],
+  resourceOptions?: LessonAssignmentResourceOptions,
+): Promise<LessonWithVersion> {
   const lesson = await getLessonById(lessonId);
   if (!lesson) throw new Error("Lesson not found");
   const content = { ...(lesson.content || {}), assignedAllStudents: true, assignedStudents: [] };
   const updated = await updateLesson(lessonId, { student_token: null, assigned_all_students: true, content, changes_summary: "Assigned to all active students" });
+  const lessonResources = Array.isArray(lesson.content?.lessonResources)
+    ? lesson.content.lessonResources as LessonResource[]
+    : [];
+  if (studentIds.length > 0) {
+    await syncStudentLessonResources(
+      lessonId,
+      studentIds,
+      lessonResources,
+      resourceOptions || { resourceIds: lessonResources.map((resource) => resource.id) },
+    );
+  }
   if (typeof window !== "undefined") window.dispatchEvent(new Event("fluentia:lesson-updated"));
   return updated;
 }
