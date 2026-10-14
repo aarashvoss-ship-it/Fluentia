@@ -7,20 +7,27 @@ export const runtime = "nodejs";
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NOTIFICATION_RECIPIENT = "aarashvoss@gmail.com";
 const SUCCESS_MESSAGE = "Your request has been submitted. We will contact you soon.";
-const ALLOWED_ORIGINS = new Set(["https://fluential.ir", "http://localhost:3000"]);
+const ALLOWED_ORIGINS = new Set([
+  "https://fluential.ir",
+  "https://www.fluential.ir",
+  "http://localhost:3000",
+]);
 
 function isAllowedRequestOrigin(request: Request) {
-  const origin = request.headers.get("origin");
-  if (!origin) return false;
+  const originHeaders = [
+    request.headers.get("origin"),
+    request.headers.get("referer"),
+  ].filter((value): value is string => value !== null);
 
-  try {
-    return (
-      isSameOriginRequest(request)
-      || ALLOWED_ORIGINS.has(new URL(origin).origin)
-    );
-  } catch {
-    return false;
-  }
+  const hasAllowedOrigin = originHeaders.some((value) => {
+    try {
+      return ALLOWED_ORIGINS.has(new URL(value).origin);
+    } catch {
+      return false;
+    }
+  });
+
+  return hasAllowedOrigin || isSameOriginRequest(request);
 }
 
 export async function POST(request: Request) {
