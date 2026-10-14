@@ -7,9 +7,24 @@ export const runtime = "nodejs";
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NOTIFICATION_RECIPIENT = "aarashvoss@gmail.com";
 const SUCCESS_MESSAGE = "Your request has been submitted. We will contact you soon.";
+const ALLOWED_ORIGINS = new Set(["https://fluential.ir", "http://localhost:3000"]);
+
+function isAllowedRequestOrigin(request: Request) {
+  const origin = request.headers.get("origin");
+  if (!origin) return false;
+
+  try {
+    return (
+      isSameOriginRequest(request)
+      || ALLOWED_ORIGINS.has(new URL(origin).origin)
+    );
+  } catch {
+    return false;
+  }
+}
 
 export async function POST(request: Request) {
-  if (!isSameOriginRequest(request)) {
+  if (!isAllowedRequestOrigin(request)) {
     return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
   }
 

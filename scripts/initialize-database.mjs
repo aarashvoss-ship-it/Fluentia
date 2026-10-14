@@ -18,10 +18,24 @@ const pool = new Pool({
   ssl: true,
 });
 
+function isDnsResolutionError(error) {
+  return (
+    error !== null
+    && typeof error === "object"
+    && "code" in error
+    && (error.code === "ENOTFOUND" || error.code === "EAI_AGAIN")
+  );
+}
+
 try {
   await pool.query(RUNTIME_SCHEMA_SQL);
   console.info("Fluentia native-auth and waitlist database schema is ready.");
 } catch (error) {
+  if (isDnsResolutionError(error)) {
+    console.warn("Database unreachable in local mode, skipping init");
+    process.exit(0);
+  }
+
   console.error("Fluentia database initialization failed:", error);
   process.exitCode = 1;
 } finally {
