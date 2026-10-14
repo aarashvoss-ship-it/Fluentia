@@ -4,7 +4,7 @@ import type { PoolClient } from "pg";
 import { NextResponse } from "next/server";
 import {
   createSessionToken,
-  isSameOriginRequest,
+  isAllowedRequestOrigin,
   SESSION_COOKIE_NAME,
   sessionCookieOptions,
   type AuthenticatedRole,
@@ -18,7 +18,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const BCRYPT_ROUNDS = 12;
 
 export async function POST(request: Request) {
-  if (!isSameOriginRequest(request)) {
+  if (!isAllowedRequestOrigin(request)) {
     return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
   }
 

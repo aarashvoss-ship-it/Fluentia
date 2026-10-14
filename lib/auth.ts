@@ -5,6 +5,11 @@ export const SESSION_COOKIE_NAME = "fluentia_session";
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
 const SESSION_ISSUER = "fluentia";
 const SESSION_AUDIENCE = "fluentia-web";
+const ALLOWED_REQUEST_ORIGINS = new Set([
+  "https://fluential.ir",
+  "https://www.fluential.ir",
+  "http://localhost:3000",
+]);
 
 export type AuthenticatedRole = "student" | "instructor" | "admin";
 
@@ -83,4 +88,25 @@ export function isSameOriginRequest(request: Request) {
   } catch {
     return false;
   }
+}
+
+export function isAllowedRequestOrigin(request: Request) {
+  const originHeaders = [
+    request.headers.get("origin"),
+    request.headers.get("referer"),
+  ].filter((value): value is string => value !== null);
+
+  const hasAllowedOrigin = originHeaders.some((value) => {
+    try {
+      const parsedOrigin = new URL(value).origin;
+      return (
+        ALLOWED_REQUEST_ORIGINS.has(parsedOrigin)
+        || parsedOrigin === new URL(request.url).origin
+      );
+    } catch {
+      return false;
+    }
+  });
+
+  return hasAllowedOrigin;
 }

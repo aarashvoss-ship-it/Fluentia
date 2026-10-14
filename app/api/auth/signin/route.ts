@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 import {
   createSessionToken,
-  isSameOriginRequest,
+  isAllowedRequestOrigin,
   SESSION_COOKIE_NAME,
   sessionCookieOptions,
   type AuthenticatedRole,
@@ -22,7 +22,7 @@ interface LoginUser {
 }
 
 export async function POST(request: Request) {
-  if (!isSameOriginRequest(request)) {
+  if (!isAllowedRequestOrigin(request)) {
     return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
   }
 

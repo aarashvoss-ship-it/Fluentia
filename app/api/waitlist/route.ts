@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isSameOriginRequest } from "@/lib/auth";
+import { isAllowedRequestOrigin } from "@/lib/auth";
 import { getPostgresPool, initializeDatabase } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -7,28 +7,6 @@ export const runtime = "nodejs";
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NOTIFICATION_RECIPIENT = "aarashvoss@gmail.com";
 const SUCCESS_MESSAGE = "Your request has been submitted. We will contact you soon.";
-const ALLOWED_ORIGINS = new Set([
-  "https://fluential.ir",
-  "https://www.fluential.ir",
-  "http://localhost:3000",
-]);
-
-function isAllowedRequestOrigin(request: Request) {
-  const originHeaders = [
-    request.headers.get("origin"),
-    request.headers.get("referer"),
-  ].filter((value): value is string => value !== null);
-
-  const hasAllowedOrigin = originHeaders.some((value) => {
-    try {
-      return ALLOWED_ORIGINS.has(new URL(value).origin);
-    } catch {
-      return false;
-    }
-  });
-
-  return hasAllowedOrigin || isSameOriginRequest(request);
-}
 
 export async function POST(request: Request) {
   if (!isAllowedRequestOrigin(request)) {

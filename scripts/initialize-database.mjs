@@ -28,8 +28,9 @@ function isDnsResolutionError(error) {
 }
 
 try {
+  console.info("Initializing Fluentia database schema...");
   await pool.query(RUNTIME_SCHEMA_SQL);
-  console.info("Fluentia native-auth and waitlist database schema is ready.");
+  console.info("Fluentia database schema is ready (users, profiles, waitlist_requests).");
 } catch (error) {
   if (isDnsResolutionError(error)) {
     console.warn("Database unreachable in local mode, skipping init");
