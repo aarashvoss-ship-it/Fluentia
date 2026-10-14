@@ -5,6 +5,7 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { isLearningTab, LearningSidebar, type LearningTab } from "@/components/study-room/learning-sidebar";
 import { getLessonById, type LessonWithVersion } from "@/lib/lessons";
 import { supabase } from "@/lib/supabaseClient";
+import { getAuthenticatedUser } from "@/lib/identity";
 import { fetchSavedVocabulary, fetchStudentNotes, removeVocabularyWord, saveStudentNote } from "@/services/storage-service";
 import type { SavedVocabularyWord, StudentNote } from "@/types/lesson";
 
@@ -30,25 +31,22 @@ export default function StudyHubPage() {
     async function loadStudyHub() {
       try {
         if (!lessonSlug) throw new Error("A lesson identifier is required.");
-        const [loadedLesson, authResult] = await Promise.all([
+        const [loadedLesson, user] = await Promise.all([
           getLessonById(lessonSlug),
-          supabase.auth.getUser(),
+          getAuthenticatedUser(),
         ]);
         if (cancelled) return;
         if (!loadedLesson) throw new Error("The requested lesson could not be found.");
-        if (authResult.error && authResult.error.name !== "AuthSessionMissingError" && !/Auth session missing/i.test(authResult.error.message || "")) {
-          throw authResult.error;
-        }
 
         let resolvedStudentId = loadedLesson.student_id || undefined;
         let resolvedStudentToken = loadedLesson.student_token || loadedLesson.student_id || undefined;
-        if (authResult.data.user) {
-          resolvedStudentId = authResult.data.user.id;
-          resolvedStudentToken = authResult.data.user.id;
+        if (user) {
+          resolvedStudentId = user.id;
+          resolvedStudentToken = user.id;
           const { data: student, error: studentError } = await supabase
             .from("students")
             .select("token")
-            .eq("id", authResult.data.user.id)
+            .eq("id", user.id)
             .maybeSingle();
           if (studentError) console.warn("Unable to load the authenticated student's token:", studentError.message);
           if (student?.token) resolvedStudentToken = student.token;

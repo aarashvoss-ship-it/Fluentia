@@ -1,8 +1,6 @@
 import type { LessonId, StudentId, SubmissionId } from "@/types/database";
 
-// Single unified Supabase client for the app. The SSR browser client in
-// lib/supabaseClient.ts owns session persistence (PKCE) so auth.uid() and RLS
-// resolve consistently across every caller.
+// Supabase remains the app's data and storage client during the native-auth migration.
 export { supabase } from "@/lib/supabaseClient";
 
 export const isSupabaseConfigured = () => {
@@ -26,7 +24,7 @@ export interface LessonRow {
 	status: "draft" | "published" | "evaluated";
 	student_id: StudentId | null;
 	tags: Record<string, unknown>;
-	/** @deprecated Use student_id and auth.uid() instead. */
+	/** @deprecated Use student_id and the native session identity instead. */
 	student_token?: string | null;
 	instructor_id: string | null;
 	created_at: string;

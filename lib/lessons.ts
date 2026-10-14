@@ -1,5 +1,6 @@
 import { type LessonRow, type LessonVersionRow, isSupabaseConfigured } from "@/lib/supabase";
 import { supabase } from "@/lib/supabaseClient";
+import { getAuthenticatedUser } from "@/lib/identity";
 import type { StudentId } from "@/types/database";
 import type { LessonContent, InstructorLessonMock, LessonResource } from "@/types/lesson";
 
@@ -777,8 +778,8 @@ export async function setLessonAssignments(
 
   const lesson = await getLessonById(normalizedLessonId);
   if (!lesson) throw new Error("Lesson not found");
-  const { data: authData, error: authError } = await supabase.auth.getUser();
-  if (authError || !authData.user?.id) throw authError || new Error("No authenticated instructor session");
+  const user = await getAuthenticatedUser();
+  if (!user?.id) throw new Error("No authenticated instructor session");
 
   const { error: deleteError } = await supabase.from("lesson_assignments").delete().eq("lesson_id", normalizedLessonId);
   if (deleteError) throw deleteError;
@@ -800,7 +801,7 @@ export async function setLessonAssignments(
   const updated = await updateLesson(normalizedLessonId, {
     student_id: normalizedStudentIds[0] || null,
     student_token: null,
-    instructor_id: authData.user.id,
+    instructor_id: user.id,
     assigned_all_students: false,
     content,
     changes_summary: "Updated lesson assignments",
@@ -829,10 +830,10 @@ export async function assignLessonToStudent(lessonId: string, studentId: string)
   const { data: student, error: studentError } = await supabase.from("students").select("id, token").eq("id", normalizedStudentId).maybeSingle();
   if (studentError) throw studentError;
   if (!student) throw new Error(`Student ${normalizedStudentId} was not found`);
-  const { data: authData, error: authError } = await supabase.auth.getUser();
-  if (authError || !authData.user?.id) throw authError || new Error("No authenticated instructor session");
+  const user = await getAuthenticatedUser();
+  if (!user?.id) throw new Error("No authenticated instructor session");
   const content = { ...(lesson.content || {}), assignedAllStudents: false, assignedStudents: [student.id] };
-  const updated = await updateLesson(normalizedLessonId, { student_id: student.id, student_token: student.token, instructor_id: authData.user.id, assigned_all_students: false, content, changes_summary: "Assigned to student" });
+  const updated = await updateLesson(normalizedLessonId, { student_id: student.id, student_token: student.token, instructor_id: user.id, assigned_all_students: false, content, changes_summary: "Assigned to student" });
   await upsertLessonAssignment(normalizedLessonId, student.id);
   if (typeof window !== "undefined") window.dispatchEvent(new Event("fluentia:lesson-updated"));
   return updated;

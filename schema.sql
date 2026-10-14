@@ -1,8 +1,10 @@
 CREATE TABLE IF NOT EXISTS public.users (
-  id uuid PRIMARY KEY,
-  email text,
-  created_at timestamp with time zone DEFAULT now()
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  email text NOT NULL,
+  password_hash text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
 );
+CREATE UNIQUE INDEX users_email_lower_key ON public.users (lower(email));
 
 CREATE TABLE public.lessons (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AccessCard } from "@/components/access/access-card";
-import { supabase } from "@/lib/supabase";
+import { getAuthenticatedUser } from "@/lib/identity";
 import InstructorLessonWorkstationPage from "@/components/instructor/instructor-workstation-page";
 
 export default function InstructorDashboardPage() {
@@ -12,14 +12,14 @@ export default function InstructorDashboardPage() {
 
   useEffect(() => {
     let cancelled = false;
-    void supabase.auth.getSession().then(({ data, error }) => {
+    void getAuthenticatedUser().then((user) => {
       if (cancelled) return;
-      if (error || !data.session?.user?.id) {
+      if (!user?.id) {
         router.replace("/login");
         return;
       }
-      setInstructorId(data.session.user.id);
-    }).catch(() => router.replace("/login"));
+      setInstructorId(user.id);
+    });
     return () => { cancelled = true; };
   }, [router]);
 

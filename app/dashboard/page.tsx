@@ -44,16 +44,11 @@ import {
   getStudentProfileNote,
   saveStudentProfile,
 } from "@/lib/student-profiles";
-import { createBrowserClient } from "@supabase/ssr";
+import { getAuthenticatedUser } from "@/lib/identity";
+import { supabase } from "@/lib/supabaseClient";
 import { DEFAULT_BANNER_IMAGE_URL, getBannerOverlayStyles, getBannerPositionStyles, getFirstNonEmptyBannerUrl, normalizeBannerDimness, normalizeBannerPosition, type BannerFocalPosition } from "@/lib/banner-position";
 import { HeroBanner, HeroBannerContent, HeroBannerLogo } from "@/components/shared/hero-banner";
 import { BannerPositionControls } from "@/components/shared/banner-position-controls";
-
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  { auth: { flowType: "pkce" } },
-);
 
 type LessonStatus =
   | "not-started"
@@ -547,12 +542,11 @@ function DashboardContent() {
     };
     const loadAuthenticatedDashboard = async () => {
       try {
-        const { data: userData, error: userError } =
-          await supabase.auth.getUser();
-        if (userError || !userData.user) {
+        const user = await getAuthenticatedUser();
+        if (!user) {
           logDashboardError(
             "Dashboard client session lookup failed after server authentication:",
-            userError || new Error("No authenticated user was returned"),
+            new Error("No authenticated user was returned"),
           );
           setAccessDenied(true);
           setIsMounted(true);
@@ -562,7 +556,7 @@ function DashboardContent() {
         const { data: roleProfile } = await supabase
           .from("profiles")
           .select("*")
-          .eq("id", userData.user.id)
+          .eq("id", user.id)
           .maybeSingle();
         const instructorProfile = roleProfile
           ? null
@@ -570,7 +564,7 @@ function DashboardContent() {
               await supabase
                 .from("instructors")
                 .select("id")
-                .eq("id", userData.user.id)
+                .eq("id", user.id)
                 .maybeSingle()
             ).data;
         if (
@@ -587,7 +581,7 @@ function DashboardContent() {
           return;
         }
 
-        const userEmail = userData.user.email?.trim().toLowerCase() || "";
+        const userEmail = user.email.trim().toLowerCase();
         let student: {
           id: string;
           name: string;
@@ -598,7 +592,7 @@ function DashboardContent() {
           const { data: studentRow, error: studentError } = await supabase
             .from("students")
             .select("id, name, email, token")
-            .or(`id.eq.${userData.user.id},email.eq.${userEmail}`)
+            .or(`id.eq.${user.id},email.eq.${userEmail}`)
             .maybeSingle();
 
           if (studentError && studentError.code !== "PGRST116") {
@@ -616,14 +610,13 @@ function DashboardContent() {
           );
         }
 
-        const resolvedStudentId = student?.id || userData.user.id;
-        const fallbackName =
-          userData.user.user_metadata?.name || userEmail || "Student";
-        const userMetadata = userData.user.user_metadata as Record<string, unknown>;
+        const resolvedStudentId = student?.id || user.id;
+        const fallbackName = user.name || userEmail || "Student";
+        const userMetadata: Record<string, unknown> = {};
 
         const active: StudentUser = {
           id: resolvedStudentId,
-          token: student?.token || userData.user.id,
+          token: student?.token || user.id,
           name: student?.name || fallbackName,
           email: student?.email || userEmail || undefined,
           role: "student",
@@ -953,10 +946,10 @@ function DashboardContent() {
     setUploading(true);
     setProfileImageStatus(`Uploading ${kind} image...`);
     try {
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      if (userError || !userData.user) throw userError || new Error("Sign in to upload a profile image.");
+      const user = await getAuthenticatedUser();
+      if (!user) throw new Error("Sign in to upload a profile image.");
       const extension = file.type === "image/jpeg" ? "jpg" : file.type === "image/png" ? "png" : "webp";
-      const path = `student-customization/${userData.user.id}/${kind}-${crypto.randomUUID()}.${extension}`;
+      const path = `student-customization/${user.id}/${kind}-${crypto.randomUUID()}.${extension}`;
       const buckets = kind === "avatar"
         ? ["avatars", "student-resources", "lesson-assets"]
         : ["lesson-assets"];
@@ -1058,29 +1051,11 @@ function DashboardContent() {
     window.dispatchEvent(new Event("profile-updated"));
     window.dispatchEvent(new CustomEvent("fluentia:student-profile-updated", { detail: customization }));
     try {
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      if (userError) throw userError;
-      if (!userData.user) throw new Error("No authenticated user is available.");
-
-      const { error: metadataError } = await supabase.auth.updateUser({
-        data: {
-          ...(userData.user.user_metadata || {}),
-          avatar_bg_color: nextAvatarColor,
-          avatar_initials: initials,
-          avatar_url: avatarUrl,
-          custom_avatar_url: avatarUrl,
-          banner_url: bannerUrl,
-          bannerPosition,
-          banner_position: bannerPosition,
-          bannerDimness: dashboardBannerDimness,
-          banner_dimness: dashboardBannerDimness,
-          dashboard_banner_dimness: dashboardBannerDimness,
-        },
-      });
-      if (metadataError) throw metadataError;
+      const user = await getAuthenticatedUser();
+      if (!user) throw new Error("No authenticated user is available.");
 
       const profileValues = {
-        id: userData.user.id,
+        id: user.id,
         token,
         full_name: displayName,
         role: "student",
@@ -1095,7 +1070,7 @@ function DashboardContent() {
         .upsert(profileValues, { onConflict: "id" });
       if (profileError && (profileError.code === "42703" || profileError.code === "PGRST204")
         && /(avatar_bg_color|avatar_initials|avatar_url|banner_url)/i.test(profileError.message || "")) {
-        console.warn("Profile customization columns unavailable; auth metadata was saved:", profileError);
+        console.warn("Profile customization columns unavailable; saving available profile fields.", profileError);
         const { avatar_bg_color: _avatarBgColor, avatar_initials: _avatarInitials, avatar_url: _avatarUrl, banner_url: _bannerUrl, ...fallbackProfileValues } = profileValues;
         const fallback = await supabase
           .from("profiles")
@@ -1112,29 +1087,25 @@ function DashboardContent() {
         avatarBgColor: nextAvatarColor,
         avatarInitials: initials,
       });
-      const { data: refreshedUser, error: refreshError } = await supabase.auth.getUser();
-      if (refreshError) throw refreshError;
-      if (refreshedUser.user) {
+      const refreshedUser = await getAuthenticatedUser();
+      if (refreshedUser) {
         const { data: refreshedProfile, error: refreshedProfileError } = await supabase
           .from("profiles")
           .select("avatar_bg_color, avatar_initials, avatar_url, banner_url")
-          .eq("id", refreshedUser.user.id)
+          .eq("id", refreshedUser.id)
           .maybeSingle();
         if (refreshedProfileError && refreshedProfileError.code !== "42703" && refreshedProfileError.code !== "PGRST204") {
           throw refreshedProfileError;
         }
-        const refreshedMetadata = refreshedUser.user.user_metadata as Record<string, unknown>;
         const refreshedAvatarColor = typeof refreshedProfile?.avatar_bg_color === "string"
           ? refreshedProfile.avatar_bg_color
-          : typeof refreshedMetadata.avatar_bg_color === "string" ? refreshedMetadata.avatar_bg_color : nextAvatarColor;
+          : nextAvatarColor;
         const nextInitials = typeof refreshedProfile?.avatar_initials === "string"
           ? refreshedProfile.avatar_initials
-          : typeof refreshedMetadata.avatar_initials === "string" ? refreshedMetadata.avatar_initials : initials;
+          : initials;
         const refreshedAvatarUrl = typeof refreshedProfile?.avatar_url === "string"
           ? refreshedProfile.avatar_url
-          : typeof refreshedMetadata.custom_avatar_url === "string"
-            ? refreshedMetadata.custom_avatar_url
-            : typeof refreshedMetadata.avatar_url === "string" ? refreshedMetadata.avatar_url : avatarUrl;
+          : avatarUrl;
         setAvatarColor(refreshedAvatarColor);
         setAvatarInitials(nextInitials);
         setCustomAvatarUrl(refreshedAvatarUrl);

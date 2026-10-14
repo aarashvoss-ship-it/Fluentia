@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import type { User } from "@supabase/supabase-js";
 import { ChatMessage, ContentBlock, SavedVocabularyWord, StudentNote, StudyStepId, STUDY_STEPS, LessonContent, StudentSubmission } from "@/types/lesson";
 import { getLessonById, type LessonWithVersion } from "@/lib/lessons";
 import { getLessonStateKey, PublishedLessonState, writeLastAccessedLesson } from "@/lib/lesson-store";
+import { getAuthenticatedUser } from "@/lib/identity";
 import { fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, markStudentEvaluationAsViewed, saveChatMessage, saveStudentNote, saveStudentSubmissionDraft, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
 import { FLUENTIA_USERS, INSTRUCTOR_USER, type StudentUser } from "@/lib/users";
 import { supabase } from "@/lib/supabase";
@@ -280,7 +280,6 @@ export default function LessonPage() {
   const [lessonReady, setLessonReady] = useState(false);
   const [lessonNotFound, setLessonNotFound] = useState(false);
   const [activeStudent, setActiveStudent] = useState<StudentUser | null>(null);
-  const authenticatedStudentIdRef = useRef<string | null>(null);
   const [studentReady, setStudentReady] = useState(false);
   const [currentStep, setCurrentStep] = useState<StudyStepId>("warm_up");
   const [lessonStateHydrated, setLessonStateHydrated] = useState(false);
@@ -325,7 +324,7 @@ export default function LessonPage() {
   useEffect(() => {
     let cancelled = false;
     let requestId = 0;
-    const loadAuthenticatedStudent = async (authenticatedUser?: User | null) => {
+    const loadAuthenticatedStudent = async () => {
       const currentRequestId = ++requestId;
       const isCurrentRequest = () => !cancelled && currentRequestId === requestId;
       setActiveStudent(null);
@@ -357,26 +356,13 @@ export default function LessonPage() {
       pendingSubmissionSave.current?.resolve(false);
       pendingSubmissionSave.current = null;
       try {
-        let user = authenticatedUser;
-        if (authenticatedUser === undefined) {
-          const { data, error } = await supabase.auth.getUser();
-          if (!isCurrentRequest()) return;
-
-          const isSessionMissing = Boolean(error && (error.name === "AuthSessionMissingError" || /Auth session missing/i.test(error.message || "")));
-          if (error && !isSessionMissing) {
-            console.error("Unable to resolve authenticated student:", error);
-            setAccessDenied(true);
-            return;
-          }
-          user = data.user;
-        }
+        const user = await getAuthenticatedUser();
+        if (!isCurrentRequest()) return;
 
         if (!user) {
-          authenticatedStudentIdRef.current = null;
           setAccessDenied(true);
           return;
         }
-        authenticatedStudentIdRef.current = user.id;
 
         const [studentResult, profileResult] = await Promise.all([
           supabase.from("students").select("name, email, token").eq("id", user.id).maybeSingle(),
@@ -405,10 +391,11 @@ export default function LessonPage() {
         const localUser = email
           ? FLUENTIA_USERS.find((candidate) => candidate.email?.toLowerCase() === email.toLowerCase())
           : undefined;
+        const userMetadata: Record<string, unknown> = {};
         const name = firstNonEmpty(
           studentRecord?.name,
           profile?.full_name,
-          user.user_metadata?.full_name,
+          user.name,
           localUser?.name,
           emailName,
           email,
@@ -426,21 +413,17 @@ export default function LessonPage() {
             targetGoal: "",
             bannerUrl: getFirstNonEmptyBannerUrl(
               profile?.banner_url,
-              user.user_metadata?.customBannerUrl,
-              user.user_metadata?.banner_url,
             ),
             customBannerUrl: getFirstNonEmptyBannerUrl(
               profile?.banner_url,
-              user.user_metadata?.customBannerUrl,
-              user.user_metadata?.banner_url,
             ),
             bannerPosition: normalizeBannerPosition(
-              user.user_metadata?.bannerPosition ?? user.user_metadata?.banner_position,
+              userMetadata.bannerPosition ?? userMetadata.banner_position,
             ),
             bannerDimness: normalizeBannerDimness(
-              user.user_metadata?.bannerDimness
-                ?? user.user_metadata?.banner_dimness
-                ?? user.user_metadata?.dashboard_banner_dimness,
+              userMetadata.bannerDimness
+                ?? userMetadata.banner_dimness
+                ?? userMetadata.dashboard_banner_dimness,
             ),
             weaknesses: [],
             teacherNotes: "",
@@ -467,28 +450,8 @@ export default function LessonPage() {
     };
 
     void loadAuthenticatedStudent();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT") return;
-      window.setTimeout(() => {
-        void supabase.auth.getUser().then(({ data, error }) => {
-          if (error) {
-            console.warn("Unable to verify student after an auth event:", error);
-            return;
-          }
-          const currentUser = data.user;
-          const nextStudentId = currentUser?.id || null;
-          // Ignore focus-time SIGNED_IN/ SIGNED_OUT notifications when the user did not change.
-          if (nextStudentId === authenticatedStudentIdRef.current) return;
-          authenticatedStudentIdRef.current = nextStudentId;
-          void loadAuthenticatedStudent(currentUser);
-        }).catch((error: unknown) => {
-          console.warn("Unable to verify student after an auth event:", error);
-        });
-      }, 0);
-    });
     return () => {
       cancelled = true;
-      subscription.unsubscribe();
     };
   }, []);
 

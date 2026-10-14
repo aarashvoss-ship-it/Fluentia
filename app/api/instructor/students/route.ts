@@ -1,7 +1,6 @@
-import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { getServerSessionUser } from "@/lib/server/session";
 
 const studentLevels = new Set(["A1", "A2", "B1", "B2", "C1", "C2"]);
 
@@ -19,10 +18,9 @@ function normalizeWeaknesses(value: unknown) {
 
 export async function POST(request: Request) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !anonKey) {
-    return NextResponse.json({ error: "Supabase is not configured on the server." }, { status: 503 });
+  if (!supabaseUrl || !serviceRoleKey) {
+    return NextResponse.json({ error: "Supabase student-data administration is not configured on the server." }, { status: 503 });
   }
 
   let body: Record<string, unknown>;
@@ -42,39 +40,15 @@ export async function POST(request: Request) {
   if (!fullName || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !studentLevels.has(currentLevel)) {
     return NextResponse.json({ error: "Enter a name, valid email address, and CEFR level." }, { status: 400 });
   }
-  if (!serviceRoleKey) {
-    console.error("SUPABASE_SERVICE_ROLE_KEY is undefined; attempting student creation with NEXT_PUBLIC_SUPABASE_ANON_KEY. Admin operations may fail.");
-  }
-
-  const cookieStore = await cookies();
-  const sessionClient = createServerClient(supabaseUrl, anonKey, {
-    cookies: {
-      getAll() {
-        return cookieStore.getAll();
-      },
-      setAll(cookiesToSet) {
-        try {
-          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
-        } catch {
-          // The route only reads the session; cookie refresh is handled by middleware.
-        }
-      },
-    },
-  });
-  const { data: { user }, error: authError } = await sessionClient.auth.getUser();
-  if (authError || !user) return NextResponse.json({ error: "Sign in as an instructor to add a student." }, { status: 401 });
-
-  const adminClient = createClient(supabaseUrl, serviceRoleKey || anonKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  const [{ data: instructor }, { data: profile }] = await Promise.all([
-    adminClient.from("instructors").select("id").eq("id", user.id).maybeSingle(),
-    adminClient.from("profiles").select("role").eq("id", user.id).maybeSingle(),
-  ]);
-  if (!instructor && profile?.role !== "admin") {
+  const user = await getServerSessionUser();
+  if (!user) return NextResponse.json({ error: "Sign in as an instructor to add a student." }, { status: 401 });
+  if (user.role !== "instructor" && user.role !== "admin") {
     return NextResponse.json({ error: "Only instructors can add students." }, { status: 403 });
   }
 
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
   let createdAuthUserId: string | null = null;
   try {
     const { data: authResult, error: createUserError } = await adminClient.auth.admin.createUser({
@@ -147,13 +121,9 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !anonKey) {
-    return NextResponse.json({ error: "Supabase is not configured on the server." }, { status: 503 });
-  }
-  if (!serviceRoleKey) {
-    return NextResponse.json({ error: "Student profile persistence requires SUPABASE_SERVICE_ROLE_KEY." }, { status: 503 });
+  if (!supabaseUrl || !serviceRoleKey) {
+    return NextResponse.json({ error: "Supabase student-data administration is not configured on the server." }, { status: 503 });
   }
 
   let body: Record<string, unknown>;
@@ -171,23 +141,8 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Provide a student and profile to update." }, { status: 400 });
   }
 
-  const cookieStore = await cookies();
-  const sessionClient = createServerClient(supabaseUrl, anonKey, {
-    cookies: {
-      getAll() {
-        return cookieStore.getAll();
-      },
-      setAll(cookiesToSet) {
-        try {
-          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
-        } catch {
-          // Middleware persists refreshed auth cookies for route requests.
-        }
-      },
-    },
-  });
-  const { data: { user }, error: authError } = await sessionClient.auth.getUser();
-  if (authError || !user) return NextResponse.json({ error: "Sign in to save student profiles." }, { status: 401 });
+  const user = await getServerSessionUser();
+  if (!user) return NextResponse.json({ error: "Sign in to save student profiles." }, { status: 401 });
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -202,17 +157,7 @@ export async function PATCH(request: Request) {
   }
   if (!student) return NextResponse.json({ error: "Student profile not found." }, { status: 404 });
 
-  const [{ data: instructor, error: instructorError }, { data: callerProfile, error: callerProfileError }] = await Promise.all([
-    adminClient.from("instructors").select("id").eq("id", user.id).maybeSingle(),
-    adminClient.from("profiles").select("role").eq("id", user.id).maybeSingle(),
-  ]);
-  if (instructorError || callerProfileError) {
-    console.error("Student profile permission lookup failed:", instructorError || callerProfileError);
-    return NextResponse.json({ error: "Unable to verify permission to update this profile." }, { status: 500 });
-  }
-  const canManageStudents = Boolean(instructor)
-    || callerProfile?.role === "instructor"
-    || callerProfile?.role === "admin";
+  const canManageStudents = user.role === "instructor" || user.role === "admin";
   if (user.id !== student.id && !canManageStudents) {
     return NextResponse.json({ error: "You cannot update this student profile." }, { status: 403 });
   }

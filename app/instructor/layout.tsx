@@ -1,44 +1,9 @@
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { getServerSessionUser } from "@/lib/server/session";
 
 export default async function InstructorLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
-          } catch {
-            // Server layouts can read cookies even when they cannot write them.
-          }
-        },
-      },
-    },
-  );
-
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) redirect("/login");
-
-  const email = (data.user.email || data.user.user_metadata?.email || "").trim().toLowerCase();
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", data.user.id)
-    .maybeSingle();
-  const instructor = profile ? null : (await supabase
-    .from("instructors")
-    .select("id")
-    .eq("id", data.user.id)
-    .maybeSingle()).data;
-  if (profile?.role !== "instructor" && profile?.role !== "admin" && !instructor && email !== "aarashvoss@gmail.com") redirect("/dashboard");
-
+  const user = await getServerSessionUser();
+  if (!user) redirect("/login");
+  if (user.role !== "instructor" && user.role !== "admin") redirect("/dashboard");
   return children;
 }

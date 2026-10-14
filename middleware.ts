@@ -1,39 +1,31 @@
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth";
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({ request });
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
-        },
-      },
-    },
-  );
-
-  const { data } = await supabase.auth.getUser();
   const pathname = request.nextUrl.pathname;
-  const isProtectedRoute = pathname === "/dashboard"
-    || pathname.startsWith("/dashboard/")
-    || pathname === "/instructor"
-    || pathname.startsWith("/instructor/")
-    || pathname.startsWith("/lessons/");
-  if (isProtectedRoute && !data.user) {
+  const isDashboardRoute = pathname === "/dashboard" || pathname.startsWith("/dashboard/");
+  const isInstructorRoute = pathname === "/instructor" || pathname.startsWith("/instructor/");
+  const isLessonRoute = pathname === "/lessons" || pathname.startsWith("/lessons/");
+  const isProtectedRoute = isDashboardRoute || isInstructorRoute || isLessonRoute;
+
+  if (!isProtectedRoute) return NextResponse.next();
+
+  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  const user = token ? await verifySessionToken(token) : null;
+  if (!user) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.search = "";
     return NextResponse.redirect(loginUrl);
   }
-  return response;
+  if (isInstructorRoute && user.role !== "instructor" && user.role !== "admin") {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+  if (isDashboardRoute && (user.role === "instructor" || user.role === "admin")) {
+    return NextResponse.redirect(new URL("/instructor", request.url));
+  }
+
+  return NextResponse.next();
 }
 
 export const config = {

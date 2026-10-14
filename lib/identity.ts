@@ -1,16 +1,19 @@
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import type { SessionUser } from "@/lib/auth";
 
-export type AuthenticatedRole = "student" | "instructor" | "admin" | null;
+export type AuthenticatedRole = SessionUser["role"] | null;
 
-export async function getAuthenticatedUser() {
-  if (!isSupabaseConfigured()) return null;
-
+export async function getAuthenticatedUser(): Promise<SessionUser | null> {
+  if (typeof window === "undefined") return null;
   try {
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) return null;
-    return data.user;
+    const response = await fetch("/api/auth/session", {
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+    if (!response.ok) return null;
+    const result = await response.json() as { user?: SessionUser | null };
+    return result.user || null;
   } catch (error) {
-    console.warn("Unable to read the active Supabase user:", error);
+    console.warn("Unable to read the active native session:", error);
     return null;
   }
 }
@@ -22,25 +25,5 @@ export async function resolveUserUuid(): Promise<string | null> {
 
 export async function getAuthenticatedRole(): Promise<AuthenticatedRole> {
   const user = await getAuthenticatedUser();
-  if (!user) return null;
-
-  try {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-    if (profile?.role === "student" || profile?.role === "instructor" || profile?.role === "admin") return profile.role;
-
-    const [{ data: instructor }, { data: student }] = await Promise.all([
-      supabase.from("instructors").select("id").eq("id", user.id).maybeSingle(),
-      supabase.from("students").select("id").eq("id", user.id).maybeSingle(),
-    ]);
-    if (instructor) return "instructor";
-    if (student) return "student";
-  } catch (error) {
-    console.warn("Unable to resolve the authenticated user role:", error);
-  }
-
-  return null;
+  return user?.role || null;
 }

@@ -4,8 +4,8 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AccessCard } from "@/components/access/access-card";
+import { getAuthenticatedUser } from "@/lib/identity";
 import { supabase } from "@/lib/supabase";
-import { getAuthenticatedRole } from "@/lib/identity";
 
 export default function RootPage() {
   const router = useRouter();
@@ -16,21 +16,17 @@ export default function RootPage() {
 
   useEffect(() => {
     let cancelled = false;
-    void supabase.auth.getUser().then(async ({ data, error }) => {
+    void getAuthenticatedUser().then((user) => {
       if (cancelled) return;
-      if (error || !data.user) {
+      if (!user) {
         setCheckingSession(false);
         return;
       }
-      const role = await getAuthenticatedRole();
-      if (cancelled) return;
-      if (role === "instructor" || role === "admin") {
+      if (user.role === "instructor" || user.role === "admin") {
         router.replace("/instructor");
-      } else if (role === "student") {
+      } else if (user.role === "student") {
         router.replace("/dashboard");
       } else {
-        // Authenticated but unprovisioned: no profile/role row yet. Leave the
-        // session intact and let the layouts gate access; do not force sign-out.
         setCheckingSession(false);
       }
     });

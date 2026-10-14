@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AccessCard } from "@/components/access/access-card";
 import InstructorLessonWorkstationPage from "@/components/instructor/instructor-workstation-page";
-import { supabase } from "@/lib/supabase";
+import { getAuthenticatedUser } from "@/lib/identity";
 
 export default function InstructorLessonRoute() {
   const params = useParams<{ slug: string }>();
@@ -14,15 +14,15 @@ export default function InstructorLessonRoute() {
 
   useEffect(() => {
     let cancelled = false;
-    void supabase.auth.getSession().then(({ data, error }) => {
+    void getAuthenticatedUser().then((user) => {
       if (cancelled) return;
-      if (error || !data.session?.user?.id) {
+      if (!user?.id) {
         router.replace("/login");
         return;
       }
-      setInstructorId(data.session.user.id);
+      setInstructorId(user.id);
       setIsMounted(true);
-    }).catch(() => router.replace("/login"));
+    });
     return () => { cancelled = true; };
   }, [router]);
 

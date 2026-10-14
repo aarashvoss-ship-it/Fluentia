@@ -45,10 +45,11 @@ Run these from the repo root:
 - Use typed interfaces for database rows when working in the Supabase layer; do not widen them casually.
 - Client components should usually stay in `components/` and use small, focused props rather than embedding domain logic inline.
 
-## Supabase and Auth Notes
-- The project expects environment variables such as `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+## Database and Auth Notes
+- Supabase remains in use for application data and storage during the migration; browser data access uses the public Supabase URL and anon key.
+- Native sign-up/sign-in use `DATABASE_URL` and a server-only `JWT_SECRET` (at least 32 random bytes). Sessions are signed JWTs in HttpOnly cookies.
 - `lib/supabase.ts` includes a helper to detect whether Supabase is configured.
-- Browser auth is created with `createBrowserClient` in some app entries and is intentionally configured with PKCE session persistence.
+- Native session verification is shared by Next.js middleware and server routes through `lib/auth.ts` and `lib/server/session.ts`.
 - Many routes depend on instructor/student identity and token-based lesson access. Keep access checks consistent with the existing patterns.
 
 ## Route and Feature Notes

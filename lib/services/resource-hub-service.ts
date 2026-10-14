@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
+import { getAuthenticatedUser } from "@/lib/identity";
 import type { ResourceAsset, ResourceAssetInput, ResourceAssetRow } from "@/types/resource-hub";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -65,8 +66,7 @@ function mapResourceAsset(row: ResourceAssetRow): ResourceAsset {
 }
 
 async function getAuthenticatedInstructorId(expectedInstructorId: string) {
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error) throw new Error(`Unable to verify the signed-in instructor: ${error.message}`);
+  const user = await getAuthenticatedUser();
   if (!user) throw new Error("You must be signed in as an instructor to manage Resource Hub assets.");
   if (!expectedInstructorId || user.id !== expectedInstructorId) {
     throw new Error("The signed-in user does not match the active instructor. Refresh the page and try again.");

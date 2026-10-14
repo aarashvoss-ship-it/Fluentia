@@ -31,9 +31,14 @@ Create or update `.env.local`:
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-name.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
+DATABASE_URL=postgresql://user:password@host:5432/database?sslmode=require
+JWT_SECRET=generate-a-random-secret-with-at-least-32-bytes
 ```
 
 `SUPABASE_SERVICE_ROLE_KEY` is required for instructor-side student and instructor management. Keep it server-only; never rename it with a `NEXT_PUBLIC_` prefix or expose it to browser code.
+`DATABASE_URL` is used by native sign-up/sign-in and must point to the Paasta PostgreSQL database. `JWT_SECRET` signs HttpOnly session cookies; keep it server-only and use a cryptographically random value of at least 32 bytes.
+
+Before enabling native sign-up/sign-in on an existing Paasta database, run [`migrations/054_native_auth.sql`](./migrations/054_native_auth.sql). Existing accounts without a password hash cannot sign in with the native flow until they are given a password through a separate, verified onboarding process. Sign-up remains invitation-only and checks `public.allowed_users`.
 
 **How to find these values:**
 1. Go to [Supabase Dashboard](https://app.supabase.com)
@@ -267,11 +272,11 @@ export function MyComponent() {
 
 ## Next Steps
 
-1. **Set up authentication** - Add Supabase Auth for user management
-2. **Add real-time updates** - Use Supabase Realtime for collaborative editing
-3. **Implement caching** - Add React Query or SWR for better performance
-4. **Add audit logging** - Track all changes with timestamps
-5. **Create backup strategy** - Regular exports of lesson data
+1. **Complete the data migration** - Move remaining Supabase queries, storage, and RLS-protected access to the native PostgreSQL/session model.
+2. **Migrate account provisioning** - Replace remaining Supabase Auth Admin calls and onboard existing accounts to native password hashes.
+3. **Add real-time updates** - Choose a realtime service compatible with the PostgreSQL migration.
+4. **Implement caching** - Add React Query or SWR for better performance.
+5. **Add audit logging and backups** - Track changes and establish regular database exports.
 
 ## API Reference
 

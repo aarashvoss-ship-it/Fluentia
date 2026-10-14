@@ -1,97 +1,136 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { createBrowserClient } from '@supabase/ssr';
+import { FormEvent, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { getAuthenticatedUser } from '@/lib/identity';
 
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  { auth: { flowType: 'pkce', persistSession: true, autoRefreshToken: true } },
-);
+type AuthMode = 'signin' | 'signup';
 
-function LoginForm() {
+export default function LoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<AuthMode>('signin');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
-  const authError = searchParams.get('error');
-  const callbackMessage = authError === 'not_invited'
-    ? 'Your Google account is not on the Fluentia allowlist. Please contact your instructor for an invitation.'
-    : authError === 'allowlist_check_failed'
-      ? 'We could not verify your invitation right now. Please try again later or contact your instructor.'
-      : authError === 'missing_oauth_code'
-        ? 'The Google sign-in response was incomplete. Please try again.'
-        : authError
-          ? 'Sign-in could not be completed. Please try again.'
-          : '';
 
   useEffect(() => {
     let cancelled = false;
-    void supabase.auth.getUser().then(async ({ data, error }) => {
+    void getAuthenticatedUser().then((user) => {
       if (cancelled) return;
-      if (error || !data.user) {
-        setCheckingSession(false);
-        return;
-      }
-      const email = (data.user.email || data.user.user_metadata?.email || '').trim().toLowerCase();
-      const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle();
-      const { data: instructor } = await supabase.from('instructors').select('id').eq('id', data.user.id).maybeSingle();
-      if (profile?.role === 'instructor' || profile?.role === 'admin' || instructor || email === 'aarashvoss@gmail.com') {
-        router.replace('/instructor');
-      } else {
-        router.replace('/dashboard');
-      }
+      if (user) router.replace(user.role === 'instructor' || user.role === 'admin' ? '/instructor' : '/dashboard');
+      else setCheckingSession(false);
     });
     return () => {
       cancelled = true;
     };
   }, [router]);
 
-  // PKCE returns an authorization code for /auth/callback to exchange.
-  const handleGoogleLogin = async () => {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setLoading(true);
     setMessage('');
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        },
-      },
-    });
-    if (error) setMessage(error.message);
-    setLoading(false);
-  };
+    try {
+      const response = await fetch(`/api/auth/${mode}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ name, email, password }),
+      });
+      const result = await response.json() as {
+        error?: string;
+        user?: { role: string };
+      };
+      if (!response.ok || !result.user) {
+        setMessage(result.error || 'Authentication failed. Please try again.');
+        return;
+      }
+      router.replace(result.user.role === 'instructor' || result.user.role === 'admin' ? '/instructor' : '/dashboard');
+    } catch (error) {
+      console.error('Native sign-in request failed:', error);
+      setMessage('Sign-in is temporarily unavailable. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   if (checkingSession) return <main className="min-h-screen bg-background" />;
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10 text-stone-100">
       <section className="w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-xl">
-        <h1 className="text-2xl font-semibold">Sign in to Fluentia</h1>
-        <p className="mt-2 text-sm text-stone-400">Continue your language learning workspace.</p>
+        <h1 className="text-2xl font-semibold">{mode === 'signin' ? 'Sign in to Fluentia' : 'Create your Fluentia account'}</h1>
+        <p className="mt-2 text-sm text-stone-400">
+          {mode === 'signin' ? 'Continue to your language learning workspace.' : 'Create a student account to get started.'}
+        </p>
 
-        {callbackMessage && <p className="mt-4 rounded-md border border-amber-500/40 bg-amber-500/20 px-3 py-2 text-sm text-amber-400" role="alert">{callbackMessage}</p>}
+        <form onSubmit={(event) => void handleSubmit(event)} className="mt-6 space-y-4">
+          {mode === 'signup' && (
+            <label className="block text-sm text-stone-300">
+              Name
+              <input
+                type="text"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                autoComplete="name"
+                required
+                maxLength={120}
+                className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2.5 text-stone-100 outline-none focus:border-amber-500/40"
+              />
+            </label>
+          )}
+          <label className="block text-sm text-stone-300">
+            Email address
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              autoComplete="email"
+              required
+              maxLength={254}
+              className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2.5 text-stone-100 outline-none focus:border-amber-500/40"
+            />
+          </label>
+          <label className="block text-sm text-stone-300">
+            Password
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+              required
+              minLength={mode === 'signup' ? 12 : undefined}
+              maxLength={72}
+              className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2.5 text-stone-100 outline-none focus:border-amber-500/40"
+            />
+            {mode === 'signup' && <span className="mt-1 block text-xs text-stone-500">Use at least 12 characters.</span>}
+          </label>
+          {message && <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-400" role="alert">{message}</p>}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-md bg-amber-500/20 px-4 py-2.5 text-sm text-amber-300 transition hover:bg-amber-500/30 disabled:cursor-wait disabled:opacity-60"
+          >
+            {loading ? 'Please wait...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
+          </button>
+        </form>
 
-        <button type="button" onClick={() => void handleGoogleLogin()} disabled={loading} className="mt-6 flex w-full items-center justify-center gap-3 rounded-md border border-[#dadce0] bg-white px-4 py-2.5 text-sm  text-[#3c4043] transition hover:bg-[#f8faff] disabled:cursor-wait disabled:opacity-60">
-          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5"><path fill="#4285F4" d="M21.35 12.23c0-.78-.07-1.53-.22-2.25H12v4.26h5.24a4.48 4.48 0 0 1-1.94 2.94v2.45h3.14c1.84-1.69 2.91-4.18 2.91-7.4Z"/><path fill="#34A853" d="M12 21.75c2.63 0 4.84-.87 6.45-2.36l-3.14-2.45c-.87.58-1.98.92-3.31.92-2.54 0-4.7-1.72-5.47-4.03H3.29v2.53A9.75 9.75 0 0 0 12 21.75Z"/><path fill="#FBBC05" d="M6.53 13.83A5.86 5.86 0 0 1 6.22 12c0-.64.11-1.26.31-1.83V7.64H3.29A9.75 9.75 0 0 0 2.25 12c0 1.57.38 3.05 1.04 4.36l3.24-2.53Z"/><path fill="#EA4335" d="M12 6.14c1.43 0 2.71.49 3.72 1.46l2.79-2.79C16.84 3.24 14.63 2.25 12 2.25a9.75 9.75 0 0 0-8.71 5.39l3.24 2.53C6.3 7.86 8.46 6.14 12 6.14Z"/></svg>
-          {loading ? 'Connecting...' : 'Continue with Google'}
-        </button>
-
-        {message && <p className="mt-4 rounded-md border border-border px-3 py-2 text-sm text-amber-400" role="status">{message}</p>}
+        <p className="mt-5 text-center text-sm text-stone-400">
+          {mode === 'signin' ? "Don't have an account?" : 'Already have an account?'}{' '}
+          <button
+            type="button"
+            onClick={() => {
+              setMode(mode === 'signin' ? 'signup' : 'signin');
+              setMessage('');
+            }}
+            className="text-amber-400 hover:text-amber-300"
+          >
+            {mode === 'signin' ? 'Create one' : 'Sign in'}
+          </button>
+        </p>
       </section>
     </main>
-  );
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense fallback={<main className="min-h-screen bg-background" />}>
-      <LoginForm />
-    </Suspense>
   );
 }

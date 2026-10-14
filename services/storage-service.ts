@@ -11,7 +11,7 @@ import {
 } from "@/types/lesson";
 import { PublishedLessonState, getLessonStateKey } from "@/lib/lesson-store";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import { resolveUserUuid } from "@/lib/identity";
+import { getAuthenticatedUser, resolveUserUuid } from "@/lib/identity";
 
 export type LessonStatus = "draft" | "published";
 export type SubmissionStatus = "not_started" | "in_progress" | "submitted" | "pending_evaluation" | "reviewed" | "evaluated";
@@ -838,10 +838,9 @@ export async function saveInstructorFeedback(
   if (isSupabaseConfigured()) {
     const studentId = studentToken?.trim() || "";
     if (!UUID_PATTERN.test(studentId)) throw new Error("A valid selected student ID is required to save this evaluation.");
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    if (authError) throw authError;
-    if (!authData.user) throw new Error("An authenticated instructor is required to save this evaluation.");
-    const authenticatedInstructorId = authData.user.id;
+    const user = await getAuthenticatedUser();
+    if (!user) throw new Error("An authenticated instructor is required to save this evaluation.");
+    const authenticatedInstructorId = user.id;
     if (!UUID_PATTERN.test(authenticatedInstructorId)) {
       throw new Error("The authenticated instructor ID is not a valid UUID.");
     }
