@@ -1,8 +1,7 @@
-CREATE SCHEMA IF NOT EXISTS auth;
-
--- Minimal foreign-key target for standalone PostgreSQL; this does not provide authentication.
-CREATE TABLE IF NOT EXISTS auth.users (
-  id uuid PRIMARY KEY
+CREATE TABLE IF NOT EXISTS public.users (
+  id uuid PRIMARY KEY,
+  email text,
+  created_at timestamp with time zone DEFAULT now()
 );
 
 CREATE TABLE public.lessons (
@@ -299,5 +298,5 @@ CREATE TABLE public.resource_assets (
   tags text[] NOT NULL DEFAULT '{}'::text[],
   allow_student_download boolean NOT NULL DEFAULT true,
   CONSTRAINT resource_assets_pkey PRIMARY KEY (id),
-  CONSTRAINT resource_assets_instructor_id_fkey FOREIGN KEY (instructor_id) REFERENCES auth.users(id)
+  CONSTRAINT resource_assets_instructor_id_fkey FOREIGN KEY (instructor_id) REFERENCES public.users(id)
 );
