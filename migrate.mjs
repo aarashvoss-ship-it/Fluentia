@@ -3,14 +3,19 @@ import pkg from 'pg';
 
 const { Client } = pkg;
 
-// خواندن مستقیم کانکشن استرینگ از فایل .env.local
-const envContent = fs.readFileSync('.env.local', 'utf8');
-const match = envContent.match(/DATABASE_URL=(.+)/);
-const connectionString = match ? match[1].trim() : process.env.DATABASE_URL;
+const envContent = fs.existsSync('.env.local') ? fs.readFileSync('.env.local', 'utf8') : '';
+const match = envContent.match(/^\s*DATABASE_URL\s*=\s*(.+)\s*$/m);
+const fileConnectionString = match?.[1].trim().replace(/^(['"])(.*)\1$/, '$2');
+const connectionString = process.env.DATABASE_URL || fileConnectionString;
 
 async function runMigration() {
+  if (!connectionString) {
+    throw new Error('DATABASE_URL is not set');
+  }
+
   const client = new Client({
     connectionString,
+    ssl: { rejectUnauthorized: false },
   });
 
   try {
