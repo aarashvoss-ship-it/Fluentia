@@ -88,9 +88,7 @@ export async function POST(request: Request) {
     response.cookies.set(SESSION_COOKIE_NAME, token, sessionCookieOptions());
     return response;
   } catch (error) {
-    console.error("Native sign-in failed:", {
-      code: (error as { code?: string }).code,
-    });
+    console.error("Native sign-in failed:", error);
     return NextResponse.json({ error: "Sign-in is temporarily unavailable." }, { status: 500 });
   }
 }

@@ -58,9 +58,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "This email address is not invited to Fluentia." }, { status: 403 });
     }
   } catch (error) {
-    console.error("Native sign-up invitation check failed:", {
-      code: (error as { code?: string }).code,
-    });
+    console.error("Native sign-up invitation check failed:", error);
     return NextResponse.json({ error: "Sign-up is temporarily unavailable." }, { status: 503 });
   }
 
@@ -110,10 +108,10 @@ export async function POST(request: Request) {
       }
     }
     const code = (error as { code?: string }).code;
+    console.error("Native sign-up failed:", error);
     if (code === "23505") {
       return NextResponse.json({ error: "An account with that email already exists." }, { status: 409 });
     }
-    console.error("Native sign-up failed:", { code });
     return NextResponse.json({ error: "Account creation failed. Please try again." }, { status: 500 });
   } finally {
     client?.release();
