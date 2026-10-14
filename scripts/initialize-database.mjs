@@ -1,9 +1,16 @@
 import { Pool } from "pg";
+import nextEnv from "@next/env";
 import { RUNTIME_SCHEMA_SQL } from "../lib/runtime-schema.mjs";
 
-const connectionString = process.env.DATABASE_URL;
+const { loadEnvConfig } = nextEnv;
+loadEnvConfig(process.cwd());
+
+const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
 if (!connectionString) {
-  throw new Error("DATABASE_URL is not configured.");
+  console.warn(
+    "Skipping Fluentia database initialization: DATABASE_URL or POSTGRES_URL is not configured.",
+  );
+  process.exit(0);
 }
 
 const pool = new Pool({
