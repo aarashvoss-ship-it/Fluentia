@@ -1,5 +1,9 @@
--- WARNING: This schema is for context only and is not meant to be run.
--- Table order and constraints may not be valid for execution.
+CREATE SCHEMA IF NOT EXISTS auth;
+
+-- Minimal foreign-key target for standalone PostgreSQL; this does not provide authentication.
+CREATE TABLE IF NOT EXISTS auth.users (
+  id uuid PRIMARY KEY
+);
 
 CREATE TABLE public.lessons (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -30,8 +34,7 @@ CREATE TABLE public.lessons (
   cefr_level text,
   practice_type text,
   custom_tags text[],
-  CONSTRAINT lessons_pkey PRIMARY KEY (id),
-  CONSTRAINT lessons_instructor_id_fkey FOREIGN KEY (instructor_id) REFERENCES public.profiles(id)
+  CONSTRAINT lessons_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.student_submissions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -169,6 +172,10 @@ CREATE TABLE public.profiles (
   email text,
   CONSTRAINT profiles_pkey PRIMARY KEY (id)
 );
+ALTER TABLE public.lessons
+  ADD CONSTRAINT lessons_instructor_id_fkey
+  FOREIGN KEY (instructor_id) REFERENCES public.profiles(id);
+
 CREATE TABLE public.lesson_assignments (
   lesson_id uuid NOT NULL,
   student_id uuid NOT NULL,
