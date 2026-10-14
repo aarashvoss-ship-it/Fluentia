@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAllowedRequestOrigin } from "@/lib/auth";
-import { getPostgresPool, initializeDatabase } from "@/lib/db";
+import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: SUCCESS_MESSAGE });
   } catch (error) {
-    console.error("Waitlist request could not be saved:", error);
+    logDatabaseError("Waitlist database operation failed:", error);
     return NextResponse.json(
       { error: "We could not save your request. Please try again." },
       { status: 503 },

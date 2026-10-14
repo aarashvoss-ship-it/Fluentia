@@ -24,6 +24,19 @@ export function getPostgresPool() {
   return pool;
 }
 
+export function logDatabaseError(context: string, error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  const code =
+    error !== null
+    && typeof error === "object"
+    && "code" in error
+    && typeof error.code === "string"
+      ? error.code
+      : undefined;
+
+  console.error(context, { message, code });
+}
+
 export async function initializeDatabase() {
   if (!globalForPostgres.fluentiaPostgresInitialization) {
     const pool = getPostgresPool();
@@ -36,6 +49,7 @@ export async function initializeDatabase() {
   try {
     await initialization;
   } catch (error) {
+    logDatabaseError("Database schema initialization failed:", error);
     if (globalForPostgres.fluentiaPostgresInitialization === initialization) {
       delete globalForPostgres.fluentiaPostgresInitialization;
     }

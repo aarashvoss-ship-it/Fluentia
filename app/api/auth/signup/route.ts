@@ -10,7 +10,7 @@ import {
   type AuthenticatedRole,
   type SessionUser,
 } from "@/lib/auth";
-import { getPostgresPool, initializeDatabase } from "@/lib/db";
+import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "This email address is not invited to Fluentia." }, { status: 403 });
     }
   } catch (error) {
-    console.error("Native sign-up invitation check failed:", error);
+    logDatabaseError("Native sign-up invitation check failed:", error);
     return NextResponse.json({ error: "Sign-up is temporarily unavailable." }, { status: 503 });
   }
 
@@ -104,11 +104,11 @@ export async function POST(request: Request) {
       try {
         await client.query("ROLLBACK");
       } catch (rollbackError) {
-        console.error("Native sign-up transaction rollback failed:", rollbackError);
+        logDatabaseError("Native sign-up transaction rollback failed:", rollbackError);
       }
     }
     const code = (error as { code?: string }).code;
-    console.error("Native sign-up failed:", error);
+    logDatabaseError("Native sign-up database operation failed:", error);
     if (code === "23505") {
       return NextResponse.json({ error: "An account with that email already exists." }, { status: 409 });
     }

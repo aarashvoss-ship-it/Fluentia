@@ -7,7 +7,7 @@ import {
   sessionCookieOptions,
   type AuthenticatedRole,
 } from "@/lib/auth";
-import { getPostgresPool, initializeDatabase } from "@/lib/db";
+import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
     response.cookies.set(SESSION_COOKIE_NAME, token, sessionCookieOptions());
     return response;
   } catch (error) {
-    console.error("Native sign-in failed:", error);
+    logDatabaseError("Native sign-in database operation failed:", error);
     return NextResponse.json({ error: "Sign-in is temporarily unavailable." }, { status: 500 });
   }
 }
