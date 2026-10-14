@@ -36,9 +36,9 @@ JWT_SECRET=generate-a-random-secret-with-at-least-32-bytes
 ```
 
 `SUPABASE_SERVICE_ROLE_KEY` is required for instructor-side student and instructor management. Keep it server-only; never rename it with a `NEXT_PUBLIC_` prefix or expose it to browser code.
-`DATABASE_URL` is used by native sign-up/sign-in and must point to the Paasta PostgreSQL database. `JWT_SECRET` signs HttpOnly session cookies; keep it server-only and use a cryptographically random value of at least 32 bytes.
+`DATABASE_URL` is used by native sign-up/sign-in and must point to the Paasta PostgreSQL database. `JWT_SECRET` signs HttpOnly session cookies; keep it server-only and use a cryptographically random value of at least 32 bytes. On Node.js server startup, Fluentia safely creates or adds the native-auth and waitlist tables/columns if they are missing. The database role must be allowed to create tables and indexes and alter its own tables in `public`; startup fails visibly if initialization cannot complete. This bootstrap covers native authentication and waitlist storage, not the rest of the application schema.
 
-Before enabling native sign-up/sign-in on an existing Paasta database, run [`migrations/054_native_auth.sql`](./migrations/054_native_auth.sql). Existing accounts without a password hash cannot sign in with the native flow until they are given a password through a separate, verified onboarding process. Sign-up remains invitation-only and checks `public.allowed_users`.
+The equivalent manual migrations are [`migrations/054_native_auth.sql`](./migrations/054_native_auth.sql) and [`migrations/055_create_waitlist_requests.sql`](./migrations/055_create_waitlist_requests.sql). Existing accounts without a password hash cannot sign in with the native flow until they are given a password through a separate, verified onboarding process. Sign-up remains invitation-only and checks `public.allowed_users`.
 
 **How to find these values:**
 1. Go to [Supabase Dashboard](https://app.supabase.com)

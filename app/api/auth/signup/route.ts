@@ -10,7 +10,7 @@ import {
   type AuthenticatedRole,
   type SessionUser,
 } from "@/lib/auth";
-import { getPostgresPool } from "@/lib/db";
+import { getPostgresPool, initializeDatabase } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -45,8 +45,10 @@ export async function POST(request: Request) {
   }
 
   const userId = randomUUID();
+  const profileToken = randomUUID();
   let pool: ReturnType<typeof getPostgresPool>;
   try {
+    await initializeDatabase();
     pool = getPostgresPool();
     const invitation = await pool.query(
       "SELECT 1 FROM public.allowed_users WHERE lower(email) = $1 LIMIT 1",
@@ -88,9 +90,9 @@ export async function POST(request: Request) {
       [userId, email, passwordHash],
     );
     await client.query(
-      `INSERT INTO public.profiles (id, full_name, role)
-       VALUES ($1, $2, 'student')`,
-      [userId, name],
+      `INSERT INTO public.profiles (id, token, full_name, role)
+       VALUES ($1, $2, $3, 'student')`,
+      [userId, profileToken, name],
     );
     await client.query("COMMIT");
 

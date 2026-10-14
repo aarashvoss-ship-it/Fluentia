@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isSameOriginRequest } from "@/lib/auth";
-import { getPostgresPool } from "@/lib/db";
+import { getPostgresPool, initializeDatabase } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -30,6 +30,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    await initializeDatabase();
     const result = await getPostgresPool().query<{ id: string }>(
       `INSERT INTO public.waitlist_requests (email)
        VALUES ($1)

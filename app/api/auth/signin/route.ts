@@ -7,7 +7,7 @@ import {
   sessionCookieOptions,
   type AuthenticatedRole,
 } from "@/lib/auth";
-import { getPostgresPool } from "@/lib/db";
+import { getPostgresPool, initializeDatabase } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -44,6 +44,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    await initializeDatabase();
     const result = await getPostgresPool().query<LoginUser>(
       `SELECT users.id, users.email, users.password_hash,
               COALESCE(profiles.role, CASE WHEN instructors.id IS NOT NULL THEN 'instructor' ELSE 'student' END) AS role,
