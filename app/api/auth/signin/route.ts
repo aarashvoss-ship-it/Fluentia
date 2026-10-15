@@ -23,6 +23,10 @@ interface LoginUser {
   name: string | null;
 }
 
+function isBcryptHash(value: string | null): value is string {
+  return value !== null && /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(value);
+}
+
 export async function POST(request: Request) {
   if (!isAllowedRequestOrigin(request)) {
     return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
@@ -60,35 +64,49 @@ export async function POST(request: Request) {
       [email],
     );
     const user = result.rows[0];
-    let passwordMatches = false;
-    let usedTemporaryPassword = false;
+    const temporaryPasswordHash = user && TEMP_PASSWORD_ACCOUNT_ROLES.has(email)
+      ? getTemporaryPasswordHash(email)
+      : undefined;
+    const hasStoredPasswordHash = Boolean(user?.password_hash);
+    const storedPasswordMatches = user && isBcryptHash(user.password_hash)
+      ? await bcrypt.compare(password, user.password_hash)
+      : false;
+    const temporaryPasswordMatches = temporaryPasswordHash
+      ? await bcrypt.compare(password, temporaryPasswordHash)
+      : false;
 
-    if (user?.password_hash) {
-      passwordMatches = await bcrypt.compare(password, user.password_hash);
-    } else if (user && TEMP_PASSWORD_ACCOUNT_ROLES.has(email)) {
-      const temporaryPasswordHash = getTemporaryPasswordHash(email);
-      if (temporaryPasswordHash) {
-        passwordMatches = await bcrypt.compare(password, temporaryPasswordHash);
-        usedTemporaryPassword = passwordMatches;
-      } else {
-        await bcrypt.hash(password, 12);
-      }
-    } else {
+    if (!storedPasswordMatches && !temporaryPasswordMatches) {
       await bcrypt.hash(password, 12);
     }
 
-    if (!user || !passwordMatches) {
+    if (
+      user
+      && TEMP_PASSWORD_ACCOUNT_ROLES.has(email)
+      && !hasStoredPasswordHash
+      && !temporaryPasswordHash
+    ) {
+      return NextResponse.json(
+        { error: "Password sign-in is not configured for this account yet. Please contact support." },
+        { status: 503 },
+      );
+    }
+
+    if (!user || (!storedPasswordMatches && !temporaryPasswordMatches)) {
       return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
     }
 
-    if (usedTemporaryPassword) {
+    if (temporaryPasswordMatches && !storedPasswordMatches) {
       const permanentPasswordHash = await bcrypt.hash(password, 12);
-      await pool.query(
+      const updatedPassword = await pool.query(
         `UPDATE public.users
          SET password_hash = $1
-         WHERE id = $2 AND password_hash IS NULL`,
-        [permanentPasswordHash, user.id],
+         WHERE id = $2 AND password_hash IS NOT DISTINCT FROM $3
+         RETURNING id`,
+        [permanentPasswordHash, user.id, user.password_hash],
       );
+      if (updatedPassword.rowCount !== 1) {
+        return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
+      }
     }
 
     const role = TEMP_PASSWORD_ACCOUNT_ROLES.get(email) || user.role;

@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { getAuthenticatedUser } from "@/lib/identity";
 
 type ModalMode = "waitlist" | "signin";
+type WaitlistFieldErrors = Partial<Record<"name" | "email", string>>;
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function RootPage() {
   const router = useRouter();
@@ -13,6 +16,7 @@ export default function RootPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<WaitlistFieldErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
 
@@ -35,22 +39,40 @@ export default function RootPage() {
 
   async function submitWaitlist(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const trimmedName = name.trim();
+    const normalizedEmail = email.trim();
+    const errors: WaitlistFieldErrors = {};
+    if (!trimmedName) {
+      errors.name = "Enter your name.";
+    } else if (trimmedName.length > 120) {
+      errors.name = "Name must be 120 characters or fewer.";
+    }
+    if (!EMAIL_PATTERN.test(normalizedEmail) || normalizedEmail.length > 254) {
+      errors.email = "Enter a valid email address.";
+    }
+    setFieldErrors(errors);
     setIsSubmitting(true);
     setStatus(null);
+    if (Object.keys(errors).length > 0) {
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const response = await fetch("/api/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({ name, email }),
+        body: JSON.stringify({ name: trimmedName, email: normalizedEmail }),
       });
-      const result = await response.json() as { error?: string; message?: string };
+      const result = await response.json().catch(() => ({})) as { error?: string; message?: string };
       if (!response.ok) {
         setStatus(result.error || "We could not save your request. Please try again.");
         return;
       }
       setName("");
       setEmail("");
+      setFieldErrors({});
       setStatus(result.message || "Your waitlist request has been saved.");
     } catch (error) {
       console.error("Waitlist request failed:", error);
@@ -114,30 +136,40 @@ export default function RootPage() {
         </p>
 
         {mode === "waitlist" ? (
-          <form onSubmit={(event) => void submitWaitlist(event)} className="mt-6 space-y-4">
+          <form noValidate onSubmit={(event) => void submitWaitlist(event)} className="mt-6 space-y-4">
             <label className="block text-sm text-stone-300">
               Name
               <input
                 type="text"
                 value={name}
-                onChange={(event) => setName(event.target.value)}
+                onChange={(event) => {
+                  setName(event.target.value);
+                  setFieldErrors((current) => ({ ...current, name: undefined }));
+                }}
                 autoComplete="name"
-                required
                 maxLength={120}
+                aria-invalid={Boolean(fieldErrors.name)}
+                aria-describedby={fieldErrors.name ? "waitlist-name-error" : undefined}
                 className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2.5 text-stone-100 outline-none focus:border-amber-500/40"
               />
+              {fieldErrors.name && <span id="waitlist-name-error" className="mt-1 block text-xs text-rose-400" role="alert">{fieldErrors.name}</span>}
             </label>
             <label className="block text-sm text-stone-300">
               Email address
               <input
                 type="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  setFieldErrors((current) => ({ ...current, email: undefined }));
+                }}
                 autoComplete="email"
-                required
                 maxLength={254}
+                aria-invalid={Boolean(fieldErrors.email)}
+                aria-describedby={fieldErrors.email ? "waitlist-email-error" : undefined}
                 className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2.5 text-stone-100 outline-none focus:border-amber-500/40"
               />
+              {fieldErrors.email && <span id="waitlist-email-error" className="mt-1 block text-xs text-rose-400" role="alert">{fieldErrors.email}</span>}
             </label>
             <button
               type="submit"

@@ -34,7 +34,8 @@ export async function POST(request: Request) {
     const result = await getPostgresPool().query<{ id: string }>(
       `INSERT INTO public.waitlist_requests (name, email)
        VALUES ($1, $2)
-       ON CONFLICT DO NOTHING
+       ON CONFLICT (lower(email))
+       DO UPDATE SET name = EXCLUDED.name
        RETURNING id`,
       [name, email],
     );
