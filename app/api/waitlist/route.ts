@@ -5,8 +5,7 @@ import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db"
 export const runtime = "nodejs";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const NOTIFICATION_RECIPIENT = "aarashvoss@gmail.com";
-const SUCCESS_MESSAGE = "Your request has been submitted. We will contact you soon.";
+const SUCCESS_MESSAGE = "Your request has been saved. Email notifications are not configured yet.";
 
 export async function POST(request: Request) {
   if (!isAllowedRequestOrigin(request)) {
@@ -24,26 +23,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
   }
 
+  const name = typeof body.name === "string" ? body.name.trim() : "";
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-  if (!EMAIL_PATTERN.test(email) || email.length > 254) {
-    return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
+  if (!name || name.length > 120 || !EMAIL_PATTERN.test(email) || email.length > 254) {
+    return NextResponse.json({ error: "Enter a valid name and email address." }, { status: 400 });
   }
 
   try {
     await initializeDatabase();
     const result = await getPostgresPool().query<{ id: string }>(
-      `INSERT INTO public.waitlist_requests (email)
-       VALUES ($1)
+      `INSERT INTO public.waitlist_requests (name, email)
+       VALUES ($1, $2)
        ON CONFLICT DO NOTHING
        RETURNING id`,
-      [email],
+      [name, email],
     );
 
     if (result.rows[0]) {
-      console.info("Waitlist email notification intent recorded.", {
+      console.info("Waitlist request saved.", {
         requestId: result.rows[0].id,
-        recipient: NOTIFICATION_RECIPIENT,
-        channel: "email",
       });
     }
 

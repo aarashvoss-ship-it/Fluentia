@@ -44,6 +44,8 @@ For an existing allowlisted account that has no `password_hash`, standard email/
 
 The equivalent manual migrations are [`migrations/054_native_auth.sql`](./migrations/054_native_auth.sql) and [`migrations/055_create_waitlist_requests.sql`](./migrations/055_create_waitlist_requests.sql). Existing accounts without a password hash can use the temporary bcrypt-hash bootstrap described above, or receive a password through a separate, verified onboarding process. Sign-up remains invitation-only and checks `public.allowed_users`.
 
+The landing-page waitlist stores each applicant's name and email in `public.waitlist_requests`. Email notifications are not sent until an email delivery provider is configured.
+
 **How to find these values:**
 1. Go to [Supabase Dashboard](https://app.supabase.com)
 2. Select your project
