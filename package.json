@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node scripts/initialize-database.mjs && next dev",
     "build": "next build",
-    "start": "node scripts/initialize-database.mjs && next start",
+    "start": "next start",
     "lint": "next lint",
     "typecheck:supabase": "tsc --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --skipLibCheck scripts/test-supabase.ts",
     "test:supabase": "node --no-warnings --experimental-strip-types scripts/test-supabase.ts"
