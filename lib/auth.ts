@@ -13,6 +13,8 @@ const SESSION_AUDIENCE = "fluentia-web";
 const ALLOWED_REQUEST_ORIGINS = new Set([
   "https://fluential.ir",
   "https://www.fluential.ir",
+  "https://fluentia.ir.paasta.app",
+  "https://fluential.ir.paasta.app",
   "http://localhost:3000",
 ]);
 
@@ -130,6 +132,19 @@ export function isSameOriginRequest(request: Request) {
 }
 
 export function isAllowedRequestOrigin(request: Request) {
+  const allowedOrigins = new Set(ALLOWED_REQUEST_ORIGINS);
+  for (const configuredUrl of [process.env.NEXT_PUBLIC_APP_URL, process.env.NEXT_PUBLIC_SITE_URL]) {
+    if (!configuredUrl) continue;
+    try {
+      const parsedUrl = new URL(configuredUrl);
+      if (parsedUrl.protocol === "https:" || parsedUrl.hostname === "localhost") {
+        allowedOrigins.add(parsedUrl.origin);
+      }
+    } catch {
+      // Ignore invalid optional origin configuration.
+    }
+  }
+
   const originHeaders = [
     request.headers.get("origin"),
     request.headers.get("referer"),
@@ -139,7 +154,7 @@ export function isAllowedRequestOrigin(request: Request) {
     try {
       const parsedOrigin = new URL(value).origin;
       return (
-        ALLOWED_REQUEST_ORIGINS.has(parsedOrigin)
+        allowedOrigins.has(parsedOrigin)
         || parsedOrigin === new URL(request.url).origin
       );
     } catch {
