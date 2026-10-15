@@ -17,6 +17,12 @@ export default function LoginPage() {
   const [checkingSession, setCheckingSession] = useState(true);
 
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('auth_error') === 'google') {
+      setMessage('Google sign-in failed, or this Google account is not authorized for Fluentia.');
+    }
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     void getAuthenticatedUser().then((user) => {
       if (cancelled) return;
@@ -116,6 +122,22 @@ export default function LoginPage() {
             {loading ? 'Please wait...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
           </button>
         </form>
+
+        {mode === 'signin' && (
+          <div className="mt-4">
+            <div className="mb-4 flex items-center gap-3 text-xs text-stone-500">
+              <span className="h-px flex-1 bg-border" />
+              <span>or</span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
+            <a
+              href="/api/auth/google"
+              className="block w-full rounded-md border border-border px-4 py-2.5 text-center text-sm text-stone-200 transition hover:bg-white/5"
+            >
+              Continue with Google
+            </a>
+          </div>
+        )}
 
         <p className="mt-5 text-center text-sm text-stone-400">
           {mode === 'signin' ? "Don't have an account?" : 'Already have an account?'}{' '}
