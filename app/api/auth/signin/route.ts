@@ -14,6 +14,11 @@ import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db"
 export const runtime = "nodejs";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const LOCAL_TEST_ACCOUNT_IDS: ReadonlyMap<string, string> = new Map([
+  ["aarashvoss@gmail.com", "00000000-0000-4000-8000-000000000001"],
+  ["aarashvossoughi@gmail.com", "00000000-0000-4000-8000-000000000002"],
+  ["f.soheilikia.lastqueen2002@gmail.com", "00000000-0000-4000-8000-000000000003"],
+]);
 
 interface LoginUser {
   id: string;
@@ -50,6 +55,25 @@ export async function POST(request: Request) {
   }
 
   try {
+    const temporaryPasswordHash = getTemporaryPasswordHash(email);
+    const temporaryPasswordMatches = temporaryPasswordHash
+      ? await bcrypt.compare(password, temporaryPasswordHash)
+      : false;
+    const localTestId = LOCAL_TEST_ACCOUNT_IDS.get(email);
+    if (
+      process.env.NODE_ENV !== "production"
+      && process.env.FLUENTIA_ENABLE_LOCAL_TEST_AUTH === "true"
+      && localTestId
+      && TEMP_PASSWORD_ACCOUNT_ROLES.has(email)
+      && temporaryPasswordMatches
+    ) {
+      const role = TEMP_PASSWORD_ACCOUNT_ROLES.get(email)!;
+      const token = await createSessionToken({ id: localTestId, email, role });
+      const response = NextResponse.json({ user: { id: localTestId, email, role } });
+      response.cookies.set(SESSION_COOKIE_NAME, token, sessionCookieOptions());
+      return response;
+    }
+
     await initializeDatabase();
     const pool = getPostgresPool();
     const result = await pool.query<LoginUser>(
@@ -64,13 +88,9 @@ export async function POST(request: Request) {
       [email],
     );
     const user = result.rows[0];
-    const temporaryPasswordHash = user ? getTemporaryPasswordHash(email) : undefined;
     const hasStoredPasswordHash = Boolean(user?.password_hash);
     const storedPasswordMatches = user && isBcryptHash(user.password_hash)
       ? await bcrypt.compare(password, user.password_hash)
-      : false;
-    const temporaryPasswordMatches = temporaryPasswordHash
-      ? await bcrypt.compare(password, temporaryPasswordHash)
       : false;
 
     if (!storedPasswordMatches && !temporaryPasswordMatches) {
