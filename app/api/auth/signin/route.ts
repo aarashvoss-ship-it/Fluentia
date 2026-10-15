@@ -2,7 +2,9 @@ import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 import {
   createSessionToken,
+  getTemporaryPasswordHash,
   isAllowedRequestOrigin,
+  TEMP_PASSWORD_ACCOUNT_ROLES,
   SESSION_COOKIE_NAME,
   sessionCookieOptions,
   type AuthenticatedRole,
@@ -16,7 +18,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 interface LoginUser {
   id: string;
   email: string;
-  password_hash: string;
+  password_hash: string | null;
   role: AuthenticatedRole;
   name: string | null;
 }
@@ -45,7 +47,8 @@ export async function POST(request: Request) {
 
   try {
     await initializeDatabase();
-    const result = await getPostgresPool().query<LoginUser>(
+    const pool = getPostgresPool();
+    const result = await pool.query<LoginUser>(
       `SELECT users.id, users.email, users.password_hash,
               COALESCE(profiles.role, CASE WHEN instructors.id IS NOT NULL THEN 'instructor' ELSE 'student' END) AS role,
               profiles.full_name AS name
@@ -53,24 +56,48 @@ export async function POST(request: Request) {
        LEFT JOIN public.profiles AS profiles ON profiles.id = users.id
        LEFT JOIN public.instructors AS instructors ON instructors.id = users.id
        WHERE lower(users.email) = $1
-         AND users.password_hash IS NOT NULL
        LIMIT 1`,
       [email],
     );
     const user = result.rows[0];
-    const passwordMatches = user
-      ? await bcrypt.compare(password, user.password_hash)
-      : await bcrypt.hash(password, 12).then(() => false);
+    let passwordMatches = false;
+    let usedTemporaryPassword = false;
+
+    if (user?.password_hash) {
+      passwordMatches = await bcrypt.compare(password, user.password_hash);
+    } else if (user && TEMP_PASSWORD_ACCOUNT_ROLES.has(email)) {
+      const temporaryPasswordHash = getTemporaryPasswordHash(email);
+      if (temporaryPasswordHash) {
+        passwordMatches = await bcrypt.compare(password, temporaryPasswordHash);
+        usedTemporaryPassword = passwordMatches;
+      } else {
+        await bcrypt.hash(password, 12);
+      }
+    } else {
+      await bcrypt.hash(password, 12);
+    }
+
     if (!user || !passwordMatches) {
       return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
     }
 
+    if (usedTemporaryPassword) {
+      const permanentPasswordHash = await bcrypt.hash(password, 12);
+      await pool.query(
+        `UPDATE public.users
+         SET password_hash = $1
+         WHERE id = $2 AND password_hash IS NULL`,
+        [permanentPasswordHash, user.id],
+      );
+    }
+
+    const role = TEMP_PASSWORD_ACCOUNT_ROLES.get(email) || user.role;
     let token: string;
     try {
       token = await createSessionToken({
         id: user.id,
         email: user.email,
-        role: user.role,
+        role,
         ...(user.name ? { name: user.name } : {}),
       });
     } catch (error) {
@@ -81,7 +108,7 @@ export async function POST(request: Request) {
       user: {
         id: user.id,
         email: user.email,
-        role: user.role,
+        role,
         ...(user.name ? { name: user.name } : {}),
       },
     });
