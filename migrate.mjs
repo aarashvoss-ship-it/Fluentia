@@ -1,22 +1,14 @@
 import fs from 'fs';
 import pkg from 'pg';
+import nextEnv from '@next/env';
+import { getPostgresConfig } from './lib/postgres-config.mjs';
 
 const { Client } = pkg;
-
-const envContent = fs.existsSync('.env.local') ? fs.readFileSync('.env.local', 'utf8') : '';
-const match = envContent.match(/^\s*DATABASE_URL\s*=\s*(.+)\s*$/m);
-const fileConnectionString = match?.[1].trim().replace(/^(['"])(.*)\1$/, '$2');
-const connectionString = process.env.DATABASE_URL || fileConnectionString;
+const { loadEnvConfig } = nextEnv;
+loadEnvConfig(process.cwd());
 
 async function runMigration() {
-  if (!connectionString) {
-    throw new Error('DATABASE_URL is not set');
-  }
-
-  const client = new Client({
-    connectionString,
-    ssl: { rejectUnauthorized: false },
-  });
+  const client = new Client(getPostgresConfig());
 
   try {
     console.log('Connecting to Paasta database...');

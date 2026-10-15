@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import { getPostgresConfig } from "./postgres-config.mjs";
 import { RUNTIME_SCHEMA_SQL } from "./runtime-schema.mjs";
 
 const globalForPostgres = globalThis as typeof globalThis & {
@@ -11,14 +12,10 @@ export function getPostgresPool() {
     return globalForPostgres.fluentiaPostgresPool;
   }
 
-  const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
-  if (!connectionString) {
-    throw new Error("DATABASE_URL or POSTGRES_URL is not configured.");
-  }
-
   const pool = new Pool({
-    connectionString,
-    ssl: true,
+    ...getPostgresConfig(),
+    max: 10,
+    connectionTimeoutMillis: 10_000,
   });
   globalForPostgres.fluentiaPostgresPool = pool;
   return pool;

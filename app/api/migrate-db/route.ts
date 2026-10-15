@@ -2,19 +2,23 @@ import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import pkg from 'pg';
+import { getPostgresConfig } from '@/lib/postgres-config.mjs';
 
 const { Client } = pkg;
 
 export async function GET() {
-  const connectionString = process.env.DATABASE_URL;
-
-  if (!connectionString) {
-    return NextResponse.json({ error: 'DATABASE_URL is not set' }, { status: 500 });
+  let postgresConfig;
+  try {
+    postgresConfig = getPostgresConfig();
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : String(error) },
+      { status: 500 },
+    );
   }
 
   const client = new Client({
-    connectionString,
-    ssl: { rejectUnauthorized: false }
+    ...postgresConfig,
   });
 
   try {
