@@ -37,6 +37,10 @@ export function logDatabaseError(context: string, error: unknown) {
   console.error(context, { message, code });
 }
 
+export async function ensureTablesExist() {
+  await getPostgresPool().query(RUNTIME_SCHEMA_SQL);
+}
+
 export async function initializeDatabase() {
   if (!globalForPostgres.fluentiaPostgresInitialization) {
     const pool = getPostgresPool();
