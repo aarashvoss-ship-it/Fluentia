@@ -26,8 +26,6 @@ export interface SessionUser {
 }
 
 export function getTemporaryPasswordHash(email: string) {
-  if (!TEMP_PASSWORD_ACCOUNT_ROLES.has(email)) return undefined;
-
   const encodedHashes = process.env.TEMP_USER_PASSWORD_HASHES_B64;
   if (!encodedHashes) return undefined;
 

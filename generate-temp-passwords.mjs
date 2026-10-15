@@ -1,16 +1,23 @@
 import { randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 
-const emails = [
+const defaultEmails = [
   "aarashvoss@gmail.com",
   "aarashvossoughi@gmail.com",
   "f.soheilikia.lastqueen2002@gmail.com",
 ];
+const emails = process.argv.length > 2
+  ? process.argv.slice(2).map((email) => email.trim().toLowerCase())
+  : defaultEmails;
+const invalidEmails = emails.filter((email) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+if (invalidEmails.length > 0) {
+  throw new Error(`Invalid email address: ${invalidEmails.join(", ")}`);
+}
 
 const hashes = {};
 const credentials = [];
 
-for (const email of emails) {
+for (const email of new Set(emails)) {
   const temporaryPassword = randomBytes(24).toString("base64url");
   hashes[email] = await bcrypt.hash(temporaryPassword, 12);
   credentials.push({ email, temporaryPassword });

@@ -64,9 +64,7 @@ export async function POST(request: Request) {
       [email],
     );
     const user = result.rows[0];
-    const temporaryPasswordHash = user && TEMP_PASSWORD_ACCOUNT_ROLES.has(email)
-      ? getTemporaryPasswordHash(email)
-      : undefined;
+    const temporaryPasswordHash = user ? getTemporaryPasswordHash(email) : undefined;
     const hasStoredPasswordHash = Boolean(user?.password_hash);
     const storedPasswordMatches = user && isBcryptHash(user.password_hash)
       ? await bcrypt.compare(password, user.password_hash)
@@ -81,7 +79,6 @@ export async function POST(request: Request) {
 
     if (
       user
-      && TEMP_PASSWORD_ACCOUNT_ROLES.has(email)
       && !hasStoredPasswordHash
       && !temporaryPasswordHash
     ) {
