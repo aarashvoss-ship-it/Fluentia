@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
 import { getServerSessionUser } from "@/lib/server/session";
+import { assignUnownedSampleLesson } from "@/lib/server/sample-lesson";
 
 export const runtime = "nodejs";
 
@@ -103,6 +104,9 @@ export async function GET(request: Request) {
   try {
     await initializeDatabase();
     const pool = getPostgresPool();
+    if (scope === "instructor" && user.role === "instructor") {
+      await assignUnownedSampleLesson(pool, user.id);
+    }
     if (scope === "versions") {
       const lessonId = params.get("lessonId")?.trim() || "";
       if (!uuidPattern.test(lessonId)) return NextResponse.json({ error: "Invalid lesson ID." }, { status: 400 });
@@ -127,8 +131,7 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: "You can only access your assigned lessons." }, { status: 403 });
       }
       values.push(studentId);
-      where = `WHERE lesson.status = 'published'
-        AND (lesson.is_published = true OR lesson.status = 'published')
+      where = `WHERE (lesson.status = 'published' OR lesson.is_published = true)
         AND (lesson.student_id = $1::uuid
           OR lesson.assigned_all_students = true
           OR EXISTS (
@@ -145,7 +148,7 @@ export async function GET(request: Request) {
     const result = await pool.query(`${lessonSelect} ${where} ORDER BY lesson.created_at DESC NULLS LAST`, values);
     let rows = result.rows.map((row) => lessonFromRow(row));
     if (scope === "one" && rows[0] && user.role === "student") {
-      const permitted = rows[0].status === "published"
+      const permitted = (rows[0].status === "published" || rows[0].is_published === true)
         && (rows[0].student_id === user.id
           || rows[0].assigned_all_students === true
           || rows[0].assigned_student_ids.includes(user.id));

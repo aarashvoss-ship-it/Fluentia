@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
 import { getServerSessionUser } from "@/lib/server/session";
+import { assignUnownedSampleLesson } from "@/lib/server/sample-lesson";
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,9 @@ export async function GET() {
   try {
     await initializeDatabase();
     const pool = getPostgresPool();
+    if (user.role === "instructor") {
+      await assignUnownedSampleLesson(pool, user.id);
+    }
     const [submissionResult, lessonCountResult] = await Promise.all([
       pool.query(
         `SELECT submissions.id, submissions.lesson_id, submissions.student_id,
@@ -27,8 +31,8 @@ export async function GET() {
       ),
       pool.query(
         `SELECT
-           COUNT(*) FILTER (WHERE status = 'published')::int AS published_count,
-           COUNT(*) FILTER (WHERE status = 'draft')::int AS draft_count
+           COUNT(*) FILTER (WHERE status = 'published' OR is_published = true)::int AS published_count,
+           COUNT(*) FILTER (WHERE status = 'draft' AND is_published = false)::int AS draft_count
          FROM public.lessons
          WHERE ($1::text = 'admin' OR instructor_id = $2::uuid)`,
         [user.role, user.id],
