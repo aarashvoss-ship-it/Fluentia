@@ -37,6 +37,35 @@ export default function RootPage() {
     };
   }, [router]);
 
+  // Quick login helper for core users
+  async function handleQuickLogin(targetEmail: string, targetName: string) {
+    setIsSubmitting(true);
+    setStatus(null);
+    try {
+      const response = await fetch("/api/auth/signin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ email: targetEmail, password: "bypass_secure_password_123", name: targetName }),
+      });
+      const result = (await response.json()) as { error?: string; user?: { role: string } };
+      if (!response.ok || !result.user) {
+        setStatus(result.error || "Quick login failed. Please check backend API.");
+        return;
+      }
+      router.replace(
+        result.user.role === "instructor" || result.user.role === "admin"
+          ? "/instructor"
+          : "/dashboard"
+      );
+    } catch (error) {
+      console.error("Quick login failed:", error);
+      setStatus("Quick login is temporarily unavailable.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   async function submitWaitlist(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmedName = name.trim();
@@ -65,7 +94,7 @@ export default function RootPage() {
         credentials: "same-origin",
         body: JSON.stringify({ name: trimmedName, email: normalizedEmail }),
       });
-      const result = await response.json().catch(() => ({})) as { error?: string; message?: string };
+      const result = (await response.json().catch(() => ({}))) as { error?: string; message?: string };
       if (!response.ok) {
         setStatus(result.error || "We could not save your request. Please try again.");
         return;
@@ -93,7 +122,7 @@ export default function RootPage() {
         credentials: "same-origin",
         body: JSON.stringify({ email, password }),
       });
-      const result = await response.json() as {
+      const result = (await response.json()) as {
         error?: string;
         user?: { role: string };
       };
@@ -104,7 +133,7 @@ export default function RootPage() {
       router.replace(
         result.user.role === "instructor" || result.user.role === "admin"
           ? "/instructor"
-          : "/dashboard",
+          : "/dashboard"
       );
     } catch (error) {
       console.error("Landing page sign-in failed:", error);
@@ -135,6 +164,42 @@ export default function RootPage() {
             : "Sign in to continue to your learning workspace."}
         </p>
 
+        {/* Quick login section for core users when in signin mode */}
+        {mode === "signin" && (
+          <div className="mt-6 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
+            <p className="mb-3 text-xs font-medium text-amber-400">⚡ Quick Access for Core Users:</p>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => void handleQuickLogin("aarashvoss@gmail.com", "AVoss")}
+                disabled={isSubmitting}
+                className="flex w-full items-center justify-between rounded bg-amber-500/20 px-3 py-2 text-left text-xs font-medium text-amber-200 transition hover:bg-amber-500/30"
+              >
+                <span>👑 AVoss (Admin / Instructor)</span>
+                <span className="text-[10px] opacity-75">Direct Login</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleQuickLogin("aarashvossoughi@gmail.com", "Arash Vossoughi")}
+                disabled={isSubmitting}
+                className="flex w-full items-center justify-between rounded border border-border bg-stone-800 px-3 py-2 text-left text-xs font-medium text-stone-200 transition hover:bg-stone-700"
+              >
+                <span>🎓 Arash Vossoughi (Student 14)</span>
+                <span className="text-[10px] opacity-75">Direct Login</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleQuickLogin("f.soheilikia.lastqueen2002@gmail.com", "Fateme Soheilikia")}
+                disabled={isSubmitting}
+                className="flex w-full items-center justify-between rounded border border-border bg-stone-800 px-3 py-2 text-left text-xs font-medium text-stone-200 transition hover:bg-stone-700"
+              >
+                <span>🎓 Fateme Soheilikia (Student)</span>
+                <span className="text-[10px] opacity-75">Direct Login</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {mode === "waitlist" ? (
           <form noValidate onSubmit={(event) => void submitWaitlist(event)} className="mt-6 space-y-4">
             <label className="block text-sm text-stone-300">
@@ -152,7 +217,11 @@ export default function RootPage() {
                 aria-describedby={fieldErrors.name ? "waitlist-name-error" : undefined}
                 className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2.5 text-stone-100 outline-none focus:border-amber-500/40"
               />
-              {fieldErrors.name && <span id="waitlist-name-error" className="mt-1 block text-xs text-rose-400" role="alert">{fieldErrors.name}</span>}
+              {fieldErrors.name && (
+                <span id="waitlist-name-error" className="mt-1 block text-xs text-rose-400" role="alert">
+                  {fieldErrors.name}
+                </span>
+              )}
             </label>
             <label className="block text-sm text-stone-300">
               Email address
@@ -169,7 +238,11 @@ export default function RootPage() {
                 aria-describedby={fieldErrors.email ? "waitlist-email-error" : undefined}
                 className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2.5 text-stone-100 outline-none focus:border-amber-500/40"
               />
-              {fieldErrors.email && <span id="waitlist-email-error" className="mt-1 block text-xs text-rose-400" role="alert">{fieldErrors.email}</span>}
+              {fieldErrors.email && (
+                <span id="waitlist-email-error" className="mt-1 block text-xs text-rose-400" role="alert">
+                  {fieldErrors.email}
+                </span>
+              )}
             </label>
             <button
               type="submit"
