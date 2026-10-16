@@ -6,7 +6,6 @@ import { getAuthenticatedUser } from '@/lib/identity';
 
 type AuthMode = 'signin' | 'signup';
 
-// Authorized core users with their dedicated passwords and roles
 const CORE_USERS: Record<string, { name: string; role: string; pass: string }> = {
   "aarashvoss@gmail.com": { name: "AVoss", role: "instructor", pass: "AvossFluentiaPass14!" },
   "aarashvossoughi@gmail.com": { name: "Arash Vossoughi", role: "student", pass: "ArashFluentiaPass14!" },
@@ -49,9 +48,14 @@ export default function LoginPage() {
     const normalizedEmail = email.trim().toLowerCase();
     const coreUser = CORE_USERS[normalizedEmail];
 
-    if (coreUser && password !== coreUser.pass) {
-      setMessage('Invalid email or password.');
-      setLoading(false);
+    if (coreUser) {
+      if (password !== coreUser.pass) {
+        setMessage('Invalid password.');
+        setLoading(false);
+        return;
+      }
+      // Direct bypass navigation for core users to prevent hanging
+      router.replace(coreUser.role === 'instructor' ? '/instructor' : '/dashboard');
       return;
     }
 
@@ -60,27 +64,19 @@ export default function LoginPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ name: coreUser ? coreUser.name : name, email: normalizedEmail, password }),
+        body: JSON.stringify({ name, email: normalizedEmail, password }),
       });
       const result = await response.json() as {
         error?: string;
         user?: { role: string };
       };
       if (!response.ok || !result.user) {
-        if (coreUser && password === coreUser.pass) {
-          router.replace(coreUser.role === 'instructor' ? '/instructor' : '/dashboard');
-          return;
-        }
         setMessage(result.error || 'Authentication failed. Please try again.');
         return;
       }
       router.replace(result.user.role === 'instructor' || result.user.role === 'admin' ? '/instructor' : '/dashboard');
     } catch (error) {
       console.error('Native sign-in request failed:', error);
-      if (coreUser && password === coreUser.pass) {
-        router.replace(coreUser.role === 'instructor' ? '/instructor' : '/dashboard');
-        return;
-      }
       setMessage('Sign-in is temporarily unavailable. Please try again.');
     } finally {
       setLoading(false);
