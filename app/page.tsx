@@ -9,29 +9,15 @@ type WaitlistFieldErrors = Partial<Record<"name" | "email", string>>;
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Core users and their dedicated passwords / roles
 const CORE_USERS: Record<string, { name: string; role: string; pass: string }> = {
-  "aarashvoss@gmail.com": {
-    name: "AVoss",
-    role: "instructor",
-    pass: "AvossFluentiaPass14!",
-  },
-  "aarashvossoughi@gmail.com": {
-    name: "Arash Vossoughi",
-    role: "student",
-    pass: "ArashFluentiaPass14!",
-  },
-  "f.soheilikia.lastqueen2002@gmail.com": {
-    name: "Fateme Soheilikia",
-    role: "student",
-    pass: "FluentiaTempPassFateme2026!",
-  },
+  "aarashvoss@gmail.com": { name: "AVoss", role: "instructor", pass: "AvossPass2026!" },
+  "aarashvossoughi@gmail.com": { name: "Arash Vossoughi", role: "student", pass: "ArashPass2026!" },
+  "f.soheilikia.lastqueen2002@gmail.com": { name: "Fateme Soheilikia", role: "student", pass: "FatemePass2026!" },
 };
 
 export default function RootPage() {
   const router = useRouter();
   const [mode, setMode] = useState<ModalMode>("waitlist");
-  const [useDirectAccess, setUseDirectAccess] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -62,14 +48,10 @@ export default function RootPage() {
     const trimmedName = name.trim();
     const normalizedEmail = email.trim();
     const errors: WaitlistFieldErrors = {};
-    if (!trimmedName) {
-      errors.name = "Enter your name.";
-    } else if (trimmedName.length > 120) {
-      errors.name = "Name must be 120 characters or fewer.";
-    }
-    if (!EMAIL_PATTERN.test(normalizedEmail) || normalizedEmail.length > 254) {
-      errors.email = "Enter a valid email address.";
-    }
+    if (!trimmedName) errors.name = "Enter your name.";
+    else if (trimmedName.length > 120) errors.name = "Name must be 120 characters or fewer.";
+    if (!EMAIL_PATTERN.test(normalizedEmail) || normalizedEmail.length > 254) errors.email = "Enter a valid email address.";
+    
     setFieldErrors(errors);
     setIsSubmitting(true);
     setStatus(null);
@@ -110,13 +92,10 @@ export default function RootPage() {
     const normalizedEmail = email.trim().toLowerCase();
     const coreUser = CORE_USERS[normalizedEmail];
 
-    // Core user validation logic
-    if (coreUser) {
-      if (password !== coreUser.pass) {
-        setStatus("Invalid email or password.");
-        setIsSubmitting(false);
-        return;
-      }
+    if (coreUser && password !== coreUser.pass) {
+      setStatus("Invalid email or password.");
+      setIsSubmitting(false);
+      return;
     }
 
     try {
@@ -131,13 +110,9 @@ export default function RootPage() {
         }),
       });
 
-      const result = (await response.json()) as {
-        error?: string;
-        user?: { role: string };
-      };
+      const result = (await response.json()) as { error?: string; user?: { role: string } };
 
       if (!response.ok || !result.user) {
-        // Fallback redirection for verified core users if API rejects temporary credentials
         if (coreUser && password === coreUser.pass) {
           router.replace(coreUser.role === "instructor" ? "/instructor" : "/dashboard");
           return;
@@ -201,11 +176,7 @@ export default function RootPage() {
                 aria-describedby={fieldErrors.name ? "waitlist-name-error" : undefined}
                 className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2.5 text-stone-100 outline-none focus:border-amber-500/40"
               />
-              {fieldErrors.name && (
-                <span id="waitlist-name-error" className="mt-1 block text-xs text-rose-400" role="alert">
-                  {fieldErrors.name}
-                </span>
-              )}
+              {fieldErrors.name && <span id="waitlist-name-error" className="mt-1 block text-xs text-rose-400" role="alert">{fieldErrors.name}</span>}
             </label>
             <label className="block text-sm text-stone-300">
               Email address
@@ -222,11 +193,7 @@ export default function RootPage() {
                 aria-describedby={fieldErrors.email ? "waitlist-email-error" : undefined}
                 className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2.5 text-stone-100 outline-none focus:border-amber-500/40"
               />
-              {fieldErrors.email && (
-                <span id="waitlist-email-error" className="mt-1 block text-xs text-rose-400" role="alert">
-                  {fieldErrors.email}
-                </span>
-              )}
+              {fieldErrors.email && <span id="waitlist-email-error" className="mt-1 block text-xs text-rose-400" role="alert">{fieldErrors.email}</span>}
             </label>
             <button
               type="submit"
@@ -264,7 +231,6 @@ export default function RootPage() {
                 className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2.5 text-stone-100 outline-none focus:border-amber-500/40"
               />
             </label>
-
             <button
               type="submit"
               disabled={isSubmitting}
@@ -281,7 +247,7 @@ export default function RootPage() {
           </p>
         )}
 
-        <div className="mt-6 flex flex-col items-center justify-center gap-2 border-t border-border pt-5 text-center">
+        <div className="mt-6 border-t border-border pt-5 text-center">
           <button
             type="button"
             onClick={() => {
@@ -298,4 +264,3 @@ export default function RootPage() {
     </main>
   );
 }
-

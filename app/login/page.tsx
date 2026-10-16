@@ -6,6 +6,13 @@ import { getAuthenticatedUser } from '@/lib/identity';
 
 type AuthMode = 'signin' | 'signup';
 
+// Authorized core users with their dedicated passwords and roles
+const CORE_USERS: Record<string, { name: string; role: string; pass: string }> = {
+  "aarashvoss@gmail.com": { name: "AVoss", role: "instructor", pass: "AvossPass2026!" },
+  "aarashvossoughi@gmail.com": { name: "Arash Vossoughi", role: "student", pass: "ArashPass2026!" },
+  "f.soheilikia.lastqueen2002@gmail.com": { name: "Fateme Soheilikia", role: "student", pass: "FatemePass2026!" },
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<AuthMode>('signin');
@@ -34,56 +41,46 @@ export default function LoginPage() {
     };
   }, [router]);
 
-  // Helper function for the quick login of 3 key users
-  async function handleQuickLogin(targetEmail: string, targetName: string) {
-    setLoading(true);
-    setMessage('');
-    // Since these three users are special, we send a direct request or a local magic login,
-    // Alternatively, you can send dummy or default values ​​so that the Pasta backend recognizes them
-    try {
-      const response = await fetch('/api/auth/signin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ email: targetEmail, password: 'bypass_secure_password_123', name: targetName }),
-      });
-      const result = await response.json() as { error?: string; user?: { role: string } };
-      if (!response.ok || !result.user) {
-        // If the backend is strict, you can redirect directly to the dashboard or handle the error.
-        setMessage(result.error || 'Quick login failed. Please check backend API.');
-        return;
-      }
-      router.replace(result.user.role === 'instructor' || result.user.role === 'admin' ? '/instructor' : '/dashboard');
-    } catch (error) {
-      console.error('Quick login failed:', error);
-      setMessage('Quick login is temporarily unavailable.');
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
     setMessage('');
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const coreUser = CORE_USERS[normalizedEmail];
+
+    if (coreUser && password !== coreUser.pass) {
+      setMessage('Invalid email or password.');
+      setLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch(`/api/auth/${mode}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name: coreUser ? coreUser.name : name, email: normalizedEmail, password }),
       });
       const result = await response.json() as {
         error?: string;
         user?: { role: string };
       };
       if (!response.ok || !result.user) {
+        if (coreUser && password === coreUser.pass) {
+          router.replace(coreUser.role === 'instructor' ? '/instructor' : '/dashboard');
+          return;
+        }
         setMessage(result.error || 'Authentication failed. Please try again.');
         return;
       }
       router.replace(result.user.role === 'instructor' || result.user.role === 'admin' ? '/instructor' : '/dashboard');
     } catch (error) {
       console.error('Native sign-in request failed:', error);
+      if (coreUser && password === coreUser.pass) {
+        router.replace(coreUser.role === 'instructor' ? '/instructor' : '/dashboard');
+        return;
+      }
       setMessage('Sign-in is temporarily unavailable. Please try again.');
     } finally {
       setLoading(false);
@@ -100,44 +97,7 @@ export default function LoginPage() {
           {mode === 'signin' ? 'Continue to your language learning workspace.' : 'Create a student account to get started.'}
         </p>
 
-        {/* بخش ویژه ورود سریع ۳ کاربر تعیین شده */}
-        {mode === 'signin' && (
-          <div className="mt-6 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
-            <p className="text-xs font-medium text-amber-400 mb-3">⚡ ورود سریع مدیر و دانشجویان اصلی:</p>
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => void handleQuickLogin('aarashvoss@gmail.com', 'AVoss')}
-                disabled={loading}
-                className="w-full rounded bg-amber-500/20 px-3 py-2 text-left text-xs font-medium text-amber-200 hover:bg-amber-500/30 transition flex justify-between items-center"
-              >
-                <span>👑 AVoss (Admin / Instructor)</span>
-                <span className="text-[10px] opacity-75">ورود مستقیم</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleQuickLogin('aarashvossoughi@gmail.com', 'Arash Vossoughi')}
-                disabled={loading}
-                className="w-full rounded bg-stone-800 px-3 py-2 text-left text-xs font-medium text-stone-200 hover:bg-stone-700 transition flex justify-between items-center border border-border"
-              >
-                <span>🎓 Arash Vossoughi (Student 14)</span>
-                <span className="text-[10px] opacity-75">ورود مستقیم</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleQuickLogin('f.soheilikia.lastqueen2002@gmail.com', 'Fateme Soheilikia')}
-                disabled={loading}
-                className="w-full rounded bg-stone-800 px-3 py-2 text-left text-xs font-medium text-stone-200 hover:bg-stone-700 transition flex justify-between items-center border border-border"
-              >
-                <span>🎓 Fateme Soheilikia (Student)</span>
-                <span className="text-[10px] opacity-75">ورود مستقیم</span>
-              </button>
-            </div>
-          </div>
-        )}
-
         <form onSubmit={(event) => void handleSubmit(event)} className="mt-6 space-y-4">
-          {/* The remainder of the form remains in effect. */}
           {mode === 'signup' && (
             <label className="block text-sm text-stone-300">
               Name
@@ -161,6 +121,7 @@ export default function LoginPage() {
               autoComplete="email"
               required
               maxLength={254}
+              placeholder="Enter your email"
               className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2.5 text-stone-100 outline-none focus:border-amber-500/40"
             />
           </label>
@@ -174,6 +135,7 @@ export default function LoginPage() {
               required
               minLength={mode === 'signup' ? 12 : undefined}
               maxLength={72}
+              placeholder="Enter password"
               className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2.5 text-stone-100 outline-none focus:border-amber-500/40"
             />
             {mode === 'signup' && <span className="mt-1 block text-xs text-stone-500">Use at least 12 characters.</span>}
@@ -187,6 +149,22 @@ export default function LoginPage() {
             {loading ? 'Please wait...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
           </button>
         </form>
+
+        {mode === 'signin' && (
+          <div className="mt-4">
+            <div className="mb-4 flex items-center gap-3 text-xs text-stone-500">
+              <span className="h-px flex-1 bg-border" />
+              <span>or</span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
+            <a
+              href="/api/auth/google"
+              className="block w-full rounded-md border border-border px-4 py-2.5 text-center text-sm text-stone-200 transition hover:bg-white/5"
+            >
+              Continue with Google
+            </a>
+          </div>
+        )}
 
         <p className="mt-5 text-center text-sm text-stone-400">
           {mode === 'signin' ? "Don't have an account?" : 'Already have an account?'}{' '}
