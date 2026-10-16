@@ -47,8 +47,16 @@ export default function LoginPage() {
       });
       const result = await response.json().catch(() => null) as {
         error?: string;
+        message?: string;
+        waitlisted?: boolean;
         user?: { role: string };
       } | null;
+      if (response.ok && result?.waitlisted) {
+        setMessage(result.message || 'Thank you for joining the waitlist! We will review your access shortly.');
+        setMode('signin');
+        setPassword('');
+        return;
+      }
       if (!response.ok || !result?.user) {
         setMessage(result?.error || 'Authentication failed. Please try again.');
         return;
@@ -74,7 +82,9 @@ export default function LoginPage() {
       <section className="w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-xl">
         <h1 className="text-2xl font-semibold">{mode === 'signin' ? 'Sign in to Fluentia' : 'Create your Fluentia account'}</h1>
         <p className="mt-2 text-sm text-stone-400">
-          {mode === 'signin' ? 'Continue to your language learning workspace.' : 'Create a student account to get started.'}
+          {mode === 'signin'
+            ? 'Continue to your language learning workspace.'
+            : 'Create an account if preauthorized, or request access to join the waitlist.'}
         </p>
 
         <form onSubmit={(event) => void handleSubmit(event)} className="mt-6 space-y-4">
@@ -99,7 +109,7 @@ export default function LoginPage() {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               autoComplete="email"
-              required
+              required={mode === 'signin'}
               maxLength={254}
               placeholder="Enter your email"
               className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2.5 text-stone-100 outline-none focus:border-amber-500/40"

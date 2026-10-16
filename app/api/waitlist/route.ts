@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { isAllowedRequestOrigin } from "@/lib/auth";
-import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
+import { initializeDatabase, logDatabaseError } from "@/lib/db";
+import { saveWaitlistRequest, WAITLIST_SUCCESS_MESSAGE } from "@/lib/waitlist-requests";
 
 export const runtime = "nodejs";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const SUCCESS_MESSAGE = "Your request has been saved. Email notifications are not configured yet.";
 
 export async function POST(request: Request) {
   if (!isAllowedRequestOrigin(request)) {
@@ -31,22 +31,8 @@ export async function POST(request: Request) {
 
   try {
     await initializeDatabase();
-    const result = await getPostgresPool().query<{ id: string }>(
-      `INSERT INTO public.waitlist_requests (name, email)
-       VALUES ($1, $2)
-       ON CONFLICT (lower(email))
-       DO UPDATE SET name = EXCLUDED.name
-       RETURNING id`,
-      [name, email],
-    );
-
-    if (result.rows[0]) {
-      console.info("Waitlist request saved.", {
-        requestId: result.rows[0].id,
-      });
-    }
-
-    return NextResponse.json({ message: SUCCESS_MESSAGE });
+    await saveWaitlistRequest(name, email);
+    return NextResponse.json({ message: WAITLIST_SUCCESS_MESSAGE });
   } catch (error) {
     logDatabaseError("Waitlist database operation failed:", error);
     return NextResponse.json(

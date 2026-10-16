@@ -11,11 +11,17 @@ import {
   type SessionUser,
 } from "@/lib/auth";
 import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
+import { saveWaitlistRequest, WAITLIST_SUCCESS_MESSAGE } from "@/lib/waitlist-requests";
 
 export const runtime = "nodejs";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const BCRYPT_ROUNDS = 12;
+const CORE_ACCOUNTS: Readonly<Record<string, { name: string; role: AuthenticatedRole }>> = {
+  "aarashvoss@gmail.com": { name: "AVoss", role: "instructor" },
+  "aarashvossoughi@gmail.com": { name: "Arash Vossoughi", role: "student" },
+  "f.soheilikia.lastqueen2002@gmail.com": { name: "Fateme Soheilikia", role: "student" },
+};
 
 export async function POST(request: Request) {
   if (!isAllowedRequestOrigin(request)) {
@@ -34,14 +40,12 @@ export async function POST(request: Request) {
   }
 
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const submittedName = typeof body.name === "string" ? body.name.trim() : "";
+  const coreAccount = CORE_ACCOUNTS[email];
+  const name = coreAccount?.name ?? submittedName;
   const password = typeof body.password === "string" ? body.password : "";
-  const passwordBytes = Buffer.byteLength(password, "utf8");
   if (!EMAIL_PATTERN.test(email) || email.length > 254 || !name || name.length > 120) {
     return NextResponse.json({ error: "Enter a valid name and email address." }, { status: 400 });
-  }
-  if (password.length < 12 || passwordBytes > 72) {
-    return NextResponse.json({ error: "Password must be at least 12 characters and no more than 72 UTF-8 bytes." }, { status: 400 });
   }
 
   const userId = randomUUID();
@@ -50,22 +54,39 @@ export async function POST(request: Request) {
   try {
     await initializeDatabase();
     pool = getPostgresPool();
+    if (!coreAccount) {
+      await saveWaitlistRequest(name, email);
+      return NextResponse.json({
+        message: WAITLIST_SUCCESS_MESSAGE,
+        waitlisted: true,
+      });
+    }
+
     const invitation = await pool.query(
       "SELECT 1 FROM public.allowed_users WHERE lower(email) = $1 LIMIT 1",
       [email],
     );
     if (invitation.rowCount === 0) {
-      return NextResponse.json({ error: "This email address is not invited to Fluentia." }, { status: 403 });
+      await saveWaitlistRequest(name, email);
+      return NextResponse.json({
+        message: WAITLIST_SUCCESS_MESSAGE,
+        waitlisted: true,
+      });
     }
   } catch (error) {
-    logDatabaseError("Native sign-up invitation check failed:", error);
+    logDatabaseError("Native sign-up authorization or waitlist operation failed:", error);
     return NextResponse.json({ error: "Sign-up is temporarily unavailable." }, { status: 503 });
+  }
+
+  const passwordBytes = Buffer.byteLength(password, "utf8");
+  if (password.length < 12 || passwordBytes > 72) {
+    return NextResponse.json({ error: "Password must be at least 12 characters and no more than 72 UTF-8 bytes." }, { status: 400 });
   }
 
   const user: SessionUser = {
     id: userId,
     email,
-    role: "student" as AuthenticatedRole,
+    role: coreAccount?.role ?? "student",
     name,
   };
   let token: string;
@@ -89,8 +110,8 @@ export async function POST(request: Request) {
     );
     await client.query(
       `INSERT INTO public.profiles (id, token, full_name, role)
-       VALUES ($1, $2, $3, 'student')`,
-      [userId, profileToken, name],
+       VALUES ($1, $2, $3, $4)`,
+      [userId, profileToken, name, user.role],
     );
     await client.query("COMMIT");
 
