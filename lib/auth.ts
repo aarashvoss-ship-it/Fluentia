@@ -3,11 +3,6 @@ import { jwtVerify } from "jose/jwt/verify";
 
 export const SESSION_COOKIE_NAME = "fluentia_session";
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
-export const TEMP_PASSWORD_ACCOUNT_ROLES: ReadonlyMap<string, AuthenticatedRole> = new Map([
-  ["aarashvoss@gmail.com", "instructor"],
-  ["aarashvossoughi@gmail.com", "student"],
-  ["f.soheilikia.lastqueen2002@gmail.com", "student"],
-]);
 const SESSION_ISSUER = "fluentia";
 const SESSION_AUDIENCE = "fluentia-web";
 const ALLOWED_REQUEST_ORIGINS = new Set([
@@ -25,40 +20,6 @@ export interface SessionUser {
   email: string;
   role: AuthenticatedRole;
   name?: string;
-}
-
-export function getTemporaryPasswordHash(email: string) {
-  const encodedHashes = process.env.TEMP_USER_PASSWORD_HASHES_B64;
-  if (!encodedHashes) return undefined;
-
-  let configuredHashes: string;
-  try {
-    configuredHashes = Buffer.from(encodedHashes, "base64").toString("utf8");
-  } catch {
-    throw new Error("TEMP_USER_PASSWORD_HASHES_B64 must contain base64-encoded JSON.");
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(configuredHashes);
-  } catch {
-    throw new Error("TEMP_USER_PASSWORD_HASHES_B64 must decode to a valid JSON object.");
-  }
-
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("TEMP_USER_PASSWORD_HASHES_B64 must decode to a valid JSON object.");
-  }
-
-  const passwordHash = (parsed as Record<string, unknown>)[email];
-  if (passwordHash === undefined) return undefined;
-  if (
-    typeof passwordHash !== "string"
-    || !/^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(passwordHash)
-  ) {
-    throw new Error(`Temporary password hash for ${email} must be a bcrypt hash.`);
-  }
-
-  return passwordHash;
 }
 
 function getJwtSecret() {

@@ -2,9 +2,7 @@ import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 import {
   createSessionToken,
-  getTemporaryPasswordHash,
   isAllowedRequestOrigin,
-  TEMP_PASSWORD_ACCOUNT_ROLES,
   SESSION_COOKIE_NAME,
   sessionCookieOptions,
   type AuthenticatedRole,
@@ -14,11 +12,6 @@ import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db"
 export const runtime = "nodejs";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const LOCAL_TEST_ACCOUNT_IDS: ReadonlyMap<string, string> = new Map([
-  ["aarashvoss@gmail.com", "00000000-0000-4000-8000-000000000001"],
-  ["aarashvossoughi@gmail.com", "00000000-0000-4000-8000-000000000002"],
-  ["f.soheilikia.lastqueen2002@gmail.com", "00000000-0000-4000-8000-000000000003"],
-]);
 
 interface LoginUser {
   id: string;
@@ -55,25 +48,6 @@ export async function POST(request: Request) {
   }
 
   try {
-    const temporaryPasswordHash = getTemporaryPasswordHash(email);
-    const temporaryPasswordMatches = temporaryPasswordHash
-      ? await bcrypt.compare(password, temporaryPasswordHash)
-      : false;
-    const localTestId = LOCAL_TEST_ACCOUNT_IDS.get(email);
-    if (
-      process.env.NODE_ENV !== "production"
-      && process.env.FLUENTIA_ENABLE_LOCAL_TEST_AUTH === "true"
-      && localTestId
-      && TEMP_PASSWORD_ACCOUNT_ROLES.has(email)
-      && temporaryPasswordMatches
-    ) {
-      const role = TEMP_PASSWORD_ACCOUNT_ROLES.get(email)!;
-      const token = await createSessionToken({ id: localTestId, email, role });
-      const response = NextResponse.json({ user: { id: localTestId, email, role } });
-      response.cookies.set(SESSION_COOKIE_NAME, token, sessionCookieOptions());
-      return response;
-    }
-
     await initializeDatabase();
     const pool = getPostgresPool();
     const result = await pool.query<LoginUser>(
@@ -88,45 +62,15 @@ export async function POST(request: Request) {
       [email],
     );
     const user = result.rows[0];
-    const hasStoredPasswordHash = Boolean(user?.password_hash);
     const storedPasswordMatches = user && isBcryptHash(user.password_hash)
       ? await bcrypt.compare(password, user.password_hash)
       : false;
 
-    if (!storedPasswordMatches && !temporaryPasswordMatches) {
-      await bcrypt.hash(password, 12);
-    }
-
-    if (
-      user
-      && !hasStoredPasswordHash
-      && !temporaryPasswordHash
-    ) {
-      return NextResponse.json(
-        { error: "Password sign-in is not configured for this account yet. Please contact support." },
-        { status: 503 },
-      );
-    }
-
-    if (!user || (!storedPasswordMatches && !temporaryPasswordMatches)) {
+    if (!user || !storedPasswordMatches) {
       return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
     }
 
-    if (temporaryPasswordMatches && !storedPasswordMatches) {
-      const permanentPasswordHash = await bcrypt.hash(password, 12);
-      const updatedPassword = await pool.query(
-        `UPDATE public.users
-         SET password_hash = $1
-         WHERE id = $2 AND password_hash IS NOT DISTINCT FROM $3
-         RETURNING id`,
-        [permanentPasswordHash, user.id, user.password_hash],
-      );
-      if (updatedPassword.rowCount !== 1) {
-        return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
-      }
-    }
-
-    const role = TEMP_PASSWORD_ACCOUNT_ROLES.get(email) || user.role;
+    const role = user.role;
     let token: string;
     try {
       token = await createSessionToken({

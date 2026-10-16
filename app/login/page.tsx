@@ -6,12 +6,6 @@ import { getAuthenticatedUser } from '@/lib/identity';
 
 type AuthMode = 'signin' | 'signup';
 
-const CORE_USERS: Record<string, { name: string; role: string; pass: string }> = {
-  "aarashvoss@gmail.com": { name: "AVoss", role: "instructor", pass: "AvossFluentiaPass14!" },
-  "aarashvossoughi@gmail.com": { name: "Arash Vossoughi", role: "student", pass: "ArashFluentiaPass14!" },
-  "f.soheilikia.lastqueen2002@gmail.com": { name: "Fateme Soheilikia", role: "student", pass: "FluentiaTempPassFateme2026!" },
-};
-
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<AuthMode>('signin');
@@ -21,12 +15,6 @@ export default function LoginPage() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
-
-  useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('auth_error') === 'google') {
-      setMessage('Google sign-in failed, or this Google account is not authorized for Fluentia.');
-    }
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,39 +34,35 @@ export default function LoginPage() {
     setMessage('');
 
     const normalizedEmail = email.trim().toLowerCase();
-    const coreUser = CORE_USERS[normalizedEmail];
 
-    if (coreUser) {
-      if (password !== coreUser.pass) {
-        setMessage('Invalid password.');
-        setLoading(false);
-        return;
-      }
-      // Direct bypass navigation for core users to prevent hanging
-      router.replace(coreUser.role === 'instructor' ? '/instructor' : '/dashboard');
-      return;
-    }
-
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 15_000);
     try {
       const response = await fetch(`/api/auth/${mode}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
         body: JSON.stringify({ name, email: normalizedEmail, password }),
+        signal: controller.signal,
       });
-      const result = await response.json() as {
+      const result = await response.json().catch(() => null) as {
         error?: string;
         user?: { role: string };
-      };
-      if (!response.ok || !result.user) {
-        setMessage(result.error || 'Authentication failed. Please try again.');
+      } | null;
+      if (!response.ok || !result?.user) {
+        setMessage(result?.error || 'Authentication failed. Please try again.');
         return;
       }
       router.replace(result.user.role === 'instructor' || result.user.role === 'admin' ? '/instructor' : '/dashboard');
     } catch (error) {
-      console.error('Native sign-in request failed:', error);
-      setMessage('Sign-in is temporarily unavailable. Please try again.');
+      if (controller.signal.aborted) {
+        setMessage('Sign-in timed out. Please try again.');
+      } else {
+        console.error('Native sign-in request failed:', error);
+        setMessage('Sign-in is temporarily unavailable. Please try again.');
+      }
     } finally {
+      window.clearTimeout(timeoutId);
       setLoading(false);
     }
   }
@@ -145,22 +129,6 @@ export default function LoginPage() {
             {loading ? 'Please wait...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
           </button>
         </form>
-
-        {mode === 'signin' && (
-          <div className="mt-4">
-            <div className="mb-4 flex items-center gap-3 text-xs text-stone-500">
-              <span className="h-px flex-1 bg-border" />
-              <span>or</span>
-              <span className="h-px flex-1 bg-border" />
-            </div>
-            <a
-              href="/api/auth/google"
-              className="block w-full rounded-md border border-border px-4 py-2.5 text-center text-sm text-stone-200 transition hover:bg-white/5"
-            >
-              Continue with Google
-            </a>
-          </div>
-        )}
 
         <p className="mt-5 text-center text-sm text-stone-400">
           {mode === 'signin' ? "Don't have an account?" : 'Already have an account?'}{' '}

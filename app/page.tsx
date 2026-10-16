@@ -9,12 +9,6 @@ type WaitlistFieldErrors = Partial<Record<"name" | "email", string>>;
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const CORE_USERS: Record<string, { name: string; role: string; pass: string }> = {
-  "aarashvoss@gmail.com": { name: "AVoss", role: "instructor", pass: "AvossFluentiaPass14!" },
-  "aarashvossoughi@gmail.com": { name: "Arash Vossoughi", role: "student", pass: "ArashFluentiaPass14!" },
-  "f.soheilikia.lastqueen2002@gmail.com": { name: "Fateme Soheilikia", role: "student", pass: "FluentiaTempPassFateme2026!" },
-};
-
 export default function RootPage() {
   const router = useRouter();
   const [mode, setMode] = useState<ModalMode>("waitlist");
@@ -90,34 +84,21 @@ export default function RootPage() {
     setStatus(null);
 
     const normalizedEmail = email.trim().toLowerCase();
-    const coreUser = CORE_USERS[normalizedEmail];
-
-    if (coreUser && password !== coreUser.pass) {
-      setStatus("Invalid email or password.");
-      setIsSubmitting(false);
-      return;
-    }
-
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 15_000);
     try {
       const response = await fetch("/api/auth/signin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({
-          email: normalizedEmail,
-          password: password,
-          name: coreUser ? coreUser.name : undefined,
-        }),
+        body: JSON.stringify({ email: normalizedEmail, password }),
+        signal: controller.signal,
       });
 
-      const result = (await response.json()) as { error?: string; user?: { role: string } };
+      const result = await response.json().catch(() => null) as { error?: string; user?: { role: string } } | null;
 
-      if (!response.ok || !result.user) {
-        if (coreUser && password === coreUser.pass) {
-          router.replace(coreUser.role === "instructor" ? "/instructor" : "/dashboard");
-          return;
-        }
-        setStatus(result.error || "Sign-in failed. Check your email and password.");
+      if (!response.ok || !result?.user) {
+        setStatus(result?.error || "Sign-in failed. Check your email and password.");
         return;
       }
 
@@ -127,13 +108,14 @@ export default function RootPage() {
           : "/dashboard"
       );
     } catch (error) {
-      console.error("Landing page sign-in failed:", error);
-      if (coreUser && password === coreUser.pass) {
-        router.replace(coreUser.role === "instructor" ? "/instructor" : "/dashboard");
-        return;
+      if (controller.signal.aborted) {
+        setStatus("Sign-in timed out. Please try again.");
+      } else {
+        console.error("Landing page sign-in failed:", error);
+        setStatus("Sign-in is temporarily unavailable. Please try again.");
       }
-      setStatus("Sign-in is temporarily unavailable. Please try again.");
     } finally {
+      window.clearTimeout(timeoutId);
       setIsSubmitting(false);
     }
   }
