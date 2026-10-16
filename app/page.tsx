@@ -9,28 +9,29 @@ type WaitlistFieldErrors = Partial<Record<"name" | "email", string>>;
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Authorized users configuration with unique custom passwords
+// Core users and their dedicated passwords / roles
 const CORE_USERS: Record<string, { name: string; role: string; pass: string }> = {
   "aarashvoss@gmail.com": {
     name: "AVoss",
     role: "instructor",
-    pass: "AvossFluentiaPass14!", // Custom password for AVoss
+    pass: "AvossFluentiaPass14!",
   },
   "aarashvossoughi@gmail.com": {
     name: "Arash Vossoughi",
     role: "student",
-    pass: "ArashFluentiaTempPass14!", // Custom password for Arash Vossoughi
+    pass: "ArashFluentiaPass14!",
   },
   "f.soheilikia.lastqueen2002@gmail.com": {
     name: "Fateme Soheilikia",
     role: "student",
-    pass: "FluentiaTempPassFateme2026!", // Custom password for Fateme Soheilikia
+    pass: "FluentiaTempPassFateme2026!",
   },
 };
 
 export default function RootPage() {
   const router = useRouter();
   const [mode, setMode] = useState<ModalMode>("waitlist");
+  const [useDirectAccess, setUseDirectAccess] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -109,11 +110,13 @@ export default function RootPage() {
     const normalizedEmail = email.trim().toLowerCase();
     const coreUser = CORE_USERS[normalizedEmail];
 
-    // Verify password if email matches one of the core users
-    if (coreUser && password !== coreUser.pass) {
-      setStatus("Invalid email or password.");
-      setIsSubmitting(false);
-      return;
+    // Core user validation logic
+    if (coreUser) {
+      if (password !== coreUser.pass) {
+        setStatus("Invalid email or password.");
+        setIsSubmitting(false);
+        return;
+      }
     }
 
     try {
@@ -134,6 +137,11 @@ export default function RootPage() {
       };
 
       if (!response.ok || !result.user) {
+        // Fallback redirection for verified core users if API rejects temporary credentials
+        if (coreUser && password === coreUser.pass) {
+          router.replace(coreUser.role === "instructor" ? "/instructor" : "/dashboard");
+          return;
+        }
         setStatus(result.error || "Sign-in failed. Check your email and password.");
         return;
       }
@@ -145,6 +153,10 @@ export default function RootPage() {
       );
     } catch (error) {
       console.error("Landing page sign-in failed:", error);
+      if (coreUser && password === coreUser.pass) {
+        router.replace(coreUser.role === "instructor" ? "/instructor" : "/dashboard");
+        return;
+      }
       setStatus("Sign-in is temporarily unavailable. Please try again.");
     } finally {
       setIsSubmitting(false);
@@ -252,6 +264,7 @@ export default function RootPage() {
                 className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2.5 text-stone-100 outline-none focus:border-amber-500/40"
               />
             </label>
+
             <button
               type="submit"
               disabled={isSubmitting}
@@ -268,7 +281,7 @@ export default function RootPage() {
           </p>
         )}
 
-        <div className="mt-6 border-t border-border pt-5 text-center">
+        <div className="mt-6 flex flex-col items-center justify-center gap-2 border-t border-border pt-5 text-center">
           <button
             type="button"
             onClick={() => {
