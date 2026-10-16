@@ -67,11 +67,10 @@ export async function POST(request: Request) {
       [email],
     );
     if (invitation.rowCount === 0) {
-      await saveWaitlistRequest(name, email);
-      return NextResponse.json({
-        message: WAITLIST_SUCCESS_MESSAGE,
-        waitlisted: true,
-      });
+      return NextResponse.json(
+        { error: "This account is not enabled for sign-up yet. Please contact the administrator to request access." },
+        { status: 403 },
+      );
     }
   } catch (error) {
     logDatabaseError("Native sign-up authorization or waitlist operation failed:", error);
