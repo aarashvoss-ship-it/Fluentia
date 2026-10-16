@@ -8,9 +8,9 @@ type AuthMode = 'signin' | 'signup';
 
 // Authorized core users with their dedicated passwords and roles
 const CORE_USERS: Record<string, { name: string; role: string; pass: string }> = {
-  "aarashvoss@gmail.com": { name: "AVoss", role: "instructor", pass: "AvossPass2026!" },
-  "aarashvossoughi@gmail.com": { name: "Arash Vossoughi", role: "student", pass: "ArashPass2026!" },
-  "f.soheilikia.lastqueen2002@gmail.com": { name: "Fateme Soheilikia", role: "student", pass: "FatemePass2026!" },
+  "aarashvoss@gmail.com": { name: "AVoss", role: "instructor", pass: "AvossFluentiaPass14!" },
+  "aarashvossoughi@gmail.com": { name: "Arash Vossoughi", role: "student", pass: "ArashFluentiaPass14!" },
+  "f.soheilikia.lastqueen2002@gmail.com": { name: "Fateme Soheilikia", role: "student", pass: "FluentiaTempPassFateme2026!" },
 };
 
 export default function LoginPage() {
