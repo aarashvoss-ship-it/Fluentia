@@ -1,4 +1,3 @@
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import type { StudentId } from "@/types/database";
 import type { StudentProfile } from "@/types/lesson";
 import { STUDENT_USERS } from "@/lib/users";
@@ -128,72 +127,70 @@ export async function saveStudentProfile(
   studentToken: string,
   profile: StudentProfile,
 ): Promise<StudentProfileSaveMode> {
-  if (!isSupabaseConfigured()) throw new Error("Supabase is not configured; student profiles cannot be saved.");
-
   const response = await fetch("/api/instructor/students", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ studentId: profile.id || studentToken, profile }),
   });
   const result = await response.json().catch(() => ({})) as { error?: string; studentId?: string };
-  if (!response.ok) throw new Error(result.error || "Unable to save student profile to Supabase.");
+  if (!response.ok) throw new Error(result.error || "Unable to save student profile.");
 
   broadcastStudentProfileUpdate(studentToken);
   return "database";
 }
 
 export async function getStudentProfile(studentToken: string): Promise<Partial<StudentProfile> | null> {
-  if (!isSupabaseConfigured()) throw new Error("Supabase is not configured; student profiles cannot be loaded.");
-
-  const studentQuery = uuidPattern.test(studentToken)
-    ? supabase.from("students").select("id,name,email,token,created_at").eq("id", studentToken).maybeSingle()
-    : supabase.from("students").select("id,name,email,token,created_at").eq("token", studentToken).maybeSingle();
-  const { data: student, error: studentError } = await studentQuery;
-  if (studentError) throw studentError;
+  const response = await fetch(`/api/instructor/students?studentId=${encodeURIComponent(studentToken)}`);
+  const result = await response.json().catch(() => ({})) as {
+    error?: string;
+    student?: Record<string, unknown> & { id?: string; token?: string | null; email?: string; created_at?: string; full_name?: string };
+  };
+  if (!response.ok) {
+    if (response.status === 404) return null;
+    throw new Error(result.error || "Unable to load the student profile.");
+  }
+  const student = result.student;
   if (!student) return null;
-  const profileId = student.id;
-  const { data: profile, error } = await supabase.from("profiles").select("*").eq("id", profileId).maybeSingle();
-  if (error) throw error;
-  if (!profile) return null;
-  const normalized = normalizeStudentProfile(profile as Record<string, unknown>, student?.token || studentToken) || {};
+  const profileId = typeof student.id === "string" ? student.id : studentToken;
+  const token = typeof student.token === "string" && student.token ? student.token : profileId;
+  const normalized = normalizeStudentProfile(student, token) || {};
   return {
     ...normalized,
-    fullName: normalizeStudentDisplayName(typeof profile.full_name === "string" && profile.full_name.trim() ? profile.full_name : student?.name || undefined),
-    email: typeof profile.email === "string" && profile.email.trim() ? profile.email : student?.email || undefined,
-    enrolledDate: typeof profile.enrolled_date === "string" ? profile.enrolled_date : student?.created_at || undefined,
-    targetLevel: normalizeStudentLevel(profile.target_level || profile.level) || undefined,
-    level: normalizeStudentLevel(profile.target_level || profile.level) || undefined,
+    fullName: normalizeStudentDisplayName(typeof student.full_name === "string" && student.full_name.trim() ? student.full_name : undefined),
+    email: typeof student.email === "string" && student.email.trim() ? student.email : undefined,
+    enrolledDate: typeof student.enrolled_date === "string" ? student.enrolled_date : student.created_at || undefined,
+    targetLevel: normalizeStudentLevel(student.target_level || student.level) || undefined,
+    level: normalizeStudentLevel(student.target_level || student.level) || undefined,
     id: profileId,
   };
 }
 
 export async function getStudentDirectory(): Promise<StudentDirectoryEntry[]> {
-  if (!isSupabaseConfigured()) throw new Error("Supabase is not configured; the student directory cannot be loaded.");
+  const response = await fetch("/api/instructor/students");
+  const result = await response.json().catch(() => ({})) as { error?: string; students?: Record<string, unknown>[] };
+  if (!response.ok) throw new Error(result.error || "Unable to load the student directory.");
 
-  const [{ data: students, error: studentsError }, { data: profiles, error: profilesError }] = await Promise.all([
-    supabase.from("students").select("id,name,email,token,created_at").order("name", { ascending: true }),
-    supabase.from("profiles").select("*").eq("role", "student"),
-  ]);
-  if (studentsError) throw studentsError;
-  if (profilesError) throw profilesError;
-  const profilesById = new Map((profiles || []).map((profile) => [profile.id, profile as Record<string, unknown>]));
-
-  return (students || []).map((student) => {
-    const profile = profilesById.get(student.id);
-    const saved = profile ? normalizeStudentProfile(profile, student.token) : null;
-    const targetLevel = normalizeStudentLevel(profile?.target_level || profile?.level || saved?.level);
-    const rawName = typeof profile?.full_name === "string" && profile.full_name.trim() ? profile.full_name : student.name;
-    const name = normalizeStudentDisplayName(rawName) || student.name;
-    const email = typeof profile?.email === "string" && profile.email.trim() ? profile.email : student.email;
-    const enrolledDate = typeof profile?.enrolled_date === "string" ? profile.enrolled_date : student.created_at || "";
+  return (result.students || []).map((student) => {
+    const id = typeof student.id === "string" ? student.id : "";
+    const token = typeof student.token === "string" && student.token ? student.token : id;
+    const saved = normalizeStudentProfile(student, token);
+    const targetLevel = normalizeStudentLevel(student.target_level || student.level || saved?.level);
+    const rawName = typeof student.full_name === "string" && student.full_name.trim()
+      ? student.full_name
+      : typeof student.email === "string" ? student.email.split("@")[0] : "";
+    const name = normalizeStudentDisplayName(rawName) || rawName;
+    const email = typeof student.email === "string" ? student.email : "";
+    const enrolledDate = typeof student.enrolled_date === "string"
+      ? student.enrolled_date
+      : typeof student.created_at === "string" ? student.created_at : "";
     return {
-      id: student.id,
-      token: student.token,
+      id,
+      token,
       name,
       email,
       enrolledDate,
       profile: {
-        id: student.id,
+        id,
         fullName: name,
         email,
         enrolledDate,
@@ -215,7 +212,7 @@ export async function getStudentDirectory(): Promise<StudentDirectoryEntry[]> {
 }
 
 export async function updateStudentTargetLevel(studentId: string, targetLevel: StudentCefrLevel, studentToken = studentId) {
-  if (isSupabaseConfigured() && !uuidPattern.test(studentId)) throw new Error("A valid student profile ID is required.");
+  if (!uuidPattern.test(studentId)) throw new Error("A valid student profile ID is required.");
   const existing = await getStudentProfile(studentToken) || {};
   const profile: StudentProfile = {
     id: studentId,

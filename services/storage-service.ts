@@ -10,8 +10,6 @@ import {
   StrictStepContent,
 } from "@/types/lesson";
 import { PublishedLessonState, getLessonStateKey } from "@/lib/lesson-store";
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import { getAuthenticatedUser, resolveUserUuid } from "@/lib/identity";
 
 export type LessonStatus = "draft" | "published";
 export type SubmissionStatus = "not_started" | "in_progress" | "submitted" | "pending_evaluation" | "reviewed" | "evaluated";
@@ -23,43 +21,12 @@ function isStudyStepId(value: unknown): value is StudyStepId {
   return typeof value === "string" && STUDY_STEP_IDS.includes(value);
 }
 
-const SUBMISSION_STATUS_FALLBACKS: Record<SubmissionStatus, string[]> = {
-  not_started: ["draft", "not_started", "in_progress", "submitted", "pending_evaluation", "completed"],
-  in_progress: ["draft", "in_progress", "not_started", "submitted", "pending_evaluation", "completed"],
-  submitted: ["submitted", "pending_evaluation", "completed"],
-  pending_evaluation: ["submitted", "pending_evaluation", "completed"],
-  reviewed: ["reviewed", "completed"],
-  evaluated: ["evaluated", "reviewed", "completed"],
-};
-
-async function writeSubmissionWithStatusFallback(
-  status: SubmissionStatus,
-  write: (status: string) => PromiseLike<{ error: { code?: string } | null }>,
-) {
-  let constraintError: { code?: string } | null = null;
-  for (const candidate of SUBMISSION_STATUS_FALLBACKS[status]) {
-    const { error } = await write(candidate);
-    if (!error) return candidate;
-    if (error.code !== "23514") throw error;
-    constraintError = error;
-  }
-  throw constraintError || new Error(`No database-compatible status found for ${status}.`);
-}
-
 function normalizeSubmissionStatus(value: unknown, fallback: SubmissionStatus = "in_progress"): SubmissionStatus {
   if (value === "draft") return "in_progress";
   if (value === "completed") return "pending_evaluation";
   return value === "not_started" || value === "in_progress" || value === "submitted" || value === "pending_evaluation" || value === "reviewed" || value === "evaluated"
     ? value
     : fallback;
-}
-
-function removeUndefinedValues(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(removeUndefinedValues);
-  if (!value || typeof value !== "object") return value;
-  return Object.fromEntries(
-    Object.entries(value).filter(([, entry]) => entry !== undefined).map(([key, entry]) => [key, removeUndefinedValues(entry)]),
-  );
 }
 
 function removeTemporaryBlobUrls(value: unknown): unknown {
@@ -81,21 +48,6 @@ function isPersistentMediaUrl(value: string) {
     return protocol === "http:" || protocol === "https:";
   } catch {
     return false;
-  }
-}
-
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Unable to encode audio fallback."));
-    reader.onerror = () => reject(reader.error || new Error("Unable to encode audio fallback."));
-    reader.readAsDataURL(blob);
-  });
-}
-
-function logSubmissionPayload(kind: string, payload: Record<string, unknown>) {
-  if (process.env.NODE_ENV === "development") {
-    console.debug(`[Submission ${kind}] payload`, JSON.stringify(payload));
   }
 }
 
@@ -123,7 +75,6 @@ const CHAT_PREFIX = "fluentia:chat:";
 const THEME_PREFIX = "fluentia:theme:";
 export const FLUENTIA_DATA_UPDATED_EVENT = "fluentia:data-updated";
 const FLUENTIA_DATA_UPDATED_STORAGE_KEY = "fluentia:data-updated";
-const demoDataEnabled = () => process.env.NEXT_PUBLIC_ENABLE_DEMO_DATA === "true";
 
 function notifyDataUpdated(detail: { type: string; slug?: string; studentToken?: string }) {
   if (typeof window !== "undefined") {
@@ -155,7 +106,11 @@ function readJson<T>(key: string): T | null {
 
 function writeJson<T>(key: string, value: T) {
   if (!canUseStorage()) return;
-  window.localStorage.setItem(key, JSON.stringify(value));
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.warn(`Unable to update local Fluentia cache (${key}):`, error);
+  }
 }
 
 function studentScopeKey(studentId?: string) {
@@ -211,136 +166,35 @@ function defaultContent(): StrictStepContent {
   return {};
 }
 
-type SupabaseRow = Record<string, any>;
-function isMissingSchemaObject(error: { code?: string; message?: string; status?: number } | null) {
-  if (!error) return false;
-  return error.status === 404
-    || error.code === "42P01"
-    || error.code === "42703"
-    || error.code === "PGRST204"
-    || error.code === "PGRST205"
-    || /does not exist|could not find the table|schema cache/i.test(error.message || "");
-}
-
-function mapFeedbackRow(feedback: SupabaseRow | null): LessonEvaluation {
-  const scores = feedback?.rubric_scores || {};
-  const criterionFeedback = feedback?.criterion_feedback || {};
-  return {
-    scores,
-    totalScore: Number(feedback?.total_score ?? Object.values(scores).reduce<number>((total, score) => total + Number(score), 0)),
-    comments: typeof criterionFeedback.overallComments === "string"
-      ? criterionFeedback.overallComments
-      : feedback?.comments || "",
-    criterionFeedback: criterionFeedback.comments || criterionFeedback,
-    stageFeedback: criterionFeedback.stages || {},
-    stageScores: criterionFeedback.stageScores || {},
-    stageRubricScales: criterionFeedback.stageRubricScales || {},
-    globalRubricScale: criterionFeedback.globalRubricScale || "ielts",
-    reportCardScoreOverrides: criterionFeedback.reportCardScoreOverrides || {},
-    taskFeedback: criterionFeedback.taskFeedback || {},
-    inlineCorrections: criterionFeedback.inlineCorrections || {},
-    stageVoiceFeedback: criterionFeedback.stageVoiceFeedback || {},
-    strengths: feedback?.strengths || undefined,
-    areasToImprove: feedback?.areas_to_improve || undefined,
-    studyHubPrescription: feedback?.study_hub_prescription || undefined,
-    voiceFeedbackUrl: feedback?.voice_feedback_url || undefined,
-    published: Boolean(feedback?.is_published),
-  };
-}
-
-function toStorageError(error: unknown, fallback: string) {
-  if (error && typeof error === "object") {
-    const details = error as { message?: string; details?: string; hint?: string; code?: string };
-    const message = [details.message, details.details, details.hint].filter(Boolean).join(" | ") || fallback;
-    const normalized = new Error(message);
-    if (details.code) normalized.name = details.code;
-    return normalized;
-  }
-  return new Error(error instanceof Error ? error.message : fallback);
-}
-
-async function getStudentId(_legacyIdentifier?: string) {
-  if (!isSupabaseConfigured()) return null;
-  try {
-    return await resolveUserUuid();
-  } catch {
-    return null;
-  }
-}
-
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+type ApiRecord = Record<string, any>;
 
-/**
- * Resolves the canonical Supabase student UUID for the current request.
- * Identity is strictly auth.uid()-derived (see PROJECT_CONTEXT); an explicit
- * studentId argument is only honoured when it is a valid UUID.
- */
-async function resolveStudentId(explicitStudentId?: string): Promise<string | null> {
-  const authenticatedStudentId = await getStudentId();
-  if (authenticatedStudentId) return authenticatedStudentId;
-  if (explicitStudentId && UUID_PATTERN.test(explicitStudentId.trim())) return explicitStudentId.trim();
-  return null;
+async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, {
+    ...init,
+    credentials: "same-origin",
+    headers: {
+      ...(init?.body && !(init.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
+      ...init?.headers,
+    },
+  });
+  let payload: ApiRecord = {};
+  try {
+    payload = await response.json() as ApiRecord;
+  } catch {
+    // Fall through to the HTTP status in the error below.
+  }
+  if (!response.ok) {
+    throw new Error(typeof payload.error === "string" ? payload.error : `Request failed (${response.status}).`);
+  }
+  return payload as T;
 }
 
-async function fetchStudentLesson(slug: string, explicitStudentId?: string) {
-  const studentId = await resolveStudentId(explicitStudentId);
-  if (!studentId) return null;
-
-  const slugIsUuid = UUID_PATTERN.test(slug);
-
-  if (slugIsUuid) {
-    const directLessonById = await supabase
-      .from("lessons")
-      .select("*")
-      .eq("id", slug)
-      .eq("student_id", studentId)
-      .maybeSingle();
-    if (!directLessonById.error && directLessonById.data) return directLessonById.data;
-  }
-
-  const directLessonBySlug = await supabase
-    .from("lessons")
-    .select("*")
-    .eq("slug", slug)
-    .eq("student_id", studentId)
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (!directLessonBySlug.error && directLessonBySlug.data) return directLessonBySlug.data;
-
-  const { data: assignments, error: assignmentError } = await supabase
-    .from("lesson_assignments")
-    .select("lesson_id")
-    .eq("student_id", studentId)
-    .eq("status", "assigned");
-
-  if (!assignmentError && assignments?.length) {
-    const assignedLessonIds = assignments.map((assignment) => assignment.lesson_id).filter(Boolean);
-    if (assignedLessonIds.length > 0) {
-      const assignedLessonBySlug = await supabase
-        .from("lessons")
-        .select("*")
-        .in("id", assignedLessonIds)
-        .eq("slug", slug)
-        .maybeSingle();
-      if (!assignedLessonBySlug.error && assignedLessonBySlug.data) return assignedLessonBySlug.data;
-
-      if (slugIsUuid) {
-        const assignedLessonById = await supabase
-          .from("lessons")
-          .select("*")
-          .in("id", assignedLessonIds)
-          .eq("id", slug)
-          .maybeSingle();
-        if (!assignedLessonById.error && assignedLessonById.data) return assignedLessonById.data;
-      }
-    }
-  }
-
-  return null;
+function cacheReadError(error: unknown, scope: string) {
+  console.warn(`[Storage] ${scope} API unavailable; serving cached offline data.`, error);
 }
 
-function mapLessonRow(row: SupabaseRow): LessonContent {
+function mapLessonRow(row: ApiRecord): LessonContent {
   return {
     id: String(row.id),
     slug: row.slug || String(row.id),
@@ -356,7 +210,7 @@ function mapLessonRow(row: SupabaseRow): LessonContent {
   };
 }
 
-function mapSubmission(row: SupabaseRow): StudentSubmission {
+function mapSubmission(row: ApiRecord): StudentSubmission {
   const content = row.answers || row.content || {};
   return {
     ...content,
@@ -377,65 +231,54 @@ function mapSubmission(row: SupabaseRow): StudentSubmission {
 }
 
 export async function fetchLesson(slug: string): Promise<LessonContent | null> {
-  if (isSupabaseConfigured()) {
-    try {
-      const { data, error } = await supabase.from("lessons").select("*").eq("slug", slug).maybeSingle();
-      if (!error && data) return mapLessonRow(data);
-    } catch {
-      // Use the local manifest when Supabase is unavailable.
-    }
+  try {
+    const result = await apiRequest<{ lesson: ApiRecord }>(
+      `/api/lessons?scope=one&id=${encodeURIComponent(slug)}`,
+    );
+    return mapLessonRow(result.lesson);
+  } catch (error) {
+    const cached = [...readManifest(), ...readInstructorLessons()].find((lesson) => lesson.slug === slug || lesson.id === slug);
+    if (cached) cacheReadError(error, `Lesson ${slug}`);
+    return cached || null;
   }
-  return null;
 }
 
 export async function fetchLessons(): Promise<LessonContent[]> {
-  if (isSupabaseConfigured()) {
-    try {
-      const { data, error } = await supabase.from("lessons").select("*").neq("status", "draft").order("created_at", { ascending: false });
-      if (!error && data) {
-        const databaseLessons = data.map(mapLessonRow);
-        return databaseLessons;
-      }
-    } catch {
-      // Use the local manifest when Supabase is unavailable.
-    }
+  try {
+    const result = await apiRequest<{ lessons: ApiRecord[] }>("/api/lessons?scope=student");
+    const lessons = (result.lessons || []).map(mapLessonRow);
+    writeManifest(lessons);
+    return lessons;
+  } catch (error) {
+    cacheReadError(error, "Lesson list");
+    return readManifest();
   }
-  return [];
 }
 
 export async function saveLesson(lesson: LessonContent): Promise<void> {
-  let persistenceError: unknown;
-  if (isSupabaseConfigured()) {
-    try {
-      const resolvedStudentId = lesson.studentId || null;
-      const payload = {
-        id: String(lesson.id),
-        slug: String(lesson.slug),
-        student_id: resolvedStudentId,
-        title: String(lesson.title || "Untitled Lesson"),
-        subtitle: lesson.subtitle?.trim() || null,
-        module_number: Number.isFinite(lesson.moduleNumber) ? lesson.moduleNumber : 1,
-        banner_url: lesson.coverImage || null,
-        status: lesson.status === "published" ? "published" : "draft",
-        content: lesson.content && typeof lesson.content === "object" ? lesson.content : {},
-      };
-      const { error } = await supabase.from("lessons").upsert(payload);
-      if (!error) {
-        notifyDataUpdated({ type: "lesson", slug: lesson.slug, studentToken: lesson.studentId });
-        return;
-      }
-      persistenceError = error;
-    } catch (error) {
-      persistenceError = error;
+  const input = {
+    title: String(lesson.title || "Untitled Lesson"),
+    slug: String(lesson.slug),
+    student_id: lesson.studentId || null,
+    subtitle: lesson.subtitle?.trim() || null,
+    module_number: Number.isFinite(lesson.moduleNumber) ? lesson.moduleNumber : 1,
+    banner_url: lesson.coverImage || null,
+    status: lesson.status === "published" ? "published" : "draft",
+    content: lesson.content && typeof lesson.content === "object" ? lesson.content : {},
+  };
+  try {
+    if (UUID_PATTERN.test(lesson.id)) {
+      await apiRequest("/api/lessons", { method: "PATCH", body: JSON.stringify({ id: lesson.id, input }) });
+    } else {
+      await apiRequest("/api/lessons", { method: "POST", body: JSON.stringify({ input }) });
     }
+    notifyDataUpdated({ type: "lesson", slug: lesson.slug, studentToken: lesson.studentId });
+  } catch (error) {
+    const lessons = readManifest().filter((item) => item.slug !== lesson.slug);
+    writeManifest([...lessons, lesson]);
+    notifyDataUpdated({ type: "lesson", slug: lesson.slug, studentToken: lesson.studentId });
+    throw error;
   }
-  if (isSupabaseConfigured() && !demoDataEnabled()) {
-    throw persistenceError || new Error("Unable to save lesson to Supabase");
-  }
-  const lessons = readManifest().filter((item) => item.slug !== lesson.slug);
-  writeManifest([...lessons, lesson]);
-  notifyDataUpdated({ type: "lesson", slug: lesson.slug, studentToken: lesson.studentId });
-  if (persistenceError) throw persistenceError;
 }
 
 export async function updateLessonStatus(slug: string, status: LessonStatus): Promise<LessonContent | null> {
@@ -456,95 +299,29 @@ export async function fetchLessonState(
   mode: LessonStateMode = "interactive",
   submissionId?: string,
 ): Promise<PublishedLessonState | null> {
-  if (isSupabaseConfigured()) {
-    let authenticatedStudentId: string | null = null;
-    try {
-      authenticatedStudentId = await getStudentId();
-      if (!authenticatedStudentId) return null;
-      const lesson = await fetchStudentLesson(slug, authenticatedStudentId);
-      if (lesson) {
-        const lessonId = typeof lesson.id === "string" ? lesson.id.trim() : "";
-        if (UUID_PATTERN.test(lessonId) && UUID_PATTERN.test(authenticatedStudentId)) {
-          let submission = null;
-          let feedback = null;
-          try {
-            if (mode === "review") {
-              let scopedSubmissionId = submissionId;
-              if (!scopedSubmissionId) {
-                const latest = await supabase
-                  .from("submissions")
-                  .select("id")
-                  .eq("lesson_id", lessonId)
-                  .eq("student_id", authenticatedStudentId)
-                  .order("submitted_at", { ascending: false })
-                  .limit(1)
-                  .maybeSingle();
-                if (latest.error) throw latest.error;
-                scopedSubmissionId = latest.data?.id;
-              }
-              if (scopedSubmissionId) {
-                const result = await supabase
-                  .from("submissions")
-                  .select("id,answers,status,submitted_at")
-                  .eq("id", scopedSubmissionId)
-                  .eq("lesson_id", lessonId)
-                  .eq("student_id", authenticatedStudentId)
-                  .maybeSingle();
-                if (result.error) throw result.error;
-                submission = result.data;
-              }
-            } else {
-              const result = await supabase
-                .from("submissions")
-                .select("id,answers,status,submitted_at,evaluationViewedAt:answers->>evaluationViewedAt")
-                .eq("lesson_id", lessonId)
-                .eq("student_id", authenticatedStudentId)
-                .order("submitted_at", { ascending: false })
-                .limit(1)
-                .maybeSingle();
-              if (result.error) throw result.error;
-              submission = result.data;
-            }
-          } catch (error) {
-            console.error("[Dashboard Progress] Submission fetch threw an error:", { lessonId, studentId: authenticatedStudentId, submissionId, mode, error });
-          }
-          if (mode !== "interactive") {
-            try {
-              const result = await supabase
-                .from("instructor_feedback")
-                .select("*")
-                .eq("lesson_id", lessonId)
-                .eq("student_id", authenticatedStudentId)
-                .eq("is_published", true)
-                .limit(1)
-                .maybeSingle();
-              if (!result.error) feedback = result.data;
-              else if (!isMissingSchemaObject(result.error) && result.error.code !== "PGRST116") {
-                console.warn("[Dashboard Progress] Instructor feedback is unavailable:", result.error.message);
-              }
-            } catch {
-              feedback = null;
-            }
-          }
-          return {
-            content: lesson.content || defaultContent(),
-            bannerUrl: lesson.coverImage || "",
-            studentProfile: defaultProfile(),
-            evaluation: feedback ? mapFeedbackRow(feedback) : emptyEvaluation(),
-            status: lesson.status === "draft" ? "draft" : "published",
-            submissionId: submission?.id,
-            submission: submission ? mapSubmission(submission) : undefined,
-          };
-        }
-      }
-      return getStateForMode(slug, authenticatedStudentId, mode);
-    } catch (error) {
-      console.error("[Dashboard Progress] Failed to fetch lesson state:", { slug, studentToken, error });
-      // Use local state when Supabase is unavailable or the lesson has no saved state yet.
-      return authenticatedStudentId ? getStateForMode(slug, authenticatedStudentId, mode) : null;
-    }
+  const params = new URLSearchParams({ resource: "lesson-state", slug, mode });
+  if (submissionId) params.set("submissionId", submissionId);
+  try {
+    const result = await apiRequest<{
+      lesson: ApiRecord;
+      submission: ApiRecord | null;
+      evaluation: LessonEvaluation | null;
+    }>(`/api/student-data?${params.toString()}`);
+    const state: PublishedLessonState = {
+      content: result.lesson.content as StrictStepContent || defaultContent(),
+      bannerUrl: result.lesson.banner_url || "",
+      studentProfile: defaultProfile(),
+      evaluation: result.evaluation || emptyEvaluation(),
+      status: result.lesson.status === "draft" ? "draft" : "published",
+      submissionId: result.submission?.id,
+      submission: result.submission ? mapSubmission(result.submission) : undefined,
+    };
+    writeJson(getLessonStateKey(slug, studentToken), state);
+    return getStateForMode(slug, studentToken, mode) || state;
+  } catch (error) {
+    cacheReadError(error, `Lesson state ${slug}`);
+    return getStateForMode(slug, studentToken, mode);
   }
-  return getStateForMode(slug, studentToken, mode);
 }
 
 export async function markStudentEvaluationAsViewed(
@@ -552,53 +329,18 @@ export async function markStudentEvaluationAsViewed(
   studentToken?: string,
   submissionId?: string,
 ): Promise<void> {
-  if (isSupabaseConfigured()) {
-    const studentId = await getStudentId();
-    if (!studentId) throw new Error("An authenticated student session is required to mark feedback as viewed.");
-    const lesson = await fetchStudentLesson(slug, studentId);
-    if (!lesson) throw new Error(`Unable to resolve lesson ${slug} for the current student.`);
-
-    let query = supabase
-      .from("submissions")
-      .select("id,answers")
-      .eq("lesson_id", lesson.id)
-      .eq("student_id", studentId);
-    if (submissionId) {
-      query = query.eq("id", submissionId);
-    } else {
-      query = query.order("submitted_at", { ascending: false }).limit(1);
-    }
-    const { data: submission, error: lookupError } = await query.maybeSingle();
-    if (lookupError) throw lookupError;
-    if (!submission) throw new Error("The submission for this evaluation could not be found.");
-
-    const answers = submission.answers && typeof submission.answers === "object"
-      ? submission.answers as Record<string, unknown>
-      : {};
-    if (typeof answers.evaluationViewedAt === "string") return;
-
-    const { error: updateError } = await supabase
-      .from("submissions")
-      .update({
-        answers: { ...answers, evaluationViewedAt: new Date().toISOString() },
-      })
-      .eq("id", submission.id)
-      .eq("student_id", studentId);
-    if (updateError) throw updateError;
-    notifyDataUpdated({ type: "evaluation-viewed", slug, studentToken: studentId });
-    return;
+  const current = getState(slug, studentToken);
+  if (current?.submission && !current.submission.evaluationViewedAt) {
+    writeJson(getLessonStateKey(slug, studentToken), {
+      ...current,
+      submission: { ...current.submission, evaluationViewedAt: new Date().toISOString() },
+    });
   }
-
-  const state = getState(slug, studentToken);
-  if (!state?.submission) return;
-  if (state.submission.evaluationViewedAt) return;
-  await saveLessonState(slug, {
-    ...state,
-    submission: {
-      ...state.submission,
-      evaluationViewedAt: new Date().toISOString(),
-    },
-  }, studentToken);
+  await apiRequest("/api/student-data?resource=evaluation-viewed", {
+    method: "POST",
+    body: JSON.stringify({ slug, submissionId }),
+  });
+  notifyDataUpdated({ type: "evaluation-viewed", slug, studentToken });
 }
 
 function getStateForMode(slug: string, studentToken: string | undefined, mode: LessonStateMode) {
@@ -628,43 +370,34 @@ function getStateForMode(slug: string, studentToken: string | undefined, mode: L
 }
 
 export async function fetchStudentProgress(slug: string, studentToken?: string): Promise<StudentProgressRecord> {
-  if (isSupabaseConfigured()) {
-    try {
-      const studentId = await getStudentId();
-      const lesson = studentId ? await fetchStudentLesson(slug, studentId) : null;
-      if (lesson && studentId) { // has lesson + student -> save to Supabase
-        const { data, error } = await supabase.from("submissions").select("status,submitted_at,progress:answers->progress").eq("lesson_id", lesson.id).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
-        if (error) throw error;
-        const progress = data?.progress;
-        if (progress && typeof progress === "object" && !Array.isArray(progress)) {
-          return {
-            currentStep: isStudyStepId(progress.currentStep) ? progress.currentStep : "warm_up",
-            completedSteps: Array.isArray(progress.completedSteps) ? progress.completedSteps.filter(isStudyStepId) : [],
-            completed: progress.completed === true,
-            status: normalizeSubmissionStatus(progress.status || data?.status, "not_started"),
-            updatedAt: data?.submitted_at || new Date(0).toISOString(),
-          };
-        }
-      }
-    } catch (error) {
-      console.error("[Dashboard Progress] Failed to fetch student progress:", { slug, studentToken, error });
-      // Progress reads are optional; return the default state when the query fails.
+  const defaults: StudentProgressRecord = {
+    currentStep: "warm_up", completedSteps: [], completed: false, status: "not_started", updatedAt: new Date(0).toISOString(),
+  };
+  try {
+    const result = await apiRequest<{ submission: ApiRecord | null }>(
+      "/api/student-data?resource=lesson-state&slug=" + encodeURIComponent(slug) + "&mode=summary",
+    );
+    const answers = result.submission?.answers;
+    const progress = answers && typeof answers === "object" && !Array.isArray(answers)
+      ? (answers as ApiRecord).progress
+      : null;
+    if (progress && typeof progress === "object" && !Array.isArray(progress)) {
+      const record = progress as ApiRecord;
+      const value: StudentProgressRecord = {
+        currentStep: isStudyStepId(record.currentStep) ? record.currentStep : "warm_up",
+        completedSteps: Array.isArray(record.completedSteps) ? record.completedSteps.filter(isStudyStepId) : [],
+        completed: record.completed === true,
+        status: normalizeSubmissionStatus(record.status || result.submission?.status, "not_started"),
+        updatedAt: result.submission?.submitted_at || defaults.updatedAt,
+      };
+      writeJson(progressKey(slug, studentToken), value);
+      return value;
     }
+    return defaults;
+  } catch (error) {
+    cacheReadError(error, "Progress " + slug);
+    return readJson<StudentProgressRecord>(progressKey(slug, studentToken)) || defaults;
   }
-  if (isSupabaseConfigured() && !demoDataEnabled()) return {
-    currentStep: "warm_up",
-    completedSteps: [],
-    completed: false,
-    status: "not_started",
-    updatedAt: new Date(0).toISOString(),
-  };
-  return readJson<StudentProgressRecord>(progressKey(slug, studentToken)) || {
-    currentStep: "warm_up",
-    completedSteps: [],
-    completed: false,
-    status: "not_started",
-    updatedAt: new Date(0).toISOString(),
-  };
 }
 
 export async function saveStudentProgress(
@@ -672,36 +405,21 @@ export async function saveStudentProgress(
   progress: StudentProgressRecord,
   studentToken?: string
 ): Promise<StudentProgressRecord> {
-  const updated = {
+  const updated: StudentProgressRecord = {
     ...progress,
     completed: progress.completed ?? (progress.status === "submitted" || progress.status === "pending_evaluation" || progress.status === "reviewed" || progress.status === "evaluated"),
     updatedAt: new Date().toISOString(),
   };
-  if (isSupabaseConfigured()) {
-    try {
-      const studentId = await getStudentId();
-      const lesson = studentId ? await fetchStudentLesson(slug, studentId) : null;
-      if (lesson && studentId) {
-        const { data: existingSubmission, error: lookupError } = await supabase.from("submissions").select("id,answers").eq("lesson_id", lesson.id).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
-        if (lookupError) throw lookupError;
-        const answers = removeUndefinedValues({ ...(existingSubmission?.answers || {}), progress: { currentStep: updated.currentStep, completedSteps: updated.completedSteps, completed: updated.completed, status: updated.status } });
-        await writeSubmissionWithStatusFallback(updated.status, (databaseStatus) => {
-          const payload = removeUndefinedValues({ lesson_id: lesson.id, student_id: studentId, answers, status: databaseStatus, submitted_at: updated.updatedAt }) as Record<string, unknown>;
-          logSubmissionPayload("progress", payload);
-          return existingSubmission
-            ? supabase.from("submissions").update(payload).eq("id", existingSubmission.id)
-            : supabase.from("submissions").insert(payload);
-        });
-        notifyDataUpdated({ type: "progress", slug, studentToken });
-        return updated;
-      }
-      console.error("[Dashboard Progress] Could not resolve a Supabase lesson/student for progress save:", { slug, studentToken });
-    } catch (error) {
-      console.error("[Dashboard Progress] Failed to save student progress:", { slug, studentToken, error });
-      // Keep local progress as an offline fallback.
-    }
-  }
   writeJson(progressKey(slug, studentToken), updated);
+  const fetched = await fetchLessonState(slug, studentToken, "review");
+  const current = fetched || getState(slug, studentToken) || {
+    content: defaultContent(), bannerUrl: "", studentProfile: defaultProfile(), evaluation: emptyEvaluation(), status: "published" as const,
+  };
+  const state: PublishedLessonState = {
+    ...current,
+    submission: { ...(current.submission || {}), status: updated.status } as StudentSubmission,
+  };
+  await saveLessonState(slug, state, studentToken, updated);
   notifyDataUpdated({ type: "progress", slug, studentToken });
   return updated;
 }
@@ -709,11 +427,20 @@ export async function saveStudentProgress(
 export async function saveLessonState(
   slug: string,
   state: PublishedLessonState,
-  studentToken?: string
+  studentToken?: string,
+  progress?: StudentProgressRecord,
 ): Promise<PublishedLessonState> {
-  // Graceful fallback: always persist locally to avoid red screen during step navigation
   writeJson(getLessonStateKey(slug, studentToken), state);
   notifyDataUpdated({ type: "lesson-state", slug, studentToken });
+  const result = await apiRequest<{ submission?: ApiRecord }>("/api/student-data?resource=lesson-state", {
+    method: "POST",
+    body: JSON.stringify({ slug, state, submissionId: state.submissionId, progress }),
+  });
+  if (result.submission) {
+    const saved = { ...state, submissionId: result.submission.id };
+    writeJson(getLessonStateKey(slug, studentToken), saved);
+    return saved;
+  }
   return state;
 }
 
@@ -724,82 +451,29 @@ async function persistStudentSubmission(
   progress?: Partial<StudentProgressRecord>
 ): Promise<PublishedLessonState> {
   const persistableSubmission = removeTemporaryBlobUrls(submission) as StudentSubmission;
-  const authenticatedStudentId = await getStudentId();
-  if (isSupabaseConfigured() && !authenticatedStudentId) {
-    throw new Error("An authenticated student session is required to save lesson answers.");
-  }
-  const studentScope = authenticatedStudentId || studentToken;
-  const current = await fetchLessonState(slug, studentScope);
+  const current = await fetchLessonState(slug, studentToken, "review");
+  const progressRecord = progress ? {
+    currentStep: progress.currentStep || "warm_up",
+    completedSteps: progress.completedSteps || [],
+    completed: progress.completed ?? (persistableSubmission.status === "submitted" || persistableSubmission.status === "pending_evaluation" || persistableSubmission.status === "reviewed" || persistableSubmission.status === "evaluated"),
+    status: progress.status || normalizeSubmissionStatus(persistableSubmission.status),
+    updatedAt: new Date().toISOString(),
+  } : undefined;
   const nextState: PublishedLessonState = {
-    content: current?.content || defaultContent(),
-    bannerUrl: current?.bannerUrl || "",
-    studentProfile: current?.studentProfile || defaultProfile(),
-    evaluation: current?.evaluation || emptyEvaluation(),
-    status: current?.status || "published",
+    content: current?.content || defaultContent(), bannerUrl: current?.bannerUrl || "",
+    studentProfile: current?.studentProfile || defaultProfile(), evaluation: current?.evaluation || emptyEvaluation(),
+    status: current?.status || "published", submissionId: current?.submissionId,
     submission: persistableSubmission,
   };
-  await saveLessonState(slug, nextState, studentScope);
-  if (isSupabaseConfigured()) {
-    try {
-      const lesson = await fetchStudentLesson(slug, studentScope);
-      const studentId = authenticatedStudentId;
-      if (lesson && studentId) {
-        const { data: existingSubmission, error: lookupError } = await supabase.from("submissions").select("id").eq("lesson_id", lesson.id).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
-        if (lookupError) throw lookupError;
-        const answers = removeUndefinedValues(progress
-            ? {
-              ...persistableSubmission,
-              progress: {
-                currentStep: progress.currentStep || "warm_up",
-                completedSteps: progress.completedSteps || [],
-                completed: progress.completed ?? (persistableSubmission.status === "submitted" || persistableSubmission.status === "pending_evaluation" || persistableSubmission.status === "reviewed" || persistableSubmission.status === "evaluated"),
-                status: progress.status || normalizeSubmissionStatus(persistableSubmission.status),
-              },
-            }
-          : persistableSubmission);
-        const submittedAt = persistableSubmission.submittedAt || new Date().toISOString();
-        await writeSubmissionWithStatusFallback(normalizeSubmissionStatus(persistableSubmission.status), (databaseStatus) => {
-          const submissionPayload = removeUndefinedValues({
-            lesson_id: lesson.id,
-            student_id: studentId,
-            answers,
-            status: databaseStatus,
-            submitted_at: submittedAt,
-          }) as Record<string, unknown>;
-          logSubmissionPayload(persistableSubmission.status === "pending_evaluation" ? "final" : "autosave", submissionPayload);
-          return existingSubmission
-            ? supabase.from("submissions").update(submissionPayload).eq("id", existingSubmission.id)
-            : supabase.from("submissions").insert(submissionPayload);
-        });
-        notifyDataUpdated({ type: "submission", slug, studentToken: studentScope });
-        return nextState;
-      }
-      if (!demoDataEnabled()) {
-        throw new Error(`Unable to resolve the Supabase lesson or student for submission ${slug}.`);
-      }
-    } catch (error) {
-      if (submission.status === "in_progress") {
-        if (process.env.NODE_ENV === "development") {
-          console.warn("[Lesson Autosave] Supabase draft save failed:", { slug, error });
-        }
-      } else {
-        console.error("[Lesson Submission] Supabase final save failed:", { slug, studentToken, error });
-      }
-      throw toStorageError(error, `Unable to save submission for ${slug}`);
-    }
-  }
-    // Supabase lesson not found — fall through to local save instead of throwing
-  await saveLessonState(slug, nextState, studentScope);
-  if (progress) {
-    await saveStudentProgress(slug, {
-      currentStep: progress.currentStep || "warm_up",
-      completedSteps: progress.completedSteps || [],
-      completed: progress.completed ?? (submission.status === "submitted" || submission.status === "pending_evaluation" || submission.status === "reviewed" || submission.status === "evaluated"),
-      status: progress.status || (submission.status === "evaluated" ? "evaluated" : submission.status === "reviewed" ? "reviewed" : submission.status === "pending_evaluation" ? "pending_evaluation" : submission.status === "submitted" ? "submitted" : "in_progress"),
-      updatedAt: new Date().toISOString(),
-    }, studentScope);
-  }
-  notifyDataUpdated({ type: "submission", slug, studentToken: studentScope });
+  writeJson(getLessonStateKey(slug, studentToken), nextState);
+  if (progressRecord) writeJson(progressKey(slug, studentToken), progressRecord);
+  notifyDataUpdated({ type: "submission", slug, studentToken });
+  const saved = await apiRequest<{ submission: ApiRecord }>("/api/student-data?resource=lesson-state", {
+    method: "POST",
+    body: JSON.stringify({ slug, state: nextState, progress: progressRecord, submissionId: nextState.submissionId }),
+  });
+  nextState.submissionId = saved.submission.id;
+  writeJson(getLessonStateKey(slug, studentToken), nextState);
   return nextState;
 }
 
@@ -809,10 +483,7 @@ export function saveStudentSubmissionDraft(
   submission: StudentSubmission,
   progress?: Partial<StudentProgressRecord>,
 ): Promise<PublishedLessonState> {
-  return persistStudentSubmission(slug, studentToken, { ...submission, status: "in_progress" }, {
-    ...progress,
-    status: "in_progress",
-  });
+  return persistStudentSubmission(slug, studentToken, { ...submission, status: "in_progress" }, { ...progress, status: "in_progress" });
 }
 
 export function submitStudentLesson(
@@ -831,180 +502,88 @@ export async function saveInstructorFeedback(
   submissionId?: string,
   isPublished = true,
 ): Promise<PublishedLessonState> {
-  const completedSteps: StudyStepId[] = ["warm_up", "lesson", "listening", "reading", "writing", "speaking", "results"];
-  const evaluatedAt = new Date().toISOString();
+  const studentId = studentToken?.trim() || "";
+  if (!UUID_PATTERN.test(studentId)) throw new Error("A valid selected student ID is required to save this evaluation.");
+  const lessonResult = await apiRequest<{ lesson: ApiRecord }>(
+    "/api/lessons?scope=one&id=" + encodeURIComponent(slug),
+  );
+  const lesson = lessonResult.lesson;
+  const submissions = await apiRequest<{ submissions?: ApiRecord[]; submission?: ApiRecord | null }>(
+    "/api/submissions?lessonId=" + encodeURIComponent(String(lesson.id)) + "&studentId=" + encodeURIComponent(studentId),
+  );
+  const submissionRows = submissions.submissions || (submissions.submission ? [submissions.submission] : []);
+  const target = submissionId
+    ? submissionRows.find((row) => row.id === submissionId)
+    : submissionRows[0];
+  if (!target?.id) throw new Error("No submission exists for this student and lesson.");
   const totalScore = Object.values(evaluation.scores).reduce<number>((total, score) => total + Number(score), 0);
   const savedEvaluation = { ...evaluation, totalScore, published: isPublished };
-  if (isSupabaseConfigured()) {
-    const studentId = studentToken?.trim() || "";
-    if (!UUID_PATTERN.test(studentId)) throw new Error("A valid selected student ID is required to save this evaluation.");
-    const user = await getAuthenticatedUser();
-    if (!user) throw new Error("An authenticated instructor is required to save this evaluation.");
-    const authenticatedInstructorId = user.id;
-    if (!UUID_PATTERN.test(authenticatedInstructorId)) {
-      throw new Error("The authenticated instructor ID is not a valid UUID.");
-    }
-
-    let lessonQuery = supabase.from("lessons").select("id,content,banner_url,status,instructor_id");
-    lessonQuery = UUID_PATTERN.test(slug)
-      ? lessonQuery.eq("id", slug)
-      : lessonQuery.eq("slug", slug);
-    const { data: lesson, error: lessonError } = await lessonQuery.maybeSingle();
-    if (lessonError) throw lessonError;
-    if (!lesson) throw new Error(`Lesson ${slug} could not be found for evaluation.`);
-    if (String(lesson.instructor_id) !== authenticatedInstructorId) {
-      throw new Error("The signed-in user is not the instructor assigned to this lesson.");
-    }
-
-    let submissionQuery = supabase
-      .from("submissions")
-      .select("id,answers,submitted_at,status")
-      .eq("lesson_id", lesson.id)
-      .eq("student_id", studentId);
-    if (submissionId) {
-      submissionQuery = submissionQuery.eq("id", submissionId);
-    } else {
-      submissionQuery = submissionQuery.order("submitted_at", { ascending: false }).limit(1);
-    }
-    const { data: existingSubmission, error: submissionError } = await submissionQuery.maybeSingle();
-    if (submissionError) throw submissionError;
-    if (!existingSubmission) throw new Error("No submission exists for this student and lesson.");
-
-    const answers = isPublished
-      ? removeUndefinedValues({
-        ...(existingSubmission.answers || {}),
+  const result = await apiRequest<{ evaluation?: LessonEvaluation }>("/api/evaluations", {
+    method: "POST",
+    body: JSON.stringify({ submissionId: target.id, evaluation: savedEvaluation, published: isPublished }),
+  });
+  const completedSteps: StudyStepId[] = ["warm_up", "lesson", "listening", "reading", "writing", "speaking", "results"];
+  if (isPublished) {
+    await apiRequest("/api/submissions", {
+      method: "PATCH",
+      body: JSON.stringify({
+        id: target.id,
         status: "evaluated",
-        progress: { currentStep: "results", completedSteps, completed: true, status: "evaluated" },
-      }) as Record<string, unknown>
-      : existingSubmission.answers || {};
-    const rubricFeedback = {
-      comments: savedEvaluation.criterionFeedback || {},
-      overallComments: savedEvaluation.comments,
-      stages: savedEvaluation.stageFeedback || {},
-      stageScores: savedEvaluation.stageScores || {},
-      stageRubricScales: savedEvaluation.stageRubricScales || {},
-      globalRubricScale: savedEvaluation.globalRubricScale || "ielts",
-      reportCardScoreOverrides: savedEvaluation.reportCardScoreOverrides || {},
-      taskFeedback: savedEvaluation.taskFeedback || {},
-      inlineCorrections: savedEvaluation.inlineCorrections || {},
-      stageVoiceFeedback: savedEvaluation.stageVoiceFeedback || {},
-    };
-    const { error: feedbackError } = isPublished
-      ? await supabase.from("instructor_feedback").upsert({
-        lesson_id: lesson.id,
-        student_id: studentId,
-        instructor_id: authenticatedInstructorId,
-        rubric_scores: savedEvaluation.scores,
-        total_score: savedEvaluation.totalScore,
-        criterion_feedback: rubricFeedback,
-        strengths: savedEvaluation.strengths,
-        areas_to_improve: savedEvaluation.areasToImprove,
-        study_hub_prescription: savedEvaluation.studyHubPrescription,
-        voice_feedback_url: savedEvaluation.voiceFeedbackUrl,
-        is_published: true,
-        updated_at: evaluatedAt,
-      }, { onConflict: "lesson_id,student_id" })
-      : await supabase.from("instructor_evaluation_drafts").upsert({
-        submission_id: existingSubmission.id,
-        lesson_id: lesson.id,
-        student_id: studentId,
-        instructor_id: authenticatedInstructorId,
-        evaluation: savedEvaluation,
-        updated_at: evaluatedAt,
-      }, { onConflict: "submission_id" });
-    if (feedbackError) throw feedbackError;
-
-    if (isPublished) {
-      const { error: statusError } = await supabase
-        .from("submissions")
-        .update({ status: "evaluated", answers })
-        .eq("id", existingSubmission.id)
-        .eq("lesson_id", lesson.id)
-        .eq("student_id", studentId);
-      if (statusError) throw statusError;
-    }
-    if (isPublished) {
-      const { error: draftError } = await supabase
-        .from("instructor_evaluation_drafts")
-        .delete()
-        .eq("submission_id", existingSubmission.id)
-        .eq("instructor_id", authenticatedInstructorId);
-      if (draftError) throw draftError;
-    }
-
-    const current = getState(slug, studentId);
-    const nextState: PublishedLessonState = {
-      content: current?.content || lesson.content || defaultContent(),
-      bannerUrl: current?.bannerUrl || lesson.banner_url || "",
-      studentProfile: current?.studentProfile || defaultProfile(),
-      evaluation: savedEvaluation,
-      status: lesson.status === "draft" ? "draft" : "published",
-      submission: mapSubmission({
-        answers,
-        status: isPublished ? "evaluated" : existingSubmission.status,
-        submitted_at: existingSubmission.submitted_at,
+        answers: {
+          ...(target.answers || {}),
+          status: "evaluated",
+          progress: { currentStep: "results", completedSteps, completed: true, status: "evaluated" },
+        },
       }),
-    };
-    if (isPublished) {
-      await saveLessonState(slug, nextState, studentId);
-      notifyDataUpdated({ type: "feedback", slug, studentToken: studentId });
-    }
-    return nextState;
+    });
   }
-
-  const current = getState(slug, studentToken);
+  const current = getState(slug, studentId);
   const nextState: PublishedLessonState = {
-    content: current?.content || defaultContent(),
-    bannerUrl: current?.bannerUrl || "",
+    content: current?.content || lesson.content || defaultContent(),
+    bannerUrl: current?.bannerUrl || lesson.banner_url || "",
     studentProfile: current?.studentProfile || defaultProfile(),
-    evaluation: savedEvaluation,
-    status: current?.status || "published",
-    submission: current?.submission
-      ? { ...current.submission, status: isPublished ? "evaluated" : current.submission.status }
-      : undefined,
+    evaluation: result.evaluation || savedEvaluation,
+    status: lesson.status === "draft" ? "draft" : "published",
+    submissionId: target.id,
+    submission: mapSubmission({
+      ...target,
+      ...(isPublished ? {
+        status: "evaluated",
+        answers: {
+          ...(target.answers || {}),
+          status: "evaluated",
+          progress: {
+            currentStep: "results",
+            completedSteps,
+            completed: true,
+            status: "evaluated",
+          },
+        },
+      } : {}),
+    }),
   };
   if (isPublished) {
-    await saveLessonState(slug, nextState, studentToken);
-  }
-  if (isPublished) {
-    await saveStudentProgress(slug, {
-      currentStep: "results",
-      completedSteps,
-      status: "evaluated",
-      updatedAt: evaluatedAt,
-    }, studentToken);
-  }
-  if (isPublished) {
-    notifyDataUpdated({ type: "feedback", slug, studentToken });
+    writeJson(getLessonStateKey(slug, studentId), nextState);
+    notifyDataUpdated({ type: "feedback", slug, studentToken: studentId });
   }
   return nextState;
+}
+
+async function uploadMediaBlob(blob: Blob, name: string): Promise<string> {
+  const form = new FormData();
+  form.set("file", blob, name);
+  const result = await apiRequest<{ url: string }>("/api/assets", { method: "POST", body: form });
+  return result.url;
 }
 
 export async function prepareMediaUrl(
   input: string | Blob,
   bucket: StorageMediaAsset["bucket"],
-  name = `media-${Date.now()}`
+  name = "media-" + Date.now()
 ): Promise<StorageMediaAsset> {
-  if (typeof input !== "string" && isSupabaseConfigured()) {
-    try {
-      const path = `${Date.now()}-${name}`;
-      const { error } = await supabase.storage.from(bucket).upload(path, input, { upsert: true, contentType: input.type || undefined });
-      if (!error) {
-        const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-        return { bucket, name: path, url: data.publicUrl, size: input.size, type: input.type };
-      }
-      throw error || new Error(`Unable to upload media to ${bucket}`);
-    } catch {
-      if (!demoDataEnabled()) throw new Error(`Unable to upload media to ${bucket}`);
-    }
-  }
-  const url = typeof input === "string" ? input : URL.createObjectURL(input);
-  return {
-    bucket,
-    name,
-    url,
-    ...(typeof input !== "string" ? { size: input.size, type: input.type } : {}),
-  };
+  if (typeof input === "string") return { bucket, name, url: input };
+  const url = await uploadMediaBlob(input, name);
+  return { bucket, name, url, size: input.size, type: input.type };
 }
 
 export async function uploadAudioSubmission(input: string | Blob, name?: string) {
@@ -1012,67 +591,14 @@ export async function uploadAudioSubmission(input: string | Blob, name?: string)
 }
 
 export async function uploadStudentAudio(input: string | Blob, studentId: string, name?: string) {
-  const safeId = studentId?.trim() || "anonymous";
-  const fileName = name ? `${safeId}/${Date.now()}-${name}` : `${safeId}/${Date.now()}-response.webm`;
-  const fallbackAsset = async (): Promise<StorageMediaAsset> => {
-    let url = "";
-    try {
-      url = typeof input === "string"
-        ? isPersistentMediaUrl(input) ? input : ""
-        : await blobToDataUrl(input);
-    } catch (error) {
-      console.warn("[Student Audio] Unable to create durable audio fallback.", error);
-    }
-    return {
-      bucket: "student-resources",
-      name: fileName,
-      url,
-      ...(typeof input !== "string" ? { size: input.size, type: input.type } : {}),
-    };
-  };
-  if (typeof input === "string") return fallbackAsset();
-  if (!isSupabaseConfigured()) return fallbackAsset();
-
-  const deadline = Date.now() + 2000;
-  const withTimeout = <T,>(request: PromiseLike<T>, timeoutMs: number, operation: string): Promise<T> => new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`${operation} timed out`)), timeoutMs);
-    Promise.resolve(request).then(resolve, reject).finally(() => clearTimeout(timer));
-  });
-
-  let candidates: Array<"student-resources" | "audio-submissions"> = ["student-resources", "audio-submissions"];
-  try {
-    const bucketList = await withTimeout(supabase.storage.listBuckets(), Math.min(1500, deadline - Date.now()), "Storage bucket lookup");
-    if (!bucketList.error) {
-      const available = new Set(bucketList.data.map((bucket) => bucket.name));
-      candidates = candidates.filter((bucket) => available.has(bucket));
-    }
-  } catch (error) {
-    console.warn("[Student Audio] Bucket lookup failed; trying configured audio buckets.", error);
+  const safeId = studentId?.trim() || "student";
+  const fileName = name ? safeId + "/" + Date.now() + "-" + name : safeId + "/" + Date.now() + "-response.webm";
+  if (typeof input === "string") {
+    if (!isPersistentMediaUrl(input)) throw new Error("Student audio must be uploaded before it can be saved.");
+    return { bucket: "student-resources" as const, name: fileName, url: input };
   }
-
-  for (const bucket of candidates) {
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) break;
-    try {
-      const path = `${Date.now()}-${fileName}`;
-      const { error } = await withTimeout(
-        supabase.storage.from(bucket).upload(path, input, { upsert: true, contentType: input.type || undefined }),
-        remaining,
-        `Audio upload to ${bucket}`,
-      );
-      if (error) {
-        console.warn(`[Student Audio] Upload to ${bucket} failed; trying fallback.`, error.message);
-        continue;
-      }
-      const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-      return { bucket, name: path, url: data.publicUrl, size: input.size, type: input.type };
-    } catch (error) {
-      console.warn(`[Student Audio] Upload to ${bucket} failed; trying fallback.`, error);
-    }
-  }
-
-  if (candidates.length === 0) console.warn("[Student Audio] No configured student audio bucket is available; using a durable audio data URL.");
-  return fallbackAsset();
+  const url = await uploadMediaBlob(input, fileName);
+  return { bucket: "student-resources" as const, name: fileName, url, size: input.size, type: input.type };
 }
 
 export async function uploadLessonMedia(input: string | Blob, name?: string) {
@@ -1080,129 +606,111 @@ export async function uploadLessonMedia(input: string | Blob, name?: string) {
 }
 
 export async function uploadLessonAsset(file: File, blockType: "image" | "audio" | "video" | "resource") {
-  const fileExtension = file.name.includes(".") ? `.${file.name.split(".").pop()}` : "";
-  const fileName = `${crypto.randomUUID()}${fileExtension}`;
-  const path = `${blockType}/${fileName}`;
-  const { error } = await supabase.storage.from("lesson-assets").upload(path, file, {
-    contentType: file.type || undefined,
-    upsert: false,
-  });
-  if (error) throw error;
-  const { data } = supabase.storage.from("lesson-assets").getPublicUrl(path);
-  return { url: data.publicUrl, path };
+  const fileExtension = file.name.includes(".") ? "." + file.name.split(".").pop() : "";
+  const fileName = crypto.randomUUID() + fileExtension;
+  const url = await uploadMediaBlob(file, blockType + "/" + fileName);
+  return { url, path: url };
 }
 
 export async function uploadVoiceFeedback(input: string | Blob, name?: string) {
   return prepareMediaUrl(input, "voice-feedback", name);
 }
 
+function mapVocabularyRow(row: ApiRecord): SavedVocabularyWord {
+  return {
+    word: row.word,
+    partOfSpeech: row.part_of_speech || row.partOfSpeech,
+    definition: row.definition,
+    example: row.example,
+    pronunciationUrl: row.pronunciation_url || row.pronunciationUrl,
+    source: row.source || "free-dictionary",
+    savedAt: row.saved_at || row.savedAt || new Date().toISOString(),
+  };
+}
+
 export async function fetchSavedVocabulary(studentToken?: string): Promise<SavedVocabularyWord[]> {
-  if (isSupabaseConfigured()) {
-    try {
-      const studentId = await getStudentId(studentToken);
-      if (studentId) {
-        const { data, error } = await supabase.from("user_vocab").select("*").eq("user_id", studentId).order("saved_at", { ascending: false });
-        if (!error && data) return data.map((row: SupabaseRow) => ({ word: row.word, partOfSpeech: row.part_of_speech || row.partOfSpeech, definition: row.definition, example: row.example, pronunciationUrl: row.pronunciation_url || row.pronunciationUrl, source: row.source || "free-dictionary", savedAt: row.saved_at || row.savedAt || new Date().toISOString() }));
-      }
-    } catch (error) {
-      if (!demoDataEnabled()) throw error;
-    }
+  try {
+    const result = await apiRequest<{ words: ApiRecord[] }>("/api/student-data?resource=vocabulary");
+    const words = (result.words || []).map(mapVocabularyRow);
+    writeJson(scopedKey(VOCAB_PREFIX, studentToken), words);
+    return words;
+  } catch (error) {
+    cacheReadError(error, "Saved vocabulary");
+    return readJson<SavedVocabularyWord[]>(scopedKey(VOCAB_PREFIX, studentToken)) || [];
   }
-  if (isSupabaseConfigured() && !demoDataEnabled()) {
-    console.warn("Vocabulary unavailable from Supabase; using an empty vocabulary list.");
-    return [];
-  }
-  return readJson<SavedVocabularyWord[]>(scopedKey(VOCAB_PREFIX, studentToken)) || [];
 }
 
 export async function saveVocabularyWord(studentToken: string | undefined, word: SavedVocabularyWord): Promise<SavedVocabularyWord[]> {
   const current = await fetchSavedVocabulary(studentToken);
   const next = [word, ...current.filter((item) => item.word.toLowerCase() !== word.word.toLowerCase())];
-  if (isSupabaseConfigured()) {
-    try {
-      const studentId = await getStudentId(studentToken);
-      if (studentId) {
-        const { error } = await supabase.from("user_vocab").upsert({ user_id: studentId, word: word.word, part_of_speech: word.partOfSpeech, definition: word.definition, example: word.example, pronunciation_url: word.pronunciationUrl, source: word.source, saved_at: word.savedAt }, { onConflict: "user_id,word" });
-        if (!error) return next;
-        console.warn("Vocabulary Supabase upsert failed, falling back to local:", error.message);
-      }
-    } catch (error) {
-      console.warn("Vocabulary save Supabase error, falling back to local:", error);
-      if (!demoDataEnabled()) {
-        // fall through to local fallback instead of throwing red screen
-      }
-    }
-  }
   writeJson(scopedKey(VOCAB_PREFIX, studentToken), next);
-  return next;
+  try {
+    const saved = await apiRequest<{ word: ApiRecord }>("/api/student-data?resource=vocabulary", {
+      method: "POST",
+      body: JSON.stringify({
+        word: word.word, part_of_speech: word.partOfSpeech, definition: word.definition, example: word.example,
+        pronunciation_url: word.pronunciationUrl, source: word.source, saved_at: word.savedAt,
+      }),
+    });
+    const normalized = mapVocabularyRow(saved.word);
+    const persisted = [normalized, ...current.filter((item) => item.word.toLowerCase() !== normalized.word.toLowerCase())];
+    writeJson(scopedKey(VOCAB_PREFIX, studentToken), persisted);
+    return persisted;
+  } catch (error) {
+    throw new Error("Vocabulary was cached offline but could not be saved to the server: " + (error instanceof Error ? error.message : String(error)));
+  }
 }
 
 export async function removeVocabularyWord(studentToken: string | undefined, word: string): Promise<SavedVocabularyWord[]> {
   const next = (await fetchSavedVocabulary(studentToken)).filter((item) => item.word.toLowerCase() !== word.toLowerCase());
-  if (isSupabaseConfigured()) {
-    try {
-      const studentId = await getStudentId(studentToken);
-      if (studentId) {
-        const { error } = await supabase.from("user_vocab").delete().eq("user_id", studentId).eq("word", word);
-        if (!error) return next;
-      }
-    } catch (error) {
-      if (!demoDataEnabled()) throw error;
-    }
-  }
-  if (isSupabaseConfigured() && !demoDataEnabled()) throw new Error("Unable to remove vocabulary from Supabase");
   writeJson(scopedKey(VOCAB_PREFIX, studentToken), next);
-  return next;
+  try {
+    await apiRequest("/api/student-data?resource=vocabulary&word=" + encodeURIComponent(word), { method: "DELETE" });
+    return next;
+  } catch (error) {
+    throw new Error("Vocabulary removal was cached offline but could not be saved to the server: " + (error instanceof Error ? error.message : String(error)));
+  }
+}
+
+function mapNoteRow(row: ApiRecord): StudentNote {
+  return { id: row.id, text: row.text, lessonSlug: row.lesson_slug || row.lessonSlug, updatedAt: row.updated_at || new Date().toISOString() };
 }
 
 export async function fetchStudentNotes(studentToken?: string): Promise<StudentNote[]> {
-  if (isSupabaseConfigured()) {
-    try {
-      const studentId = await getStudentId(studentToken);
-      if (studentId) {
-        const { data, error } = await supabase.from("user_notes").select("*").eq("user_id", studentId).order("updated_at", { ascending: false });
-        if (!error && data) return data.map((row: SupabaseRow) => ({ id: row.id, text: row.text, lessonSlug: row.lesson_slug || row.lessonSlug, updatedAt: row.updated_at || new Date().toISOString() }));
-      }
-    } catch (error) {
-      if (!demoDataEnabled()) throw error;
-    }
+  try {
+    const result = await apiRequest<{ notes: ApiRecord[] }>("/api/student-data?resource=notes");
+    const notes = (result.notes || []).map(mapNoteRow);
+    writeJson(scopedKey(NOTES_PREFIX, studentToken), notes);
+    return notes;
+  } catch (error) {
+    cacheReadError(error, "Student notes");
+    return readJson<StudentNote[]>(scopedKey(NOTES_PREFIX, studentToken)) || [];
   }
-  if (isSupabaseConfigured() && !demoDataEnabled()) {
-    console.warn("Notes unavailable from Supabase; using an empty notes list.");
-    return [];
-  }
-  return readJson<StudentNote[]>(scopedKey(NOTES_PREFIX, studentToken)) || [];
 }
 
 export async function saveStudentNote(studentToken: string | undefined, note: StudentNote): Promise<StudentNote[]> {
   const current = await fetchStudentNotes(studentToken);
   const next = [note, ...current.filter((item) => item.id !== note.id)];
-  if (isSupabaseConfigured()) {
-    try {
-      const studentId = await getStudentId(studentToken);
-      if (studentId) {
-        const { error } = await supabase.from("user_notes").upsert({ id: note.id, user_id: studentId, text: note.text, lesson_slug: note.lessonSlug, updated_at: note.updatedAt }, { onConflict: "id" });
-        if (!error) return next;
-      }
-    } catch (error) {
-      if (!demoDataEnabled()) throw error;
-    }
-  }
-  if (isSupabaseConfigured() && !demoDataEnabled()) throw new Error("Unable to save notes to Supabase");
   writeJson(scopedKey(NOTES_PREFIX, studentToken), next);
-  return next;
+  try {
+    const saved = await apiRequest<{ note: ApiRecord }>("/api/student-data?resource=notes", {
+      method: "POST",
+      body: JSON.stringify({ id: note.id, text: note.text, lesson_slug: note.lessonSlug, updated_at: note.updatedAt }),
+    });
+    const normalized = mapNoteRow(saved.note);
+    const persisted = [normalized, ...current.filter((item) => item.id !== normalized.id)];
+    writeJson(scopedKey(NOTES_PREFIX, studentToken), persisted);
+    return persisted;
+  } catch (error) {
+    throw new Error("Note was cached offline but could not be saved to the server: " + (error instanceof Error ? error.message : String(error)));
+  }
 }
 
 export async function fetchChatMessages(studentToken?: string): Promise<ChatMessage[]> {
-  if (isSupabaseConfigured() && !demoDataEnabled()) {
-    console.warn("Chat history is managed by the Supabase chat widgets; returning an empty fallback for legacy callers.");
-    return [];
-  }
   return readJson<ChatMessage[]>(scopedKey(CHAT_PREFIX, studentToken)) || [];
 }
 
 export async function saveChatMessage(studentToken: string | undefined, message: ChatMessage): Promise<ChatMessage[]> {
-  if (isSupabaseConfigured() && !demoDataEnabled()) throw new Error("Chat messages must be saved through Supabase chat widgets");
   const next = [...await fetchChatMessages(studentToken), message];
   writeJson(scopedKey(CHAT_PREFIX, studentToken), next);
   return next;
@@ -1213,6 +721,5 @@ export async function fetchStudentTheme(studentToken?: string): Promise<"dark" |
 }
 
 export async function saveStudentTheme(studentToken: string | undefined, theme: "dark" | "light"): Promise<void> {
-  if (isSupabaseConfigured() && !demoDataEnabled()) throw new Error("Theme persistence is not configured in Supabase");
   writeJson(scopedKey(THEME_PREFIX, studentToken), theme);
 }

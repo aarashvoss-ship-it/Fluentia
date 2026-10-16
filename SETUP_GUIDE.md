@@ -269,8 +269,8 @@ export function MyComponent() {
 - Check user authentication
 
 ### Issue: Changes don't persist after refresh
-**Cause:** Optimistic update succeeded, but Supabase save failed silently
-**Solution:** Check browser console for errors, verify RLS policies
+**Cause:** The authenticated PostgreSQL API rejected the save or the database schema is unavailable.
+**Solution:** Check the browser network response and server logs for the API error, then verify the PostgreSQL connection and runtime schema initialization.
 
 ### Issue: Version numbers not incrementing
 **Cause:** Content hasn't actually changed
@@ -278,8 +278,8 @@ export function MyComponent() {
 
 ## Next Steps
 
-1. **Complete the data migration** - Move remaining Supabase queries, storage, and RLS-protected access to the native PostgreSQL/session model.
-2. **Migrate account provisioning** - Replace remaining Supabase Auth Admin calls and onboard existing accounts to native password hashes.
+1. **Verify PostgreSQL deployments** - Confirm the runtime schema initializes successfully in each environment and retain backups before retiring legacy Supabase tables.
+2. **Review legacy migrations** - Remove or archive obsolete Supabase-specific policies only after confirming no deployed environment depends on them.
 3. **Add real-time updates** - Choose a realtime service compatible with the PostgreSQL migration.
 4. **Implement caching** - Add React Query or SWR for better performance.
 5. **Add audit logging and backups** - Track changes and establish regular database exports.

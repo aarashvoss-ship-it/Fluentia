@@ -389,7 +389,7 @@ export function LessonTailorEditor({
     }
   }, [content]);
 
-  // Wrapper to handle both local state and Supabase sync
+  // Wrapper to handle local state and PostgreSQL-backed lesson updates.
   const handleChange = (updatedContent: StrictStepContent) => {
     localUpdatePendingRef.current = true;
     draftContentRef.current = updatedContent;
@@ -457,7 +457,7 @@ export function LessonTailorEditor({
     const blocks = getBlocks(step).map((block, blockIndex) => blockIndex === index ? { ...block, ...patch } as ContentBlock : block);
     updateBlocks(step, blocks);
     
-    // Sync to Supabase after the local draft has rendered the change.
+    // Save after the local draft has rendered the change.
     const block = blocks[index];
     if (block) {
       updateBlock(step, block.id, patch).catch((error: any) => {
@@ -689,7 +689,7 @@ export function LessonTailorEditor({
       // Update local state
       updateBlocks(step, nextBlocks);
       
-      // Sync to Supabase
+      // Persist the change.
       reorderBlocks(step, index, nextIndex).catch((error: any) => {
         console.error("Failed to reorder blocks:", error);
       });
@@ -700,7 +700,7 @@ export function LessonTailorEditor({
       const newBlock = createBlock(type);
       updateBlocks(step, [...blocks, newBlock]);
       
-      // Sync to Supabase
+      // Persist the change.
       addBlock(step, newBlock).catch((error: any) => {
         console.error("Failed to add block:", error);
       });
@@ -727,7 +727,7 @@ export function LessonTailorEditor({
       });
       updateBlocks(step, blocks.filter((_, blockIndex) => blockIndex !== index));
       
-      // Sync to Supabase
+      // Persist the change.
       deleteBlock(step, blockId).catch((error: any) => {
         console.error("Failed to delete block:", error);
       });

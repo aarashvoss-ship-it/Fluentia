@@ -2,8 +2,6 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { MessageCircle, Send, X } from "lucide-react";
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import { resolveUserUuid } from "@/lib/identity";
 import { ChatMessage } from "@/types/lesson";
 
 interface ChatWidgetProps {
@@ -14,6 +12,8 @@ interface ChatWidgetProps {
 
 interface MessageRow {
   id: string;
+  student_id: string | null;
+  instructor_id: string;
   sender_id: string;
   receiver_id: string;
   tab_type: "active" | "support";
@@ -60,82 +60,79 @@ export function ChatWidget({ messages, onSend, instructorId }: ChatWidgetProps) 
   const [text, setText] = useState("");
   const [remoteMessages, setRemoteMessages] = useState<ChatMessage[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [resolvedStudentId, setResolvedStudentId] = useState("");
-  const [resolvedInstructorId, setResolvedInstructorId] = useState(instructorId || "");
+  const [apiMode, setApiMode] = useState(false);
   const openRef = useRef(false);
   const tabRef = useRef(tab);
+  const seenMessageIds = useRef(new Set<string>());
+  const hasLoadedMessages = useRef(false);
 
   useEffect(() => {
     tabRef.current = tab;
   }, [tab]);
 
   useEffect(() => {
-    if (!isSupabaseConfigured()) return;
-    void resolveUserUuid().then(async (studentUuid) => {
-      if (!studentUuid) return;
-      setResolvedStudentId(studentUuid);
-      if (instructorId) {
-        setResolvedInstructorId(instructorId);
-        return;
-      }
-      const { data } = await supabase.from("profiles").select("id").eq("role", "instructor").limit(1).maybeSingle();
-      if (data?.id) setResolvedInstructorId(data.id);
-    }).catch((error) => console.error("Unable to resolve chat identities:", error));
-  }, [instructorId]);
-
-  useEffect(() => {
-    if (!isSupabaseConfigured() || !resolvedStudentId) return;
     let cancelled = false;
+    let loading = false;
     const loadMessages = async () => {
-      const { data, error } = await supabase.from("messages")
-        .select("id, sender_id, receiver_id, tab_type, content, created_at")
-        .order("created_at", { ascending: true });
-      if (!cancelled && !error && data) setRemoteMessages((data as MessageRow[]).map((row) => toChatMessage(row, resolvedStudentId)));
+      if (loading) return;
+      loading = true;
+      try {
+        const response = await fetch("/api/chat", { cache: "no-store", credentials: "same-origin" });
+        if (!response.ok) return;
+        const result = await response.json() as { messages: MessageRow[]; currentUserId: string; instructorId: string | null };
+        if (cancelled) return;
+        setApiMode(true);
+        const rows = Array.isArray(result.messages) ? result.messages : [];
+        if (hasLoadedMessages.current) {
+          const incoming = rows.filter((row) => row.sender_id !== result.currentUserId && !seenMessageIds.current.has(row.id));
+          if (incoming.length) {
+            incoming.forEach(() => triggerChime());
+            const unread = incoming.filter((row) => !openRef.current || (row.tab_type === "support" ? "support" : "instructor") !== tabRef.current).length;
+            if (unread) setUnreadCount((count) => count + unread);
+          }
+        }
+        rows.forEach((row) => seenMessageIds.current.add(row.id));
+        hasLoadedMessages.current = true;
+        setRemoteMessages(rows.map((row) => toChatMessage(row, result.currentUserId)));
+      } catch (error) {
+        if (!cancelled) console.error("Unable to load chat messages:", error);
+      } finally {
+        loading = false;
+      }
     };
     void loadMessages();
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-    const subscriptionTimer = window.setTimeout(() => {
-      if (cancelled) return;
-      channel = supabase.channel("public:messages")
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
-          const row = payload.new as MessageRow;
-          if (row.sender_id !== resolvedStudentId && row.receiver_id !== resolvedStudentId && row.tab_type !== "support") return;
-          const message = toChatMessage(row, resolvedStudentId);
-          setRemoteMessages((current) => appendUnique(current, message));
-          if (row.sender_id === resolvedStudentId) return;
-          triggerChime();
-          if (!openRef.current || row.tab_type !== tabRef.current) setUnreadCount((count) => count + 1);
-        })
-        .subscribe();
-    }, 0);
+    const pollTimer = window.setInterval(() => { void loadMessages(); }, 5000);
     return () => {
       cancelled = true;
-      window.clearTimeout(subscriptionTimer);
-      if (channel) void supabase.removeChannel(channel);
+      window.clearInterval(pollTimer);
     };
-  }, [resolvedStudentId]);
+  }, [instructorId]);
 
-  const visible = (isSupabaseConfigured() ? remoteMessages : messages).filter((message) => message.tab === tab);
+  const visible = (apiMode ? remoteMessages : messages).filter((message) => message.tab === tab);
 
   async function send(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmedText = text.trim();
     if (!trimmedText) return;
-    if (isSupabaseConfigured()) {
-      const [senderUuid, receiverUuid] = await Promise.all([
-        resolveUserUuid(),
-        Promise.resolve(resolvedInstructorId || null),
-      ]);
-      if (!senderUuid || !receiverUuid) return;
-      const { data, error } = await supabase.from("messages").insert({
-        sender_id: senderUuid,
-        receiver_id: receiverUuid,
-        tab_type: tab === "support" ? "support" : "active",
-        content: trimmedText,
-      }).select("id, sender_id, receiver_id, tab_type, content, created_at").single();
-      if (error || !data) return;
-      setRemoteMessages((current) => appendUnique(current, toChatMessage(data as MessageRow, senderUuid)));
-    } else {
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tab, content: trimmedText, instructorId }),
+      });
+      if (response.status === 401) {
+        onSend({ id: `${Date.now()}`, tab, text: trimmedText, sender: "student", createdAt: new Date().toISOString() });
+      } else if (!response.ok) {
+        return;
+      } else {
+        const result = await response.json() as { message: MessageRow; currentUserId: string };
+        setApiMode(true);
+        setRemoteMessages((current) => appendUnique(current, toChatMessage(result.message, result.currentUserId)));
+        seenMessageIds.current.add(result.message.id);
+      }
+    } catch (error) {
+      console.error("Unable to send chat message:", error);
       onSend({ id: `${Date.now()}`, tab, text: trimmedText, sender: "student", createdAt: new Date().toISOString() });
     }
     setText("");

@@ -335,7 +335,7 @@ useEffect(() => {
   studentId={student.id}
   instructorId={auth.user.id}
   studentName={student.name}
-  useSupabase={true} // Uses service functions internally
+  usePostgres={true} // Uses the authenticated PostgreSQL API
 />
 
 /**
@@ -344,7 +344,7 @@ useEffect(() => {
 <StudentContextPanel
   studentId={student.id}
   lessonId={lesson.id}
-  useSupabase={true} // Fetches real data
+  usePostgres={true} // Fetches real data from PostgreSQL
 />
 
 /**

@@ -6,7 +6,6 @@ import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { isDataTableResourceTitle } from "@/components/shared/data-table-resource";
 import { getStudyHubResourceHref, StudyHubDownloadButton, StudyHubFlashcardDeck, StudyHubResourceCard, type StudyHubResource } from "@/components/shared/study-hub-resource-card";
 import { Tooltip } from "@/components/shared/tooltip";
-import { supabase } from "@/lib/supabaseClient";
 import { SavedVocabularyWord, StudentNote } from "@/types/lesson";
 
 export type LearningTab = "vocab" | "notes" | "reading" | "flashcards" | "quizzes" | "audio" | "video" | "image" | "data_table" | "files" | "links";
@@ -231,37 +230,17 @@ export function LearningSidebar({
     setResourcesLoading(true);
     setResourcesError(null);
     const loadResources = async () => {
-      const query = supabase.from("student_resources").select("*");
-      const studentResourcesResult = studentId
-        ? await query.eq("student_id", studentId).eq("lesson_id", activeLessonId).order("created_at", { ascending: false })
-        : await query.eq("student_token", studentToken!).eq("lesson_id", activeLessonId).order("created_at", { ascending: false });
-      const lessonResourcesResult = studentId
-        ? await supabase.from("student_lesson_resources").select("id, resource, created_at").eq("student_id", studentId).eq("lesson_id", activeLessonId).order("created_at", { ascending: false })
-        : await supabase.from("student_lesson_resources").select("id, resource, created_at").eq("student_token", studentToken!).eq("lesson_id", activeLessonId).order("created_at", { ascending: false });
+      const response = await fetch(`/api/student-resources?lessonId=${encodeURIComponent(activeLessonId)}`, {
+        cache: "no-store",
+      });
       if (cancelled) return;
-      if (studentResourcesResult.error || lessonResourcesResult.error) {
+      if (!response.ok) {
         setResourcesError("Your assigned materials could not be loaded.");
         setAssignedResources([]);
-        console.error("Unable to load assigned student resources:", studentResourcesResult.error || lessonResourcesResult.error);
+        console.error("Unable to load assigned student resources:", response.status);
       } else {
-        const lessonResources = (lessonResourcesResult.data || []).flatMap((entry) => {
-          if (!entry.resource || typeof entry.resource !== "object") return [];
-          const resource = entry.resource as Partial<StudentResource>;
-          if (typeof resource.title !== "string" || typeof resource.resource_type !== "string") return [];
-          return [{
-            ...resource,
-            id: String(entry.id),
-            lesson_id: activeLessonId,
-            resource_type: resource.resource_type as StudentResource["resource_type"],
-            title: resource.title,
-            created_at: entry.created_at,
-          } as StudentResource];
-        });
-        const byId = new Map<string, StudentResource>();
-        [...lessonResources, ...((studentResourcesResult.data || []) as StudentResource[])].forEach((resource) => {
-          byId.set(resource.id, resource);
-        });
-        setAssignedResources([...byId.values()]);
+        const result = await response.json() as { resources?: StudentResource[] };
+        setAssignedResources(Array.isArray(result.resources) ? result.resources : []);
       }
       setResourcesLoading(false);
       setResourcesReady(true);

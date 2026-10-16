@@ -14,7 +14,7 @@ interface StudentContextPanelProps {
   lessonId?: string;
   studentId?: string;
   studentToken?: string;
-  useSupabase?: boolean;
+  usePostgres?: boolean;
 }
 
 export function StudentContextPanel({
@@ -25,7 +25,7 @@ export function StudentContextPanel({
   lessonId,
   studentId,
   studentToken,
-  useSupabase = true,
+  usePostgres = true,
 }: StudentContextPanelProps) {
   const displayProfile: StudentProfile = profile || {
     id: studentId,
@@ -46,12 +46,12 @@ export function StudentContextPanel({
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileSaveMessage, setProfileSaveMessage] = useState<string | null>(null);
 
-  // Load submission and evaluation data if useSupabase is enabled
+  // Load submission and evaluation data when PostgreSQL loading is enabled.
   useEffect(() => {
-    if (useSupabase && lessonId && studentId) {
+    if (usePostgres && lessonId && studentId) {
       loadSubmissionAndEvaluation();
     }
-  }, [lessonId, studentId, useSupabase]);
+  }, [lessonId, studentId, usePostgres]);
 
   const loadSubmissionAndEvaluation = async () => {
     setIsLoading(true);
@@ -206,8 +206,8 @@ export function StudentContextPanel({
           </button>
         </div>
 
-        {/* Submission & Evaluation Status (Supabase) */}
-        {useSupabase && lessonId && studentId && (
+        {/* Submission and evaluation status */}
+        {usePostgres && lessonId && studentId && (
           <div className="pt-4 border-t border-border">
             <div className="flex items-center gap-2 mb-3">
               <History className="w-3.5 h-3.5 text-amber-400" />

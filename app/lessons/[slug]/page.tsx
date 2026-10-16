@@ -7,9 +7,9 @@ import { ChatMessage, ContentBlock, SavedVocabularyWord, StudentNote, StudyStepI
 import { getLessonById, type LessonWithVersion } from "@/lib/lessons";
 import { getLessonStateKey, PublishedLessonState, writeLastAccessedLesson } from "@/lib/lesson-store";
 import { getAuthenticatedUser } from "@/lib/identity";
+import { getStudentProfile } from "@/lib/student-profiles";
 import { fetchLesson, fetchLessonState, fetchSavedVocabulary, fetchStudentNotes, fetchStudentProgress, markStudentEvaluationAsViewed, saveChatMessage, saveStudentNote, saveStudentSubmissionDraft, submitStudentLesson, removeVocabularyWord, saveVocabularyWord } from "@/services/storage-service";
 import { FLUENTIA_USERS, INSTRUCTOR_USER, type StudentUser } from "@/lib/users";
-import { supabase } from "@/lib/supabase";
 import { Stepper } from "@/components/study-room/stepper";
 import { CelebrationModal, StepResult } from "@/components/study-room/celebration-modal";
 import { DictionaryModal } from "@/components/study-room/dictionary-modal";
@@ -364,27 +364,13 @@ export default function LessonPage() {
           return;
         }
 
-        const [studentResult, profileResult] = await Promise.all([
-          supabase.from("students").select("name, email, token").eq("id", user.id).maybeSingle(),
-          supabase.from("profiles").select("full_name, banner_url").eq("id", user.id).maybeSingle(),
-        ]);
+        const profile = await getStudentProfile(user.id);
         if (!isCurrentRequest()) return;
-
-        const { data: studentRecord, error: studentError } = studentResult;
-        const { data: profile, error: profileError } = profileResult;
-        if (studentError) console.warn("Unable to load canonical student profile:", studentError);
-        if (profileError) console.warn("Unable to load user profile:", profileError);
-        if (studentError?.code === "42501" || /permission|row-level security|rls/i.test(studentError?.message || "")) {
-          console.error("RLS or permission error reading students for authenticated user:", studentError);
-        }
-        if (profileError?.code === "42501" || /permission|row-level security|rls/i.test(profileError?.message || "")) {
-          console.error("RLS or permission error reading profiles for authenticated user:", profileError);
-        }
 
         const firstNonEmpty = (...values: unknown[]) => values.find(
           (value): value is string => typeof value === "string" && value.trim().length > 0,
         )?.trim() || "Student";
-        const email = firstNonEmpty(studentRecord?.email, user.email, "");
+        const email = firstNonEmpty(profile?.email, user.email, "");
         const emailName = email.includes("@")
           ? email.split("@")[0].replace(/[._-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
           : "";
@@ -393,8 +379,7 @@ export default function LessonPage() {
           : undefined;
         const userMetadata: Record<string, unknown> = {};
         const name = firstNonEmpty(
-          studentRecord?.name,
-          profile?.full_name,
+          profile?.fullName,
           user.name,
           localUser?.name,
           emailName,
@@ -402,20 +387,20 @@ export default function LessonPage() {
         );
         const student: StudentUser = {
           id: user.id,
-          token: studentRecord?.token || user.id,
+          token: user.id,
           name,
           email,
           role: "student",
           profile: {
             id: user.id,
             fullName: name,
-            level: "",
-            targetGoal: "",
+            level: profile?.level || "",
+            targetGoal: profile?.targetGoal || "",
             bannerUrl: getFirstNonEmptyBannerUrl(
-              profile?.banner_url,
+              profile?.bannerUrl,
             ),
             customBannerUrl: getFirstNonEmptyBannerUrl(
-              profile?.banner_url,
+              profile?.bannerUrl,
             ),
             bannerPosition: normalizeBannerPosition(
               userMetadata.bannerPosition ?? userMetadata.banner_position,
@@ -425,8 +410,8 @@ export default function LessonPage() {
                 ?? userMetadata.banner_dimness
                 ?? userMetadata.dashboard_banner_dimness,
             ),
-            weaknesses: [],
-            teacherNotes: "",
+            weaknesses: profile?.weaknesses || [],
+            teacherNotes: profile?.teacherNotes || "",
             attendanceRate: 0,
             completedModulesCount: 0,
           },

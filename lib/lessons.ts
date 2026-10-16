@@ -1,17 +1,35 @@
-import { type LessonRow, type LessonVersionRow, isSupabaseConfigured } from "@/lib/supabase";
-import { supabase } from "@/lib/supabaseClient";
-import { getAuthenticatedUser } from "@/lib/identity";
 import type { StudentId } from "@/types/database";
-import type { LessonContent, InstructorLessonMock, LessonResource } from "@/types/lesson";
+import type { InstructorLessonMock, LessonContent, LessonResource } from "@/types/lesson";
 
-/**
- * Service layer for lesson management with Supabase integration.
- * Provides functions to fetch, create, and update lessons with version control.
- */
+export interface LessonRow {
+  id: string;
+  title: string;
+  subtitle?: string | null;
+  module_number?: number | null;
+  banner_url?: string | null;
+  slug?: string | null;
+  instructor_note?: string | null;
+  subject: string | null;
+  grade: string | null;
+  status: "draft" | "published" | "evaluated";
+  student_id: StudentId | null;
+  student_token?: string | null;
+  instructor_id: string | null;
+  tags: Record<string, unknown>;
+  assigned_all_students?: boolean;
+  is_published?: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
-// ============================================================================
-// Types
-// ============================================================================
+export interface LessonVersionRow {
+  id: string;
+  lesson_id: string;
+  version_number: number;
+  content: Record<string, any>;
+  changes_summary: string | null;
+  created_at: string;
+}
 
 export interface CreateLessonInput {
   title: string;
@@ -63,6 +81,191 @@ export interface LessonAssignmentResourceOptions {
   customResourcesByStudentId?: Record<string, LessonAssignmentCustomResource[]>;
 }
 
+export interface LessonTags {
+  domain: string;
+  skill_focus: string;
+  practice_type: string;
+  custom: string[];
+}
+
+export interface LessonWithVersion extends LessonRow {
+  current_version?: LessonVersionRow;
+  content?: Record<string, any>;
+  assigned_student_ids?: string[];
+}
+
+export const BENCHMARK_LESSON_ID = "b1b10001-1001-4001-8001-000000000001";
+export const BENCHMARK_LESSON_SLUG = "the-architecture-of-daily-habits-b1";
+
+async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, {
+    credentials: "same-origin",
+    ...init,
+    headers: {
+      ...(init?.body ? { "Content-Type": "application/json" } : {}),
+      ...init?.headers,
+    },
+  });
+  const result = await response.json().catch(() => ({})) as T & { error?: string };
+  if (!response.ok) throw new Error(result.error || `Lesson request failed (${response.status}).`);
+  return result;
+}
+
+function emitLessonUpdated() {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("fluentia:lesson-updated"));
+}
+
+export function resolveLessonContent(lesson: LessonWithVersion, version: LessonVersionRow | null) {
+  const direct = lesson.content && typeof lesson.content === "object" ? lesson.content : undefined;
+  const versionContent = version?.content && typeof version.content === "object" ? version.content : undefined;
+  const versionTitle = typeof versionContent?.title === "string" ? versionContent.title.trim() : "";
+  const lessonTitle = typeof lesson.title === "string" ? lesson.title.trim() : "";
+  return versionTitle && lessonTitle && versionTitle.replace(/\s+/g, " ") !== lessonTitle.replace(/\s+/g, " ")
+    ? direct || {}
+    : versionContent || direct || {};
+}
+
+export async function getLatestLessonVersion(lessonId: string): Promise<LessonVersionRow | null> {
+  const result = await apiRequest<{ versions: LessonVersionRow[] }>(
+    `/api/lessons?scope=versions&lessonId=${encodeURIComponent(lessonId)}`,
+  );
+  return result.versions.at(-1) || null;
+}
+
+export async function getLessonBaseById(idOrSlug: string): Promise<LessonWithVersion | null> {
+  try {
+    const result = await apiRequest<{ lesson: LessonWithVersion }>(
+      `/api/lessons?scope=one&id=${encodeURIComponent(idOrSlug)}`,
+    );
+    return result.lesson;
+  } catch (error) {
+    if (error instanceof Error && error.message === "Lesson not found.") return null;
+    throw error;
+  }
+}
+
+export async function getLessons(): Promise<LessonWithVersion[]> {
+  const result = await apiRequest<{ lessons: LessonWithVersion[] }>("/api/lessons?scope=all");
+  return result.lessons;
+}
+
+export async function getLessonById(idOrSlug = BENCHMARK_LESSON_SLUG): Promise<LessonWithVersion | null> {
+  return getLessonBaseById(idOrSlug);
+}
+
+export async function getLessonsByStudentId(studentId: string): Promise<LessonWithVersion[]> {
+  const result = await apiRequest<{ lessons: LessonWithVersion[] }>(
+    `/api/lessons?scope=student&studentId=${encodeURIComponent(studentId)}`,
+  );
+  return result.lessons;
+}
+
+export async function getLessonsByInstructorId(instructorId: string): Promise<LessonWithVersion[]> {
+  const result = await apiRequest<{ lessons: LessonWithVersion[] }>(
+    `/api/lessons?scope=instructor&instructorId=${encodeURIComponent(instructorId)}`,
+  );
+  return result.lessons;
+}
+
+export async function setLessonAssignments(
+  lessonId: string,
+  studentIds: string[],
+  resourceOptions?: LessonAssignmentResourceOptions,
+  resourceStudentIds?: string[],
+): Promise<LessonWithVersion> {
+  const result = await apiRequest<{ lesson: LessonWithVersion }>("/api/lessons", {
+    method: "PATCH",
+    body: JSON.stringify({
+      action: "assignments",
+      id: lessonId,
+      studentIds,
+      resourceOptions,
+      resourceStudentIds,
+      summary: "Updated lesson assignments",
+    }),
+  });
+  emitLessonUpdated();
+  return result.lesson;
+}
+
+export async function assignLessonToStudent(lessonId: string, studentId: string): Promise<LessonWithVersion> {
+  return setLessonAssignments(lessonId, [studentId]);
+}
+
+export async function publishLessonAndAssign(lessonId: string, studentId: string, instructorId: string): Promise<void> {
+  await apiRequest<{ lesson: LessonWithVersion }>("/api/lessons", {
+    method: "PATCH",
+    body: JSON.stringify({ action: "publish", id: lessonId, studentId, instructorId }),
+  });
+  emitLessonUpdated();
+}
+
+export async function assignLessonToAllActiveStudents(
+  lessonId: string,
+  studentIds: string[] = [],
+  resourceOptions?: LessonAssignmentResourceOptions,
+): Promise<LessonWithVersion> {
+  const result = await apiRequest<{ lesson: LessonWithVersion }>("/api/lessons", {
+    method: "PATCH",
+    body: JSON.stringify({
+      action: "assignments",
+      id: lessonId,
+      studentIds,
+      assignAll: true,
+      resourceOptions,
+      summary: "Assigned to all active students",
+    }),
+  });
+  emitLessonUpdated();
+  return result.lesson;
+}
+
+export async function unassignLesson(lessonId: string): Promise<LessonWithVersion> {
+  const result = await apiRequest<{ lesson: LessonWithVersion }>("/api/lessons", {
+    method: "PATCH",
+    body: JSON.stringify({ action: "assignments", id: lessonId, studentIds: [], summary: "Unassigned lesson" }),
+  });
+  emitLessonUpdated();
+  return result.lesson;
+}
+
+export async function createLesson(input: CreateLessonInput): Promise<LessonWithVersion> {
+  const result = await apiRequest<{ lesson: LessonWithVersion }>("/api/lessons", {
+    method: "POST",
+    body: JSON.stringify({ input }),
+  });
+  emitLessonUpdated();
+  return result.lesson;
+}
+
+export async function updateLesson(id: string, input: UpdateLessonInput): Promise<LessonWithVersion> {
+  const result = await apiRequest<{ lesson: LessonWithVersion }>("/api/lessons", {
+    method: "PATCH",
+    body: JSON.stringify({ id, input }),
+  });
+  emitLessonUpdated();
+  return result.lesson;
+}
+
+export async function deleteLesson(id: string): Promise<void> {
+  await apiRequest<{ deleted: boolean }>(`/api/lessons?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+  emitLessonUpdated();
+}
+
+export async function getLessonVersion(lessonId: string, versionNumber: number): Promise<LessonVersionRow | null> {
+  const versions = await apiRequest<{ versions: LessonVersionRow[] }>(
+    `/api/lessons?scope=versions&lessonId=${encodeURIComponent(lessonId)}`,
+  );
+  return versions.versions.find((version) => version.version_number === versionNumber) || null;
+}
+
+export async function getLessonVersions(lessonId: string): Promise<LessonVersionRow[]> {
+  const result = await apiRequest<{ versions: LessonVersionRow[] }>(
+    `/api/lessons?scope=versions&lessonId=${encodeURIComponent(lessonId)}`,
+  );
+  return result.versions;
+}
+
 function toStudentLessonResource(resource: LessonResource) {
   const resourceType = resource.type === "Audio"
     ? "audio"
@@ -91,74 +294,19 @@ export async function syncStudentLessonResources(
   lessonResources: LessonResource[],
   options: LessonAssignmentResourceOptions,
 ): Promise<void> {
-  const normalizedStudentIds = [...new Set(studentIds.map((studentId) => studentId.trim()).filter(Boolean))];
-  if (!lessonId.trim() || normalizedStudentIds.length === 0) return;
-  const selectedIds = new Set(options.resourceIds);
-  const selectedResources = lessonResources.filter((resource) => selectedIds.has(resource.id));
-  const { data: students, error: studentError } = await supabase
-    .from("students")
-    .select("id, token")
-    .in("id", normalizedStudentIds);
-  if (studentError) throw studentError;
-
-  for (const student of students || []) {
-    const studentId = String(student.id);
-    const studentToken = String(student.token);
-    const customResources = options.customResourcesByStudentId?.[studentId];
-    const desiredRows = [
-      ...selectedResources.map((resource) => ({
-        student_id: studentId,
-        student_token: studentToken,
-        lesson_id: lessonId,
-        source_resource_id: resource.id,
-        source_type: "lesson",
+  await apiRequest<{ saved: boolean }>("/api/student-lesson-resources", {
+    method: "POST",
+    body: JSON.stringify({
+      action: "sync",
+      lessonId,
+      studentIds,
+      resources: lessonResources.map((resource) => ({
+        resourceId: resource.id,
         resource: toStudentLessonResource(resource),
       })),
-      ...(customResources || []).map(({ id, resource }) => ({
-        student_id: studentId,
-        student_token: studentToken,
-        lesson_id: lessonId,
-        source_resource_id: `custom:${id}`,
-        source_type: "custom",
-        resource,
-      })),
-    ];
-    const { data: existingRows, error: existingError } = await supabase
-      .from("student_lesson_resources")
-      .select("source_resource_id, source_type, resource")
-      .eq("student_id", studentId)
-      .eq("lesson_id", lessonId);
-    if (existingError) throw existingError;
-
-    const desiredKeys = new Set(desiredRows.map((row) => row.source_resource_id));
-    const staleRows = (existingRows || []).filter((row) => (
-      (row.source_type === "lesson" || customResources)
-      && !desiredKeys.has(String(row.source_resource_id))
-    ));
-    const staleStoragePaths: string[] = [];
-    for (const staleRow of staleRows) {
-      const { error } = await supabase
-        .from("student_lesson_resources")
-        .delete()
-        .eq("student_id", studentId)
-        .eq("lesson_id", lessonId)
-        .eq("source_resource_id", staleRow.source_resource_id);
-      if (error) throw error;
-      const storagePath = staleRow.resource?.storage_path;
-      if (typeof storagePath === "string" && storagePath) staleStoragePaths.push(storagePath);
-    }
-    if (staleStoragePaths.length > 0) {
-      const { error } = await supabase.storage.from("student-resources").remove(staleStoragePaths);
-      if (error) throw error;
-    }
-
-    if (desiredRows.length > 0) {
-      const { error } = await supabase
-        .from("student_lesson_resources")
-        .upsert(desiredRows, { onConflict: "student_id,lesson_id,source_resource_id" });
-      if (error) throw error;
-    }
-  }
+      options,
+    }),
+  });
 }
 
 export async function setStudentLessonResourceSelected(
@@ -167,57 +315,23 @@ export async function setStudentLessonResourceSelected(
   resource: LessonResource,
   selected: boolean,
 ): Promise<void> {
-  if (selected) {
-    const { data: student, error: studentError } = await supabase
-      .from("students")
-      .select("id, token")
-      .eq("id", studentId)
-      .maybeSingle();
-    if (studentError) throw studentError;
-    if (!student) throw new Error("Student not found while assigning the lesson resource.");
-    const { error } = await supabase
-      .from("student_lesson_resources")
-      .upsert({
-        student_id: student.id,
-        student_token: student.token,
-        lesson_id: lessonId,
-        source_resource_id: resource.id,
-        source_type: "lesson",
-        resource: toStudentLessonResource(resource),
-      }, { onConflict: "student_id,lesson_id,source_resource_id" });
-    if (error) throw error;
-    return;
-  }
-  const { error } = await supabase
-    .from("student_lesson_resources")
-    .delete()
-    .eq("student_id", studentId)
-    .eq("lesson_id", lessonId)
-    .eq("source_resource_id", resource.id);
-  if (error) throw error;
+  await apiRequest<{ saved: boolean }>("/api/student-lesson-resources", {
+    method: "POST",
+    body: JSON.stringify({
+      action: selected ? "select" : "deselect",
+      lessonId,
+      studentId,
+      resourceId: resource.id,
+      resource: toStudentLessonResource(resource),
+    }),
+  });
 }
 
 export async function clearStudentLessonResources(lessonId: string, studentIds: string[]): Promise<void> {
-  if (!lessonId || studentIds.length === 0) return;
-  const { data: rows, error: selectError } = await supabase
-    .from("student_lesson_resources")
-    .select("student_id, resource")
-    .eq("lesson_id", lessonId)
-    .in("student_id", studentIds);
-  if (selectError) throw selectError;
-  const { error } = await supabase
-    .from("student_lesson_resources")
-    .delete()
-    .eq("lesson_id", lessonId)
-    .in("student_id", studentIds);
-  if (error) throw error;
-  const paths = (rows || [])
-    .map((row) => row.resource?.storage_path)
-    .filter((path): path is string => typeof path === "string" && path.length > 0);
-  if (paths.length > 0) {
-    const { error: storageError } = await supabase.storage.from("student-resources").remove(paths);
-    if (storageError) throw storageError;
-  }
+  await apiRequest<{ saved: boolean }>("/api/student-lesson-resources", {
+    method: "POST",
+    body: JSON.stringify({ action: "clear", lessonId, studentIds }),
+  });
 }
 
 export async function removeStudentLessonCustomResource(
@@ -225,1203 +339,29 @@ export async function removeStudentLessonCustomResource(
   lessonId: string,
   sourceResourceId: string,
 ): Promise<void> {
-  const { data, error: selectError } = await supabase
-    .from("student_lesson_resources")
-    .select("resource")
-    .eq("student_id", studentId)
-    .eq("lesson_id", lessonId)
-    .eq("source_type", "custom")
-    .eq("source_resource_id", sourceResourceId)
-    .maybeSingle();
-  if (selectError) throw selectError;
-  const { error } = await supabase
-    .from("student_lesson_resources")
-    .delete()
-    .eq("student_id", studentId)
-    .eq("lesson_id", lessonId)
-    .eq("source_type", "custom")
-    .eq("source_resource_id", sourceResourceId);
-  if (error) throw error;
-  const storagePath = data?.resource?.storage_path;
-  if (typeof storagePath === "string" && storagePath) {
-    const { error: storageError } = await supabase.storage.from("student-resources").remove([storagePath]);
-    if (storageError) throw storageError;
-  }
-}
-
-export interface LessonTags {
-  domain: string;
-  skill_focus: string;
-  practice_type: string;
-  custom: string[];
-}
-
-export interface LessonWithVersion extends LessonRow {
-  current_version?: LessonVersionRow;
-  content?: Record<string, any>;
-  assigned_student_ids?: string[];
-}
-
-export const BENCHMARK_LESSON_ID = "b1b10001-1001-4001-8001-000000000001";
-export const BENCHMARK_LESSON_SLUG = "the-architecture-of-daily-habits-b1";
-const demoDataEnabled = () => process.env.NEXT_PUBLIC_ENABLE_DEMO_DATA === "true";
-
-const FALLBACK_LESSON: LessonWithVersion = {
-  id: BENCHMARK_LESSON_ID,
-  title: "The Architecture of Daily Habits",
-  subtitle: "A practical lesson about routines, friction, and sustainable change.",
-  module_number: 1,
-  banner_url: undefined,
-  slug: BENCHMARK_LESSON_SLUG,
-  subject: "English",
-  grade: "B1",
-  tags: {},
-  status: "published",
-  student_token: null,
-  student_id: null,
-  instructor_id: null,
-  created_at: new Date(0).toISOString(),
-  updated_at: new Date(0).toISOString(),
-  content: {
-    slug: BENCHMARK_LESSON_SLUG,
-    title: "The Architecture of Daily Habits",
-    subtitle: "A practical lesson about routines, friction, and sustainable change.",
-    moduleNumber: 1,
-    warm_up: {
-      intro_narrative: { text: "Small changes become easier when the environment supports them.", enabled: true },
-      quote: { text: "What habit would you like to make easier?", enabled: true },
-    },
-    lesson: {
-      core_concept: { text: "Design the environment around the behavior you want to repeat.", enabled: true },
-      examples: [
-        { text: "Put a book beside your bed to make reading more visible.", enabled: true },
-        { text: "Prepare your running clothes the night before to reduce friction.", enabled: true },
-      ],
-    },
-    listening: {
-      transcript: { text: "Listen for the ideas about cues, friction, and repetition.", enabled: true },
-      questions: [],
-    },
-    reading: {
-      article_markdown: { text: "A reliable routine begins with a clear cue and a manageable first step.", enabled: true },
-      analytical_questions: [],
-    },
-    writing: {
-      prompt: { text: "Describe one routine you want to improve and the first small step you will take.", enabled: true },
-      draft_editor: { enabled: true, placeholder: "Write your response here..." },
-    },
-    speaking: {
-      scenario: { text: "Explain your habit plan aloud in two or three sentences.", enabled: true },
-      audio_capture: { enabled: false },
-    },
-    results: {},
-  },
-};
-
-function isMissingPublishedColumn(error: { code?: string; message?: string } | null) {
-  return Boolean(error && (error.code === "42703" || error.code === "PGRST204") && /is_published/i.test(error.message || ""));
-}
-
-function isMissingStatusColumn(error: { code?: string; message?: string } | null) {
-  return Boolean(error && (error.code === "42703" || error.code === "PGRST204") && /\bstatus\b/i.test(error.message || ""));
-}
-
-function getMissingColumnName(error: { code?: string; message?: string } | null) {
-  if (!error || (error.code !== "42703" && error.code !== "PGRST204")) return null;
-  const message = error.message || "";
-  return message.match(/Could not find the ['"]([^'"]+)['"] column/i)?.[1]
-    || message.match(/column\s+(?:[a-z0-9_]+\.)?["']?([a-z0-9_]+)["']?\s+does not exist/i)?.[1]
-    || null;
-}
-
-const LESSON_UPDATE_COLUMNS = [
-  "title",
-  "subtitle",
-  "module_number",
-  "slug",
-  "status",
-  "subject",
-  "grade",
-  "assigned_all_students",
-  "banner_url",
-  "student_id",
-  "student_token",
-  "instructor_id",
-  "is_published",
-] as const;
-const PRESERVED_UPDATE_COLUMNS = new Set(["banner_url"]);
-const OPTIONAL_LESSON_INSERT_COLUMNS = new Set([
-  "tags",
-  "banner_url",
-  "student_id",
-  "student_token",
-  "instructor_id",
-  "is_published",
-]);
-
-function sanitizeJsonValue(value: unknown): unknown {
-  if (value === undefined) return undefined;
-  if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
-  if (Array.isArray(value)) return value.map(sanitizeJsonValue).filter((item) => item !== undefined);
-  if (typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .map(([key, item]) => [key, sanitizeJsonValue(item)] as const)
-        .filter(([, item]) => item !== undefined),
-    );
-  }
-  return String(value);
-}
-
-function sanitizeLessonContent(content: Record<string, any> | undefined): Record<string, any> | undefined {
-  if (!content) return undefined;
-  return sanitizeJsonValue(content) as Record<string, any>;
-}
-
-function sanitizeLessonUpdatePayload(payload: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(
-    LESSON_UPDATE_COLUMNS
-      .filter((column) => payload[column] !== undefined && payload[column] !== null)
-      .map((column) => [column, payload[column]]),
-  );
-}
-
-function describeSupabaseError(error: unknown) {
-  if (error instanceof Error) {
-    const value = error as Error & { code?: string; details?: string; hint?: string; status?: number };
-    const message = value.message.trim()
-      || JSON.stringify(error, Object.getOwnPropertyNames(error))
-      || String(error);
-    return { code: value.code, message, details: value.details, hint: value.hint, status: value.status, stack: value.stack };
-  }
-  if (error && typeof error === "object") {
-    const value = error as { code?: string; message?: string; details?: string; hint?: string; status?: number };
-    const message = typeof value.message === "string" && value.message.trim()
-      ? value.message
-      : JSON.stringify(error, Object.getOwnPropertyNames(error)) || String(error);
-    return { code: value.code, message, details: value.details, hint: value.hint, status: value.status };
-  }
-  return { message: String(error) };
-}
-
-function toSupabaseError(error: unknown, fallback: string) {
-  const details = describeSupabaseError(error);
-  const message = [details.message, details.details, details.hint].filter(Boolean).join(" | ") || fallback;
-  const normalized = new Error(message);
-  Object.assign(normalized, details);
-  return normalized;
-}
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-/**
- * Fetches the latest version for a given lesson
- */
-export async function getLatestLessonVersion(lessonId: string): Promise<LessonVersionRow | null> {
-  try {
-    const { data, error } = await supabase
-      .from("lesson_versions")
-      .select("*")
-      .eq("lesson_id", lessonId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (error) {
-      console.warn(`No version found for ${lessonId}, using base lesson.`, error);
-    }
-
-    return data || null;
-  } catch (error) {
-    console.warn(`Error fetching version for ${lessonId}:`, error);
-    return null;
-  }
-}
-
-function stableSerialize(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableSerialize).join(",")}]`;
-  if (value && typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${stableSerialize(record[key])}`).join(",")}}`;
-  }
-  return JSON.stringify(value) ?? "undefined";
-}
-
-export function resolveLessonContent(lesson: LessonWithVersion, version: LessonVersionRow | null) {
-  const directContent = lesson.content && typeof lesson.content === "object" && !Array.isArray(lesson.content)
-    ? lesson.content
-    : undefined;
-  const versionContent = version?.content && typeof version.content === "object" && !Array.isArray(version.content)
-    ? version.content as Record<string, any>
-    : undefined;
-  const versionTitle = typeof versionContent?.title === "string" ? versionContent.title.trim() : "";
-  const lessonTitle = typeof lesson.title === "string" ? lesson.title.trim() : "";
-  const normalizeTitleForComparison = (title: string) => title.replace(/\s+/g, " ").trim();
-  if (versionTitle && lessonTitle && normalizeTitleForComparison(versionTitle) !== normalizeTitleForComparison(lessonTitle)) {
-    return directContent || {};
-  }
-  return versionContent || directContent || {};
-}
-
-function isMissingLessonSlugColumn(error: { code?: string; message?: string } | null) {
-  return Boolean(error && (error.code === "42703" || error.code === "PGRST204") && /slug/i.test(error.message || ""));
-}
-
-async function findLessonByIdOrSlug(idOrSlug: string): Promise<LessonWithVersion | null> {
-  let identity = idOrSlug.trim();
-  try {
-    identity = decodeURIComponent(identity).trim();
-  } catch {
-    // Keep the original route value when it contains malformed encoding.
-  }
-  if (!identity) return null;
-
-  if (isUuid(identity)) {
-    const { data, error } = await supabase
-      .from("lessons")
-      .select("*")
-      .eq("id", identity)
-      .maybeSingle();
-    if (error) throw error;
-    if (data) return data;
-  }
-
-  const { data: slugLesson, error: slugError } = await supabase
-    .from("lessons")
-    .select("*")
-    .eq("slug", identity)
-    .maybeSingle();
-  if (!slugError && slugLesson) return slugLesson;
-
-  if (slugError && !isMissingLessonSlugColumn(slugError)) throw slugError;
-  // Legacy schemas may store the slug only in version content. Resolve it only
-  // through versions scoped to each known lesson, never through a global latest row.
-  const { data: lessons, error: lessonsError } = await supabase.from("lessons").select("*");
-  if (lessonsError) throw lessonsError;
-  for (const lesson of lessons || []) {
-    const directSlug = typeof lesson.slug === "string" ? lesson.slug : "";
-    if (directSlug === identity) return lesson;
-    const version = await getLatestLessonVersion(lesson.id);
-    if (typeof version?.content?.slug === "string" && version.content.slug === identity) return lesson;
-  }
-  return null;
-}
-
-export async function getLessonBaseById(idOrSlug: string): Promise<LessonWithVersion | null> {
-  if (!isSupabaseConfigured()) return null;
-
-  try {
-    return await findLessonByIdOrSlug(idOrSlug);
-  } catch (error) {
-    console.warn(`Error loading base lesson ${idOrSlug}:`, (error as { message?: string })?.message || JSON.stringify(error));
-    return null;
-  }
-}
-
-/**
- * Gets the next version number for a lesson
- */
-async function getNextVersionNumber(lessonId: string): Promise<number> {
-  try {
-    const { data, error } = await supabase
-      .from("lesson_versions")
-      .select("version_number")
-      .eq("lesson_id", lessonId)
-      .order("version_number", { ascending: false })
-      .limit(1)
-      .single();
-
-    if (error && error.code === "PGRST116") {
-      return 1; // First version
-    }
-
-    if (error) throw error;
-    return (data?.version_number || 0) + 1;
-  } catch (error) {
-    console.error(`Error getting next version number for lesson ${lessonId}:`, error);
-    throw error;
-  }
-}
-
-// ============================================================================
-// CRUD Operations
-// ============================================================================
-
-/**
- * Fetches all lessons with their latest version content
- */
-export async function getLessons(): Promise<LessonWithVersion[]> {
-  if (!isSupabaseConfigured()) {
-    console.warn("Supabase not configured, returning fallback lesson data");
-    return [{ ...FALLBACK_LESSON, content: { ...FALLBACK_LESSON.content } }];
-  }
-
-  try {
-    const { data: lessons, error } = await supabase
-      .from("lessons")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) throw error;
-
-    const lessonIds = (lessons || []).map((lesson) => lesson.id);
-    let assignmentResult = lessonIds.length > 0
-      ? await supabase.from("lesson_assignments").select("lesson_id, student_id, assigned_at").in("lesson_id", lessonIds).eq("status", "assigned")
-      : { data: [], error: null };
-    const assignmentError = assignmentResult.error;
-    const missingStatusColumn = Boolean(
-      assignmentError
-      && (assignmentError.code === "42703" || assignmentError.code === "PGRST204")
-      && /status/i.test(assignmentError.message || ""),
-    );
-    if (missingStatusColumn && lessonIds.length > 0) {
-      assignmentResult = await supabase
-        .from("lesson_assignments")
-        .select("lesson_id, student_id, assigned_at")
-        .in("lesson_id", lessonIds);
-    }
-    if (assignmentResult.error) {
-      console.warn("Lesson rows loaded, but student assignment metadata is unavailable:", {
-        code: assignmentResult.error.code,
-        message: assignmentResult.error.message,
-      });
-    }
-    const assignmentsByLesson = new Map<string, string[]>();
-    for (const assignment of assignmentResult.data || []) {
-      const current = assignmentsByLesson.get(assignment.lesson_id) || [];
-      current.push(assignment.student_id);
-      assignmentsByLesson.set(assignment.lesson_id, current);
-    }
-
-    return Promise.all((lessons || []).map(async (lesson) => {
-      const version = await getLatestLessonVersion(lesson.id);
-      return { ...lesson, current_version: version || undefined, content: resolveLessonContent(lesson, version), assigned_student_ids: assignmentsByLesson.get(lesson.id) || [] };
-    }));
-  } catch (error) {
-    console.error("Error fetching lessons:", (error as { message?: string })?.message || JSON.stringify(error));
-    throw error;
-  }
-}
-
-/**
- * Fetches a single lesson by ID or slug/title with its latest version content
- * Tries to find by ID first (UUID format), then by title as a slug-like match
- * Returns null gracefully if lesson not found or error occurs (instead of throwing)
- */
-export async function getLessonById(idOrSlug = BENCHMARK_LESSON_SLUG): Promise<LessonWithVersion | null> {
-  const fallback = { ...FALLBACK_LESSON, slug: idOrSlug || FALLBACK_LESSON.slug };
-  if (!isSupabaseConfigured()) {
-    if (demoDataEnabled()) return fallback;
-    throw new Error("Supabase is not configured and demo data is disabled");
-  }
-
-  try {
-    const lesson = await findLessonByIdOrSlug(idOrSlug);
-
-    if (!lesson) {
-      if (idOrSlug !== BENCHMARK_LESSON_SLUG && demoDataEnabled()) {
-        const benchmark = await getLessonById(BENCHMARK_LESSON_SLUG);
-        if (benchmark) return benchmark;
-      }
-      throw new Error(`Lesson not found: ${idOrSlug}`);
-    }
-
-    const version = await getLatestLessonVersion(lesson.id);
-    return {
-      ...lesson,
-      current_version: version || undefined,
-      content: resolveLessonContent(lesson, version),
-    };
-  } catch (error) {
-    // Catch all unexpected errors and return null gracefully
-    console.error(`Error fetching lesson ${idOrSlug}:`, error);
-    if (demoDataEnabled()) return fallback;
-    throw error;
-  }
-}
-
-/**
- * Fetches lessons by student ID
- */
-function isUuid(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
-}
-
-async function resolveStudentLookupId(studentId: string): Promise<{ studentIds: string[]; studentTokens: string[] }> {
-  const normalizedStudentId = studentId.trim();
-  if (!normalizedStudentId) return { studentIds: [], studentTokens: [] };
-
-  const studentIds = new Set<string>();
-  const studentTokens = new Set<string>();
-  if (isUuid(normalizedStudentId)) {
-    studentIds.add(normalizedStudentId);
-  } else {
-    studentTokens.add(normalizedStudentId);
-  }
-
-  try {
-    const { data: studentRow, error } = await supabase
-      .from("students")
-      .select("id, token")
-      .or(`id.eq.${normalizedStudentId},token.eq.${normalizedStudentId}`)
-      .maybeSingle();
-
-    if (!error && studentRow) {
-      if (studentRow.id) studentIds.add(studentRow.id);
-      if (studentRow.token) studentTokens.add(studentRow.token);
-    }
-  } catch (error) {
-    console.warn("Student identity resolution failed:", error);
-  }
-
-  return {
-    studentIds: [...studentIds].filter(Boolean),
-    studentTokens: [...studentTokens].filter(Boolean),
-  };
-}
-
-export async function getLessonsByStudentId(studentId: string): Promise<LessonWithVersion[]> {
-  if (!isSupabaseConfigured()) {
-    console.warn("Supabase not configured");
-    return [];
-  }
-
-  try {
-    const normalizedStudentId = studentId?.trim();
-    if (!normalizedStudentId) return [];
-
-    const { studentIds, studentTokens } = await resolveStudentLookupId(normalizedStudentId);
-    const normalizedStudentIds = [...new Set(studentIds.filter(Boolean))];
-    const normalizedStudentTokens = [...new Set(studentTokens.filter(Boolean))];
-
-    const assignmentQuery = normalizedStudentIds.length > 0
-      ? supabase.from("lesson_assignments").select("lesson_id").in("student_id", normalizedStudentIds)
-      : supabase.from("lesson_assignments").select("lesson_id").eq("student_id", "00000000-0000-0000-0000-000000000000");
-
-    const [directResult, assignmentIdsResult, allStudentsResult] = await Promise.all([
-      normalizedStudentIds.length > 0
-        ? supabase.from("lessons").select("*").eq("status", "published").in("student_id", normalizedStudentIds)
-        : supabase.from("lessons").select("*").eq("status", "published").eq("student_id", normalizedStudentId),
-      assignmentQuery,
-      supabase.from("lessons").select("*").eq("status", "published").eq("assigned_all_students", true),
-    ]);
-
-    const assignmentLessonIds = [...new Set((assignmentIdsResult.data || []).map((row) => row.lesson_id))];
-    const assignedResult = assignmentLessonIds.length > 0
-      ? await supabase.from("lessons").select("*").eq("status", "published").in("id", assignmentLessonIds)
-      : { data: [], error: null };
-
-    const tokenResult = normalizedStudentTokens.length > 0
-      ? await supabase.from("lessons").select("*").eq("status", "published").in("student_token", normalizedStudentTokens)
-      : { data: [], error: null };
-
-    const lookupErrors = [
-      directResult.error,
-      assignmentIdsResult.error,
-      assignedResult.error,
-      tokenResult.error,
-      allStudentsResult.error,
-    ].filter((error) => error !== null);
-    const successfulLookupCount = [directResult, assignmentIdsResult, tokenResult, allStudentsResult]
-      .filter((result) => !result.error).length;
-    if (successfulLookupCount === 0 && lookupErrors.length > 0) throw lookupErrors[0];
-    if (lookupErrors.length > 0) {
-      console.warn("Some student lesson lookup paths failed; keeping results from successful paths:", lookupErrors.map((error) => ({ code: error?.code, message: error?.message })));
-    }
-
-    const uniqueLessons = new Map<string, LessonRow>();
-    [...(directResult.data || []), ...(tokenResult.data || []), ...(assignedResult.data || []), ...(allStudentsResult.data || [])].forEach((lesson) => {
-      uniqueLessons.set(lesson.id, lesson as LessonRow);
-    });
-
-    if (uniqueLessons.size === 0) {
-      console.warn("No published lessons were visible for this student; verify student UUID/token mapping, assignment rows, and lessons SELECT policies.");
-    }
-
-    return Promise.all([...uniqueLessons.values()].map(async (lesson) => {
-      const version = await getLatestLessonVersion(lesson.id);
-      return { ...lesson, current_version: version || undefined, content: resolveLessonContent(lesson, version) };
-    }));
-  } catch (error) {
-    console.error(`Unable to load assigned lessons for student ${studentId}:`, error);
-    throw error;
-  }
-}
-
-async function upsertLessonAssignment(lessonId: string, studentId: string) {
-  const assignmentPayload = {
-    lesson_id: lessonId,
-    student_id: studentId,
-    assigned_at: new Date().toISOString(),
-  };
-  const { error } = await supabase
-    .from("lesson_assignments")
-    .upsert(assignmentPayload, { onConflict: "lesson_id,student_id" });
-  if (error) {
-    const details = describeSupabaseError(error);
-    console.error("Supabase lesson assignment upsert failed:", details);
-    throw toSupabaseError(error, `Failed to assign lesson ${lessonId} to student ${studentId}`);
-  }
-}
-
-export async function setLessonAssignments(
-  lessonId: string,
-  studentIds: string[],
-  resourceOptions?: LessonAssignmentResourceOptions,
-  resourceStudentIds?: string[],
-): Promise<LessonWithVersion> {
-  const normalizedLessonId = lessonId.trim();
-  const normalizedStudentIds = [...new Set(studentIds.map((studentId) => studentId.trim()).filter(Boolean))];
-  if (!normalizedLessonId) throw new Error("A lesson is required for assignment");
-
-  const lesson = await getLessonById(normalizedLessonId);
-  if (!lesson) throw new Error("Lesson not found");
-  const user = await getAuthenticatedUser();
-  if (!user?.id) throw new Error("No authenticated instructor session");
-
-  const { error: deleteError } = await supabase.from("lesson_assignments").delete().eq("lesson_id", normalizedLessonId);
-  if (deleteError) throw deleteError;
-  if (normalizedStudentIds.length > 0) {
-    const { error: insertError } = await supabase.from("lesson_assignments").insert(normalizedStudentIds.map((studentId) => ({
-      lesson_id: normalizedLessonId,
-      student_id: studentId,
-      assigned_at: new Date().toISOString(),
-      status: "assigned",
-    })));
-    if (insertError) throw insertError;
-  }
-
-  const content = {
-    ...(lesson.content || {}),
-    assignedAllStudents: false,
-    assignedStudents: normalizedStudentIds,
-  };
-  const updated = await updateLesson(normalizedLessonId, {
-    student_id: normalizedStudentIds[0] || null,
-    student_token: null,
-    instructor_id: user.id,
-    assigned_all_students: false,
-    content,
-    changes_summary: "Updated lesson assignments",
-  });
-  const lessonResources = Array.isArray(lesson.content?.lessonResources)
-    ? lesson.content.lessonResources as LessonResource[]
-    : [];
-  const targetResourceStudentIds = resourceStudentIds ?? normalizedStudentIds;
-  if (targetResourceStudentIds.length > 0) {
-    await syncStudentLessonResources(
-      normalizedLessonId,
-      targetResourceStudentIds,
-      lessonResources,
-      resourceOptions || { resourceIds: lessonResources.map((resource) => resource.id) },
-    );
-  }
-  return { ...updated, assigned_student_ids: normalizedStudentIds };
-}
-
-export async function assignLessonToStudent(lessonId: string, studentId: string): Promise<LessonWithVersion> {
-  const normalizedLessonId = lessonId.trim();
-  const normalizedStudentId = studentId.trim();
-  if (!normalizedLessonId || !normalizedStudentId) throw new Error("A lesson and student are required for assignment");
-  const lesson = await getLessonById(normalizedLessonId);
-  if (!lesson) throw new Error("Lesson not found");
-  const { data: student, error: studentError } = await supabase.from("students").select("id, token").eq("id", normalizedStudentId).maybeSingle();
-  if (studentError) throw studentError;
-  if (!student) throw new Error(`Student ${normalizedStudentId} was not found`);
-  const user = await getAuthenticatedUser();
-  if (!user?.id) throw new Error("No authenticated instructor session");
-  const content = { ...(lesson.content || {}), assignedAllStudents: false, assignedStudents: [student.id] };
-  const updated = await updateLesson(normalizedLessonId, { student_id: student.id, student_token: student.token, instructor_id: user.id, assigned_all_students: false, content, changes_summary: "Assigned to student" });
-  await upsertLessonAssignment(normalizedLessonId, student.id);
-  if (typeof window !== "undefined") window.dispatchEvent(new Event("fluentia:lesson-updated"));
-  return updated;
-}
-
-export async function publishLessonAndAssign(lessonId: string, studentId: string, instructorId: string): Promise<void> {
-  const normalizedLessonId = lessonId.trim();
-  const normalizedStudentId = studentId.trim();
-  if (!normalizedLessonId || !normalizedStudentId || !instructorId.trim()) throw new Error("Lesson, student, and instructor are required to publish");
-
-  let { error: lessonError } = await supabase
-    .from("lessons")
-    .update({ status: "published", is_published: true, instructor_id: instructorId })
-    .eq("id", normalizedLessonId);
-  if (isMissingPublishedColumn(lessonError)) {
-    ({ error: lessonError } = await supabase
-      .from("lessons")
-      .update({ status: "published", instructor_id: instructorId })
-      .eq("id", normalizedLessonId));
-  }
-  if (lessonError) throw lessonError;
-
-  await upsertLessonAssignment(normalizedLessonId, normalizedStudentId);
-  const lesson = await getLessonById(normalizedLessonId);
-  if (!lesson) throw new Error(`Published lesson ${normalizedLessonId} could not be loaded for resource assignment.`);
-  const lessonResources = Array.isArray(lesson.content?.lessonResources)
-    ? lesson.content.lessonResources as LessonResource[]
-    : [];
-  await syncStudentLessonResources(
-    normalizedLessonId,
-    [normalizedStudentId],
-    lessonResources,
-    { resourceIds: lessonResources.map((resource) => resource.id) },
-  );
-}
-
-export async function assignLessonToAllActiveStudents(
-  lessonId: string,
-  studentIds: string[] = [],
-  resourceOptions?: LessonAssignmentResourceOptions,
-): Promise<LessonWithVersion> {
-  const lesson = await getLessonById(lessonId);
-  if (!lesson) throw new Error("Lesson not found");
-  const content = { ...(lesson.content || {}), assignedAllStudents: true, assignedStudents: [] };
-  const updated = await updateLesson(lessonId, { student_token: null, assigned_all_students: true, content, changes_summary: "Assigned to all active students" });
-  const lessonResources = Array.isArray(lesson.content?.lessonResources)
-    ? lesson.content.lessonResources as LessonResource[]
-    : [];
-  if (studentIds.length > 0) {
-    await syncStudentLessonResources(
+  await apiRequest<{ saved: boolean }>("/api/student-lesson-resources", {
+    method: "POST",
+    body: JSON.stringify({
+      action: "remove-custom",
       lessonId,
-      studentIds,
-      lessonResources,
-      resourceOptions || { resourceIds: lessonResources.map((resource) => resource.id) },
-    );
-  }
-  if (typeof window !== "undefined") window.dispatchEvent(new Event("fluentia:lesson-updated"));
-  return updated;
+      studentId,
+      resourceId: sourceResourceId,
+    }),
+  });
 }
 
-export async function unassignLesson(lessonId: string): Promise<LessonWithVersion> {
-  const lesson = await getLessonById(lessonId);
-  if (!lesson) throw new Error("Lesson not found");
-  const content = { ...(lesson.content || {}), assignedAllStudents: false, assignedStudents: [] };
-  const updated = await updateLesson(lessonId, { student_token: null, assigned_all_students: false, content, changes_summary: "Unassigned lesson" });
-  const { error: assignmentError } = await supabase.from("lesson_assignments").delete().eq("lesson_id", lessonId);
-  if (assignmentError) throw assignmentError;
-  if (typeof window !== "undefined") window.dispatchEvent(new Event("fluentia:lesson-updated"));
-  return updated;
-}
-
-/**
- * Fetches lessons by instructor ID
- */
-export async function getLessonsByInstructorId(instructorId: string): Promise<LessonWithVersion[]> {
-  if (!isSupabaseConfigured()) {
-    console.warn("Supabase not configured");
-    return [];
-  }
-
-  try {
-    const { data: lessons, error } = await supabase
-      .from("lessons")
-      .select("*")
-      .eq("instructor_id", instructorId)
-      .order("created_at", { ascending: false });
-
-    if (error) throw error;
-
-    const enrichedLessons = await Promise.all(
-      (lessons || []).map(async (lesson) => {
-        const version = await getLatestLessonVersion(lesson.id);
-        return {
-          ...lesson,
-          current_version: version || undefined,
-          content: resolveLessonContent(lesson, version),
-        };
-      })
-    );
-
-    return enrichedLessons;
-  } catch (error) {
-    console.error(`Error fetching lessons for instructor ${instructorId}:`, error);
-    throw error;
-  }
-}
-
-/**
- * Creates a new lesson with an initial version
- */
-export async function createLesson(input: CreateLessonInput): Promise<LessonWithVersion> {
-  if (!isSupabaseConfigured()) {
-    throw new Error("Supabase not configured");
-  }
-
-  try {
-    const { content, changes_summary, banner_url, student_id, student_token, instructor_id, is_published, ...lessonData } = input;
-    const resolvedStudentId = typeof student_id === "string" && student_id.trim() ? student_id.trim() : null;
-    const resolvedInstructorId = typeof instructor_id === "string" && instructor_id.trim() ? instructor_id.trim() : null;
-    const title = typeof lessonData.title === "string" && lessonData.title.trim()
-      ? lessonData.title.trim()
-      : "Untitled Draft";
-    const slugBase = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-    const slug = `${slugBase || "lesson"}-${Date.now()}`;
-    const status = lessonData.status || "draft";
-    const safeContent = sanitizeLessonContent(
-      content && lessonData.tags !== undefined ? { ...content, tags: lessonData.tags } : content,
-    ) || {};
-    const versionContent = {
-      ...safeContent,
-      slug,
-      title,
-    };
-
-    // Insert the lesson
-    const lessonPayload = {
-      title,
-      slug,
-      status,
-      is_published: is_published ?? status === "published",
-      ...(typeof banner_url === "string" && banner_url.trim() ? { banner_url: banner_url.trim() } : {}),
-      ...(resolvedStudentId ? { student_id: resolvedStudentId } : {}),
-      ...(typeof student_token === "string" && student_token.trim() ? { student_token: student_token.trim() } : {}),
-      ...(resolvedInstructorId ? { instructor_id: resolvedInstructorId } : {}),
-      ...(typeof lessonData.subject === "string" && lessonData.subject.trim() ? { subject: lessonData.subject.trim() } : {}),
-      grade: typeof lessonData.grade === "string" && lessonData.grade.trim() ? lessonData.grade.trim() : "B1",
-      tags: lessonData.tags || {},
-      ...(typeof lessonData.assigned_all_students === "boolean" ? { assigned_all_students: lessonData.assigned_all_students } : {}),
-    };
-    let insertPayload: Record<string, unknown> = lessonPayload;
-    let { data: lesson, error: lessonError } = await supabase
-      .from("lessons")
-      .insert([insertPayload])
-      .select()
-      .single();
-    const triedMissingColumns = new Set<string>();
-    while (lessonError && triedMissingColumns.size < OPTIONAL_LESSON_INSERT_COLUMNS.size) {
-      const missingColumn = getMissingColumnName(lessonError);
-      if (
-        !missingColumn
-        || !OPTIONAL_LESSON_INSERT_COLUMNS.has(missingColumn)
-        || triedMissingColumns.has(missingColumn)
-        || !Object.prototype.hasOwnProperty.call(insertPayload, missingColumn)
-      ) break;
-      triedMissingColumns.add(missingColumn);
-      insertPayload = Object.fromEntries(
-        Object.entries(insertPayload).filter(([column]) => column !== missingColumn),
-      );
-      console.warn(`Retrying lesson insert without unavailable '${missingColumn}' column.`, {
-        retry: triedMissingColumns.size,
-        code: lessonError.code,
-        message: lessonError.message,
-      });
-      ({ data: lesson, error: lessonError } = await supabase
-        .from("lessons")
-        .insert([insertPayload])
-        .select()
-        .single());
-    }
-
-    if (lessonError) throw lessonError;
-
-    // Insert the initial version
-    const { data: version, error: versionError } = await supabase
-      .from("lesson_versions")
-      .insert([
-        {
-          lesson_id: lesson.id,
-          version_number: 1,
-          content: versionContent,
-          changes_summary: changes_summary || "Initial version",
-        },
-      ])
-      .select()
-      .single();
-
-    if (versionError) throw versionError;
-
-    return {
-      ...lesson,
-      current_version: version,
-      content: version.content,
-    };
-  } catch (error) {
-    console.error("Error creating lesson raw:", JSON.stringify(error, Object.getOwnPropertyNames(error)), error);
-    const details = describeSupabaseError(error);
-    console.error("Error creating lesson:", {
-      message: details.message,
-      details: details.details,
-      hint: details.hint,
-      code: details.code,
-      status: details.status,
-    });
-    throw error;
-  }
-}
-
-/**
- * Updates a lesson and creates a new version if content changes
- */
-export async function updateLesson(
-  id: string,
-  input: UpdateLessonInput
-): Promise<LessonWithVersion> {
-  if (!isSupabaseConfigured()) {
-    throw new Error("Supabase not configured");
-  }
-
-  try {
-    const { content, changes_summary, banner_url, student_id, student_token, instructor_id, is_published, slug, title, subtitle, module_number, status, subject, grade, tags, assigned_all_students } = input;
-    const safeContent = sanitizeLessonContent(
-      content && tags !== undefined ? { ...content, tags } : content,
-    );
-    const resolvedStudentId = student_id || undefined;
-    const resolvedInstructorId = instructor_id || undefined;
-    // Update the lesson metadata
-    const hasStudentTokenUpdate = Object.prototype.hasOwnProperty.call(input, "student_token");
-    if (title !== undefined || subtitle !== undefined || module_number !== undefined || slug !== undefined || status !== undefined || subject !== undefined || grade !== undefined || assigned_all_students !== undefined || banner_url !== undefined || resolvedStudentId || resolvedInstructorId || hasStudentTokenUpdate || is_published !== undefined) {
-      let updatePayload = sanitizeLessonUpdatePayload({
-        ...(title !== undefined ? { title } : {}),
-        ...(subtitle !== undefined ? { subtitle: typeof subtitle === "string" ? subtitle.trim() : subtitle } : {}),
-        ...(module_number !== undefined ? { module_number } : {}),
-        ...(slug !== undefined ? { slug } : {}),
-        ...(status !== undefined ? { status } : is_published !== undefined ? { status: is_published ? "published" : "draft" } : {}),
-        ...(subject !== undefined ? { subject } : {}),
-        ...(grade !== undefined ? { grade } : {}),
-        ...(assigned_all_students !== undefined ? { assigned_all_students } : {}),
-        ...(banner_url !== undefined ? { banner_url } : {}),
-        ...(resolvedStudentId ? { student_id: resolvedStudentId } : {}),
-        ...(resolvedInstructorId ? { instructor_id: resolvedInstructorId } : {}),
-        ...(hasStudentTokenUpdate ? { student_token } : {}),
-        ...(status === "published" || status === "draft"
-          ? { is_published: status === "published" }
-          : is_published !== undefined ? { is_published } : {}),
-      });
-      let { data: updatedRows, error: updateError } = await supabase
-        .from("lessons")
-        .update(updatePayload)
-        .eq("id", id)
-        .select("id")
-        .abortSignal(AbortSignal.timeout(8000));
-      if (updateError) {
-        console.error("Supabase lessons PATCH error response:", updateError);
-        console.error(
-          "Supabase lessons PATCH error response (serialized):",
-          JSON.stringify(updateError, Object.getOwnPropertyNames(updateError), 2),
-        );
-        console.error("Supabase lessons PATCH payload:", updatePayload);
-      }
-      const triedMissingColumns = new Set<string>();
-      let retryCount = 0;
-      while (updateError && retryCount < 5) {
-        const missingColumn = getMissingColumnName(updateError);
-        if (
-          !missingColumn
-          || triedMissingColumns.has(missingColumn)
-          || PRESERVED_UPDATE_COLUMNS.has(missingColumn)
-          || !Object.prototype.hasOwnProperty.call(updatePayload, missingColumn)
-        ) break;
-        triedMissingColumns.add(missingColumn);
-        const retryPayload = Object.fromEntries(
-          Object.entries(updatePayload).filter(([column]) => column !== missingColumn),
-        );
-        if (Object.keys(retryPayload).length === 0) break;
-        retryCount += 1;
-        console.warn(`Retrying lesson update without unavailable '${missingColumn}' column.`, {
-          lessonId: id,
-          retry: retryCount,
-          code: updateError.code,
-          message: updateError.message,
-        });
-        updatePayload = retryPayload;
-        ({ data: updatedRows, error: updateError } = await supabase
-          .from("lessons")
-          .update(updatePayload)
-          .eq("id", id)
-          .select("id")
-          .abortSignal(AbortSignal.timeout(8000)));
-        if (updateError) {
-          console.error("Supabase lessons PATCH retry error response:", updateError);
-          console.error(
-            "Supabase lessons PATCH retry error response (serialized):",
-            JSON.stringify(updateError, Object.getOwnPropertyNames(updateError), 2),
-          );
-          console.error("Supabase lessons PATCH retry payload:", updatePayload);
-        }
-      }
-
-      if (updateError) {
-        const errorDetails = describeSupabaseError(updateError);
-        console.error("Supabase update error details:", {
-          code: errorDetails.code,
-          message: errorDetails.message,
-          details: errorDetails.details,
-          hint: errorDetails.hint,
-          status: errorDetails.status,
-        });
-        throw toSupabaseError(updateError, `Failed to update lesson ${id}`);
-      }
-      if (!updatedRows?.length) {
-        const { data: existingLesson, error: existingError } = await supabase.from("lessons").select("id").eq("id", id).maybeSingle();
-        if (existingError) throw toSupabaseError(existingError, `Failed to check lesson ${id}`);
-        if (!existingLesson) {
-          const { error: upsertError } = await supabase.from("lessons").upsert({ id, ...sanitizeLessonUpdatePayload(updatePayload) }, { onConflict: "id" });
-          if (upsertError) {
-            const errorDetails = describeSupabaseError(upsertError);
-            console.error("Supabase lesson upsert error details:", {
-              code: errorDetails.code,
-              message: errorDetails.message,
-              details: errorDetails.details,
-              hint: errorDetails.hint,
-              status: errorDetails.status,
-            });
-            throw toSupabaseError(upsertError, `Failed to upsert lesson ${id}`);
-          }
-        }
-      }
-    }
-
-    // If content is provided, create a new version
-    let newVersion: LessonVersionRow | null = null;
-    let latestVersion: LessonVersionRow | null = null;
-    if (safeContent) {
-      latestVersion = await getLatestLessonVersion(id);
-      const latestContent = latestVersion ? sanitizeLessonContent(latestVersion.content) : undefined;
-      const contentChanged = !latestContent || stableSerialize(latestContent) !== stableSerialize(safeContent);
-
-      if (contentChanged) {
-        const nextVersionNumber = await getNextVersionNumber(id);
-        const { data: version, error: versionError } = await supabase
-          .from("lesson_versions")
-          .insert([
-            {
-              lesson_id: id,
-              version_number: nextVersionNumber,
-              content: safeContent,
-              changes_summary: changes_summary || "Updated version",
-            },
-          ])
-          .select()
-          .single();
-
-        if (versionError) {
-          const errorDetails = describeSupabaseError(versionError);
-          console.error("Supabase lesson version error details:", {
-            code: errorDetails.code,
-            message: errorDetails.message,
-            details: errorDetails.details,
-            hint: errorDetails.hint,
-            status: errorDetails.status,
-          });
-          throw toSupabaseError(versionError, `Failed to save lesson version ${id}`);
-        }
-        newVersion = version;
-      }
-    }
-
-    // Fetch and return the updated lesson
-    const { data: lesson, error: fetchError } = await supabase
-      .from("lessons")
-      .select("*")
-      .eq("id", id)
-      .single();
-
-    if (fetchError) throw toSupabaseError(fetchError, `Failed to reload lesson ${id}`);
-
-    latestVersion = newVersion || latestVersion || (await getLatestLessonVersion(id));
-
-    return {
-      ...lesson,
-      current_version: latestVersion || undefined,
-      content: resolveLessonContent(lesson, latestVersion),
-    };
-  } catch (error) {
-    const normalizedError = error instanceof Error ? error : toSupabaseError(error, `Failed to update lesson ${id}`);
-    const errorDetails = describeSupabaseError(normalizedError);
-    console.error(`Error updating lesson ${id}:`, {
-      code: errorDetails.code,
-      message: errorDetails.message,
-      details: errorDetails.details,
-      hint: errorDetails.hint,
-      status: errorDetails.status,
-    });
-    throw normalizedError;
-  }
-}
-
-/**
- * Deletes a lesson and all its versions
- */
-export async function deleteLesson(id: string): Promise<void> {
-  if (!isSupabaseConfigured()) {
-    throw new Error("Supabase not configured");
-  }
-
-  try {
-    const { data: linkedResources, error: resourceLookupError } = await supabase
-      .from("student_resources")
-      .select("resource_type, link_url")
-      .eq("lesson_id", id);
-    if (resourceLookupError) {
-      console.warn(`Unable to inspect lesson resources before deleting ${id}:`, resourceLookupError.message);
-    }
-    const storagePaths = [...new Set((linkedResources || [])
-      .filter((resource) => resource.resource_type === "file" && typeof resource.link_url === "string")
-      .map((resource) => {
-        try {
-          const url = new URL(resource.link_url);
-          const prefix = "/storage/v1/object/public/student-resources/";
-          const prefixIndex = url.pathname.indexOf(prefix);
-          return prefixIndex < 0 ? null : decodeURIComponent(url.pathname.slice(prefixIndex + prefix.length));
-        } catch {
-          return null;
-        }
-      })
-      .filter((path): path is string => Boolean(path)))];
-
-    const childTables = [
-      "lesson_versions",
-      "submissions",
-      "instructor_feedback",
-      "lesson_assignments",
-      "student_resources",
-    ] as const;
-
-    for (const table of childTables) {
-      try {
-        const { error: childError } = await supabase.from(table).delete().eq("lesson_id", id);
-        if (childError) {
-          const details = describeSupabaseError(childError);
-          console.warn(`Supabase child cleanup skipped for ${table} and lesson ${id}:`, {
-            code: details.code,
-            message: details.message,
-            details: details.details,
-            hint: details.hint,
-            status: details.status,
-          });
-        }
-      } catch (childError) {
-        const details = describeSupabaseError(childError);
-        console.warn(`Supabase child cleanup skipped for ${table} and lesson ${id}:`, {
-          code: details.code,
-          message: details.message,
-          details: details.details,
-          hint: details.hint,
-          status: details.status,
-        });
-      }
-    }
-
-    const { data: deletedLesson, error } = await supabase
-      .from("lessons")
-      .delete()
-      .eq("id", id)
-      .select("id")
-      .maybeSingle();
-
-    if (error) {
-      const details = describeSupabaseError(error);
-      console.error(`Supabase lesson deletion failed for ${id}:`, {
-        code: details.code,
-        message: details.message,
-        details: details.details,
-        hint: details.hint,
-        status: details.status,
-      });
-      throw toSupabaseError(error, `Unable to delete lesson ${id}`);
-    }
-    if (!deletedLesson) throw new Error(`Lesson ${id} was not deleted. Check the instructor's delete permission.`);
-
-    if (storagePaths.length > 0) {
-      const { error: storageError } = await supabase.storage.from("student-resources").remove(storagePaths);
-      if (storageError) {
-        console.warn(`Lesson ${id} was deleted, but linked resource files could not be removed:`, storageError.message);
-      }
-    }
-  } catch (error) {
-    const normalizedError = error instanceof Error ? error : toSupabaseError(error, `Unable to delete lesson ${id}`);
-    const details = describeSupabaseError(normalizedError);
-    console.error(`Error deleting lesson ${id}:`, {
-      code: details.code,
-      message: details.message,
-      details: details.details,
-      hint: details.hint,
-      status: details.status,
-    });
-    throw normalizedError;
-  }
-}
-
-/**
- * Gets a specific version of a lesson
- */
-export async function getLessonVersion(
-  lessonId: string,
-  versionNumber: number
-): Promise<LessonVersionRow | null> {
-  if (!isSupabaseConfigured()) {
-    return null;
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from("lesson_versions")
-      .select("*")
-      .eq("lesson_id", lessonId)
-      .eq("version_number", versionNumber)
-      .single();
-
-    if (error && error.code !== "PGRST116") {
-      throw error;
-    }
-
-    return data || null;
-  } catch (error) {
-    console.error(
-      `Error fetching version ${versionNumber} of lesson ${lessonId}:`,
-      error
-    );
-    throw error;
-  }
-}
-
-/**
- * Gets all versions of a lesson
- */
-export async function getLessonVersions(lessonId: string): Promise<LessonVersionRow[]> {
-  if (!isSupabaseConfigured()) {
-    return [];
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from("lesson_versions")
-      .select("*")
-      .eq("lesson_id", lessonId)
-      .order("version_number", { ascending: true });
-
-    if (error) throw error;
-
-    return data || [];
-  } catch (error) {
-    console.error(`Error fetching versions for lesson ${lessonId}:`, error);
-    throw error;
-  }
-}
-
-// ============================================================================
-// Utility Functions (for backward compatibility with existing UI)
-// ============================================================================
-
-/**
- * Converts a lesson database row to LessonContent format
- * Use this when you need to adapt database format to UI component format
- */
-export function toLessonContent(
-  lesson: LessonWithVersion,
-  overrides?: Partial<LessonContent>
-): LessonContent {
+export function toLessonContent(lesson: LessonWithVersion, overrides?: Partial<LessonContent>): LessonContent {
   return {
     id: lesson.id,
-    slug: lesson.id, // Use UUID as slug if no slug field in database
+    slug: lesson.slug || lesson.id,
     title: lesson.title,
-    subtitle: undefined,
-    moduleNumber: 0,
+    subtitle: lesson.subtitle || undefined,
+    moduleNumber: lesson.module_number || 0,
     studentId: lesson.student_id || undefined,
     status: lesson.status === "draft" ? "draft" : "published",
     content: lesson.content,
     ...overrides,
-  };
+  } as LessonContent;
 }
+
+export type { InstructorLessonMock };

@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, ChevronRight, Eye, FileText, Grid3X3, Image, List, MoreVertical, Pencil, Plus, Search, Trash2, X, Lightbulb, UploadCloud } from "lucide-react";
-import { supabase } from "@/lib/supabaseClient";
+import { deleteAsset, uploadAsset } from "@/services/asset-service";
 import { LessonBuilderSidebar, LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
 import { InstructorBannerManager, type BannerPosition } from "@/components/instructor/banner-manager";
 import { normalizeBannerDimness } from "@/lib/banner-position";
@@ -182,21 +182,13 @@ function StepSidebarEditorPanel({
     }
     setImageUploadStatus((current) => ({ ...current, [block.id]: "Uploading image..." }));
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const path = `sidebar-images/${crypto.randomUUID()}-${safeName}`;
     try {
-      const { error } = await supabase.storage.from("lesson-assets").upload(path, file, {
-        cacheControl: "3600",
-        contentType: file.type,
-        upsert: false,
-      });
-      if (error) throw error;
-      const { data } = supabase.storage.from("lesson-assets").getPublicUrl(path);
-      if (!data.publicUrl) throw new Error("Supabase did not return a public image URL.");
-      updateSidebarBlock(block.id, { imageUrl: data.publicUrl });
+      const url = await uploadAsset(file, safeName);
+      updateSidebarBlock(block.id, { imageUrl: url });
       setImageUploadStatus((current) => ({ ...current, [block.id]: "Image uploaded." }));
     } catch (error) {
       console.error("Sidebar image upload failed:", error);
-      const message = error instanceof Error && error.message ? error.message : "Check the lesson-assets bucket permissions and try again.";
+      const message = error instanceof Error && error.message ? error.message : "Unable to store the image.";
       setImageUploadStatus((current) => ({ ...current, [block.id]: `Upload failed: ${message}` }));
     }
   };
@@ -1563,7 +1555,7 @@ export default function InstructorWorkstationPage({
       const lessons = await getLessons();
       setCreatedLessons(lessons);
     } catch (error) {
-      console.error("Failed to load lessons from Supabase:", (error as { message?: string })?.message || JSON.stringify(error));
+      console.error("Failed to load lessons from PostgreSQL:", (error as { message?: string })?.message || JSON.stringify(error));
       setPublishStatus("Unable to refresh lessons. Previously loaded lessons remain available.");
     }
   };
@@ -1748,7 +1740,7 @@ export default function InstructorWorkstationPage({
       const isConstraintFailure = details?.code === "23503" || /foreign key|constraint|referenced/i.test(`${failureMessage} ${details?.details || ""}`);
       setPublishStatus(
         isPermissionFailure
-          ? "Lesson deletion blocked by Supabase permissions. Check instructor access policies."
+          ? "Lesson deletion blocked by PostgreSQL access rules. Check instructor access."
           : isConstraintFailure
             ? "Lesson deletion blocked by related records. Remove the related records or check cascade rules."
             : `Lesson deletion failed: ${failureMessage}`,
@@ -1825,17 +1817,17 @@ export default function InstructorWorkstationPage({
   };
 
   const logAssignmentError = (context: string, error: unknown) => {
-    const supabaseError = error && typeof error === "object" ? error as { code?: string; message?: string; details?: string; hint?: string; status?: number } : undefined;
+    const backendError = error && typeof error === "object" ? error as { code?: string; message?: string; details?: string; hint?: string; status?: number } : undefined;
     const message = error instanceof Error
       ? error.message
-      : supabaseError?.message
+      : backendError?.message
         || (typeof error === "string" ? error : "Unknown assignment error");
     console.error(context, {
-      code: supabaseError?.code,
+      code: backendError?.code,
       message,
-      details: supabaseError?.details,
-      hint: supabaseError?.hint,
-      status: supabaseError?.status,
+      details: backendError?.details,
+      hint: backendError?.hint,
+      status: backendError?.status,
     });
   };
 
@@ -1928,7 +1920,7 @@ export default function InstructorWorkstationPage({
     if (!assignmentResourceRequest) return;
     setIsSavingAssignmentResources(true);
     setAssignmentResourceError(null);
-    const uploadedPaths: string[] = [];
+    const uploadedAssets: string[] = [];
     let resourceRowsWriteStarted = false;
     try {
       const customResourcesByStudentId: NonNullable<LessonAssignmentResourceOptions["customResourcesByStudentId"]> = {};
@@ -1938,20 +1930,15 @@ export default function InstructorWorkstationPage({
         const studentResources = [];
         for (const customResource of customResources) {
           let linkUrl: string | null = null;
-          let storagePath: string | null = null;
+          let resourceUrl: string | null = null;
           let resourceType: "links" | "note" | "file";
           if (customResource.kind === "file") {
             const file = customResource.file;
             if (!file) throw new Error(`Choose a file for ${customResource.title}.`);
             const safeFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-            storagePath = `lesson-assignments/${assignmentResourceRequest.lesson.id}/${student.id}/${customResource.id}/${safeFilename}`;
-            const { error: uploadError } = await supabase.storage
-              .from("student-resources")
-              .upload(storagePath, file, { upsert: false, contentType: file.type || undefined });
-            if (uploadError) throw uploadError;
-            uploadedPaths.push(storagePath);
-            const { data } = supabase.storage.from("student-resources").getPublicUrl(storagePath);
-            linkUrl = data.publicUrl;
+            resourceUrl = await uploadAsset(file, safeFilename);
+            uploadedAssets.push(resourceUrl);
+            linkUrl = resourceUrl;
             resourceType = "file";
           } else if (customResource.kind === "note") {
             resourceType = "note";
@@ -1969,7 +1956,7 @@ export default function InstructorWorkstationPage({
               link_url: linkUrl,
               original_filename: customResource.file?.name || null,
               media_type: customResource.file?.type || null,
-              storage_path: storagePath,
+              storage_path: null,
               is_external_url: customResource.kind === "url",
             },
           });
@@ -2000,9 +1987,14 @@ export default function InstructorWorkstationPage({
         : "Lesson and resources assigned to the selected student.");
       setAssignmentResourceRequest(null);
     } catch (error) {
-      if (!resourceRowsWriteStarted && uploadedPaths.length > 0) {
-        const { error: cleanupError } = await supabase.storage.from("student-resources").remove(uploadedPaths);
-        if (cleanupError) console.error("Failed to clean up unassigned lesson resource uploads:", cleanupError);
+      if (!resourceRowsWriteStarted && uploadedAssets.length > 0) {
+        await Promise.all(uploadedAssets.map(async (url) => {
+          try {
+            await deleteAsset(url);
+          } catch (cleanupError) {
+            console.error("Failed to clean up unassigned lesson resource upload:", cleanupError);
+          }
+        }));
       }
       logAssignmentError("Lesson resource assignment failed:", error);
       setAssignmentResourceError(error instanceof Error ? error.message : "Lesson resources could not be assigned.");
@@ -2044,14 +2036,12 @@ export default function InstructorWorkstationPage({
     };
 
     try {
-      const { data, error } = await supabase
-        .from("student_resources")
-        .select("*")
-        .eq("student_id", student.id)
-        .eq("lesson_id", lessonId);
-      if (error) throw error;
+      const params = new URLSearchParams({ studentId: student.id, lessonId });
+      const response = await fetch(`/api/student-resources?${params}`, { cache: "no-store" });
+      const result = await response.json() as { resources?: StudentResourceEntry[]; error?: string };
+      if (!response.ok) throw new Error(result.error || "Unable to load student resources.");
 
-      const nextResources = ((data || []) as StudentResourceEntry[]).sort((left, right) => {
+      const nextResources = (Array.isArray(result.resources) ? result.resources : []).sort((left, right) => {
         const leftTime = left.created_at ? new Date(left.created_at).getTime() : 0;
         const rightTime = right.created_at ? new Date(right.created_at).getTime() : 0;
         return rightTime - leftTime;
@@ -2268,16 +2258,8 @@ export default function InstructorWorkstationPage({
       let resourceUrl = resourceDraft.linkUrl.trim();
       if (usesMediaUpload && mediaUploadFile && resourceFileMediaType) {
         const safeFileName = mediaUploadFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        resourceFileStoragePath = `${resolvedStudent.id}/${resolvedLessonId}/${crypto.randomUUID()}-${safeFileName}`;
-        const { error: uploadError } = await supabase.storage.from("student-resources").upload(resourceFileStoragePath, mediaUploadFile, {
-          contentType: resourceFileMediaType,
-          upsert: false,
-        });
-        if (uploadError) {
-          setResourceStatus("Media upload failed. Check the student-resources bucket permissions and try again.");
-          return;
-        }
-        resourceUrl = supabase.storage.from("student-resources").getPublicUrl(resourceFileStoragePath).data.publicUrl;
+        resourceFileStoragePath = await uploadAsset(mediaUploadFile, safeFileName);
+        resourceUrl = resourceFileStoragePath;
       }
       const payload = {
         student_id: resolvedStudent.id,
@@ -2332,26 +2314,26 @@ export default function InstructorWorkstationPage({
         return;
       }
 
-      const writeRequest = resourceBeingEdited
-        ? supabase
-            .from("student_resources")
-            .update(payload)
-            .eq("id", resourceBeingEdited.id)
-            .eq("student_id", resolvedStudent.id)
-        : supabase
-            .from("student_resources")
-            .insert(payload);
-      const { data, error } = await writeRequest
-        .select()
-        .abortSignal(AbortSignal.timeout(8000))
-        .single();
+      const response = await fetch("/api/student-resources", {
+        method: resourceBeingEdited ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(8000),
+        body: JSON.stringify({
+          id: resourceBeingEdited?.id,
+          studentId: resolvedStudent.id,
+          lessonId: resolvedLessonId,
+          resource: payload,
+        }),
+      });
+      const result = await response.json() as { resource?: StudentResourceEntry; error?: string };
+      const data = result.resource;
 
-      if (error) {
+      if (!response.ok || !data) {
         if (resourceFileStoragePath) {
-          await supabase.storage.from("student-resources").remove([resourceFileStoragePath]);
+          await deleteAsset(resourceFileStoragePath);
           resourceFileStoragePath = null;
         }
-        if (!resourceBeingEdited && (error.code === "PGRST205" || /does not exist|42P01/i.test(error.message || ""))) {
+        if (!resourceBeingEdited && /student_resources.*(does not exist|not ready)|42P01/i.test(result.error || "")) {
           if (usesMediaUpload) throw new Error("Apply migration 028 before saving uploaded resource attachments.");
           if (resourceType === "file" || resourceType === "image" || resourceType === "video") throw new Error("Apply migration 028 before saving image and video resources.");
           const localEntry: StudentResourceEntry = {
@@ -2368,16 +2350,15 @@ export default function InstructorWorkstationPage({
           setResourceStatus("Resource saved locally because the student_resources table is not available yet.");
           return;
         }
-        if (error.code === "PGRST204" && /original_filename|media_type/i.test(error.message || "")) {
+        if (/original_filename|media_type/i.test(result.error || "")) {
           throw new Error("Apply migration 022 before saving uploaded media resources.");
         }
         if (resourceType === "flashcard" && (
-          error.code === "23514"
-          || (error.code === "PGRST204" && /cards/i.test(error.message || ""))
+          /cards/i.test(result.error || "")
         )) {
           throw new Error("Apply migration 029 before saving flashcard decks.");
         }
-        throw error;
+        throw new Error(result.error || `Resource request failed (${response.status}).`);
       }
 
       const savedResource = {
@@ -2394,16 +2375,7 @@ export default function InstructorWorkstationPage({
       writeStudentResourcesLocally(studentToken, next);
       if (resourceBeingEdited && resourceFileStoragePath && resourceBeingEdited.link_url) {
         try {
-          const oldUrl = new URL(resourceBeingEdited.link_url);
-          const prefix = "/storage/v1/object/public/student-resources/";
-          const prefixIndex = oldUrl.pathname.indexOf(prefix);
-          if (prefixIndex >= 0) {
-            const oldPath = decodeURIComponent(oldUrl.pathname.slice(prefixIndex + prefix.length));
-            if (oldPath) {
-              const { error: cleanupError } = await supabase.storage.from("student-resources").remove([oldPath]);
-              if (cleanupError) throw cleanupError;
-            }
-          }
+          await deleteAsset(resourceBeingEdited.storage_path || resourceBeingEdited.link_url);
         } catch (cleanupError) {
           console.error("Replaced student resource file cleanup failed:", cleanupError);
           oldFileCleanupFailed = true;
@@ -2417,7 +2389,7 @@ export default function InstructorWorkstationPage({
         : resourceBeingEdited ? "Resource updated for the selected student." : "Resource saved to the selected student.");
     } catch (error: any) {
       if (resourceFileStoragePath) {
-        await supabase.storage.from("student-resources").remove([resourceFileStoragePath]);
+        await deleteAsset(resourceFileStoragePath);
       }
       console.error("Full Student resource save error:", error);
       const errorObject = error && typeof error === "object" ? error as Record<string, unknown> : null;
@@ -2429,7 +2401,7 @@ export default function InstructorWorkstationPage({
           serializedError = "";
         }
       }
-      const fallbackMessage = errorObject ? "Unknown Supabase error" : String(error || "Unknown save error");
+      const fallbackMessage = errorObject ? "Unknown server error" : String(error || "Unknown save error");
       const message =
         (typeof errorObject?.message === "string" && errorObject.message) ||
         (typeof errorObject?.error_description === "string" && errorObject.error_description) ||
@@ -2454,15 +2426,19 @@ export default function InstructorWorkstationPage({
       return;
     }
 
-    const { error } = await supabase
-      .from("student_resources")
-      .delete()
-      .eq("id", resource.id)
-      .eq("student_id", resolvedStudent.id);
-
-    if (error) {
-      console.error("Student resource delete failed:", error.message);
-      throw new Error("Resource could not be deleted. Check the Supabase permissions and try again.");
+    const response = await fetch("/api/student-resources", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: resource.id,
+        studentId: resolvedStudent.id,
+        lessonId: resource.lesson_id,
+      }),
+    });
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({})) as { error?: string };
+      console.error("Student resource delete failed:", result.error || response.status);
+      throw new Error(result.error || "Resource could not be deleted.");
     }
 
     const next = studentResources.filter((item) => item.id !== resource.id);
@@ -2470,20 +2446,7 @@ export default function InstructorWorkstationPage({
     writeStudentResourcesLocally(studentToken, next);
     if (resource.storage_path || resource.link_url) {
       try {
-        let storageBucket = "student-resources";
-        let storagePath = resource.storage_path || "";
-        if (!storagePath && resource.link_url) {
-          const resourceUrl = new URL(resource.link_url);
-          const bucketName = ["student-resources", "lesson-audio"].find((bucket) => resourceUrl.pathname.includes(`/storage/v1/object/public/${bucket}/`));
-          if (bucketName) {
-            storageBucket = bucketName;
-            storagePath = decodeURIComponent(resourceUrl.pathname.split(`/storage/v1/object/public/${bucketName}/`)[1] || "");
-          }
-        }
-        if (storagePath) {
-          const { error: storageError } = await supabase.storage.from(storageBucket).remove([storagePath]);
-          if (storageError) throw storageError;
-        }
+        await deleteAsset(resource.storage_path || resource.link_url || "");
       } catch (error) {
         console.error("Student resource file cleanup failed:", error);
         setResourceStatus("Resource deleted, but its stored file could not be removed.");
@@ -2600,7 +2563,7 @@ export default function InstructorWorkstationPage({
         hint: details?.hint,
         status: details?.status,
       });
-      setPublishStatus("Lesson creation failed. Check the Supabase connection and try again.");
+      setPublishStatus(`Lesson creation failed: ${error instanceof Error ? error.message : "The PostgreSQL request failed."}`);
     }
   }
 
@@ -2766,89 +2729,60 @@ export default function InstructorWorkstationPage({
       setStudentsLoading(true);
       setStudentsError(null);
       try {
-        const [pendingResult, publishedResult, draftsResult] = await Promise.allSettled([
-          supabase.from("submissions").select("id, lesson_id, student_id, status, submitted_at, answers").in("status", ["submitted", "pending_evaluation", "completed", "reviewed", "evaluated"]).order("submitted_at", { ascending: false }),
-          supabase.from("lessons").select("id", { count: "exact", head: true }).eq("status", "published"),
-          supabase.from("lessons").select("id", { count: "exact", head: true }).eq("status", "draft"),
-        ]);
-        const logCountError = (label: string, result: PromiseSettledResult<{ count: number | null; error: { code?: string; message: string; details?: string; hint?: string } | null }>) => {
-          if (result.status === "rejected") {
-            console.error(`Failed to load ${label} count:`, result.reason);
-          } else if (result.value.error) {
-            console.error(`Failed to load ${label} count:`, {
-              code: result.value.error.code,
-              message: result.value.error.message,
-              details: result.value.error.details,
-              hint: result.value.error.hint,
-            });
-          }
+        const summaryResponse = await fetch("/api/instructor/summary", { credentials: "same-origin" });
+        const summary = await summaryResponse.json().catch(() => ({})) as {
+          error?: string;
+          submissions?: Array<{
+            id: string;
+            lesson_id: string;
+            student_id: string;
+            status: string;
+            submitted_at: string;
+            answers: unknown;
+          }>;
+          publishedLessonCount?: number;
+          draftLessonCount?: number;
         };
-        logCountError("published lesson", publishedResult);
-        logCountError("draft lesson", draftsResult);
-        if (pendingResult.status === "rejected") {
-          console.error("Failed to load pending submissions:", pendingResult.reason);
-          setPendingSubmissionError("Pending submissions could not be loaded.");
-          setSubmittedAssignments([]);
-          setPendingSubmissions([]);
-          setPendingSubmissionCount(0);
-        } else if (pendingResult.value.error) {
-          console.error("Failed to load pending submissions:", {
-            code: pendingResult.value.error.code,
-            message: pendingResult.value.error.message,
-            details: pendingResult.value.error.details,
-            hint: pendingResult.value.error.hint,
+        if (!summaryResponse.ok) throw new Error(summary.error || "Unable to load instructor dashboard data.");
+        const allAssignments: PendingReviewSubmission[] = [];
+        for (const row of summary.submissions || []) {
+          const answers = row.answers && typeof row.answers === "object"
+            ? row.answers as Partial<StudentSubmission>
+            : {};
+          if (answers.status === "in_progress") continue;
+          const submissionStatus = row.status === "completed" ? "pending_evaluation" : row.status;
+          allAssignments.push({
+            id: row.id,
+            lessonId: row.lesson_id,
+            studentId: row.student_id,
+            submittedAt: row.submitted_at,
+            status: row.status,
+            submission: {
+              status: submissionStatus as StudentSubmission["status"],
+              listeningAnswers: answers.listeningAnswers || {},
+              readingAnswers: answers.readingAnswers || {},
+              writingText: answers.writingText || "",
+              writing_responses: answers.writing_responses || {},
+              speakingAudioUrl: answers.speakingAudioUrl,
+              blockResponses: answers.blockResponses || {},
+              quizSelections: answers.quizSelections || {},
+              audioUploads: answers.audioUploads || {},
+              submittedAt: row.submitted_at || undefined,
+            },
           });
-          setPendingSubmissionError(pendingResult.value.error.message);
-          setSubmittedAssignments([]);
-          setPendingSubmissions([]);
-          setPendingSubmissionCount(0);
-        } else {
-          const allAssignments: PendingReviewSubmission[] = [];
-          for (const row of pendingResult.value.data || []) {
-            const answers = row.answers && typeof row.answers === "object"
-              ? row.answers as Partial<StudentSubmission>
-              : {};
-            if (answers.status === "in_progress") continue;
-            const submissionStatus = row.status === "completed" ? "pending_evaluation" : row.status;
-            allAssignments.push({
-              id: row.id,
-              lessonId: row.lesson_id,
-              studentId: row.student_id,
-              submittedAt: row.submitted_at,
-              status: row.status,
-              submission: {
-                status: submissionStatus as StudentSubmission["status"],
-                listeningAnswers: answers.listeningAnswers || {},
-                readingAnswers: answers.readingAnswers || {},
-                writingText: answers.writingText || "",
-                writing_responses: answers.writing_responses || {},
-                speakingAudioUrl: answers.speakingAudioUrl,
-                blockResponses: answers.blockResponses || {},
-                quizSelections: answers.quizSelections || {},
-                audioUploads: answers.audioUploads || {},
-                submittedAt: row.submitted_at || undefined,
-              },
-            });
-          }
-          setSubmittedAssignments(allAssignments);
-          const nextPendingSubmissions = allAssignments.filter((submission) =>
-            submission.status === "submitted" || submission.status === "pending_evaluation" || submission.status === "completed",
-          );
-          setPendingSubmissions(nextPendingSubmissions);
-          setPendingSubmissionCount(nextPendingSubmissions.length);
-          setPendingSubmissionError(null);
         }
+        setSubmittedAssignments(allAssignments);
+        const nextPendingSubmissions = allAssignments.filter((submission) =>
+          submission.status === "submitted" || submission.status === "pending_evaluation" || submission.status === "completed",
+        );
+        setPendingSubmissions(nextPendingSubmissions);
+        setPendingSubmissionCount(nextPendingSubmissions.length);
+        setPendingSubmissionError(null);
+        setPublishedLessonCount(summary.publishedLessonCount || 0);
+        setDraftLessonCount(summary.draftLessonCount || 0);
+
         const studentDirectory = await getStudentDirectory();
         if (cancelled) return;
-        if (pendingResult.status === "fulfilled" && !pendingResult.value.error && pendingResult.value.count !== null) {
-          setPendingSubmissionCount(pendingResult.value.count);
-        }
-        if (publishedResult.status === "fulfilled" && !publishedResult.value.error && publishedResult.value.count !== null) {
-          setPublishedLessonCount(publishedResult.value.count);
-        }
-        if (draftsResult.status === "fulfilled" && !draftsResult.value.error && draftsResult.value.count !== null) {
-          setDraftLessonCount(draftsResult.value.count);
-        }
         const nextStudents: StudentUser[] = deduplicateStudents(studentDirectory)
           .filter((student) => student.name.trim() !== "Navid Kabazi")
           .map((student) => ({
@@ -2868,6 +2802,7 @@ export default function InstructorWorkstationPage({
         const message = error instanceof Error ? error.message : "Unable to load students";
         if (!cancelled) {
           setStudentsError(message);
+          setPendingSubmissionError(message);
           console.error("Instructor workstation student loading failed:", message);
         }
       } finally {
@@ -2906,22 +2841,27 @@ export default function InstructorWorkstationPage({
     if (!selectedStudent || !resourceLessonId) return () => { cancelled = true; };
 
     void (async () => {
-      const { data, error } = await supabase
-        .from("student_lesson_resources")
-        .select("source_resource_id, source_type, resource")
-        .eq("student_id", selectedStudent.id)
-        .eq("lesson_id", resourceLessonId);
+      const response = await fetch(
+        `/api/student-lesson-resources?studentId=${encodeURIComponent(selectedStudent.id)}&lessonId=${encodeURIComponent(resourceLessonId)}`,
+        { credentials: "same-origin" },
+      );
+      const result: {
+        error?: string;
+        resources?: { source_resource_id: string; source_type: string; resource: unknown }[];
+      } = await response.json().catch(() => ({}));
       if (cancelled) return;
-      if (error) {
-        setStudentLessonResourceError(error.message);
+      if (!response.ok) {
+        setStudentLessonResourceError(result.error || "Unable to load lesson resource assignments.");
         return;
       }
-      setStudentLessonResourceIds((data || [])
+      const data = result.resources || [];
+      setStudentLessonResourceIds(data
         .filter((row) => row.source_type === "lesson")
         .map((row) => String(row.source_resource_id)));
-      setStudentLessonCustomResources((data || [])
-        .filter((row) => row.source_type === "custom" && row.resource && typeof row.resource === "object")
-        .map((row) => ({ source_resource_id: String(row.source_resource_id), resource: row.resource as Record<string, unknown> })));
+      setStudentLessonCustomResources(data
+        .filter((row): row is typeof row & { resource: Record<string, unknown> } =>
+          row.source_type === "custom" && row.resource !== null && typeof row.resource === "object" && !Array.isArray(row.resource))
+        .map((row) => ({ source_resource_id: String(row.source_resource_id), resource: row.resource })));
     })().catch((error: unknown) => {
         if (!cancelled) setStudentLessonResourceError(error instanceof Error ? error.message : "Unable to load lesson resource assignments.");
       });
@@ -3185,7 +3125,7 @@ export default function InstructorWorkstationPage({
         );
       }
       setSaveIndicator("error");
-      if (!isAutoSave) setPublishStatus("Lesson save failed. Check the Supabase connection and try again.");
+      if (!isAutoSave) setPublishStatus(`Lesson save failed: ${error instanceof Error ? error.message : "The PostgreSQL request failed."}`);
       return false;
     } finally {
       if (requestId === saveRequestId.current) {
@@ -5879,7 +5819,7 @@ export default function InstructorWorkstationPage({
                   instructorId={instructorId}
                   studentName={selectedStudent.name}
                   reportCardStages={reviewStages}
-                  useSupabase
+                  usePostgres
                   evaluation={workstationState.evaluation}
                   onUpdateEvaluation={(evaluation: LessonEvaluation) => setWorkstationState((previous) => ({ ...previous, evaluation }))}
                   onSaveDraft={async (feedback: FeedbackPayload) => {

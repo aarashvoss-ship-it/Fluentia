@@ -1,6 +1,6 @@
 /**
  * Zustand store for lesson editor state management
- * Handles local state mutations and syncs with Supabase
+ * Handles local state mutations and syncs with the PostgreSQL lesson API.
  */
 
 import { create } from "zustand";
@@ -150,7 +150,7 @@ export const useLessonEditorStore = create<LessonEditorState>()(
     },
 
     // ========================================================================
-    // Block Operations with Supabase Sync
+    // Block Operations with PostgreSQL Sync
     // ========================================================================
 
     addBlock: async (stepId, block) => {
@@ -166,7 +166,7 @@ export const useLessonEditorStore = create<LessonEditorState>()(
         draft.content[stepId] = stepContent;
       });
 
-      // Persist to Supabase
+      // Persist to PostgreSQL
       if (state.lesson) {
         set({ isSaving: true, saveError: null });
         try {
@@ -200,7 +200,7 @@ export const useLessonEditorStore = create<LessonEditorState>()(
         }
       });
 
-      // Persist to Supabase
+      // Persist to PostgreSQL
       if (state.lesson) {
         set({ isSaving: true, saveError: null });
         try {
@@ -231,7 +231,7 @@ export const useLessonEditorStore = create<LessonEditorState>()(
         draft.content[stepId] = stepContent;
       });
 
-      // Persist to Supabase
+      // Persist to PostgreSQL
       if (state.lesson) {
         set({ isSaving: true, saveError: null });
         try {
@@ -265,7 +265,7 @@ export const useLessonEditorStore = create<LessonEditorState>()(
         }
       });
 
-      // Persist to Supabase
+      // Persist to PostgreSQL
       if (state.lesson) {
         set({ isSaving: true, saveError: null });
         try {
@@ -302,7 +302,7 @@ export const useLessonEditorStore = create<LessonEditorState>()(
         draft.content[stepId] = stepContent;
       });
 
-      // Persist to Supabase
+      // Persist to PostgreSQL
       if (state.lesson) {
         set({ isSaving: true, saveError: null });
         try {
@@ -332,7 +332,7 @@ export const useLessonEditorStore = create<LessonEditorState>()(
       // Optimistic update
       set({ bannerUrl: url });
 
-      // Persist to Supabase
+      // Persist to PostgreSQL
       if (state.lesson) {
         set({ isSaving: true, saveError: null });
         try {
@@ -368,7 +368,7 @@ export const useLessonEditorStore = create<LessonEditorState>()(
         });
       }
 
-      // Persist to Supabase
+      // Persist to PostgreSQL
       if (state.lesson) {
         set({ isSaving: true, saveError: null });
         try {

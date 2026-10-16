@@ -3,8 +3,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { MessageCircle, Search, Send, X } from "lucide-react";
 import { fetchChatMessages, saveChatMessage } from "@/services/storage-service";
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import { resolveUserUuid } from "@/lib/identity";
 import type { ChatMessage } from "@/types/lesson";
 import { deduplicateStudents, type StudentUser } from "@/lib/users";
 
@@ -19,6 +17,8 @@ interface InstructorChatWidgetProps {
 
 interface MessageRow {
   id: string;
+  student_id: string | null;
+  instructor_id: string;
   sender_id: string;
   receiver_id: string;
   tab_type: "active" | "support";
@@ -28,6 +28,11 @@ interface MessageRow {
 
 function studentKey(student: StudentUser) {
   return student.token || student.id;
+}
+
+function threadKeyForId(identifier: string, students: StudentUser[]) {
+  const student = students.find((entry) => entry.id === identifier || entry.token === identifier);
+  return student ? studentKey(student) : identifier;
 }
 
 function toChatMessage(row: MessageRow, currentUserId: string): ChatMessage {
@@ -74,19 +79,14 @@ export function InstructorChatWidget({ activeStudent, students, instructorId, le
   const [supportMessages, setSupportMessages] = useState<ChatMessage[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadByStudent, setUnreadByStudent] = useState<Record<string, number>>({});
-  const [resolvedInstructorId, setResolvedInstructorId] = useState(instructorId);
+  const [fallbackMode, setFallbackMode] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const tabRef = useRef<ChatTab>("active");
   const openRef = useRef(false);
+  const seenMessageIds = useRef(new Set<string>());
+  const hasLoadedMessages = useRef(false);
 
   useEffect(() => setSelectedConversationId(null), [activeStudent?.id]);
-
-  useEffect(() => {
-    if (!isSupabaseConfigured()) return;
-    void resolveUserUuid().then((resolvedId) => {
-      if (resolvedId) setResolvedInstructorId(resolvedId);
-    }).catch((error) => console.error("Unable to resolve instructor identity:", error));
-  }, [instructorId]);
 
   useEffect(() => {
     if (!open) return;
@@ -98,62 +98,70 @@ export function InstructorChatWidget({ activeStudent, students, instructorId, le
   }, [open]);
 
   useEffect(() => {
-    if (!isSupabaseConfigured() || !resolvedInstructorId) return;
     let cancelled = false;
+    let loading = false;
     const loadMessages = async () => {
-      const { data, error } = await supabase
-        .from("messages")
-        .select("id, sender_id, receiver_id, tab_type, content, created_at")
-        .order("created_at", { ascending: true });
-      if (cancelled || error || !data) return;
-      const rows = data as MessageRow[];
-      const nextThreads: Record<string, ChatMessage[]> = {};
-      rows.filter((row) => row.tab_type === "active").forEach((row) => {
-        const key = row.sender_id === resolvedInstructorId ? row.receiver_id : row.sender_id;
-        nextThreads[key] = [...(nextThreads[key] || []), toChatMessage(row, resolvedInstructorId)];
-      });
-      setThreadMessages(nextThreads);
-      setSupportMessages(rows.filter((row) => row.tab_type === "support").map((row) => toChatMessage(row, resolvedInstructorId)));
-      setUnreadCount(0);
-      setUnreadByStudent({});
+      if (loading) return;
+      loading = true;
+      try {
+        const response = await fetch("/api/chat", { cache: "no-store", credentials: "same-origin" });
+        if (response.status === 401) {
+          setFallbackMode(true);
+          return;
+        }
+        if (!response.ok) return;
+        const result = await response.json() as { messages: MessageRow[]; currentUserId: string };
+        if (cancelled) return;
+        const rows = Array.isArray(result.messages) ? result.messages : [];
+        const nextThreads: Record<string, ChatMessage[]> = {};
+        rows.filter((row) => row.tab_type === "active").forEach((row) => {
+          const id = row.student_id || (row.sender_id === result.currentUserId ? row.receiver_id : row.sender_id);
+          const key = threadKeyForId(id, uniqueStudents);
+          nextThreads[key] = [...(nextThreads[key] || []), toChatMessage(row, result.currentUserId)];
+        });
+        const nextSupport = rows.filter((row) => row.tab_type === "support");
+        if (hasLoadedMessages.current) {
+          const incoming = rows.filter((row) => row.sender_id !== result.currentUserId && !seenMessageIds.current.has(row.id));
+          if (incoming.length) {
+            incoming.forEach(() => triggerChime());
+            const unread = incoming.filter((row) => !openRef.current || row.tab_type !== tabRef.current);
+            if (unread.length) setUnreadCount((count) => count + unread.length);
+            const increments: Record<string, number> = {};
+            unread.forEach((row) => {
+              const id = row.student_id || row.sender_id;
+              const key = threadKeyForId(id, uniqueStudents);
+              increments[key] = (increments[key] || 0) + 1;
+            });
+            setUnreadByStudent((current) => {
+              const next = { ...current };
+              Object.entries(increments).forEach(([key, count]) => { next[key] = (next[key] || 0) + count; });
+              return next;
+            });
+          }
+        } else {
+          setUnreadCount(0);
+          setUnreadByStudent({});
+        }
+        rows.forEach((row) => seenMessageIds.current.add(row.id));
+        hasLoadedMessages.current = true;
+        setThreadMessages(nextThreads);
+        setSupportMessages(nextSupport.map((row) => toChatMessage(row, result.currentUserId)));
+      } catch (error) {
+        if (!cancelled) console.error("Unable to load chat messages:", error);
+      } finally {
+        loading = false;
+      }
     };
     void loadMessages();
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-    const subscriptionTimer = window.setTimeout(() => {
-      if (cancelled) return;
-      channel = supabase
-        .channel("public:messages")
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
-          const row = payload.new as MessageRow;
-          if (row.sender_id !== resolvedInstructorId && row.receiver_id !== resolvedInstructorId && row.tab_type !== "support") return;
-          const message = toChatMessage(row, resolvedInstructorId);
-          if (row.tab_type === "support") setSupportMessages((current) => appendUnique(current, message));
-          else {
-            const key = row.sender_id === resolvedInstructorId ? row.receiver_id : row.sender_id;
-            setThreadMessages((current) => ({ ...current, [key]: appendUnique(current[key] || [], message) }));
-          }
-          const isIncoming = row.sender_id !== resolvedInstructorId;
-          const shouldNotify = !openRef.current || row.tab_type !== tabRef.current;
-          if (isIncoming) {
-            triggerChime();
-          }
-          if (isIncoming && shouldNotify) {
-            setUnreadCount((count) => count + 1);
-            const studentKey = row.sender_id === resolvedInstructorId ? row.receiver_id : row.sender_id;
-            setUnreadByStudent((counts) => ({ ...counts, [studentKey]: (counts[studentKey] || 0) + 1 }));
-          }
-        })
-        .subscribe();
-    }, 0);
+    const pollTimer = window.setInterval(() => { void loadMessages(); }, 5000);
     return () => {
       cancelled = true;
-      window.clearTimeout(subscriptionTimer);
-      if (channel) void supabase.removeChannel(channel);
+      window.clearInterval(pollTimer);
     };
-  }, [resolvedInstructorId]);
+  }, [uniqueStudents, instructorId]);
 
   useEffect(() => {
-    if (isSupabaseConfigured()) return;
+    if (!fallbackMode) return;
     let cancelled = false;
     const loadLocalMessages = async () => {
       const entries = await Promise.all(uniqueStudents.map(async (student) => [studentKey(student), await fetchChatMessages(studentKey(student))] as const));
@@ -163,7 +171,7 @@ export function InstructorChatWidget({ activeStudent, students, instructorId, le
     };
     void loadLocalMessages();
     return () => { cancelled = true; };
-  }, [uniqueStudents]);
+  }, [fallbackMode, uniqueStudents]);
 
   const filteredStudents = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -194,14 +202,14 @@ export function InstructorChatWidget({ activeStudent, students, instructorId, le
     setSelectedConversationId(studentId);
     setTab("active");
     tabRef.current = "active";
-    setUnreadCount(0);
-    setUnreadByStudent({});
-    const count = unreadByStudent[studentId] || 0;
+    const selectedStudent = uniqueStudents.find((student) => student.id === studentId);
+    const key = selectedStudent ? studentKey(selectedStudent) : studentId;
+    const count = unreadByStudent[key] || 0;
     if (count > 0) {
       setUnreadCount((current) => Math.max(0, current - count));
       setUnreadByStudent((current) => {
         const next = { ...current };
-        delete next[studentId];
+        delete next[key];
         return next;
       });
     }
@@ -212,27 +220,46 @@ export function InstructorChatWidget({ activeStudent, students, instructorId, le
     const trimmedText = text.trim();
     const studentId = conversationStudent ? studentKey(conversationStudent) : null;
     if (!trimmedText || (tab !== "support" && !studentId)) return;
-    if (isSupabaseConfigured()) {
-      const senderUuid = await resolveUserUuid();
-      if (!senderUuid) return;
-      const receiverId = tab === "support" ? senderUuid : studentId;
-      if (!receiverId) return;
-      const { data, error } = await supabase.from("messages").insert({
-        sender_id: senderUuid,
-        receiver_id: receiverId,
-        tab_type: tab === "support" ? "support" : "active",
-        content: trimmedText,
-      }).select("id, sender_id, receiver_id, tab_type, content, created_at").single();
-      if (error || !data) return;
-      const message = toChatMessage(data as MessageRow, senderUuid);
-      if (tab === "support") setSupportMessages((current) => appendUnique(current, message));
-      else setThreadMessages((current) => ({ ...current, [studentId!]: appendUnique(current[studentId!] || [], message) }));
-    } else {
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tab, content: trimmedText, studentId }),
+      });
+      if (response.status === 401) {
+        setFallbackMode(true);
+        const message: ChatMessage = { id: `${Date.now()}`, tab: tab === "support" ? "support" : "instructor", text: trimmedText, sender: "team", createdAt: new Date().toISOString() };
+        const storageKey = tab === "support" ? "instructor-support" : studentId!;
+        try {
+          const nextMessages = await saveChatMessage(storageKey, message);
+          if (tab === "support") setSupportMessages(nextMessages.filter((item) => item.tab === "support"));
+          else setThreadMessages((current) => ({ ...current, [storageKey]: nextMessages.filter((item) => item.tab === "instructor") }));
+        } catch (error) {
+          console.warn("Local chat fallback is unavailable:", error);
+          return;
+        }
+      } else if (!response.ok) {
+        return;
+      } else {
+        const result = await response.json() as { message: MessageRow; currentUserId: string };
+        const message = toChatMessage(result.message, result.currentUserId);
+        seenMessageIds.current.add(result.message.id);
+        if (tab === "support") setSupportMessages((current) => appendUnique(current, message));
+        else setThreadMessages((current) => ({ ...current, [studentId!]: appendUnique(current[studentId!] || [], message) }));
+      }
+    } catch (error) {
+      console.error("Unable to send chat message:", error);
       const message: ChatMessage = { id: `${Date.now()}`, tab: tab === "support" ? "support" : "instructor", text: trimmedText, sender: "team", createdAt: new Date().toISOString() };
       const storageKey = tab === "support" ? "instructor-support" : studentId!;
-      const nextMessages = await saveChatMessage(storageKey, message);
-      if (tab === "support") setSupportMessages(nextMessages.filter((item) => item.tab === "support"));
-      else setThreadMessages((current) => ({ ...current, [storageKey]: nextMessages.filter((item) => item.tab === "instructor") }));
+      try {
+        const nextMessages = await saveChatMessage(storageKey, message);
+        if (tab === "support") setSupportMessages(nextMessages.filter((item) => item.tab === "support"));
+        else setThreadMessages((current) => ({ ...current, [storageKey]: nextMessages.filter((item) => item.tab === "instructor") }));
+      } catch (fallbackError) {
+        console.warn("Local chat fallback is unavailable:", fallbackError);
+        return;
+      }
     }
     setText("");
   }

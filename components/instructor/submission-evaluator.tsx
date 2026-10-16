@@ -3,9 +3,8 @@
 import React, { useEffect, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Mic, Save } from "lucide-react";
 import { LessonEvaluation } from "@/types/lesson";
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import { getSubmissionById, getSubmissionByLessonAndStudent } from "@/lib/evaluations";
-import { saveInstructorFeedback, uploadVoiceFeedback } from "@/services/storage-service";
+import { getInstructorSubmissionData, saveInstructorEvaluation } from "@/lib/evaluations";
+import { uploadVoiceFeedback } from "@/services/storage-service";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { AudioRecorder } from "@/components/shared/audio-recorder";
 import { TiptapEditor } from "@/components/shared/tiptap-editor";
@@ -54,7 +53,7 @@ interface SubmissionEvaluatorProps {
   evaluation?: LessonEvaluation;
   reportCardStages?: UnifiedReportStage[];
   onUpdateEvaluation?: (evaluation: LessonEvaluation) => void;
-  useSupabase?: boolean; // When true, submits to Supabase instead of callback
+  usePostgres?: boolean;
 }
 
 const RUBRIC_CRITERIA = [
@@ -98,28 +97,17 @@ function normalizeAnswer(value: string) {
   return value.trim().toLowerCase().replace(/^[a-z]\s*[).]\s*/, "").trim();
 }
 
-function isMissingDatabaseObject(error: { code?: string; message?: string; status?: number } | null) {
-  if (!error) return false;
-  return error.status === 404
-    || error.code === "42P01"
-    || error.code === "42703"
-    || error.code === "PGRST204"
-    || error.code === "PGRST205"
-    || /does not exist|could not find the table|schema cache/i.test(error.message || "");
-}
-
 export function SubmissionEvaluator({
   lessonId,
   pendingSubmissionId,
   studentName = "Student",
   studentId,
-  instructorId,
   onSubmitFeedback,
   onSaveDraft,
   evaluation,
   reportCardStages = [],
   onUpdateEvaluation,
-  useSupabase = true,
+  usePostgres = true,
 }: SubmissionEvaluatorProps) {
   const comments = evaluation?.comments || "";
   const criterionFeedback = evaluation?.criterionFeedback || {};
@@ -165,20 +153,20 @@ export function SubmissionEvaluator({
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [submissionLoadState, setSubmissionLoadState] = useState<
     "idle" | "loading" | "loaded" | "missing"
-  >(useSupabase ? "idle" : "loaded");
+  >(usePostgres ? "idle" : "loaded");
 
-  // Load existing submission and evaluation if useSupabase is enabled
+  // Load the instructor's submission and saved evaluation through the authenticated API.
   useEffect(() => {
-    if (useSupabase && lessonId?.trim() && studentId?.trim()) {
+    if (usePostgres && lessonId?.trim() && studentId?.trim()) {
       loadSubmissionData();
     }
-  }, [lessonId, studentId, pendingSubmissionId, useSupabase]);
+  }, [lessonId, studentId, pendingSubmissionId, usePostgres]);
 
   const loadSubmissionData = async () => {
     const normalizedLessonId = lessonId?.trim() || "";
     const normalizedStudentId = studentId?.trim() || "";
-    if (!isSupabaseConfigured()
-      || !UUID_PATTERN.test(normalizedLessonId)
+    setSubmitError(null);
+    if (!UUID_PATTERN.test(normalizedLessonId)
       || !UUID_PATTERN.test(normalizedStudentId)
       || (pendingSubmissionId !== undefined && !UUID_PATTERN.test(pendingSubmissionId))) {
       setSubmissionId(null);
@@ -188,18 +176,12 @@ export function SubmissionEvaluator({
     setSubmissionId(null);
     setSubmissionLoadState("loading");
     try {
-      const [submission, feedbackResult] = await Promise.all([
-        pendingSubmissionId
-          ? getSubmissionById(pendingSubmissionId, normalizedLessonId, normalizedStudentId)
-          : getSubmissionByLessonAndStudent(normalizedLessonId, normalizedStudentId),
-        supabase
-          .from("instructor_feedback")
-          .select("*")
-          .eq("lesson_id", normalizedLessonId)
-          .eq("student_id", normalizedStudentId)
-          .eq("is_published", true)
-          .maybeSingle(),
-      ]);
+      const result = await getInstructorSubmissionData(
+        normalizedLessonId,
+        normalizedStudentId,
+        pendingSubmissionId,
+      );
+      const submission = result.submission;
       if (submission) {
         setSubmissionId(submission.id);
         setSubmissionLoadState("loaded");
@@ -207,31 +189,9 @@ export function SubmissionEvaluator({
         setSubmissionId(null);
         setSubmissionLoadState("missing");
       }
-      if (feedbackResult.error) {
-        const message = feedbackResult.error.message || "Rubric is not available yet.";
-        if (!isMissingDatabaseObject(feedbackResult.error) && feedbackResult.error.code !== "PGRST116") {
-          console.warn("Student lesson rubric could not be loaded:", message);
-        }
-      }
-      let draftEvaluation: LessonEvaluation | null = null;
-      if (submission && instructorId && UUID_PATTERN.test(instructorId)) {
-        const draftResult = await supabase
-          .from("instructor_evaluation_drafts")
-          .select("evaluation")
-          .eq("submission_id", submission.id)
-          .eq("instructor_id", instructorId)
-          .maybeSingle();
-        if (draftResult.error) {
-          if (!isMissingDatabaseObject(draftResult.error) && draftResult.error.code !== "PGRST116") {
-            console.warn("Instructor evaluation draft could not be loaded:", draftResult.error.message);
-          }
-        } else if (draftResult.data?.evaluation && typeof draftResult.data.evaluation === "object") {
-          draftEvaluation = draftResult.data.evaluation as LessonEvaluation;
-        }
-      }
-      const feedback = feedbackResult.data;
-      if (draftEvaluation) {
-        onUpdateEvaluation?.({ ...draftEvaluation, published: false });
+      const feedback = result.publishedFeedback;
+      if (result.draftEvaluation) {
+        onUpdateEvaluation?.({ ...result.draftEvaluation, published: false });
       } else if (feedback) {
         const rubricScores = feedback.rubric_scores || feedback.scores || feedback.criterion_feedback?.scores || {};
         onUpdateEvaluation?.({
@@ -259,7 +219,9 @@ export function SubmissionEvaluator({
     } catch (error) {
       setSubmissionId(null);
       setSubmissionLoadState("missing");
-      if (error instanceof Error) console.warn("Student submission could not be refreshed:", error.message);
+      const message = error instanceof Error ? error.message : "Unable to load this submission.";
+      setSubmitError(message);
+      console.error("Student submission could not be refreshed:", error);
     }
   };
 
@@ -350,8 +312,12 @@ export function SubmissionEvaluator({
     try {
       if (onSaveDraft) {
         await onSaveDraft(payload);
-      } else if (useSupabase && lessonId && studentId && submissionId) {
-        await saveInstructorFeedback(lessonId, studentId, { ...evaluation, ...payload, published: false }, submissionId, false);
+      } else if (usePostgres && lessonId && studentId && submissionId) {
+        await saveInstructorEvaluation(
+          submissionId,
+          { ...evaluation, ...payload, published: false } as LessonEvaluation,
+          false,
+        );
       } else {
         throw new Error("Draft saving is unavailable for this evaluation.");
       }
@@ -383,7 +349,7 @@ export function SubmissionEvaluator({
   const handleSubmit = async () => {
     setPublishNotice(null);
     setSubmitError(null);
-    if (!onSubmitFeedback && (!useSupabase || !lessonId || !studentId || !submissionId)) {
+    if (!onSubmitFeedback && (!usePostgres || !lessonId || !studentId || !submissionId)) {
       const message = "Missing required data for submission";
       setSubmitError(message);
       setPublishNotice({ type: "error", message });
@@ -411,7 +377,7 @@ export function SubmissionEvaluator({
       if (onSubmitFeedback) {
         await onSubmitFeedback({ ...payload, totalScore });
       } else {
-        await saveInstructorFeedback(lessonId!, studentId!, publishedEvaluation, submissionId!, true);
+        await saveInstructorEvaluation(submissionId!, publishedEvaluation, true);
       }
 
       setIsSubmitted(true);
@@ -420,17 +386,9 @@ export function SubmissionEvaluator({
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Failed to submit evaluation";
-      const databaseError = error && typeof error === "object"
-        ? error as { code?: string; message?: string; status?: number }
-        : null;
-      if (isMissingDatabaseObject(databaseError)) {
-        setSubmitError("Evaluation storage is unavailable. Apply the latest Supabase migrations and try again.");
-        setPublishNotice({ type: "error", message: "Evaluation could not be published. Evaluation storage is unavailable; apply the latest Supabase migrations and try again." });
-      } else {
-        setSubmitError(errorMessage);
-        setPublishNotice({ type: "error", message: errorMessage });
-        console.error("Error submitting evaluation:", error);
-      }
+      setSubmitError(errorMessage);
+      setPublishNotice({ type: "error", message: errorMessage });
+      console.error("Error submitting evaluation:", error);
     } finally {
       setIsSubmitting(false);
     }
@@ -445,7 +403,7 @@ export function SubmissionEvaluator({
     : status === "In progress"
       ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
       : "border-border bg-surface text-stone-500";
-  const feedbackError = submitError || (useSupabase && submissionLoadState === "missing" ? "Student has not submitted work for this lesson yet." : null);
+  const feedbackError = submitError || (usePostgres && submissionLoadState === "missing" ? "Student has not submitted work for this lesson yet." : null);
   const stageStepper = <div className="w-full min-w-0 overflow-x-auto border-b border-border">
     <nav className="flex w-full min-w-0 justify-between gap-0 px-0" aria-label="Evaluation stages">
       {stages.map((stage, index) => <button
@@ -528,13 +486,13 @@ export function SubmissionEvaluator({
           </button>
         </nav>
         <div className="mt-auto shrink-0 space-y-2 border-t border-border pt-4">
-          <button type="button" onClick={() => void handleSaveDraft()} disabled={isSavingDraft || isSubmitting || voiceUploadStage !== null || (useSupabase && submissionLoadState !== "loaded")} className="flex w-full items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-stone-200 transition hover:border-amber-500/40 disabled:cursor-wait disabled:opacity-50">
+          <button type="button" onClick={() => void handleSaveDraft()} disabled={isSavingDraft || isSubmitting || voiceUploadStage !== null || (usePostgres && submissionLoadState !== "loaded")} className="flex w-full items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-stone-200 transition hover:border-amber-500/40 disabled:cursor-wait disabled:opacity-50">
             <Save className="h-3.5 w-3.5" aria-hidden="true" />{isSavingDraft ? "Saving Draft..." : "Save Draft"}
           </button>
           <button type="button" onClick={() => changeActiveStage(reportStageId)} className="flex w-full items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-stone-200 transition hover:border-amber-500/40">
             <ClipboardCheck className="h-3.5 w-3.5" aria-hidden="true" />Jump to Report Card
           </button>
-          <button type="button" onClick={() => void handleSubmit()} disabled={isSubmitting || isSubmitted || voiceUploadStage !== null || (useSupabase && submissionLoadState !== "loaded")} className="w-full rounded-md bg-amber-500/20 px-3 py-2.5 text-xs font-semibold text-amber-300 transition hover:bg-amber-500/30 disabled:cursor-wait disabled:opacity-50">
+          <button type="button" onClick={() => void handleSubmit()} disabled={isSubmitting || isSubmitted || voiceUploadStage !== null || (usePostgres && submissionLoadState !== "loaded")} className="w-full rounded-md bg-amber-500/20 px-3 py-2.5 text-xs font-semibold text-amber-300 transition hover:bg-amber-500/30 disabled:cursor-wait disabled:opacity-50">
             {isSubmitting ? "Publishing..." : isSubmitted ? "Evaluation Published" : "Publish Evaluation"}
           </button>
           {draftStatus && <p role="status" className="text-[11px] leading-relaxed text-emerald-300">{draftStatus}</p>}
@@ -840,7 +798,7 @@ export function SubmissionEvaluator({
             Next Stage<ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
         </div>
-        {activeStageId === reportStageId && <button type="button" onClick={() => void handleSubmit()} disabled={isSubmitting || isSubmitted || voiceUploadStage !== null || (useSupabase && submissionLoadState !== "loaded")} className="w-full rounded-lg bg-amber-500/20 px-6 py-3 text-sm font-semibold text-amber-300 transition hover:bg-amber-500/30 disabled:cursor-wait disabled:opacity-50">
+        {activeStageId === reportStageId && <button type="button" onClick={() => void handleSubmit()} disabled={isSubmitting || isSubmitted || voiceUploadStage !== null || (usePostgres && submissionLoadState !== "loaded")} className="w-full rounded-lg bg-amber-500/20 px-6 py-3 text-sm font-semibold text-amber-300 transition hover:bg-amber-500/30 disabled:cursor-wait disabled:opacity-50">
           {isSubmitting ? "Publishing..." : isSubmitted ? "Evaluation Published" : "Publish Evaluation & Send to Student"}
         </button>}
       </section>

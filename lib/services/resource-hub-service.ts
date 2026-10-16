@@ -1,51 +1,9 @@
-import { supabase } from "@/lib/supabaseClient";
 import { getAuthenticatedUser } from "@/lib/identity";
 import type { ResourceAsset, ResourceAssetInput, ResourceAssetRow } from "@/types/resource-hub";
-import type { SupabaseClient } from "@supabase/supabase-js";
 
-type ResourceAssetUpdateRow = Partial<Pick<
-  ResourceAssetRow,
-  "title" | "description" | "main_category" | "sub_category" | "url" | "allow_student_download" | "cefr_level" | "tags"
->>;
-type ResourceAssetDbRow = ResourceAssetRow & Record<string, unknown>;
-type ResourceAssetDbInsert = Omit<ResourceAssetDbRow, "id" | "created_at" | "updated_at"> & {
-  id?: string;
-  created_at?: string;
-  updated_at?: string;
-};
+type ResourceAssetUpdate = Partial<ResourceAssetInput>;
 
-interface ResourceHubDatabase {
-  public: {
-    Tables: Record<string, {
-      Row: Record<string, unknown>;
-      Insert: Record<string, unknown>;
-      Update: Record<string, unknown>;
-      Relationships: Array<{
-        foreignKeyName: string;
-        columns: string[];
-        isOneToOne?: boolean;
-        referencedRelation: string;
-        referencedColumns: string[];
-      }>;
-    }> & {
-      resource_assets: {
-        Row: ResourceAssetDbRow;
-        Insert: ResourceAssetDbInsert;
-        Update: ResourceAssetUpdateRow & Record<string, unknown>;
-        Relationships: [];
-      };
-    };
-    Views: Record<string, never>;
-    Functions: Record<string, never>;
-    Enums: Record<string, never>;
-    CompositeTypes: Record<string, never>;
-  };
-}
-
-const resourceHubSupabase = supabase as SupabaseClient<ResourceHubDatabase>;
-
-const RESOURCE_ASSET_COLUMNS =
-  "id,instructor_id,title,description,main_category,sub_category,url,allow_student_download,cefr_level,tags,created_at,updated_at" as const;
+const ASSETS_ENDPOINT = "/api/resource-hub/assets";
 
 function mapResourceAsset(row: ResourceAssetRow): ResourceAsset {
   return {
@@ -65,100 +23,108 @@ function mapResourceAsset(row: ResourceAssetRow): ResourceAsset {
   };
 }
 
-async function getAuthenticatedInstructorId(expectedInstructorId: string) {
-  const user = await getAuthenticatedUser();
-  if (!user) throw new Error("You must be signed in as an instructor to manage Resource Hub assets.");
-  if (!expectedInstructorId || user.id !== expectedInstructorId) {
-    throw new Error("The signed-in user does not match the active instructor. Refresh the page and try again.");
+async function requestResourceHub<T>(url: string, init?: RequestInit): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...init,
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: {
+        ...(init?.body ? { "Content-Type": "application/json" } : {}),
+        ...init?.headers,
+      },
+    });
+  } catch {
+    throw new Error("Unable to reach the Resource Hub service.");
   }
-  return user.id;
+
+  const result = await response.json().catch(() => ({})) as { error?: unknown } & T;
+  if (!response.ok) {
+    const message = typeof result.error === "string" ? result.error : "The request failed.";
+    throw new Error(message);
+  }
+  return result;
 }
 
-function toResourceAssetRow(assetData: ResourceAssetInput, instructorId: string) {
-  return {
-    instructor_id: instructorId,
-    title: assetData.title,
-    description: assetData.description || null,
-    main_category: assetData.mainCategory,
-    sub_category: assetData.subCategory,
-    url: assetData.url,
-    allow_student_download: assetData.isDownloadable,
-    cefr_level: assetData.cefrLevel,
-    tags: assetData.tags,
-  };
+function getRequestErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export async function fetchResourceAssets(instructorId: string): Promise<ResourceAsset[]> {
   if (!instructorId) throw new Error("An instructor ID is required to load Resource Hub assets.");
 
-  const { data, error } = await resourceHubSupabase
-    .from("resource_assets")
-    .select(RESOURCE_ASSET_COLUMNS)
-    .eq("instructor_id", instructorId)
-    .order("created_at", { ascending: false });
-
-  if (error) throw new Error(`Unable to load Resource Hub assets: ${error.message}`);
-  return (data || []).map(mapResourceAsset);
+  try {
+    const query = new URLSearchParams({ instructorId });
+    const result = await requestResourceHub<{ assets: ResourceAssetRow[] }>(`${ASSETS_ENDPOINT}?${query}`);
+    return (result.assets || []).map(mapResourceAsset);
+  } catch (error) {
+    throw new Error(`Unable to load Resource Hub assets: ${getRequestErrorMessage(error)}`);
+  }
 }
 
 export async function fetchStudyRoomMusicTracks(): Promise<{ title: string; url: string }[]> {
-  const { data, error } = await resourceHubSupabase
-    .from("resource_assets")
-    .select("title,url,sub_category,tags")
-    .eq("main_category", "audios");
-
-  if (error) throw new Error(`Unable to load Study Room music: ${error.message}`);
-  return (data || [])
-    .filter((asset) => asset.sub_category === "Study Room Music" || asset.tags.includes("study-room"))
-    .map(({ title, url }) => ({ title, url }));
+  try {
+    const result = await requestResourceHub<{ tracks: { title: string; url: string }[] }>("/api/resource-hub/music");
+    return result.tracks || [];
+  } catch (error) {
+    throw new Error(`Unable to load Study Room music: ${getRequestErrorMessage(error)}`);
+  }
 }
 
-export async function createResourceAsset(assetData: ResourceAssetInput, expectedInstructorId: string): Promise<ResourceAsset> {
-  const instructorId = await getAuthenticatedInstructorId(expectedInstructorId);
-  const { data, error } = await resourceHubSupabase
-    .from("resource_assets")
-    .insert(toResourceAssetRow(assetData, instructorId))
-    .select(RESOURCE_ASSET_COLUMNS)
-    .single();
+export async function createResourceAsset(
+  assetData: ResourceAssetInput,
+  expectedInstructorId: string,
+): Promise<ResourceAsset> {
+  const user = await getAuthenticatedUser();
+  if (!user) throw new Error("You must be signed in as an instructor to manage Resource Hub assets.");
+  if (!expectedInstructorId || user.id !== expectedInstructorId) {
+    throw new Error("The signed-in user does not match the active instructor. Refresh the page and try again.");
+  }
 
-  if (error) throw new Error(`Unable to create Resource Hub asset: ${error.message}`);
-  return mapResourceAsset(data);
+  try {
+    const result = await requestResourceHub<{ asset: ResourceAssetRow }>(ASSETS_ENDPOINT, {
+      method: "POST",
+      body: JSON.stringify({ ...assetData, instructorId: expectedInstructorId }),
+    });
+    return mapResourceAsset(result.asset);
+  } catch (error) {
+    throw new Error(`Unable to create Resource Hub asset: ${getRequestErrorMessage(error)}`);
+  }
 }
 
 export async function updateResourceAsset(
   assetId: string,
-  assetData: Partial<ResourceAssetInput>,
+  assetData: ResourceAssetUpdate,
 ): Promise<ResourceAsset> {
-  const updates: ResourceAssetUpdateRow = {};
+  const updates: ResourceAssetUpdate = {};
   if (assetData.title !== undefined) updates.title = assetData.title;
-  if (assetData.description !== undefined) updates.description = assetData.description || null;
-  if (assetData.mainCategory !== undefined) updates.main_category = assetData.mainCategory;
-  if (assetData.subCategory !== undefined) updates.sub_category = assetData.subCategory;
+  if (assetData.description !== undefined) updates.description = assetData.description || "";
+  if (assetData.mainCategory !== undefined) updates.mainCategory = assetData.mainCategory;
+  if (assetData.subCategory !== undefined) updates.subCategory = assetData.subCategory;
   if (assetData.url !== undefined) updates.url = assetData.url;
-  if (assetData.isDownloadable !== undefined) updates.allow_student_download = assetData.isDownloadable;
-  if (assetData.cefrLevel !== undefined) updates.cefr_level = assetData.cefrLevel;
+  if (assetData.isDownloadable !== undefined) updates.isDownloadable = assetData.isDownloadable;
+  if (assetData.cefrLevel !== undefined) updates.cefrLevel = assetData.cefrLevel;
   if (assetData.tags !== undefined) updates.tags = assetData.tags;
   if (!Object.keys(updates).length) throw new Error("At least one Resource Hub asset field must be updated.");
 
-  const { data, error } = await resourceHubSupabase
-    .from("resource_assets")
-    .update(updates)
-    .eq("id", assetId)
-    .select(RESOURCE_ASSET_COLUMNS)
-    .single();
-
-  if (error) throw new Error(`Unable to update Resource Hub asset: ${error.message}`);
-  return mapResourceAsset(data);
+  try {
+    const result = await requestResourceHub<{ asset: ResourceAssetRow }>(
+      `${ASSETS_ENDPOINT}/${encodeURIComponent(assetId)}`,
+      { method: "PATCH", body: JSON.stringify(updates) },
+    );
+    return mapResourceAsset(result.asset);
+  } catch (error) {
+    throw new Error(`Unable to update Resource Hub asset: ${getRequestErrorMessage(error)}`);
+  }
 }
 
 export async function deleteResourceAsset(assetId: string): Promise<void> {
-  const { data, error } = await resourceHubSupabase
-    .from("resource_assets")
-    .delete()
-    .eq("id", assetId)
-    .select("id")
-    .maybeSingle();
-
-  if (error) throw new Error(`Unable to delete Resource Hub asset: ${error.message}`);
-  if (!data) throw new Error("Resource Hub asset was not found or you do not have permission to delete it.");
+  try {
+    await requestResourceHub<{ deleted: true }>(`${ASSETS_ENDPOINT}/${encodeURIComponent(assetId)}`, {
+      method: "DELETE",
+    });
+  } catch (error) {
+    throw new Error(`Unable to delete Resource Hub asset: ${getRequestErrorMessage(error)}`);
+  }
 }

@@ -46,6 +46,24 @@ export interface Submission {
   updated_at: string;
 }
 
+export interface SubmissionRow {
+  id: SubmissionId;
+  lesson_id: LessonId;
+  student_id: StudentId;
+  answers: Record<string, any>;
+  status: "draft" | "not_started" | "submitted" | "in_progress" | "pending_evaluation" | "completed" | "reviewed" | "evaluated";
+  submitted_at: string;
+}
+
+export interface EvaluationRow {
+  id: string;
+  submission_id: SubmissionId;
+  instructor_id: string;
+  feedback: string | null;
+  score: number | null;
+  evaluated_at: string;
+}
+
 export interface Feedback {
   id: string;
   submission_id?: SubmissionId | null;

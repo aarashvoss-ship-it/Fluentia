@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { Image, Upload, Check, LoaderCircle, Trash2 } from "lucide-react";
-import { supabase } from "@/lib/supabaseClient";
+import { deleteAsset, uploadAsset } from "@/services/asset-service";
 import { getBannerOverlayStyles, getBannerPositionStyles, type BannerFocalPosition } from "@/lib/banner-position";
 import { BannerPositionControls } from "@/components/shared/banner-position-controls";
 import { DeleteConfirmationDialog, type DeleteConfirmationRequest } from "@/components/shared/delete-confirmation-dialog";
@@ -77,12 +77,8 @@ export function InstructorBannerManager({
 
   const getUploadedBannerPath = (url: string) => {
     try {
-      const pathname = new URL(url).pathname;
-      const marker = "/storage/v1/object/public/lesson-assets/";
-      const markerIndex = pathname.indexOf(marker);
-      if (markerIndex < 0) return null;
-      const path = decodeURIComponent(pathname.slice(markerIndex + marker.length));
-      return path.startsWith("banners/") ? path : null;
+      const parsed = new URL(url, window.location.origin);
+      return parsed.pathname.startsWith("/api/assets/") ? url : null;
     } catch {
       return null;
     }
@@ -95,8 +91,7 @@ export function InstructorBannerManager({
     setIsDeleting(true);
     setUploadMessage(null);
     try {
-      const { error } = await supabase.storage.from("lesson-assets").remove([uploadedBannerPath]);
-      if (error) throw error;
+      await deleteAsset(uploadedBannerPath);
       setSelectedUrl("");
       onUpdateBanner("");
       onUpdatePosition?.({ x: 50, y: 50 });
@@ -143,17 +138,9 @@ export function InstructorBannerManager({
     setIsUploading(true);
     setUploadMessage("Uploading banner...");
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const path = `banners/${Date.now()}-${safeName}`;
     try {
-      const { error } = await supabase.storage.from("lesson-assets").upload(path, file, {
-        cacheControl: "3600",
-        contentType: file.type,
-        upsert: false,
-      });
-      if (error) throw error;
-      const { data } = supabase.storage.from("lesson-assets").getPublicUrl(path);
-      if (!data.publicUrl) throw new Error("Supabase did not return a public banner URL.");
-      handleSelect(data.publicUrl);
+      const url = await uploadAsset(file, `banner-${Date.now()}-${safeName}`);
+      handleSelect(url);
       onUpdateCustomInput?.("");
       setUploadMessage("Banner uploaded and applied.");
     } catch (error) {
@@ -295,7 +282,7 @@ export function InstructorBannerManager({
           <div className="flex gap-2">
             <input
               type="text"
-              placeholder="Paste image URL or Supabase link..."
+              placeholder="Paste an image URL..."
               value={customInput}
               onChange={(e) => onUpdateCustomInput?.(e.target.value)}
               className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-xs text-[#d9dce0] focus:outline-none focus:border-amber-500/40"

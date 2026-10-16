@@ -41,13 +41,31 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
   }
 
-  const { data, error } = await context.adminClient
-    .from("instructors")
-    .update({ ...update, updated_at: new Date().toISOString() })
-    .eq("id", id)
-    .select("id,name,email,slug,token,specialization,status,max_student_capacity,bio,created_at,updated_at")
-    .maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!data) return NextResponse.json({ error: "Instructor not found." }, { status: 404 });
-  return NextResponse.json({ instructor: data });
+  const columns: Record<string, string> = {
+    name: "name",
+    email: "email",
+    specialization: "specialization",
+    bio: "bio",
+    status: "status",
+    max_student_capacity: "max_student_capacity",
+  };
+  const values: unknown[] = [id];
+  const assignments = Object.entries(update).map(([key, value]) => {
+    values.push(value);
+    return `${columns[key]} = $${values.length}`;
+  });
+  assignments.push("updated_at = now()");
+  try {
+    const { rows } = await context.pool.query(
+      `UPDATE public.instructors SET ${assignments.join(", ")}
+       WHERE id = $1
+       RETURNING id,name,email,slug,token,specialization,status,max_student_capacity,bio,created_at,updated_at`,
+      values,
+    );
+    if (!rows[0]) return NextResponse.json({ error: "Instructor not found." }, { status: 404 });
+    return NextResponse.json({ instructor: rows[0] });
+  } catch (error) {
+    console.error("PostgreSQL instructor profile update failed:", error);
+    return NextResponse.json({ error: "Unable to save the instructor profile." }, { status: 500 });
+  }
 }

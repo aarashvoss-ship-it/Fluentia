@@ -45,7 +45,7 @@ import {
   saveStudentProfile,
 } from "@/lib/student-profiles";
 import { getAuthenticatedUser } from "@/lib/identity";
-import { supabase } from "@/lib/supabaseClient";
+import { uploadAsset } from "@/services/asset-service";
 import { DEFAULT_BANNER_IMAGE_URL, getBannerOverlayStyles, getBannerPositionStyles, getFirstNonEmptyBannerUrl, normalizeBannerDimness, normalizeBannerPosition, type BannerFocalPosition } from "@/lib/banner-position";
 import { HeroBanner, HeroBannerContent, HeroBannerLogo } from "@/components/shared/hero-banner";
 import { BannerPositionControls } from "@/components/shared/banner-position-controls";
@@ -331,7 +331,7 @@ function DashboardContent() {
         } : current);
         setSavedInstructorNote(getStudentProfileNote(remoteProfile as Record<string, unknown>));
       } catch (error) {
-        logDashboardError("Student profile could not be loaded from Supabase:", error);
+        logDashboardError("Student profile could not be loaded from PostgreSQL:", error);
       }
     };
 
@@ -553,78 +553,46 @@ function DashboardContent() {
           return;
         }
 
-        const { data: roleProfile } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", user.id)
-          .maybeSingle();
-        const instructorProfile = roleProfile
-          ? null
-          : (
-              await supabase
-                .from("instructors")
-                .select("id")
-                .eq("id", user.id)
-                .maybeSingle()
-            ).data;
-        if (
-          roleProfile?.role === "instructor" ||
-          roleProfile?.role === "admin" ||
-          instructorProfile
-        ) {
+        if (user.role === "instructor" || user.role === "admin") {
           router.replace("/instructor");
           return;
         }
-        if (roleProfile?.role && roleProfile.role !== "student") {
+        if (user.role !== "student") {
           setAccessDenied(true);
           setIsMounted(true);
           return;
         }
 
         const userEmail = user.email.trim().toLowerCase();
-        let student: {
-          id: string;
-          name: string;
-          email: string;
-          token: string;
-        } | null = null;
+        let studentProfile: Partial<StudentUser["profile"]> | null = null;
         try {
-          const { data: studentRow, error: studentError } = await supabase
-            .from("students")
-            .select("id, name, email, token")
-            .or(`id.eq.${user.id},email.eq.${userEmail}`)
-            .maybeSingle();
-
-          if (studentError && studentError.code !== "PGRST116") {
-            logDashboardError(
-              "Dashboard student lookup unavailable; using session metadata:",
-              studentError,
-            );
-          } else if (!studentError) {
-            student = studentRow;
-          }
+          studentProfile = await getStudentProfile(user.id);
         } catch (error) {
-          logDashboardError(
-            "Dashboard student lookup threw an error; using session metadata:",
-            error,
-          );
+          logDashboardError("Dashboard student lookup failed:", error);
         }
 
-        const resolvedStudentId = student?.id || user.id;
-        const fallbackName = user.name || userEmail || "Student";
+        const resolvedStudentId = user.id;
+        const fallbackName = studentProfile?.fullName || user.name || userEmail || "Student";
         const userMetadata: Record<string, unknown> = {};
+        const roleProfile = {
+          role: user.role,
+          avatar_bg_color: studentProfile?.avatarBgColor,
+          avatar_initials: studentProfile?.avatarInitials,
+          avatar_url: studentProfile?.avatarUrl,
+          banner_url: studentProfile?.bannerUrl,
+        };
 
         const active: StudentUser = {
           id: resolvedStudentId,
-          token: student?.token || user.id,
-          name: student?.name || fallbackName,
-          email: student?.email || userEmail || undefined,
+          token: resolvedStudentId,
+          name: fallbackName,
+          email: studentProfile?.email || userEmail || undefined,
           role: "student",
           profile: {
             id: resolvedStudentId,
-            fullName: student?.name || fallbackName,
-            level: "",
-            targetGoal: "",
+            fullName: fallbackName,
+            level: studentProfile?.level || "",
+            targetGoal: studentProfile?.targetGoal || "",
             avatarBgColor: typeof roleProfile?.avatar_bg_color === "string"
               ? roleProfile.avatar_bg_color
               : typeof userMetadata.avatar_bg_color === "string" ? userMetadata.avatar_bg_color : undefined,
@@ -639,8 +607,8 @@ function DashboardContent() {
             bannerUrl: typeof roleProfile?.banner_url === "string"
               ? roleProfile.banner_url
               : typeof userMetadata.banner_url === "string" ? userMetadata.banner_url : undefined,
-            weaknesses: [],
-            teacherNotes: "",
+            weaknesses: studentProfile?.weaknesses || [],
+            teacherNotes: studentProfile?.teacherNotes || "",
             attendanceRate: 0,
             completedModulesCount: 0,
           },
@@ -949,26 +917,7 @@ function DashboardContent() {
       const user = await getAuthenticatedUser();
       if (!user) throw new Error("Sign in to upload a profile image.");
       const extension = file.type === "image/jpeg" ? "jpg" : file.type === "image/png" ? "png" : "webp";
-      const path = `student-customization/${user.id}/${kind}-${crypto.randomUUID()}.${extension}`;
-      const buckets = kind === "avatar"
-        ? ["avatars", "student-resources", "lesson-assets"]
-        : ["lesson-assets"];
-      let publicUrl = "";
-      let uploadError: Error | null = null;
-      for (const bucket of buckets) {
-        const { error } = await supabase.storage.from(bucket).upload(path, file, {
-          cacheControl: "3600",
-          contentType: file.type,
-          upsert: false,
-        });
-        if (!error) {
-          publicUrl = supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
-          uploadError = null;
-          break;
-        }
-        uploadError = error;
-      }
-      if (uploadError || !publicUrl) throw uploadError || new Error("The image could not be uploaded.");
+      const publicUrl = await uploadAsset(file, `${user.id}-${kind}-${crypto.randomUUID()}.${extension}`);
       if (kind === "avatar") setCustomAvatarUrl(publicUrl);
       else {
         setCustomBannerUrl(publicUrl);
@@ -1051,34 +1000,6 @@ function DashboardContent() {
     window.dispatchEvent(new Event("profile-updated"));
     window.dispatchEvent(new CustomEvent("fluentia:student-profile-updated", { detail: customization }));
     try {
-      const user = await getAuthenticatedUser();
-      if (!user) throw new Error("No authenticated user is available.");
-
-      const profileValues = {
-        id: user.id,
-        token,
-        full_name: displayName,
-        role: "student",
-        avatar_bg_color: nextAvatarColor,
-        avatar_initials: initials,
-        avatar_url: avatarUrl || null,
-        banner_url: bannerUrl || null,
-        updated_at: new Date().toISOString(),
-      };
-      let { error: profileError } = await supabase
-        .from("profiles")
-        .upsert(profileValues, { onConflict: "id" });
-      if (profileError && (profileError.code === "42703" || profileError.code === "PGRST204")
-        && /(avatar_bg_color|avatar_initials|avatar_url|banner_url)/i.test(profileError.message || "")) {
-        console.warn("Profile customization columns unavailable; saving available profile fields.", profileError);
-        const { avatar_bg_color: _avatarBgColor, avatar_initials: _avatarInitials, avatar_url: _avatarUrl, banner_url: _bannerUrl, ...fallbackProfileValues } = profileValues;
-        const fallback = await supabase
-          .from("profiles")
-          .upsert(fallbackProfileValues, { onConflict: "id" });
-        profileError = fallback.error;
-      }
-      if (profileError) throw profileError;
-
       await saveStudentProfile(token, {
         ...activeStudent.profile,
         fullName: displayName,
@@ -1087,39 +1008,6 @@ function DashboardContent() {
         avatarBgColor: nextAvatarColor,
         avatarInitials: initials,
       });
-      const refreshedUser = await getAuthenticatedUser();
-      if (refreshedUser) {
-        const { data: refreshedProfile, error: refreshedProfileError } = await supabase
-          .from("profiles")
-          .select("avatar_bg_color, avatar_initials, avatar_url, banner_url")
-          .eq("id", refreshedUser.id)
-          .maybeSingle();
-        if (refreshedProfileError && refreshedProfileError.code !== "42703" && refreshedProfileError.code !== "PGRST204") {
-          throw refreshedProfileError;
-        }
-        const refreshedAvatarColor = typeof refreshedProfile?.avatar_bg_color === "string"
-          ? refreshedProfile.avatar_bg_color
-          : nextAvatarColor;
-        const nextInitials = typeof refreshedProfile?.avatar_initials === "string"
-          ? refreshedProfile.avatar_initials
-          : initials;
-        const refreshedAvatarUrl = typeof refreshedProfile?.avatar_url === "string"
-          ? refreshedProfile.avatar_url
-          : avatarUrl;
-        setAvatarColor(refreshedAvatarColor);
-        setAvatarInitials(nextInitials);
-        setCustomAvatarUrl(refreshedAvatarUrl);
-        setActiveStudent((current) => current ? {
-          ...current,
-          profile: {
-            ...current.profile,
-            avatarBgColor: refreshedAvatarColor,
-            avatarInitials: nextInitials,
-            avatarUrl: refreshedAvatarUrl,
-            bannerUrl: typeof refreshedProfile?.banner_url === "string" ? refreshedProfile.banner_url : bannerUrl,
-          },
-        } : current);
-      }
       setAvatarColor(nextAvatarColor);
       setAvatarInitials(initials);
       setCustomAvatarUrl(avatarUrl);

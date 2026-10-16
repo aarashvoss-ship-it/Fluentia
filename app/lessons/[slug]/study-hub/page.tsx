@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { isLearningTab, LearningSidebar, type LearningTab } from "@/components/study-room/learning-sidebar";
 import { getLessonById, type LessonWithVersion } from "@/lib/lessons";
-import { supabase } from "@/lib/supabaseClient";
 import { getAuthenticatedUser } from "@/lib/identity";
+import { getStudentProfile } from "@/lib/student-profiles";
 import { fetchSavedVocabulary, fetchStudentNotes, removeVocabularyWord, saveStudentNote } from "@/services/storage-service";
 import type { SavedVocabularyWord, StudentNote } from "@/types/lesson";
 
@@ -43,13 +43,8 @@ export default function StudyHubPage() {
         if (user) {
           resolvedStudentId = user.id;
           resolvedStudentToken = user.id;
-          const { data: student, error: studentError } = await supabase
-            .from("students")
-            .select("token")
-            .eq("id", user.id)
-            .maybeSingle();
-          if (studentError) console.warn("Unable to load the authenticated student's token:", studentError.message);
-          if (student?.token) resolvedStudentToken = student.token;
+          const profile = await getStudentProfile(user.id);
+          if (profile?.id) resolvedStudentId = profile.id;
         }
 
         const [loadedWords, loadedNotes] = await Promise.all([

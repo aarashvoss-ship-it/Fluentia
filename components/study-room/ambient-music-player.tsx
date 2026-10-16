@@ -4,7 +4,6 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Music, Pause, Play, Plus, Trash2, Volume1, Volume2, VolumeX, X } from "lucide-react";
 import { DEFAULT_LESSON_AUDIO_TRACKS, getYoutubeVideoId, isYoutubeUrl, type LessonAudioTrack } from "@/lib/musicTracks";
 import { getAmbientTracks } from "@/lib/music-library";
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { Tooltip } from "@/components/shared/tooltip";
 import { YoutubeAudioController } from "@/components/shared/youtube-audio-controller";
 
@@ -157,21 +156,11 @@ export function AmbientMusicPlayer({ src, studentScope = "student" }: AmbientMus
     };
     void refreshTracks();
 
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-    const subscriptionTimer = window.setTimeout(() => {
-      if (!mounted || !isSupabaseConfigured()) return;
-      channel = supabase
-        .channel(`resource-hub-music-${crypto.randomUUID()}`)
-        .on("postgres_changes", { event: "*", schema: "public", table: "resource_assets" }, () => {
-          void refreshTracks();
-        })
-        .subscribe();
-    }, 0);
+    const refreshTimer = window.setInterval(() => void refreshTracks(), 30_000);
 
     return () => {
       mounted = false;
-      window.clearTimeout(subscriptionTimer);
-      if (channel) void supabase.removeChannel(channel);
+      window.clearInterval(refreshTimer);
     };
   }, []);
 

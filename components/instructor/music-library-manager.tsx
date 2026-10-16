@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Check, Pause, Play, Plus, Trash2, Upload, Volume2, VolumeX, X } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { deleteAsset, uploadAsset } from "@/services/asset-service";
 import { addResourceAsset, deleteResourceAsset, useResourceAssets } from "@/lib/resource-hub-store";
 import type { ResourceAsset } from "@/types/resource-hub";
 import { getYoutubeVideoId, isYoutubeUrl } from "@/lib/musicTracks";
@@ -11,11 +11,7 @@ import { YoutubeAudioController } from "@/components/shared/youtube-audio-contro
 
 function isUploadedTrack(url: string) {
   try {
-    const parsedUrl = new URL(url);
-    const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL
-      ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).origin
-      : "";
-    return parsedUrl.origin === supabaseOrigin && parsedUrl.pathname.includes("/storage/v1/object/public/ambient-music/");
+    return new URL(url, window.location.origin).pathname.startsWith("/api/assets/");
   } catch {
     return false;
   }
@@ -132,19 +128,14 @@ export function MusicLibraryManager({ instructorId }: { instructorId: string }) 
     const title = trackTitle.trim() || file.name.replace(/\.[^.]+$/, "").trim() || "Uploaded Track";
     setStatus("Uploading track...");
     setIsSaving(true);
-    const path = `ambient/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
-    let fileUploaded = false;
+    let uploadedUrl = "";
     try {
-      const inferredMimeType: Record<string, string> = { mp3: "audio/mpeg", wav: "audio/wav", m4a: "audio/mp4", aac: "audio/aac" };
-      const upload = await supabase.storage.from("ambient-music").upload(path, file, { contentType: file.type || inferredMimeType[extension], upsert: false });
-      if (upload.error) throw upload.error;
-      fileUploaded = true;
-      const { data } = supabase.storage.from("ambient-music").getPublicUrl(path);
+      uploadedUrl = await uploadAsset(file, `ambient-${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`);
       await addResourceAsset({
         title,
         mainCategory: "audios",
         subCategory: "Study Room Music",
-        url: data.publicUrl,
+        url: uploadedUrl,
         isDownloadable: false,
         cefrLevel: "All Levels",
         tags: ["study-room", "music"],
@@ -154,8 +145,8 @@ export function MusicLibraryManager({ instructorId }: { instructorId: string }) 
       setTrackFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (error) {
-      if (fileUploaded) await supabase.storage.from("ambient-music").remove([path]);
-      setStatus(error instanceof Error ? `Upload failed: ${error.message}` : "Upload failed. Check the ambient-music bucket and policies.");
+      if (uploadedUrl) await deleteAsset(uploadedUrl);
+      setStatus(error instanceof Error ? `Upload failed: ${error.message}` : "Upload failed.");
     } finally {
       setIsSaving(false);
     }
@@ -211,11 +202,10 @@ export function MusicLibraryManager({ instructorId }: { instructorId: string }) 
       await deleteResourceAsset(track.id);
       let storageCleaned = true;
       if (isUploadedTrack(track.url)) {
-        const parsedUrl = new URL(track.url);
-        const path = decodeURIComponent(parsedUrl.pathname.split("/storage/v1/object/public/ambient-music/")[1] || "");
-        if (path) {
-          const { error } = await supabase.storage.from("ambient-music").remove([path]);
-          storageCleaned = !error;
+        try {
+          await deleteAsset(track.url);
+        } catch {
+          storageCleaned = false;
         }
       }
       if (playingId === track.id) {
