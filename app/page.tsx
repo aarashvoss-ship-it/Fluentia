@@ -9,6 +9,25 @@ type WaitlistFieldErrors = Partial<Record<"name" | "email", string>>;
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// Authorized users configuration with unique custom passwords
+const CORE_USERS: Record<string, { name: string; role: string; pass: string }> = {
+  "aarashvoss@gmail.com": {
+    name: "AVoss",
+    role: "instructor",
+    pass: "AvossFluentiaPass14!", // Custom password for AVoss
+  },
+  "aarashvossoughi@gmail.com": {
+    name: "Arash Vossoughi",
+    role: "student",
+    pass: "ArashFluentiaTempPass14!", // Custom password for Arash Vossoughi
+  },
+  "f.soheilikia.lastqueen2002@gmail.com": {
+    name: "Fateme Soheilikia",
+    role: "student",
+    pass: "FluentiaTempPassFateme2026!", // Custom password for Fateme Soheilikia
+  },
+};
+
 export default function RootPage() {
   const router = useRouter();
   const [mode, setMode] = useState<ModalMode>("waitlist");
@@ -36,35 +55,6 @@ export default function RootPage() {
       cancelled = true;
     };
   }, [router]);
-
-  // Quick login helper for core users
-  async function handleQuickLogin(targetEmail: string, targetName: string) {
-    setIsSubmitting(true);
-    setStatus(null);
-    try {
-      const response = await fetch("/api/auth/signin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ email: targetEmail, password: "bypass_secure_password_123", name: targetName }),
-      });
-      const result = (await response.json()) as { error?: string; user?: { role: string } };
-      if (!response.ok || !result.user) {
-        setStatus(result.error || "Quick login failed. Please check backend API.");
-        return;
-      }
-      router.replace(
-        result.user.role === "instructor" || result.user.role === "admin"
-          ? "/instructor"
-          : "/dashboard"
-      );
-    } catch (error) {
-      console.error("Quick login failed:", error);
-      setStatus("Quick login is temporarily unavailable.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
 
   async function submitWaitlist(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -115,21 +105,39 @@ export default function RootPage() {
     event.preventDefault();
     setIsSubmitting(true);
     setStatus(null);
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const coreUser = CORE_USERS[normalizedEmail];
+
+    // Verify password if email matches one of the core users
+    if (coreUser && password !== coreUser.pass) {
+      setStatus("Invalid email or password.");
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const response = await fetch("/api/auth/signin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          email: normalizedEmail,
+          password: password,
+          name: coreUser ? coreUser.name : undefined,
+        }),
       });
+
       const result = (await response.json()) as {
         error?: string;
         user?: { role: string };
       };
+
       if (!response.ok || !result.user) {
         setStatus(result.error || "Sign-in failed. Check your email and password.");
         return;
       }
+
       router.replace(
         result.user.role === "instructor" || result.user.role === "admin"
           ? "/instructor"
@@ -163,42 +171,6 @@ export default function RootPage() {
             ? "Join the waitlist for tailored language learning and instructor-led sessions."
             : "Sign in to continue to your learning workspace."}
         </p>
-
-        {/* Quick login section for core users when in signin mode */}
-        {mode === "signin" && (
-          <div className="mt-6 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
-            <p className="mb-3 text-xs font-medium text-amber-400">⚡ Quick Access for Core Users:</p>
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => void handleQuickLogin("aarashvoss@gmail.com", "AVoss")}
-                disabled={isSubmitting}
-                className="flex w-full items-center justify-between rounded bg-amber-500/20 px-3 py-2 text-left text-xs font-medium text-amber-200 transition hover:bg-amber-500/30"
-              >
-                <span>👑 AVoss (Admin / Instructor)</span>
-                <span className="text-[10px] opacity-75">Direct Login</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleQuickLogin("aarashvossoughi@gmail.com", "Arash Vossoughi")}
-                disabled={isSubmitting}
-                className="flex w-full items-center justify-between rounded border border-border bg-stone-800 px-3 py-2 text-left text-xs font-medium text-stone-200 transition hover:bg-stone-700"
-              >
-                <span>🎓 Arash Vossoughi (Student 14)</span>
-                <span className="text-[10px] opacity-75">Direct Login</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleQuickLogin("f.soheilikia.lastqueen2002@gmail.com", "Fateme Soheilikia")}
-                disabled={isSubmitting}
-                className="flex w-full items-center justify-between rounded border border-border bg-stone-800 px-3 py-2 text-left text-xs font-medium text-stone-200 transition hover:bg-stone-700"
-              >
-                <span>🎓 Fateme Soheilikia (Student)</span>
-                <span className="text-[10px] opacity-75">Direct Login</span>
-              </button>
-            </div>
-          </div>
-        )}
 
         {mode === "waitlist" ? (
           <form noValidate onSubmit={(event) => void submitWaitlist(event)} className="mt-6 space-y-4">
@@ -263,6 +235,7 @@ export default function RootPage() {
                 autoComplete="email"
                 required
                 maxLength={254}
+                placeholder="Enter your email"
                 className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2.5 text-stone-100 outline-none focus:border-amber-500/40"
               />
             </label>
@@ -275,6 +248,7 @@ export default function RootPage() {
                 autoComplete="current-password"
                 required
                 maxLength={72}
+                placeholder="Enter password"
                 className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2.5 text-stone-100 outline-none focus:border-amber-500/40"
               />
             </label>
@@ -311,3 +285,4 @@ export default function RootPage() {
     </main>
   );
 }
+
