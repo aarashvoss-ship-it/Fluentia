@@ -1,10 +1,10 @@
+CREATE SCHEMA IF NOT EXISTS public;
+
 -- Fluentia native PostgreSQL schema.
 -- Intended for a new database. The application enforces access through its
 -- authenticated server APIs; do not expose a privileged database connection to clients.
 
 BEGIN;
-
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE IF NOT EXISTS public.users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -457,5 +457,12 @@ WHERE profile.role = 'student'
     WHERE id = 'b1b10001-1001-4001-8001-000000000001'::uuid
   )
 ON CONFLICT (lesson_id, student_id) DO NOTHING;
+
+INSERT INTO public.allowed_users (email)
+VALUES
+  ('aarashvoss@gmail.com'),
+  ('aarashvossoughi@gmail.com'),
+  ('f.soheilikia.lastqueen2002@gmail.com')
+ON CONFLICT (email) DO NOTHING;
 
 COMMIT;
