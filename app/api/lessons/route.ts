@@ -429,15 +429,27 @@ export async function PATCH(request: Request) {
           ...(typeof input.title === "string" ? { title: input.title } : {}),
           ...(typeof input.slug === "string" ? { slug: input.slug } : {}),
         };
-        const versionNumber = Number((await client.query(
-          "SELECT COALESCE(MAX(version_number), 0) + 1 AS next FROM public.lesson_versions WHERE lesson_id = $1",
-          [id],
-        )).rows[0].next);
-        await client.query(
-          `INSERT INTO public.lesson_versions (lesson_id, version_number, content, changes_summary)
-           VALUES ($1, $2, $3::jsonb, $4)`,
-          [id, versionNumber, JSON.stringify(content), typeof input.changes_summary === "string" ? input.changes_summary : "Updated lesson"],
-        );
+        const currentVersion = isRecord(lesson.current_version) ? lesson.current_version : null;
+        const isDraftSave = input.status === "draft" || (input.status === undefined && lesson.status === "draft");
+        const changesSummary = typeof input.changes_summary === "string" ? input.changes_summary : "Updated lesson";
+        if (isDraftSave && typeof currentVersion?.id === "string") {
+          await client.query(
+            `UPDATE public.lesson_versions
+             SET content = $2::jsonb, changes_summary = $3
+             WHERE id = $1 AND lesson_id = $4`,
+            [currentVersion.id, JSON.stringify(content), changesSummary, id],
+          );
+        } else {
+          const versionNumber = Number((await client.query(
+            "SELECT COALESCE(MAX(version_number), 0) + 1 AS next FROM public.lesson_versions WHERE lesson_id = $1",
+            [id],
+          )).rows[0].next);
+          await client.query(
+            `INSERT INTO public.lesson_versions (lesson_id, version_number, content, changes_summary)
+             VALUES ($1, $2, $3::jsonb, $4)`,
+            [id, versionNumber, JSON.stringify(content), changesSummary],
+          );
+        }
       }
     }
 

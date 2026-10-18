@@ -146,10 +146,14 @@ export async function POST(request: Request) {
     const result = await getPostgresPool().query(
       `INSERT INTO public.submissions (lesson_id, student_id, answers, status, submitted_at)
        VALUES ($1::uuid, $2::uuid, $3::jsonb, $4, now())
+       ON CONFLICT (lesson_id, student_id) DO UPDATE
+       SET answers = EXCLUDED.answers,
+           status = EXCLUDED.status,
+           submitted_at = now()
        RETURNING id, lesson_id, student_id, answers, status, submitted_at`,
       [lessonId, user.id, JSON.stringify(body.answers), status],
     );
-    return NextResponse.json({ submission: result.rows[0] }, { status: 201 });
+    return NextResponse.json({ submission: result.rows[0] });
   } catch (error) {
     return databaseError(error);
   }

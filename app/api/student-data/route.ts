@@ -183,39 +183,17 @@ async function lessonStateWrite(request: Request, studentId: string) {
     let lastConstraintError: unknown;
     for (const databaseStatus of [...new Set(fallbacks[status] || [status])]) {
       try {
-        const result = requestedSubmissionId
-          ? await getPostgresPool().query<JsonRecord>(
-              `UPDATE public.submissions
-               SET answers = $4::jsonb, status = $5, submitted_at = now()
-               WHERE id = $1::uuid AND lesson_id = $2::uuid AND student_id = $3::uuid
-               RETURNING id::text, answers, status, submitted_at`,
-              [requestedSubmissionId, lesson.id, studentId, JSON.stringify(answers), databaseStatus],
-            )
-          : await getPostgresPool().query<JsonRecord>(
-              `WITH latest AS (
-                 SELECT id FROM public.submissions
-                 WHERE lesson_id = $1::uuid AND student_id = $2::uuid
-                 ORDER BY submitted_at DESC LIMIT 1
-               )
-               UPDATE public.submissions
-               SET answers = $3::jsonb, status = $4, submitted_at = now()
-               WHERE id = (SELECT id FROM latest)
-               RETURNING id::text, answers, status, submitted_at`,
-              [lesson.id, studentId, JSON.stringify(answers), databaseStatus],
-            );
+        const result = await getPostgresPool().query<JsonRecord>(
+          `INSERT INTO public.submissions (lesson_id, student_id, answers, status, submitted_at)
+           VALUES ($1::uuid, $2::uuid, $3::jsonb, $4, now())
+           ON CONFLICT (lesson_id, student_id) DO UPDATE
+           SET answers = EXCLUDED.answers,
+               status = EXCLUDED.status,
+               submitted_at = now()
+           RETURNING id::text, answers, status, submitted_at`,
+          [lesson.id, studentId, JSON.stringify(answers), databaseStatus],
+        );
         saved = result.rows[0];
-        if (!saved) {
-          if (requestedSubmissionId) {
-            return NextResponse.json({ error: "Submission not found." }, { status: 404 });
-          }
-          const inserted = await getPostgresPool().query<JsonRecord>(
-            `INSERT INTO public.submissions (lesson_id, student_id, answers, status, submitted_at)
-             VALUES ($1::uuid, $2::uuid, $3::jsonb, $4, now())
-             RETURNING id::text, answers, status, submitted_at`,
-            [lesson.id, studentId, JSON.stringify(answers), databaseStatus],
-          );
-          saved = inserted.rows[0];
-        }
         if (saved) break;
       } catch (error) {
         const code = error !== null && typeof error === "object" && "code" in error
