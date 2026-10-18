@@ -1394,7 +1394,10 @@ export default function LessonPage() {
           layoutMode: block.layoutMode || "global",
           main: article,
           sidebar: blockIndex === 0 || linkedSidebarBlocks.length > 0 ? sidebarContent : undefined,
-          fullWidth: block.layoutMode === "inline-row" && linkedSidebarBlocks.length === 0 && rowEmptyMode === "full",
+          fullWidth: block.layoutMode === "inline-row"
+            && linkedSidebarBlocks.length === 0
+            && topSidebarBlocks.length === 0
+            && rowEmptyMode === "full",
         };
       });
     return (

@@ -159,7 +159,10 @@ export function StudentStudyRoomPreview({
                 ))}
               </div>
             ) : undefined,
-            fullWidth: block.layoutMode === "inline-row" && linkedSidebarBlocks.length === 0 && rowEmptyMode === "full",
+            fullWidth: block.layoutMode === "inline-row"
+              && linkedSidebarBlocks.length === 0
+              && topSidebarBlocks.length === 0
+              && rowEmptyMode === "full",
           };
         });
     return (
