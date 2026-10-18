@@ -900,13 +900,14 @@ export default function LessonPage() {
   const lessonContent = (lesson?.content || {}) as any;
   const rawLessonContent = lessonContent as Record<string, unknown>;
   const normalizedSidebarBlocks = (() => {
-    const candidate = rawLessonContent.sidebarBlocks ?? rawLessonContent.sidebar_blocks ?? rawLessonContent.sidebarBlocksByStep ?? rawLessonContent.sidebar_blocks_by_step;
+    const rootHasStepMap = Object.keys(rawLessonContent).some((key) => ["warm_up", "lesson", "listening", "reading", "writing", "speaking"].includes(key));
+    const candidate = rawLessonContent.sidebarBlocks ?? rawLessonContent.sidebar_blocks ?? rawLessonContent.sidebarBlocksByStep ?? rawLessonContent.sidebar_blocks_by_step ?? (rootHasStepMap ? rawLessonContent : undefined);
     if (!candidate || typeof candidate !== "object") return {} as Record<string, Array<{ id: string; title: string; body: string; icon?: string; parentMainBlockId?: string; imageUrl?: string; altText?: string }>>;
     if (Array.isArray(candidate)) return {} as Record<string, Array<{ id: string; title: string; body: string; icon?: string; parentMainBlockId?: string; imageUrl?: string; altText?: string }>>;
     const possible = candidate as Record<string, unknown>;
     const out: Record<string, Array<{ id: string; title: string; body: string; icon?: string; parentMainBlockId?: string; imageUrl?: string; altText?: string }>> = {};
     for (const step of ["warm_up", "lesson", "listening", "reading", "writing", "speaking"]) {
-      const value = possible[step] || possible[`${step}SidebarBlocks`] || possible[`${step}_sidebar_blocks`];
+      const value = possible[step] ?? possible[`${step}SidebarBlocks`] ?? possible[`${step}_sidebar_blocks`];
       if (Array.isArray(value)) {
         out[step] = value.filter((item) => !!item && typeof item === "object" && !Array.isArray(item)).map((item) => ({
           id: typeof (item as Record<string, unknown>).id === "string" ? String((item as Record<string, unknown>).id) : `${step}-sidebar`,
