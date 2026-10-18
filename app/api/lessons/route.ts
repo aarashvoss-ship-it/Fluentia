@@ -40,6 +40,12 @@ function lessonFromRow(row: Record<string, unknown>): Record<string, unknown> & 
   const content = row.version_content && typeof row.version_content === "object"
     ? row.version_content as Record<string, unknown>
     : {};
+
+  const sidebarBlocks = content.sidebarBlocks ?? content.sidebar_blocks ?? content.sidebarBlocksByStep ?? content.sidebar_blocks_by_step;
+  if (sidebarBlocks && typeof sidebarBlocks === "object" && !Array.isArray(sidebarBlocks)) {
+    content.sidebarBlocks = sidebarBlocks as Record<string, unknown>;
+  }
+
   const currentVersion = row.version_id
     ? {
         id: row.version_id,

@@ -899,6 +899,28 @@ export default function LessonPage() {
 
   const lessonContent = (lesson?.content || {}) as any;
   const rawLessonContent = lessonContent as Record<string, unknown>;
+  const normalizedSidebarBlocks = (() => {
+    const candidate = rawLessonContent.sidebarBlocks ?? rawLessonContent.sidebar_blocks ?? rawLessonContent.sidebarBlocksByStep ?? rawLessonContent.sidebar_blocks_by_step;
+    if (!candidate || typeof candidate !== "object") return {} as Record<string, Array<{ id: string; title: string; body: string; icon?: string; parentMainBlockId?: string; imageUrl?: string; altText?: string }>>;
+    if (Array.isArray(candidate)) return {} as Record<string, Array<{ id: string; title: string; body: string; icon?: string; parentMainBlockId?: string; imageUrl?: string; altText?: string }>>;
+    const possible = candidate as Record<string, unknown>;
+    const out: Record<string, Array<{ id: string; title: string; body: string; icon?: string; parentMainBlockId?: string; imageUrl?: string; altText?: string }>> = {};
+    for (const step of ["warm_up", "lesson", "listening", "reading", "writing", "speaking"]) {
+      const value = possible[step] || possible[`${step}SidebarBlocks`] || possible[`${step}_sidebar_blocks`];
+      if (Array.isArray(value)) {
+        out[step] = value.filter((item) => !!item && typeof item === "object" && !Array.isArray(item)).map((item) => ({
+          id: typeof (item as Record<string, unknown>).id === "string" ? String((item as Record<string, unknown>).id) : `${step}-sidebar`,
+          title: typeof (item as Record<string, unknown>).title === "string" ? String((item as Record<string, unknown>).title) : "Sidebar note",
+          body: typeof (item as Record<string, unknown>).body === "string" ? String((item as Record<string, unknown>).body) : "",
+          icon: typeof (item as Record<string, unknown>).icon === "string" ? String((item as Record<string, unknown>).icon) : undefined,
+          parentMainBlockId: typeof (item as Record<string, unknown>).parentMainBlockId === "string" ? String((item as Record<string, unknown>).parentMainBlockId) : undefined,
+          imageUrl: typeof (item as Record<string, unknown>).imageUrl === "string" ? String((item as Record<string, unknown>).imageUrl) : undefined,
+          altText: typeof (item as Record<string, unknown>).altText === "string" ? String((item as Record<string, unknown>).altText) : undefined,
+        }));
+      }
+    }
+    return out;
+  })();
   const lessonMetadata = lessonContent as LessonContent;
   const lessonTitle = typeof lessonContent.title === "string" ? lessonContent.title : lesson?.title || "";
   const displayLessonTitle = lessonTitle.replace(/\s+\((?:A1|A2|B1|B2|C1|C2)\b[^)]*\)$/i, "");
@@ -1253,7 +1275,7 @@ export default function LessonPage() {
     || isResultsStep;
   const lessonStudentToken = activeStudent?.id || "anonymous";
   const studentDisplayName = activeStudent?.name || "Student";
-  const currentStepSidebarBlocks = ((rawLessonContent.sidebarBlocks as Record<string, { id: string; title: string; body: string; icon?: string; parentMainBlockId?: string; imageUrl?: string; altText?: string }[]> | undefined)?.[currentStep] || []);
+  const currentStepSidebarBlocks = normalizedSidebarBlocks[currentStep] || [];
 
   if (!isMounted) {
     return <div className="fluentia-study-room min-h-screen bg-background text-[#e8e7e4]" />;

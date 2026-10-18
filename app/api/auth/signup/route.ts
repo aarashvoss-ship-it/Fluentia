@@ -63,7 +63,7 @@ export async function POST(request: Request) {
     }
 
     const invitation = await pool.query(
-      "SELECT 1 FROM public.allowed_users WHERE lower(email) = $1 LIMIT 1",
+      "SELECT 1 FROM public.allowed_users WHERE lower(btrim(email)) = $1 LIMIT 1",
       [email],
     );
     if (invitation.rowCount === 0) {

@@ -465,19 +465,40 @@ function normalizeSidebarBlocksByStep(raw: unknown): SidebarBlocksByStep {
   const out: SidebarBlocksByStep = {};
   for (const key of SIDEBAR_STEP_KEYS) {
     const value = source[key];
-    if (!Array.isArray(value)) continue;
-    const blocks: SidebarBlock[] = value
-      .filter((item): item is Record<string, unknown> => !!item && typeof item === "object" && !Array.isArray(item))
-      .map((item, index) => ({
-        id: typeof item.id === "string" && item.id.trim() ? item.id.trim() : `sidebar-${key}-${Date.now()}-${index}`,
-        title: typeof item.title === "string" ? item.title : typeof item.name === "string" ? item.name : "Sidebar note",
-        body: typeof item.body === "string" ? item.body : typeof item.text === "string" ? item.text : "",
-        imageUrl: typeof item.imageUrl === "string" ? item.imageUrl : undefined,
-        altText: typeof item.altText === "string" ? item.altText : undefined,
-        icon: typeof item.icon === "string" ? item.icon : undefined,
-        parentMainBlockId: typeof item.parentMainBlockId === "string" && item.parentMainBlockId.trim() ? item.parentMainBlockId.trim() : undefined,
-      }));
-    if (blocks.length) out[key] = blocks;
+    if (Array.isArray(value)) {
+      const blocks: SidebarBlock[] = value
+        .filter((item): item is Record<string, unknown> => !!item && typeof item === "object" && !Array.isArray(item))
+        .map((item, index) => ({
+          id: typeof item.id === "string" && item.id.trim() ? item.id.trim() : `sidebar-${key}-${Date.now()}-${index}`,
+          title: typeof item.title === "string" ? item.title : typeof item.name === "string" ? item.name : "Sidebar note",
+          body: typeof item.body === "string" ? item.body : typeof item.text === "string" ? item.text : "",
+          imageUrl: typeof item.imageUrl === "string" ? item.imageUrl : undefined,
+          altText: typeof item.altText === "string" ? item.altText : undefined,
+          icon: typeof item.icon === "string" ? item.icon : undefined,
+          parentMainBlockId: typeof item.parentMainBlockId === "string" && item.parentMainBlockId.trim() ? item.parentMainBlockId.trim() : undefined,
+        }));
+      if (blocks.length) out[key] = blocks;
+    }
+  }
+
+  const nestedMap = source.sidebarBlocksByStep ?? source.sidebar_blocks_by_step ?? source.sidebarBlocks ?? source.sidebar_blocks;
+  if (nestedMap && typeof nestedMap === "object" && !Array.isArray(nestedMap)) {
+    for (const [rawKey, value] of Object.entries(nestedMap as Record<string, unknown>)) {
+      const normalizedKey = SIDEBAR_STEP_KEYS.find((key) => key === rawKey || key === rawKey.replace(/[-_ ]+/g, "_")) ?? undefined;
+      if (!normalizedKey || !Array.isArray(value)) continue;
+      const blocks = value
+        .filter((item): item is Record<string, unknown> => !!item && typeof item === "object" && !Array.isArray(item))
+        .map((item, index) => ({
+          id: typeof item.id === "string" && item.id.trim() ? item.id.trim() : `sidebar-${normalizedKey}-${Date.now()}-${index}`,
+          title: typeof item.title === "string" ? item.title : typeof item.name === "string" ? item.name : "Sidebar note",
+          body: typeof item.body === "string" ? item.body : typeof item.text === "string" ? item.text : "",
+          imageUrl: typeof item.imageUrl === "string" ? item.imageUrl : undefined,
+          altText: typeof item.altText === "string" ? item.altText : undefined,
+          icon: typeof item.icon === "string" ? item.icon : undefined,
+          parentMainBlockId: typeof item.parentMainBlockId === "string" && item.parentMainBlockId.trim() ? item.parentMainBlockId.trim() : undefined,
+        }));
+      if (blocks.length) out[normalizedKey] = blocks;
+    }
   }
   return out;
 }
