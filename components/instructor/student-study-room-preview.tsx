@@ -16,6 +16,7 @@ import { StudyRoomStageLayout } from "@/components/study-room/study-room-stage-l
 import { Stepper } from "@/components/study-room/stepper";
 import { HeroBanner } from "@/components/shared/hero-banner";
 import { SidebarBlockCard } from "@/components/shared/sidebar-block-card";
+import { mapSidebarBlocksToMainBlocks } from "@/lib/sidebar-placement";
 import type { BannerPosition } from "@/components/instructor/banner-manager";
 import { LearningSidebar } from "@/components/study-room/learning-sidebar";
 import type { StudyHubResource } from "@/components/shared/study-hub-resource-card";
@@ -85,15 +86,6 @@ export function StudentStudyRoomPreview({
     ? []
     : (stepContent?.blocks || []).filter((block) => block.is_active !== false && block.enabled !== false);
   const sidebarBlocks = step === "results" ? [] : sidebarBlocksByStep[step] || [];
-  const linkedSidebarIds = new Set([
-    ...sidebarBlocks.filter((block) => block.parentMainBlockId).map((block) => block.id),
-    ...blocks
-      .filter((block) => block.layoutMode === "inline-row")
-      .map((block) => block.sidebarBlockId || block.alignNextTo)
-      .filter((id): id is string => Boolean(id)),
-  ]);
-  const topSidebarBlocks = sidebarBlocks.filter((block) => !linkedSidebarIds.has(block.id));
-
   const renderStep = () => {
     if (step === "results") {
       const answerKeys: Record<string, string> = {};
@@ -117,13 +109,9 @@ export function StudentStudyRoomPreview({
       );
     }
 
-    const stageItems = blocks.map((block, blockIndex) => {
-          const attachedSidebarBlocks = sidebarBlocks.filter((candidate) => candidate.parentMainBlockId === block.id);
-          const linkedSidebarBlocks = attachedSidebarBlocks.length > 0
-            ? attachedSidebarBlocks
-            : block.layoutMode === "inline-row" && (block.sidebarBlockId || block.alignNextTo)
-              ? sidebarBlocks.filter((candidate) => candidate.id === (block.sidebarBlockId || block.alignNextTo))
-              : [];
+    const sidebarBlocksByMainBlock = mapSidebarBlocksToMainBlocks(blocks, sidebarBlocks);
+    const stageItems = blocks.map((block) => {
+          const linkedSidebarBlocks = sidebarBlocksByMainBlock.get(block.id) || [];
           const rowEmptyMode = block.rowEmptyMode || block.whenEmpty;
           const article = (
             <article key={block.id} className="flex h-auto min-h-fit flex-col overflow-visible rounded-xl border border-border bg-surface p-5 pb-8">
@@ -149,11 +137,8 @@ export function StudentStudyRoomPreview({
             id: block.id,
             layoutMode: block.layoutMode || "global",
             main: article,
-            sidebar: blockIndex === 0 || linkedSidebarBlocks.length > 0 ? (
+            sidebar: linkedSidebarBlocks.length > 0 ? (
               <div className="w-full space-y-4">
-                {blockIndex === 0 && topSidebarBlocks.map((sidebarItem) => (
-                  <SidebarBlockCard key={sidebarItem.id} {...sidebarItem} />
-                ))}
                 {linkedSidebarBlocks.map((sidebarItem) => (
                   <SidebarBlockCard key={sidebarItem.id} {...sidebarItem} />
                 ))}
@@ -161,7 +146,6 @@ export function StudentStudyRoomPreview({
             ) : undefined,
             fullWidth: block.layoutMode === "inline-row"
               && linkedSidebarBlocks.length === 0
-              && topSidebarBlocks.length === 0
               && rowEmptyMode === "full",
           };
         });

@@ -33,13 +33,15 @@ export function StudyRoomStageLayout({ items }: StudyRoomStageLayoutProps) {
   return (
     <div className="h-auto min-h-fit w-full space-y-6 overflow-visible pb-8">
       {sections.map((section, sectionIndex) => section.type === "global" ? (
-        <div key={`global-${sectionIndex}`} className="grid h-auto min-h-fit w-full grid-cols-1 items-start gap-6 overflow-visible md:grid-cols-12">
-          <div className="min-w-0 space-y-6 overflow-visible md:col-span-8">
-            {section.items.map((item) => <div key={item.id} className="min-w-0">{item.main}</div>)}
-          </div>
-          <aside className="flex h-auto min-h-fit min-w-0 flex-col items-stretch gap-4 overflow-visible md:col-span-4">
-            {section.items.map((item) => item.sidebar ? <div key={item.id} className="flex h-auto min-h-fit min-w-0 w-full shrink-0 flex-col gap-4">{item.sidebar}</div> : null)}
-          </aside>
+        <div key={`global-${sectionIndex}`} className="space-y-6">
+          {section.items.map((item) => (
+            <div key={item.id} className="grid h-auto min-h-fit w-full grid-cols-1 items-start gap-6 overflow-visible md:grid-cols-12">
+              <div className="min-w-0 overflow-visible md:col-span-8">{item.main}</div>
+              <aside className="flex h-auto min-h-fit min-w-0 flex-col items-stretch gap-4 overflow-visible md:col-span-4">
+                {item.sidebar}
+              </aside>
+            </div>
+          ))}
         </div>
       ) : (
         <StudyRoomBlockRow key={section.item.id} fullWidth={section.item.fullWidth} sidebar={section.item.sidebar}>

@@ -38,6 +38,7 @@ import { DisplaySettingsControl } from "@/components/shared/display-settings";
 import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import { DynamicLucideIcon, LucideIconPicker } from "@/components/shared/lucide-icon-picker";
 import { SidebarBlockCard } from "@/components/shared/sidebar-block-card";
+import { mapSidebarBlocksToMainBlocks } from "@/lib/sidebar-placement";
 import { getStudyHubResourceHref, StudyHubDownloadButton, StudyHubFlashcardDeck, StudyHubResourceCard } from "@/components/shared/study-hub-resource-card";
 import { StudentStudyRoomPreview, STUDENT_PREVIEW_CHANNEL, type StudentPreviewSnapshot, type StudentPreviewStep } from "@/components/instructor/student-study-room-preview";
 import { LearningSidebar, type LearningTab } from "@/components/study-room/learning-sidebar";
@@ -343,7 +344,7 @@ function StepSidebarEditorPanel({
                 className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200 [color-scheme:dark] focus:border-amber-500/40"
                 aria-label={`Align ${block.title || "sidebar block"} next to main block`}
               >
-                <option value="">Top of Sidebar (Default Unlinked)</option>
+                <option value="">Unlinked (Use sidebar sequence)</option>
                 {mainBlocks.map((mainBlock, mainIndex) => <option key={mainBlock.id} value={mainBlock.id}>{mainIndex + 1}. {mainBlock.title || `${mainBlock.type} block`}</option>)}
               </select>
             </label>
@@ -3526,21 +3527,9 @@ export default function InstructorWorkstationPage({
       );
     }
     const previewSidebarBlocks = sidebarBlocksByStep[previewStep as keyof SidebarBlocksByStep] || [];
-    const linkedSidebarIds = new Set([
-      ...previewSidebarBlocks.filter((sidebarBlock) => sidebarBlock.parentMainBlockId).map((sidebarBlock) => sidebarBlock.id),
-      ...previewBlocks
-        .filter((block) => block.layoutMode === "inline-row")
-        .map((block) => block.sidebarBlockId || block.alignNextTo)
-        .filter((id): id is string => Boolean(id)),
-    ]);
-    const topSidebarBlocks = previewSidebarBlocks.filter((sidebarBlock) => !linkedSidebarIds.has(sidebarBlock.id));
-    const stageItems = previewBlocks.map((block: ContentBlock, blockIndex) => {
-        const attachedSidebarBlocks = previewSidebarBlocks.filter((candidate) => candidate.parentMainBlockId === block.id);
-        const linkedSidebarBlocks = attachedSidebarBlocks.length > 0
-          ? attachedSidebarBlocks
-          : block.layoutMode === "inline-row" && (block.sidebarBlockId || block.alignNextTo)
-            ? previewSidebarBlocks.filter((candidate) => candidate.id === (block.sidebarBlockId || block.alignNextTo))
-            : [];
+    const sidebarBlocksByMainBlock = mapSidebarBlocksToMainBlocks(previewBlocks, previewSidebarBlocks);
+    const stageItems = previewBlocks.map((block: ContentBlock) => {
+        const linkedSidebarBlocks = sidebarBlocksByMainBlock.get(block.id) || [];
         const rowEmptyMode = block.rowEmptyMode || block.whenEmpty;
         const article = (
         <article key={block.id} className="rounded-xl border border-border bg-surface p-5">
@@ -3559,11 +3548,8 @@ export default function InstructorWorkstationPage({
             id: block.id,
             layoutMode: block.layoutMode || "global",
             main: article,
-            sidebar: blockIndex === 0 || linkedSidebarBlocks.length > 0 ? (
+            sidebar: linkedSidebarBlocks.length > 0 ? (
               <>
-                {blockIndex === 0 && topSidebarBlocks.map((sidebarItem) => (
-                  <SidebarBlockCard key={sidebarItem.id} {...sidebarItem} />
-                ))}
                 {linkedSidebarBlocks.map((sidebarItem) => <SidebarBlockCard key={sidebarItem.id} {...sidebarItem} />)}
               </>
             ) : undefined,

@@ -35,6 +35,7 @@ import { Tooltip } from "@/components/shared/tooltip";
 import { DisplaySettingsControl } from "@/components/shared/display-settings";
 import { DynamicLucideIcon } from "@/components/shared/lucide-icon-picker";
 import { SidebarBlockCard } from "@/components/shared/sidebar-block-card";
+import { mapSidebarBlocksToMainBlocks } from "@/lib/sidebar-placement";
 import { getQuizQuestionPrompt, parseFillInBlanks } from "@/lib/fill-in-blanks";
 import { uploadStudentAudio } from "@/services/storage-service";
 import {
@@ -1322,28 +1323,16 @@ export default function LessonPage() {
     };
     const visibleBlocks = blocks.filter((block) => block.is_active !== false && block.enabled !== false);
     const questionBlocks = visibleBlocks.filter((block) => block.type === "question");
-    const linkedSidebarIds = new Set([
-      ...currentStepSidebarBlocks.filter((sidebarBlock) => sidebarBlock.parentMainBlockId).map((sidebarBlock) => sidebarBlock.id),
-      ...visibleBlocks
-        .filter((block) => block.layoutMode === "inline-row")
-        .map((block) => block.sidebarBlockId || block.alignNextTo)
-        .filter((id): id is string => Boolean(id)),
-    ]);
-    const topSidebarBlocks = currentStepSidebarBlocks.filter((sidebarBlock) => !linkedSidebarIds.has(sidebarBlock.id));
-    const questionSidebarBlocks = questionBlocks
-      .map((questionBlock) => currentStepSidebarBlocks.find((candidate) => candidate.parentMainBlockId === questionBlock.id))
-      .filter((sidebarBlock): sidebarBlock is (typeof currentStepSidebarBlocks)[number] => Boolean(sidebarBlock))
-      .filter((sidebarBlock, sidebarIndex, sidebarBlocks) => sidebarBlocks.findIndex((candidate) => candidate.id === sidebarBlock.id) === sidebarIndex);
     const renderableBlocks = visibleBlocks.filter((block) => block.type !== "question" || block === questionBlocks[0]);
-    const stageItems = renderableBlocks.map((block, blockIndex) => {
-        const attachedSidebarBlocks = block.type === "question"
-          ? questionSidebarBlocks
-          : currentStepSidebarBlocks.filter((candidate) => candidate.parentMainBlockId === block.id);
-        const linkedSidebarBlocks = attachedSidebarBlocks.length > 0
-          ? attachedSidebarBlocks
-          : block.layoutMode === "inline-row" && (block.sidebarBlockId || block.alignNextTo)
-            ? currentStepSidebarBlocks.filter((candidate) => candidate.id === (block.sidebarBlockId || block.alignNextTo))
-            : [];
+    const sidebarBlocksByMainBlock = mapSidebarBlocksToMainBlocks(
+      renderableBlocks.map((block) => ({
+        ...block,
+        relatedMainBlockIds: block.type === "question" ? questionBlocks.map((questionBlock) => questionBlock.id) : undefined,
+      })),
+      currentStepSidebarBlocks,
+    );
+    const stageItems = renderableBlocks.map((block) => {
+        const linkedSidebarBlocks = sidebarBlocksByMainBlock.get(block.id) || [];
         const rowEmptyMode = block.rowEmptyMode || block.whenEmpty;
         const article = (
         <article key={block.id} className="flex h-auto min-h-max flex-col overflow-visible rounded-xl border border-border bg-surface p-5 pb-8">
@@ -1383,20 +1372,14 @@ export default function LessonPage() {
           />}
         </article>
         );
-        const sidebarContent = (
-          <>
-            {blockIndex === 0 && topSidebarBlocks.map((topSidebarBlock) => <div key={topSidebarBlock.id}>{renderSidebarBlock(topSidebarBlock)}</div>)}
-            {linkedSidebarBlocks.map((sidebarItem) => <div key={sidebarItem.id}>{renderSidebarBlock(sidebarItem)}</div>)}
-          </>
-        );
+        const sidebarContent = linkedSidebarBlocks.map((sidebarItem) => <div key={sidebarItem.id}>{renderSidebarBlock(sidebarItem)}</div>);
         return {
           id: block.id,
           layoutMode: block.layoutMode || "global",
           main: article,
-          sidebar: blockIndex === 0 || linkedSidebarBlocks.length > 0 ? sidebarContent : undefined,
+          sidebar: linkedSidebarBlocks.length > 0 ? sidebarContent : undefined,
           fullWidth: block.layoutMode === "inline-row"
             && linkedSidebarBlocks.length === 0
-            && topSidebarBlocks.length === 0
             && rowEmptyMode === "full",
         };
       });
