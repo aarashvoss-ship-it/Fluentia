@@ -267,7 +267,7 @@ export async function getLessonVersions(lessonId: string): Promise<LessonVersion
 }
 
 function toStudentLessonResource(resource: LessonResource) {
-  const resourceType = resource.type === "Audio"
+  const resourceType = resource.resourceType || (resource.type === "Audio"
     ? "audio"
     : resource.type === "Video"
       ? "video"
@@ -275,14 +275,23 @@ function toStudentLessonResource(resource: LessonResource) {
         ? "image"
         : resource.type === "PDF"
           ? "file"
-          : "reading";
+          : "reading");
   return {
     id: resource.id,
     resource_type: resourceType,
     title: resource.title,
-    body: resource.description || null,
+    body: resource.body ?? resource.description ?? null,
     link_url: resource.url,
-    original_filename: resource.type === "PDF" ? resource.title : null,
+    question: resource.question ?? null,
+    answer: resource.answer ?? null,
+    explanation: resource.explanation ?? null,
+    subtitle: resource.subtitle ?? null,
+    sub_title: resource.sub_title ?? null,
+    example: resource.example ?? null,
+    cards: resource.cards ?? null,
+    original_filename: resource.original_filename ?? (resource.type === "PDF" ? resource.title : null),
+    media_type: resource.media_type ?? null,
+    storage_path: resource.storage_path ?? null,
     resourceHubAssetId: resource.resourceHubAssetId || null,
     is_external_url: !resource.url.includes("/storage/v1/object/"),
   };

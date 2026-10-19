@@ -840,6 +840,7 @@ export default function InstructorWorkstationPage({
   const [isMounted, setIsMounted] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const studentSelectionRequestId = useRef(0);
   const [resourceLessonId, setResourceLessonId] = useState<string | null>(null);
 
   const [students, setStudents] = useState<StudentUser[]>([]);
@@ -1303,6 +1304,31 @@ export default function InstructorWorkstationPage({
     }
   }
 
+  async function handleBuilderStudentSelection(student: StudentUser) {
+    const id = student.id.trim();
+    if (!id) return;
+    const requestId = ++studentSelectionRequestId.current;
+    setSelectedStudentId(id);
+    setNewLesson((previous) => ({ ...previous, studentId: id }));
+    setWorkstationState((previous) => ({ ...previous, studentProfile: student.profile }));
+
+    const savedProfile = await getStudentProfile(student.token || student.id).catch(() => null);
+    if (!savedProfile || requestId !== studentSelectionRequestId.current) return;
+    setWorkstationState((previous) => ({
+      ...previous,
+      studentProfile: {
+        ...previous.studentProfile,
+        ...savedProfile,
+        id: student.id,
+        fullName: savedProfile.fullName || student.name,
+        targetLevel: normalizeStudentLevel(savedProfile.targetLevel || savedProfile.level) || undefined,
+        level: normalizeStudentLevel(savedProfile.targetLevel || savedProfile.level) || previous.studentProfile.level,
+        targetGoal: savedProfile.targetGoal || previous.studentProfile.targetGoal,
+        teacherNotes: savedProfile.teacherNotes || previous.studentProfile.teacherNotes,
+      },
+    }));
+  }
+
   async function handleStudentLevelChange(student: StudentUser, targetLevel: StudentCefrLevel) {
     const previousStudent = student;
     setStudents((current) => current.map((item) => item.id === student.id
@@ -1730,7 +1756,7 @@ export default function InstructorWorkstationPage({
     setLessonResources(nextResources);
     setLessonStatus("draft");
     setSaveIndicator("idle");
-    setPublishStatus("Copy ready. Select a student before saving the new draft.");
+    setPublishStatus("Copy ready. Save this draft now, then assign it to students when you are ready.");
     setActiveTab("builder");
   };
 
@@ -2160,10 +2186,6 @@ export default function InstructorWorkstationPage({
   const saveStudentResource = async () => {
     const resolvedStudent = selectedStudent ?? (selectedStudentId ? students.find((student) => student.id === selectedStudentId) ?? null : null);
     const resolvedLessonId = resourceLessonId || databaseLessonId || null;
-    if (!resolvedStudent) {
-      setResourceStatus("Select a student in Lesson Details before saving a resource.");
-      return;
-    }
     if (!resolvedLessonId) {
       setResourceStatus("Save the lesson draft first so the current builder lesson has an active lesson ID.");
       return;
@@ -2268,7 +2290,6 @@ export default function InstructorWorkstationPage({
       return;
     }
 
-    const studentToken = resolvedStudent.token || resolvedStudent.id;
     const storedResourceType: StudentResourceType = resourceType === "flashcard" ? "flashcards" : resourceType;
     let resourceFileStoragePath: string | null = null;
     let oldFileCleanupFailed = false;
@@ -2284,6 +2305,42 @@ export default function InstructorWorkstationPage({
         resourceFileStoragePath = await uploadAsset(mediaUploadFile, safeFileName);
         resourceUrl = resourceFileStoragePath;
       }
+      if (!resolvedStudent) {
+        const lessonResourceType: LessonResource["type"] = resourceType === "audio"
+          ? "Audio"
+          : resourceType === "video"
+            ? "Video"
+            : resourceType === "image"
+              ? "Image"
+              : resourceType === "file"
+                ? "PDF"
+                : "Article";
+        const draftResource: LessonResource = {
+          id: resourceBeingEdited?.id || crypto.randomUUID(),
+          title: trimmedTitle || (resourceType === "data_table" ? "Data Table" : "Untitled resource"),
+          url: resourceUrl,
+          type: lessonResourceType,
+          resourceType: storedResourceType,
+          description: resourceDraft.body.trim() || undefined,
+          body: resourceDraft.body.trim() || null,
+          question: resourceDraft.question.trim() || null,
+          answer: resourceDraft.answer.trim() || null,
+          explanation: resourceDraft.explanation.trim() || null,
+          cards: resourceDraft.cards.map((card) => ({ ...card })),
+          original_filename: usesMediaUpload ? mediaUploadFile?.name || null : null,
+          media_type: usesMediaUpload ? resourceFileMediaType : null,
+          storage_path: usesMediaUpload ? resourceFileStoragePath : null,
+        };
+        setLessonResources((current) => resourceBeingEdited
+          ? current.map((resource) => resource.id === draftResource.id ? draftResource : resource)
+          : [...current, draftResource]);
+        setResourceFile(null);
+        setAudioFile(null);
+        resetDraftAfterSave();
+        setResourceStatus("Resource saved to the lesson draft. Assign the lesson to make it available to students.");
+        return;
+      }
+      const studentToken = resolvedStudent.token || resolvedStudent.id;
       const payload = {
         student_id: resolvedStudent.id,
         student_token: studentToken,
@@ -2506,7 +2563,7 @@ export default function InstructorWorkstationPage({
   };
 
   useEffect(() => {
-    if (reviewSubmissionId || !databaseLessonId || students.length === 0) return;
+    if (reviewSubmissionId || selectedStudentId || !databaseLessonId || students.length === 0) return;
     const currentLesson = createdLessons.find((lesson) => lesson.id === databaseLessonId);
     if (!currentLesson) return;
     const savedStudentId = getSavedStudentId(currentLesson);
@@ -2517,7 +2574,7 @@ export default function InstructorWorkstationPage({
     if (!matchingStudent) return;
     setSelectedStudentId(matchingStudent.id);
     setNewLesson((previous) => ({ ...previous, studentId: matchingStudent.id }));
-  }, [databaseLessonId, createdLessons, students, reviewSubmissionId]);
+  }, [databaseLessonId, createdLessons, students, reviewSubmissionId, selectedStudentId]);
 
   async function handleCreateLesson() {
     const draftStudentId = selectedStudentId || newLesson.studentId || selectedStudent?.id || "";
@@ -4929,7 +4986,7 @@ export default function InstructorWorkstationPage({
               </label>
             </div>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <label className="text-xs text-stone-400">Select Student<select value={selectedStudentId || ""} onChange={(event) => { const nextStudent = students.find((student) => student.id === event.target.value); if (nextStudent) void handleStudentChange(nextStudent); }} className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-white [color-scheme:dark]" aria-label="Select student for lesson"><option value="" className="bg-background text-white">{studentsLoading ? "Loading students..." : studentsError ? "Unable to load students" : students.length === 0 ? "No registered students" : "Choose a student"}</option>{students.map((student) => <option key={student.id} value={student.id} className="bg-background text-white">{student.name}</option>)}</select>
+              <label className="text-xs text-stone-400">Select Student<select value={selectedStudentId || ""} onChange={(event) => { const nextStudent = students.find((student) => student.id === event.target.value); if (nextStudent) void handleBuilderStudentSelection(nextStudent); }} className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-white [color-scheme:dark]" aria-label="Select student for lesson"><option value="" className="bg-background text-white">{studentsLoading ? "Loading students..." : studentsError ? "Unable to load students" : students.length === 0 ? "No registered students" : "Choose a student"}</option>{students.map((student) => <option key={student.id} value={student.id} className="bg-background text-white">{student.name}</option>)}</select>
               </label>
               <label className="text-xs text-stone-400">Module Number<input value={newLesson.moduleNumber} onChange={(event) => setNewLesson((previous) => ({ ...previous, moduleNumber: event.target.value }))} placeholder="1" className="mt-1 w-full rounded-md border border-border bg-background p-2.5 text-xs text-stone-200" />
               </label>
@@ -5051,7 +5108,7 @@ export default function InstructorWorkstationPage({
                   <Eye className="h-3.5 w-3.5" aria-hidden="true" /> Preview as Student
                 </button>
                 <div className="rounded-full border border-border bg-background px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-stone-300">
-                  {activeBuilderStudent ? `${activeBuilderStudent.name} · ${activeBuilderLessonId ? "Bound" : "Lesson not saved yet"}` : "Select student in Lesson Details"}
+                  {activeBuilderStudent ? `${activeBuilderStudent.name} · ${activeBuilderLessonId ? "Bound" : "Lesson not saved yet"}` : `${activeBuilderLessonId ? "Unassigned draft" : "Save draft to add resources"}`}
                 </div>
               </div>
             </div>
@@ -5193,9 +5250,9 @@ export default function InstructorWorkstationPage({
                     </button>
                   ))}
                 </div>
-                {!activeBuilderStudent || !activeBuilderLessonId ? (
+                {!activeBuilderLessonId ? (
               <div className="mt-4 rounded-lg border border-dashed border-border bg-background px-4 py-5 text-sm text-stone-400">
-                Choose a student and save the lesson draft in Lesson Details to bind resource uploads to the active lesson context.
+                Save the lesson draft in Lesson Details to attach resources. A student is not required until you assign the lesson.
               </div>
             ) : (
               <div className="mt-5 space-y-6">
