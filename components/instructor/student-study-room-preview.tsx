@@ -16,6 +16,7 @@ import { StudyRoomStageLayout } from "@/components/study-room/study-room-stage-l
 import { Stepper } from "@/components/study-room/stepper";
 import { HeroBanner } from "@/components/shared/hero-banner";
 import { SidebarBlockCard } from "@/components/shared/sidebar-block-card";
+import { ImageBlockRenderer } from "@/components/shared/image-block-renderer";
 import { mapSidebarBlocksToMainBlocks } from "@/lib/sidebar-placement";
 import type { BannerPosition } from "@/components/instructor/banner-manager";
 import { LearningSidebar } from "@/components/study-room/learning-sidebar";
@@ -122,7 +123,7 @@ export function StudentStudyRoomPreview({
                 </h3>
               )}
               {block.type === "text" && <><MarkdownContent value={block.body || ""} className="text-sm leading-relaxed text-stone-300" />{(block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true) && <WordCountedTextarea value="" onChange={() => undefined} wordCountConfig={block.wordCountConfig} rows={6} placeholder="Write your response here..." readOnly className="mt-4 min-h-[140px] w-full resize-y rounded border border-border bg-surface p-3 text-sm text-stone-400" ariaLabel="Student response field preview" />}</>}
-              {block.type === "image" && <>{block.imageUrl && <img src={block.imageUrl} alt={block.caption || block.title || "Lesson image"} className="max-h-72 w-full rounded-md object-cover" onError={(event) => { event.currentTarget.style.display = "none"; }} />}{block.caption && <p className="mt-2 text-xs text-stone-500">{block.caption}</p>}</>}
+              {block.type === "image" && <ImageBlockRenderer imageUrl={block.imageUrl} title={block.title} caption={block.caption} />}
               {block.type === "audio" && <>{block.audioUrl && <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio lesson"} />}<MediaTranscriptAccordion transcript={block.transcript} isUnlocked={block.transcriptUnlockedByDefault === true} openByDefault={block.transcriptUnlockedByDefault === true} showIntonationNote /></>}
               {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} />{block.show_reflection_prompt !== false && block.reflection_prompt_text?.trim() && <div className="mt-4 flex h-auto min-h-fit flex-col overflow-visible rounded-lg border border-amber-500/40 bg-amber-500/20 p-4 pb-6"><p className="text-sm font-semibold text-amber-400">Reflection Question</p><MarkdownContent value={block.reflection_prompt_text.trim()} className="mt-2 text-sm leading-relaxed text-stone-300" /><textarea rows={4} placeholder="Write your reflection here..." readOnly className="mt-3 w-full resize-y rounded border border-border bg-surface p-3 text-sm text-stone-400" aria-label="Reflection question response preview" /></div>}</>}
               {block.type === "resource" && block.resourceUrl && <a href={block.resourceUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded border border-amber-500/40 bg-amber-500/20 p-3 text-sm text-amber-400 hover:border-amber-500/40">Open document{block.description ? `: ${block.description}` : ""}</a>}
