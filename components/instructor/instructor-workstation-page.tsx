@@ -10,7 +10,7 @@ import { normalizeBannerDimness } from "@/lib/banner-position";
 import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/submission-evaluator";
 import type { UnifiedReportStage } from "@/components/shared/unified-report-card";
 import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission, StudyStepId, type LessonResource } from "@/types/lesson";
-import { assignLessonToAllActiveStudents, clearStudentLessonResources, createLesson, deleteLesson, getLessons, publishLessonAndAssign, removeStudentLessonCustomResource, setLessonAssignments, setStudentLessonResourceSelected, unassignLesson, updateLesson, type LessonAssignmentResourceOptions, type LessonTags, type LessonWithVersion } from "@/lib/lessons";
+import { assignLessonToAllActiveStudents, clearStudentLessonResources, createLesson, deleteLesson, getLessons, publishLessonAndAssign, removeStudentLessonCustomResource, saveLessonResource, setLessonAssignments, setStudentLessonResourceSelected, unassignLesson, updateLesson, type LessonAssignmentResourceOptions, type LessonTags, type LessonWithVersion } from "@/lib/lessons";
 import { PublishedLessonState } from "@/lib/lesson-store";
 import { deduplicateStudents, StudentUser } from "@/lib/users";
 import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/storage-service";
@@ -2186,10 +2186,6 @@ export default function InstructorWorkstationPage({
   const saveStudentResource = async () => {
     const resolvedStudent = selectedStudent ?? (selectedStudentId ? students.find((student) => student.id === selectedStudentId) ?? null : null);
     const resolvedLessonId = resourceLessonId || databaseLessonId || null;
-    if (!resolvedLessonId) {
-      setResourceStatus("Save the lesson draft first so the current builder lesson has an active lesson ID.");
-      return;
-    }
 
     const resourceType = resourceDraft.type;
     const trimmedTitle = resourceDraft.title.trim();
@@ -2305,7 +2301,7 @@ export default function InstructorWorkstationPage({
         resourceFileStoragePath = await uploadAsset(mediaUploadFile, safeFileName);
         resourceUrl = resourceFileStoragePath;
       }
-      if (!resolvedStudent) {
+      if (!resolvedLessonId || !resolvedStudent || lessonStatus === "draft") {
         const lessonResourceType: LessonResource["type"] = resourceType === "audio"
           ? "Audio"
           : resourceType === "video"
@@ -2315,8 +2311,11 @@ export default function InstructorWorkstationPage({
               : resourceType === "file"
                 ? "PDF"
                 : "Article";
+        const draftResourceBeingEdited = editingStudentResourceId
+          ? lessonResources.find((resource) => resource.id === editingStudentResourceId)
+          : undefined;
         const draftResource: LessonResource = {
-          id: resourceBeingEdited?.id || crypto.randomUUID(),
+          id: draftResourceBeingEdited?.id || crypto.randomUUID(),
           title: trimmedTitle || (resourceType === "data_table" ? "Data Table" : "Untitled resource"),
           url: resourceUrl,
           type: lessonResourceType,
@@ -2331,13 +2330,46 @@ export default function InstructorWorkstationPage({
           media_type: usesMediaUpload ? resourceFileMediaType : null,
           storage_path: usesMediaUpload ? resourceFileStoragePath : null,
         };
-        setLessonResources((current) => resourceBeingEdited
-          ? current.map((resource) => resource.id === draftResource.id ? draftResource : resource)
-          : [...current, draftResource]);
+        const hasDraftResource = lessonResources.some((resource) => resource.id === draftResource.id);
+        const nextLessonResources = hasDraftResource
+          ? lessonResources.map((resource) => resource.id === draftResource.id ? draftResource : resource)
+          : [...lessonResources, draftResource];
+        const nextContent = { ...workstationState.content, lessonResources: nextLessonResources };
+        let updatedLesson: LessonWithVersion | undefined;
+        if (resolvedLessonId) {
+          updatedLesson = await saveLessonResource(resolvedLessonId, draftResource);
+        }
+        setLessonResources(nextLessonResources);
+        setWorkstationState((previous) => ({ ...previous, content: nextContent }));
+        if (updatedLesson) {
+          setCreatedLessons((current) => current.map((lesson) => lesson.id === updatedLesson.id ? updatedLesson : lesson));
+          const savedSignature = getDraftSignature(
+            nextContent,
+            newLesson.title,
+            newLesson.subtitle,
+            newLesson.moduleNumber,
+          );
+          lastSavedDraftSignature.current = savedSignature;
+          currentDraftSignatureRef.current = savedSignature;
+          setIsDirty(false);
+        } else {
+          setIsDirty(true);
+        }
         setResourceFile(null);
         setAudioFile(null);
         resetDraftAfterSave();
-        setResourceStatus("Resource saved to the lesson draft. Assign the lesson to make it available to students.");
+        setResourceStatus(resolvedLessonId
+          ? "Resource saved to the lesson draft. Assign the lesson to make it available to students."
+          : "Resource added to the draft. Save the lesson to persist it.");
+        if (draftResourceBeingEdited?.storage_path
+          && draftResourceBeingEdited.storage_path !== draftResource.storage_path) {
+          try {
+            await deleteAsset(draftResourceBeingEdited.storage_path);
+          } catch (cleanupError) {
+            console.error("Replaced lesson draft resource file cleanup failed:", cleanupError);
+            setResourceStatus("Resource saved, but its previous uploaded file could not be removed.");
+          }
+        }
         return;
       }
       const studentToken = resolvedStudent.token || resolvedStudent.id;
@@ -2397,7 +2429,6 @@ export default function InstructorWorkstationPage({
       const response = await fetch("/api/student-resources", {
         method: resourceBeingEdited ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        signal: AbortSignal.timeout(8000),
         body: JSON.stringify({
           id: resourceBeingEdited?.id,
           studentId: resolvedStudent.id,
@@ -2405,14 +2436,10 @@ export default function InstructorWorkstationPage({
           resource: payload,
         }),
       });
-      const result = await response.json() as { resource?: StudentResourceEntry; error?: string };
+      const result = await response.json().catch(() => ({})) as { resource?: StudentResourceEntry; error?: string };
       const data = result.resource;
 
       if (!response.ok || !data) {
-        if (resourceFileStoragePath) {
-          await deleteAsset(resourceFileStoragePath);
-          resourceFileStoragePath = null;
-        }
         if (!resourceBeingEdited && /student_resources.*(does not exist|not ready)|42P01/i.test(result.error || "")) {
           if (usesMediaUpload) throw new Error("Apply migration 028 before saving uploaded resource attachments.");
           if (resourceType === "file" || resourceType === "image" || resourceType === "video") throw new Error("Apply migration 028 before saving image and video resources.");
@@ -2467,9 +2494,13 @@ export default function InstructorWorkstationPage({
       setResourceStatus(oldFileCleanupFailed
         ? "Resource updated, but its previous stored file could not be removed."
         : resourceBeingEdited ? "Resource updated for the selected student." : "Resource saved to the selected student.");
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (resourceFileStoragePath) {
-        await deleteAsset(resourceFileStoragePath);
+        try {
+          await deleteAsset(resourceFileStoragePath);
+        } catch (cleanupError) {
+          console.error("Failed to clean up resource upload after save failure:", cleanupError);
+        }
       }
       console.error("Full Student resource save error:", error);
       const errorObject = error && typeof error === "object" ? error as Record<string, unknown> : null;
@@ -2481,7 +2512,9 @@ export default function InstructorWorkstationPage({
           serializedError = "";
         }
       }
-      const fallbackMessage = errorObject ? "Unknown server error" : String(error || "Unknown save error");
+      const fallbackMessage = errorObject
+        ? "Unknown server error"
+        : error instanceof Error ? error.message : String(error || "Unknown save error");
       const message =
         (typeof errorObject?.message === "string" && errorObject.message) ||
         (typeof errorObject?.error_description === "string" && errorObject.error_description) ||

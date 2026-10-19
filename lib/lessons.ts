@@ -247,6 +247,15 @@ export async function updateLesson(id: string, input: UpdateLessonInput): Promis
   return result.lesson;
 }
 
+export async function saveLessonResource(lessonId: string, resource: LessonResource): Promise<LessonWithVersion> {
+  const result = await apiRequest<{ lesson: LessonWithVersion }>("/api/lessons", {
+    method: "PATCH",
+    body: JSON.stringify({ id: lessonId, action: "resource", resource }),
+  });
+  emitLessonUpdated();
+  return result.lesson;
+}
+
 export async function deleteLesson(id: string): Promise<void> {
   await apiRequest<{ deleted: boolean }>(`/api/lessons?id=${encodeURIComponent(id)}`, { method: "DELETE" });
   emitLessonUpdated();

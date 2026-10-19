@@ -278,7 +278,71 @@ export async function PATCH(request: Request) {
     }
     const lesson = lessonFromRow(current.rows[0]);
 
-    if (action === "assignments") {
+    if (action === "resource") {
+      const resource = isRecord(body.resource) ? body.resource : null;
+      const id = typeof resource?.id === "string" ? resource.id.trim() : "";
+      const title = typeof resource?.title === "string" ? resource.title.trim() : "";
+      const type = resource?.type;
+      const url = resource?.url;
+      const resourceType = resource?.resourceType;
+      if (!resource || !id || id.length > 200 || !title || title.length > 500
+        || !["PDF", "Article", "Video", "Audio", "Image"].includes(String(type))
+        || (resourceType !== undefined && ![
+          "note", "reading", "flashcard", "flashcards", "quiz", "audio",
+          "data_table", "file", "image", "video", "links",
+        ].includes(String(resourceType)))
+        || (url !== undefined && typeof url !== "string")) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ error: "Provide a valid lesson resource." }, { status: 400 });
+      }
+      const content = isRecord(lesson.content) ? lesson.content : {};
+      const lessonResources = Array.isArray(content.lessonResources)
+        ? content.lessonResources.filter(isRecord)
+        : [];
+      const nextResource = {
+        id,
+        title,
+        url: typeof url === "string" ? url : "",
+        type,
+        ...(typeof resource.resourceType === "string" ? { resourceType: resource.resourceType } : {}),
+        ...(typeof resource.description === "string" ? { description: resource.description } : {}),
+        ...(typeof resource.body === "string" || resource.body === null ? { body: resource.body } : {}),
+        ...(typeof resource.question === "string" || resource.question === null ? { question: resource.question } : {}),
+        ...(typeof resource.answer === "string" || resource.answer === null ? { answer: resource.answer } : {}),
+        ...(typeof resource.explanation === "string" || resource.explanation === null ? { explanation: resource.explanation } : {}),
+        ...(Array.isArray(resource.cards) ? { cards: resource.cards } : {}),
+        ...(typeof resource.original_filename === "string" || resource.original_filename === null ? { original_filename: resource.original_filename } : {}),
+        ...(typeof resource.media_type === "string" || resource.media_type === null ? { media_type: resource.media_type } : {}),
+        ...(typeof resource.storage_path === "string" || resource.storage_path === null ? { storage_path: resource.storage_path } : {}),
+      };
+      const nextContent = {
+        ...content,
+        lessonResources: [
+          ...lessonResources.filter((item) => item.id !== id),
+          nextResource,
+        ],
+      };
+      const currentVersion = isRecord(lesson.current_version) ? lesson.current_version : null;
+      if (lesson.status === "draft" && typeof currentVersion?.id === "string") {
+        await client.query(
+          `UPDATE public.lesson_versions
+           SET content = $2::jsonb, changes_summary = $3
+           WHERE id = $1 AND lesson_id = $4`,
+          [currentVersion.id, JSON.stringify(nextContent), "Updated lesson resources", id],
+        );
+      } else {
+        const versionNumber = Number((await client.query(
+          "SELECT COALESCE(MAX(version_number), 0) + 1 AS next FROM public.lesson_versions WHERE lesson_id = $1",
+          [id],
+        )).rows[0].next);
+        await client.query(
+          `INSERT INTO public.lesson_versions (lesson_id, version_number, content, changes_summary)
+           VALUES ($1, $2, $3::jsonb, $4)`,
+          [id, versionNumber, JSON.stringify(nextContent), "Updated lesson resources"],
+        );
+      }
+      await client.query("UPDATE public.lessons SET updated_at = now() WHERE id = $1", [id]);
+    } else if (action === "assignments") {
       const studentIds = Array.isArray(body.studentIds)
         ? [...new Set(body.studentIds.filter((value): value is string => typeof value === "string" && uuidPattern.test(value)))]
         : [];
@@ -331,7 +395,8 @@ export async function PATCH(request: Request) {
             const resourceId = typeof resource.id === "string" ? resource.id : "";
             if (!resourceId || !selectedResourceIds.has(resourceId)) continue;
             const type = typeof resource.type === "string" ? resource.type : "";
-            const resourceType = type === "Audio" ? "audio"
+            const resourceType = typeof resource.resourceType === "string" ? resource.resourceType
+              : type === "Audio" ? "audio"
               : type === "Video" ? "video"
                 : type === "Image" ? "image"
                   : type === "PDF" ? "file"
@@ -340,9 +405,18 @@ export async function PATCH(request: Request) {
               id: resourceId,
               resource_type: resourceType,
               title: typeof resource.title === "string" ? resource.title : "Lesson resource",
-              body: typeof resource.description === "string" ? resource.description : null,
+              body: typeof resource.body === "string" ? resource.body
+                : typeof resource.description === "string" ? resource.description : null,
               link_url: typeof resource.url === "string" ? resource.url : null,
-              original_filename: type === "PDF" && typeof resource.title === "string" ? resource.title : null,
+              question: typeof resource.question === "string" ? resource.question : null,
+              answer: typeof resource.answer === "string" ? resource.answer : null,
+              explanation: typeof resource.explanation === "string" ? resource.explanation : null,
+              cards: Array.isArray(resource.cards) ? resource.cards : null,
+              original_filename: typeof resource.original_filename === "string"
+                ? resource.original_filename
+                : type === "PDF" && typeof resource.title === "string" ? resource.title : null,
+              media_type: typeof resource.media_type === "string" ? resource.media_type : null,
+              storage_path: typeof resource.storage_path === "string" ? resource.storage_path : null,
               resourceHubAssetId: typeof resource.resourceHubAssetId === "string" ? resource.resourceHubAssetId : null,
               is_external_url: typeof resource.url === "string" && !resource.url.includes("/storage/v1/object/"),
             };
