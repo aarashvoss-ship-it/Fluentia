@@ -1599,7 +1599,7 @@ export default function LessonPage() {
                   Reading
                 </span>
               </div>}
-              {lessonContent.reading?.article_markdown?.text && <blockquote className="border-l-2 border-amber-500/40 pl-4 text-stone-400 text-sm leading-relaxed italic">{lessonContent.reading.article_markdown.text}</blockquote>}
+              {lessonContent.reading?.article_markdown?.text && <blockquote>{lessonContent.reading.article_markdown.text}</blockquote>}
               {lessonContent.reading?.lexicon_notes?.text && (
                 <div className="rounded-lg border border-border bg-surface p-4 text-sm leading-relaxed text-stone-300">
                   <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-amber-400">Reading Lexicon</p>

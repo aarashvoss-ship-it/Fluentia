@@ -86,7 +86,7 @@ export function MarkdownContent({ value, className = "", plainCode = false, data
             const Icon = isSuccess ? CheckCircle2 : XCircle;
             return <li className="flex items-start gap-2"><Icon className={`mt-1 h-4 w-4 shrink-0 ${isSuccess ? "text-emerald-400" : "text-red-400"}`} aria-hidden="true" /><span className="min-w-0">{markedChildren.children}</span></li>;
           },
-          blockquote: ({ children }) => <blockquote className="my-4 border-l-4 border-amber-500/40 bg-amber-500/20 px-4 py-2 leading-7 italic text-amber-400">{children}</blockquote>,
+          blockquote: ({ children }) => <blockquote>{children}</blockquote>,
           hr: () => <hr className="my-5 border-border" />,
           table: ({ children }) => dataTables ? (
             <div className="my-4 max-w-full overflow-x-auto rounded-lg border border-border">
