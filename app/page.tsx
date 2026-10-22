@@ -97,7 +97,7 @@ export default function RootPage() {
       <header className="mb-4 w-full max-w-xl text-center">
         <img src="/logo.png" alt="Fluentia logo" className="mx-auto h-12 w-12 object-contain" />
         <h1 className="mt-1 text-2xl font-semibold tracking-tight text-white">Fluentia</h1>
-        <p className="mx-auto mt-1 whitespace-nowrap text-[10px] leading-tight text-slate-400 sm:text-xs">
+        <p className="mx-auto mt-1 whitespace-nowrap text-[clamp(0.55rem,2.3vw,0.875rem)] leading-tight text-slate-400">
           Content &amp; Language Integrated Learning (CLIL) for Academic Mastery
         </p>
       </header>
