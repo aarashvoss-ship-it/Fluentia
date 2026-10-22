@@ -93,28 +93,28 @@ export default function RootPage() {
   if (checkingSession) return <main className="min-h-screen bg-background" />;
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-10 text-stone-100 sm:px-6">
-      <header className="mb-8 w-full max-w-2xl text-center">
-        <img src="/logo.png" alt="Fluentia logo" className="mx-auto h-16 w-16 object-contain" />
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white">Fluentia</h1>
-        <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-slate-400 sm:text-base">
-          Content &amp; Language Integrated Learning (CLIL) for Academic &amp; Professional Mastery
+    <main className="flex min-h-screen flex-col items-center justify-center overflow-x-hidden bg-background px-4 py-5 text-stone-100 sm:px-6 sm:py-6 lg:h-screen lg:overflow-hidden">
+      <header className="mb-4 w-full max-w-xl text-center">
+        <img src="/logo.png" alt="Fluentia logo" className="mx-auto h-12 w-12 object-contain" />
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-white">Fluentia</h1>
+        <p className="mx-auto mt-1 whitespace-nowrap text-[10px] leading-tight text-slate-400 sm:text-xs">
+          Content &amp; Language Integrated Learning (CLIL) for Academic Mastery
         </p>
       </header>
 
       <section
         aria-labelledby="invitation-title"
-        className="w-full max-w-2xl rounded-2xl border border-border bg-surface p-6 shadow-2xl sm:p-10"
+        className="w-full max-w-xl rounded-2xl border border-border bg-surface p-5 shadow-2xl sm:p-8"
       >
-        <h2 id="invitation-title" className="text-2xl font-semibold tracking-tight text-white">
+        <h2 id="invitation-title" className="text-xl font-semibold tracking-tight text-white">
           By Invitation Only
         </h2>
-        <p className="mt-3 text-base leading-relaxed text-slate-400">
+        <p className="mt-2 text-sm leading-5 text-slate-400">
           Access to Fluentia is currently reserved for private sessions and tailored learning
           environments. Please contact your instructor to receive your personal session pass.
         </p>
 
-        <div className="my-8 border-t border-border" />
+        <div className="my-5 border-t border-border" />
 
         <section aria-labelledby="waitlist-title">
           <h3 id="waitlist-title" className="text-lg font-semibold text-white">
@@ -124,7 +124,7 @@ export default function RootPage() {
             Leave your email and we will let you know when new invitations open.
           </p>
 
-          <form noValidate onSubmit={(event) => void submitWaitlist(event)} className="mt-5 space-y-4">
+          <form noValidate onSubmit={(event) => void submitWaitlist(event)} className="mt-3 space-y-3">
             <label className="block text-sm text-slate-300">
               Name
               <input
@@ -138,7 +138,7 @@ export default function RootPage() {
                 maxLength={120}
                 aria-invalid={Boolean(fieldErrors.name)}
                 aria-describedby={fieldErrors.name ? "waitlist-name-error" : undefined}
-                className="mt-1 w-full rounded-md border border-border bg-background px-4 py-3 text-stone-100 outline-none transition placeholder:text-slate-600 focus:border-amber-500/60"
+                className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2.5 text-stone-100 outline-none transition placeholder:text-slate-600 focus:border-amber-500/60"
               />
               {fieldErrors.name && (
                 <span id="waitlist-name-error" className="mt-1 block text-xs text-rose-400" role="alert">
@@ -162,7 +162,7 @@ export default function RootPage() {
                   placeholder="you@example.com"
                   aria-invalid={Boolean(fieldErrors.email)}
                   aria-describedby={fieldErrors.email ? "waitlist-email-error" : undefined}
-                  className="mt-1 w-full rounded-md border border-border bg-background px-4 py-3 text-stone-100 outline-none transition placeholder:text-slate-600 focus:border-amber-500/60"
+                  className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2.5 text-stone-100 outline-none transition placeholder:text-slate-600 focus:border-amber-500/60"
                 />
                 {fieldErrors.email && (
                   <span id="waitlist-email-error" className="mt-1 block text-xs text-rose-400" role="alert">
@@ -173,7 +173,7 @@ export default function RootPage() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="self-end rounded-md bg-amber-500/20 px-5 py-3 font-medium text-amber-300 transition hover:bg-amber-500/30 disabled:cursor-wait disabled:opacity-60 sm:mb-0"
+                className="self-end rounded-md bg-amber-500/20 px-4 py-2.5 font-medium text-amber-300 transition hover:bg-amber-500/30 disabled:cursor-wait disabled:opacity-60 sm:mb-0"
               >
                 {isSubmitting ? "Requesting..." : "Request Access"}
               </button>
@@ -192,12 +192,12 @@ export default function RootPage() {
 
         <Link
           href="/login"
-          className="mt-7 flex min-h-13 w-full items-center justify-center rounded-md border border-amber-500/50 px-4 py-3 text-center font-medium text-amber-400 transition hover:bg-amber-500/10 hover:text-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+          className="mt-5 flex min-h-12 w-full items-center justify-center rounded-md border border-amber-500/50 px-4 py-2.5 text-center font-medium text-amber-400 transition hover:bg-amber-500/10 hover:text-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
         >
           Already have access? Sign In
         </Link>
 
-        <footer className="mt-8 border-t border-border pt-5">
+        <footer className="mt-5 border-t border-border pt-4">
           <p className="text-xs text-slate-500">Fluentia | 2026 Dedicated Access Protocol</p>
         </footer>
       </section>
