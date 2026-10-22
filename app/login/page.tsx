@@ -84,8 +84,25 @@ export default function LoginPage() {
         <p className="mt-2 text-sm text-stone-400">
           {mode === 'signin'
             ? 'Continue to your language learning workspace.'
-            : 'Create an account if preauthorized, or request access to join the waitlist.'}
+            : 'Create an account if your email address has been approved for access.'}
         </p>
+
+        {mode === 'signup' && (
+          <aside className="mt-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3" aria-label="Invitation required">
+            <p className="text-sm font-semibold text-amber-300">By Invitation Only</p>
+            <p className="mt-1 text-sm leading-relaxed text-stone-300">
+              Account creation is reserved for pre-approved email addresses on our allowed list.
+              Not approved yet?{' '}
+              <a
+                href="/"
+                className="font-medium text-amber-400 underline decoration-amber-400/50 underline-offset-2 transition hover:text-amber-300"
+              >
+                Join the waitlist
+              </a>
+              .
+            </p>
+          </aside>
+        )}
 
         <form onSubmit={(event) => void handleSubmit(event)} className="mt-6 space-y-4">
           {mode === 'signup' && (

@@ -170,6 +170,28 @@ export default function RootPage() {
               : "Create an account if your email address has been approved for access."}
         </p>
 
+        {mode === "signup" && (
+          <aside className="mt-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3" aria-label="Invitation required">
+            <p className="text-sm font-semibold text-amber-300">By Invitation Only</p>
+            <p className="mt-1 text-sm leading-relaxed text-stone-300">
+              Account creation is reserved for pre-approved email addresses on our allowed list.
+              Not approved yet?{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("waitlist");
+                  setStatus(null);
+                  setPassword("");
+                }}
+                className="font-medium text-amber-400 underline decoration-amber-400/50 underline-offset-2 transition hover:text-amber-300"
+              >
+                Join the waitlist
+              </button>
+              .
+            </p>
+          </aside>
+        )}
+
         {mode === "waitlist" ? (
           <form noValidate onSubmit={(event) => void submitWaitlist(event)} className="mt-6 space-y-4">
             <label className="block text-sm text-stone-300">
