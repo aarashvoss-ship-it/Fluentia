@@ -119,6 +119,7 @@ export async function uploadToS3(
         Body: fileBody,
         ...(fileSize === undefined ? {} : { ContentLength: fileSize }),
         ContentType: contentType,
+        ACL: "public-read",
       },
       partSize,
       queueSize: 4,
