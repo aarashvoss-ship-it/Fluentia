@@ -114,7 +114,7 @@ INSERT INTO lesson_import_source (
     '722edc3b-08e6-4842-b157-52b193fe1939', 'the-immersion-imperative-1791443781599', 'The Immersion Imperative',
     'Living Abroad Without Leaving Home: The Story of Sarah’s Digital Migration', 2, 'published',
     '2026-10-08 07:16:24.873066+00', '2026-10-08 07:16:24.873066+00',
-    '4f9e7234-baa4-45a5-8e6d-7584350ccdbd', 'https://b062563db35e.blob.upstash.io/Pocast/Images/study%20room%20desk%20at%20night.png',
+    '4f9e7234-baa4-45a5-8e6d-7584350ccdbd', NULL,
     '5eb593ab-48db-4fa2-a6f6-08f9c0af3ee5', false, 'General', 'Critical Thinking', 'Integrated Skills', '45 Mins', true,
     NULL, 'B1', NULL, NULL, NULL, '[]'::jsonb, NULL
   ),
@@ -122,7 +122,7 @@ INSERT INTO lesson_import_source (
     '7e4d781b-62a8-454e-89bd-33cab5d42626', 'ai-and-the-future-of-work-1-1790387247776', 'AI and the Future of Work',
     'Navigating Automation, Human Value, and Skill Adaptability', 3, 'published',
     '2026-09-26 01:47:30.602749+00', '2026-09-26 01:47:30.602749+00',
-    '4358564b-9c9d-4538-83ed-5f9982d7e929', 'https://b062563db35e.blob.upstash.io/Pocast/Images/AI%20and%20future%20of%20work.png',
+    '4358564b-9c9d-4538-83ed-5f9982d7e929', NULL,
     '5eb593ab-48db-4fa2-a6f6-08f9c0af3ee5', false, 'General', 'Critical Thinking', 'Integrated Skills', '120 Mins', true,
     'B2', 'B1', NULL, NULL, NULL, '[]'::jsonb, NULL
   ),
@@ -137,7 +137,7 @@ INSERT INTO lesson_import_source (
     'a1225481-9d34-4804-a393-cb37a281cd5b', 'acquisition-vs-learning-1791741969560', 'Acquisition vs. Learning',
     'The Illusion of Grammar: Why Memorizing Rules Fails in Real Conversations', 2, 'published',
     '2026-10-11 18:06:11.193566+00', '2026-10-11 18:06:11.193566+00',
-    '4358564b-9c9d-4538-83ed-5f9982d7e929', 'https://b062563db35e.blob.upstash.io/Images/From%20Grammar%20Rules%20to%20Conversation.png',
+    '4358564b-9c9d-4538-83ed-5f9982d7e929', NULL,
     '5eb593ab-48db-4fa2-a6f6-08f9c0af3ee5', false, 'General', 'Critical Thinking', 'Integrated Skills', '45 Mins', true,
     NULL, 'B1', NULL, NULL, NULL, '[]'::jsonb, NULL
   ),

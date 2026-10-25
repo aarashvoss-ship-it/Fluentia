@@ -77,7 +77,7 @@ export function InstructorBannerManager({
   const getUploadedBannerPath = (url: string) => {
     try {
       const parsed = new URL(url, window.location.origin);
-      return parsed.pathname.includes("/banners/") || parsed.pathname.startsWith("/api/assets/") ? url : null;
+      return parsed.pathname.includes("/banners/") ? url : null;
     } catch {
       return null;
     }

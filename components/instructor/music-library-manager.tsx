@@ -12,7 +12,7 @@ import { YoutubeAudioController } from "@/components/shared/youtube-audio-contro
 function isUploadedTrack(url: string) {
   try {
     const pathname = new URL(url, window.location.origin).pathname;
-    return pathname.includes("/audio/music/") || pathname.startsWith("/api/assets/");
+    return pathname.includes("/audio/music/");
   } catch {
     return false;
   }

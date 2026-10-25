@@ -317,18 +317,6 @@ CREATE INDEX IF NOT EXISTS resource_assets_study_room_music_idx
   ON public.resource_assets (main_category, sub_category)
   WHERE main_category = 'audios';
 
-CREATE TABLE IF NOT EXISTS public.media_assets (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  owner_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  file_name text NOT NULL,
-  content_type text NOT NULL,
-  data bytea NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS media_assets_owner_created_idx
-  ON public.media_assets (owner_id, created_at DESC);
-
 -- Seed a published, all-students sample lesson if no instructor-owned
 -- published lesson is available. Existing sample edits are preserved.
 INSERT INTO public.lessons (
