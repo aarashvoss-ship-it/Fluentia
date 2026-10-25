@@ -250,11 +250,13 @@ function MediaAssetInput({
   value,
   onChange,
   disabled = false,
+  label,
 }: {
   kind: MediaBlockType;
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  label?: string;
 }) {
   const [mode, setMode] = useState<"upload" | "url">(value ? "url" : "upload");
   const [isDragging, setIsDragging] = useState(false);
@@ -304,8 +306,8 @@ function MediaAssetInput({
             <span className="mt-1 text-[10px] text-stone-500">{rules.description} · Max 15 MB</span>
             <input id={inputId} type="file" accept={rules.accept} className="sr-only" disabled={disabled || isUploading} onChange={(event) => void handleFile(event.target.files?.[0])} />
           </label>
-          {value && <div className="flex items-center gap-3 rounded border border-emerald-500/30 bg-emerald-500/5 p-2">
-            {kind === "image" ? <img src={value} alt="Uploaded media preview" className="h-14 w-20 rounded object-cover" /> : kind === "audio" ? <audio controls src={value} className="h-8 min-w-0 flex-1" /> : kind === "video" ? <video controls src={value} className="h-14 w-24 rounded object-cover" /> : <FileText className="h-8 w-8 shrink-0 text-amber-400" />}
+          {value && kind !== "audio" && <div className="flex items-center gap-3 rounded border border-emerald-500/30 bg-emerald-500/5 p-2">
+            {kind === "image" ? <img src={value} alt="Uploaded media preview" className="h-14 w-20 rounded object-cover" /> : kind === "video" ? <video controls src={value} className="h-14 w-24 rounded object-cover" /> : <FileText className="h-8 w-8 shrink-0 text-amber-400" />}
             <span className="min-w-0 flex-1 truncate text-[11px] text-emerald-200">File uploaded</span>
             <button type="button" onClick={() => setDeleteConfirmation({
               title: `Remove ${kind} from this block?`,
@@ -315,6 +317,14 @@ function MediaAssetInput({
           </div>}
         </>
       )}
+      {value && kind === "audio" && <div className="space-y-2 rounded border border-emerald-500/30 bg-emerald-500/5 p-2">
+        <CustomAudioPlayer src={value} label={label || "Audio preview"} />
+        <button type="button" onClick={() => setDeleteConfirmation({
+          title: "Remove audio from this block?",
+          description: "This removes the current media from the block. This action cannot be undone.",
+          onConfirm: () => onChange(""),
+        })} disabled={disabled || isUploading} className="text-[11px] text-stone-400 underline hover:text-red-300 disabled:opacity-50">Remove / Replace</button>
+      </div>}
       {error && <p className="text-[11px] text-red-300" role="alert">{error}</p>}
       <DeleteConfirmationDialog request={deleteConfirmation} onCancel={() => setDeleteConfirmation(null)} />
     </div>
@@ -848,7 +858,8 @@ export function LessonTailorEditor({
               const isUploading = rec?.status === "uploading";
               return (
                 <div className="space-y-2">
-                  <MediaAssetInput kind="audio" value={block.audioUrl.startsWith("data:") ? "" : block.audioUrl} onChange={(value) => updateDynamicBlock(step, index, { audioUrl: value })} disabled={isRecording || isUploading} />
+                  <MediaAssetInput kind="audio" value={block.audioUrl.startsWith("data:") ? "" : block.audioUrl} onChange={(value) => updateDynamicBlock(step, index, { audioUrl: value })} disabled={isRecording || isUploading} label={block.title || "Audio lesson"} />
+                  {block.audioUrl.startsWith("data:") && <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio lesson"} />}
                   <label className="flex cursor-pointer items-start gap-3 rounded border border-border bg-background/60 p-3">
                     <input type="checkbox" checked={block.allowStudentVoiceResponse === true} onChange={(event) => updateDynamicBlock(step, index, { allowStudentVoiceResponse: event.target.checked })} className="mt-0.5 h-4 w-4 shrink-0 accent-amber-500" />
                     <span><span className="block text-xs font-semibold text-stone-200">Allow Student Voice Response / Shadowing Record</span><span className="mt-1 block text-[11px] leading-relaxed text-stone-500">Lets students record a response beneath this audio lesson.</span></span>
@@ -872,7 +883,6 @@ export function LessonTailorEditor({
                     {rec?.error && <span className="text-[11px] text-red-300" role="status">{rec.error}</span>}
                     {rec?.status === "error" && <button type="button" onClick={() => setRecordingState(block.id, null)} className="text-[11px] text-stone-400 underline hover:text-stone-200">Dismiss</button>}
                   </div>
-                  {block.audioUrl && <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio lesson"} />}
                   {renderTranscriptField(step, index, block)}
                 </div>
               );

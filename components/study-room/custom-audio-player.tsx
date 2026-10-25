@@ -12,12 +12,16 @@ function formatTime(value: number) {
   return `${minutes}:${seconds}`;
 }
 
-function isRemoteAudioUrl(value: string) {
+function getRemoteAudioUrl(value: string) {
+  const source = value.trim();
+  if (!source) return null;
   try {
-    const url = new URL(value);
-    return (url.protocol === "http:" || url.protocol === "https:") && Boolean(url.hostname);
+    const url = new URL(source, window.location.origin);
+    return (url.protocol === "http:" || url.protocol === "https:") && url.hostname
+      ? url.href
+      : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -65,11 +69,13 @@ export function CustomAudioPlayer({ src, label = "Audio", blob, transcript }: { 
       };
     }
 
-    if (isRemoteAudioUrl(src) || isAudioDataUrl(src)) {
-      setPlaybackSrc(src);
+    const remoteAudioUrl = getRemoteAudioUrl(src);
+    if (remoteAudioUrl) {
+      setPlaybackSrc(remoteAudioUrl);
       setSourceStatus("ready");
-    } else if (/^blob:/i.test(src)) {
-      setSourceStatus("unavailable");
+    } else if (isAudioDataUrl(src.trim())) {
+      setPlaybackSrc(src.trim());
+      setSourceStatus("ready");
     } else {
       setSourceStatus("unavailable");
     }
