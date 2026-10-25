@@ -3,6 +3,7 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
+import { randomUUID } from "node:crypto";
 
 type S3Configuration = {
   client: S3Client;
@@ -109,7 +110,7 @@ export async function uploadToS3(
 ): Promise<string> {
   try {
     const configuration = getS3Configuration();
-    const key = `${cleanFolderName(folderName)}/${ownerId}/${cleanFileName(fileName)}`;
+    const key = `${cleanFolderName(folderName)}/${ownerId}/${randomUUID()}-${cleanFileName(fileName)}`;
     const partSize = Math.max(5 * 1024 * 1024, Math.ceil((fileSize || 0) / 10_000));
     await new Upload({
       client: configuration.client,

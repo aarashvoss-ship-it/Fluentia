@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { ContentBlock, ContentBlockType, ExerciseQuestionType, OptionIndexingStyle, QuizQuestion, STUDY_STEPS, StudyStepId, StrictStepContent } from "@/types/lesson";
 import { useLessonEditorStore } from "@/lib/lesson-editor-store";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
@@ -264,7 +264,7 @@ function MediaAssetInput({
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmationRequest | null>(null);
   const rules = mediaRules[kind];
-  const inputId = `media-upload-${kind}`;
+  const inputId = useId();
 
   const handleFile = async (file?: File) => {
     if (!file || disabled || isUploading) return;
@@ -459,17 +459,19 @@ export function LessonTailorEditor({
     return { ...base, type: "quiz", block_id: id, block_type: "quiz", title: "Quiz / Exercise", questions: [{ id: `${id}-q1`, type: "multiple_choice", prompt: "", options: ["", "", ""], correct_answer: "" }] };
   };
 
-  const updateDynamicBlock = (step: StudyStepId, index: number, patch: Partial<ContentBlock>) => {
-    const blocks = getBlocks(step).map((block, blockIndex) => blockIndex === index ? { ...block, ...patch } as ContentBlock : block);
+  const updateDynamicBlockById = (step: StudyStepId, blockId: string, patch: Partial<ContentBlock>) => {
+    const currentBlocks = getBlocks(step);
+    if (!currentBlocks.some((block) => block.id === blockId)) return;
+    const blocks = currentBlocks.map((block) => block.id === blockId ? { ...block, ...patch } as ContentBlock : block);
     updateBlocks(step, blocks);
-    
-    // Save after the local draft has rendered the change.
-    const block = blocks[index];
-    if (block) {
-      updateBlock(step, block.id, patch).catch((error: any) => {
-        console.error("Failed to update block:", error);
-      });
-    }
+    updateBlock(step, blockId, patch).catch((error: unknown) => {
+      console.error("Failed to update block:", error);
+    });
+  };
+
+  const updateDynamicBlock = (step: StudyStepId, index: number, patch: Partial<ContentBlock>) => {
+    const block = getBlocks(step)[index];
+    if (block) updateDynamicBlockById(step, block.id, patch);
   };
 
   const fmt = (s:number)=> `${String(Math.floor(s/60)).padStart(2,"0")}:${String(Math.floor(s%60)).padStart(2,"0")}`;
@@ -507,7 +509,7 @@ export function LessonTailorEditor({
     });
   };
 
-  const finalizeRecordingUpload = async (blockId: string, step: StudyStepId, index: number) => {
+  const finalizeRecordingUpload = async (blockId: string, step: StudyStepId) => {
     const chunks = chunksRef.current.get(blockId) || [];
     const recorder = recorderRef.current.get(blockId);
     const stream = streamRef.current.get(blockId) || null;
@@ -533,7 +535,7 @@ export function LessonTailorEditor({
     setRecordingState(blockId, { status: "uploading" });
     try {
       const asset = await uploadLessonMedia(file, `lesson-${step}-${Date.now()}`);
-      updateDynamicBlock(step, index, { audioUrl: asset.url });
+      updateDynamicBlockById(step, blockId, { audioUrl: asset.url });
       setRecordingState(blockId, null);
     } catch (error) {
       console.error("Lesson voice recording upload failed:", error);
@@ -541,7 +543,7 @@ export function LessonTailorEditor({
     }
   };
 
-  const startRecording = async (blockId: string, step: StudyStepId, index: number) => {
+  const startRecording = async (blockId: string, step: StudyStepId) => {
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
       setRecordingState(blockId, { status: "error", error: "Recording is not supported in this browser." });
       return;
@@ -572,7 +574,7 @@ export function LessonTailorEditor({
         if (event.data && event.data.size > 0) chunksRef.current.get(blockId)?.push(event.data);
       };
       recorder.onstop = () => {
-        void finalizeRecordingUpload(blockId, step, index);
+        void finalizeRecordingUpload(blockId, step);
       };
       recorder.onerror = () => {
         cleanupRecordingVisual(blockId); stopTracks(stream);
@@ -854,7 +856,7 @@ export function LessonTailorEditor({
               const isUploading = rec?.status === "uploading";
               return (
                 <div className="space-y-2">
-                  <MediaAssetInput kind="audio" value={block.audioUrl.startsWith("data:") ? "" : block.audioUrl} onChange={(value) => updateDynamicBlock(step, index, { audioUrl: value })} disabled={isRecording || isUploading} label={block.title || "Audio lesson"} />
+                  <MediaAssetInput kind="audio" value={block.audioUrl.startsWith("data:") ? "" : block.audioUrl} onChange={(value) => updateDynamicBlockById(step, block.id, { audioUrl: value })} disabled={isRecording || isUploading} label={block.title || "Audio lesson"} />
                   {block.audioUrl.startsWith("data:") && <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio lesson"} />}
                   <label className="flex cursor-pointer items-start gap-3 rounded border border-border bg-background/60 p-3">
                     <input type="checkbox" checked={block.allowStudentVoiceResponse === true} onChange={(event) => updateDynamicBlock(step, index, { allowStudentVoiceResponse: event.target.checked })} className="mt-0.5 h-4 w-4 shrink-0 accent-amber-500" />
@@ -866,7 +868,7 @@ export function LessonTailorEditor({
                   </label>
                   <div className="flex flex-row flex-wrap items-center gap-2">
                     {!isRecording ? (
-                      <button type="button" onClick={() => void startRecording(block.id, step, index)} disabled={isUploading} className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 px-2.5 py-1.5 text-xs  text-amber-400 transition hover:bg-amber-500/20 hover:text-amber-400 disabled:opacity-40" aria-label="Record voice for audio block"><Mic className="h-3.5 w-3.5" />{isUploading ? "Uploading…" : "Record voice"}</button>
+                      <button type="button" onClick={() => void startRecording(block.id, step)} disabled={isUploading} className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 px-2.5 py-1.5 text-xs  text-amber-400 transition hover:bg-amber-500/20 hover:text-amber-400 disabled:opacity-40" aria-label="Record voice for audio block"><Mic className="h-3.5 w-3.5" />{isUploading ? "Uploading…" : "Record voice"}</button>
                     ) : (
                       <div className="flex w-full flex-row items-center gap-3 rounded-lg border border-red-500/30 bg-background px-3 py-1.5">
                         <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500 animate-pulse" aria-hidden />
@@ -889,7 +891,7 @@ export function LessonTailorEditor({
               const reflectionExpanded = openReflectionSettings[block.id] ?? false;
               return (
                 <div className="space-y-3">
-                  <MediaAssetInput kind="video" value={block.videoUrl} onChange={(value) => updateDynamicBlock(step, index, { videoUrl: value })} />
+                  <MediaAssetInput kind="video" value={block.videoUrl} onChange={(value) => updateDynamicBlockById(step, block.id, { videoUrl: value })} />
                   <InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} editable showTranscript={false} />
                   {renderTranscriptField(step, index, block)}
                   <div className="overflow-hidden rounded border border-border bg-background/50">
@@ -912,8 +914,8 @@ export function LessonTailorEditor({
               );
             })()}
             {block.type === "writing" && <WritingBlockEditor block={block} onChange={(changes) => updateDynamicBlock(step, index, changes)} />}
-            {block.type === "image" && <div className="space-y-2"><MediaAssetInput kind="image" value={block.imageUrl} onChange={(value) => updateDynamicBlock(step, index, { imageUrl: value })} /><input value={block.caption} onChange={(event) => updateDynamicBlock(step, index, { caption: event.target.value })} placeholder="Image caption" className="w-full rounded border border-border bg-background p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40" aria-label="Image block caption" /></div>}
-            {block.type === "resource" && <div className="space-y-2"><MediaAssetInput kind="resource" value={block.resourceUrl} onChange={(value) => updateDynamicBlock(step, index, { resourceUrl: value })} /><input value={block.description || ""} onChange={(event) => updateDynamicBlock(step, index, { description: event.target.value })} placeholder="Document description" className="w-full rounded border border-border bg-background p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40" aria-label="Document description" /></div>}
+            {block.type === "image" && <div className="space-y-2"><MediaAssetInput kind="image" value={block.imageUrl} onChange={(value) => updateDynamicBlockById(step, block.id, { imageUrl: value })} /><input value={block.caption} onChange={(event) => updateDynamicBlock(step, index, { caption: event.target.value })} placeholder="Image caption" className="w-full rounded border border-border bg-background p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40" aria-label="Image block caption" /></div>}
+            {block.type === "resource" && <div className="space-y-2"><MediaAssetInput kind="resource" value={block.resourceUrl} onChange={(value) => updateDynamicBlockById(step, block.id, { resourceUrl: value })} /><input value={block.description || ""} onChange={(event) => updateDynamicBlock(step, index, { description: event.target.value })} placeholder="Document description" className="w-full rounded border border-border bg-background p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40" aria-label="Document description" /></div>}
             {block.type === "question" && (
               <div className="space-y-2">
                 <label className="block text-xs text-stone-500">Question type
