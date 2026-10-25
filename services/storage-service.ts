@@ -569,9 +569,10 @@ export async function saveInstructorFeedback(
   return nextState;
 }
 
-async function uploadMediaBlob(blob: Blob, name: string): Promise<string> {
+async function uploadMediaBlob(blob: Blob, name: string, folderName: string): Promise<string> {
   const form = new FormData();
   form.set("file", blob, name);
+  form.set("folder", folderName);
   const result = await apiRequest<{ url: string }>("/api/assets", { method: "POST", body: form });
   return result.url;
 }
@@ -579,15 +580,16 @@ async function uploadMediaBlob(blob: Blob, name: string): Promise<string> {
 export async function prepareMediaUrl(
   input: string | Blob,
   bucket: StorageMediaAsset["bucket"],
-  name = "media-" + Date.now()
+  name = "media-" + Date.now(),
+  folderName = "lesson-media",
 ): Promise<StorageMediaAsset> {
   if (typeof input === "string") return { bucket, name, url: input };
-  const url = await uploadMediaBlob(input, name);
+  const url = await uploadMediaBlob(input, name, folderName);
   return { bucket, name, url, size: input.size, type: input.type };
 }
 
 export async function uploadAudioSubmission(input: string | Blob, name?: string) {
-  return prepareMediaUrl(input, "lesson-audio", name);
+  return prepareMediaUrl(input, "lesson-audio", name, "audio/submissions");
 }
 
 export async function uploadStudentAudio(input: string | Blob, studentId: string, name?: string) {
@@ -597,23 +599,29 @@ export async function uploadStudentAudio(input: string | Blob, studentId: string
     if (!isPersistentMediaUrl(input)) throw new Error("Student audio must be uploaded before it can be saved.");
     return { bucket: "student-resources" as const, name: fileName, url: input };
   }
-  const url = await uploadMediaBlob(input, fileName);
+  const url = await uploadMediaBlob(input, fileName, "audio/stage3");
   return { bucket: "student-resources" as const, name: fileName, url, size: input.size, type: input.type };
 }
 
 export async function uploadLessonMedia(input: string | Blob, name?: string) {
-  return prepareMediaUrl(input, "lesson-media", name);
+  return prepareMediaUrl(input, "lesson-media", name, "lesson-media");
 }
 
 export async function uploadLessonAsset(file: File, blockType: "image" | "audio" | "video" | "resource") {
   const fileExtension = file.name.includes(".") ? "." + file.name.split(".").pop() : "";
   const fileName = crypto.randomUUID() + fileExtension;
-  const url = await uploadMediaBlob(file, blockType + "/" + fileName);
+  const folder = {
+    image: "images/lessons",
+    audio: "audio/lessons",
+    video: "videos/lessons",
+    resource: "resources/lessons",
+  }[blockType];
+  const url = await uploadMediaBlob(file, fileName, folder);
   return { url, path: url };
 }
 
 export async function uploadVoiceFeedback(input: string | Blob, name?: string) {
-  return prepareMediaUrl(input, "voice-feedback", name);
+  return prepareMediaUrl(input, "voice-feedback", name, "audio/feedback");
 }
 
 function mapVocabularyRow(row: ApiRecord): SavedVocabularyWord {

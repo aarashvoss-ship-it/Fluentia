@@ -1,6 +1,7 @@
-export async function uploadAsset(file: File | Blob, name?: string): Promise<string> {
+export async function uploadAsset(file: File | Blob, name?: string, folderName = "assets"): Promise<string> {
   const formData = new FormData();
   formData.append("file", file, name || (file instanceof File ? file.name : "uploaded-file"));
+  formData.append("folder", folderName);
   const response = await fetch("/api/assets", {
     method: "POST",
     credentials: "same-origin",
@@ -15,12 +16,20 @@ export async function uploadAsset(file: File | Blob, name?: string): Promise<str
 
 export async function deleteAsset(url: string): Promise<void> {
   const match = url.match(/\/api\/assets\/([0-9a-f-]{36})(?:$|[?#])/i);
-  if (!match) return;
+  if (!match) {
+    let pathname: string;
+    try {
+      pathname = new URL(url, window.location.origin).pathname;
+    } catch {
+      return;
+    }
+    if (!/\/(?:banners|avatars|assets|audio|lesson-media|images|videos|resources|resource-hub)\//.test(pathname)) return;
+  }
   const response = await fetch("/api/assets", {
     method: "DELETE",
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id: match[1] }),
+    body: JSON.stringify(match ? { id: match[1] } : { url }),
   });
   const result = await response.json().catch(() => ({})) as { error?: string };
   if (!response.ok && response.status !== 404) {

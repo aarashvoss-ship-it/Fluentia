@@ -11,7 +11,8 @@ import { YoutubeAudioController } from "@/components/shared/youtube-audio-contro
 
 function isUploadedTrack(url: string) {
   try {
-    return new URL(url, window.location.origin).pathname.startsWith("/api/assets/");
+    const pathname = new URL(url, window.location.origin).pathname;
+    return pathname.includes("/audio/music/") || pathname.startsWith("/api/assets/");
   } catch {
     return false;
   }
@@ -130,7 +131,11 @@ export function MusicLibraryManager({ instructorId }: { instructorId: string }) 
     setIsSaving(true);
     let uploadedUrl = "";
     try {
-      uploadedUrl = await uploadAsset(file, `ambient-${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`);
+      uploadedUrl = await uploadAsset(
+        file,
+        `ambient-${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`,
+        "audio/music",
+      );
       await addResourceAsset({
         title,
         mainCategory: "audios",

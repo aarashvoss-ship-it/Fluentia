@@ -917,7 +917,11 @@ function DashboardContent() {
       const user = await getAuthenticatedUser();
       if (!user) throw new Error("Sign in to upload a profile image.");
       const extension = file.type === "image/jpeg" ? "jpg" : file.type === "image/png" ? "png" : "webp";
-      const publicUrl = await uploadAsset(file, `${user.id}-${kind}-${crypto.randomUUID()}.${extension}`);
+      const publicUrl = await uploadAsset(
+        file,
+        `${user.id}-${kind}-${crypto.randomUUID()}.${extension}`,
+        kind === "banner" ? "banners" : "avatars",
+      );
       if (kind === "avatar") setCustomAvatarUrl(publicUrl);
       else {
         setCustomBannerUrl(publicUrl);

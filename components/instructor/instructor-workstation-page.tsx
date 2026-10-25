@@ -185,7 +185,7 @@ function StepSidebarEditorPanel({
     setImageUploadStatus((current) => ({ ...current, [block.id]: "Uploading image..." }));
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     try {
-      const url = await uploadAsset(file, safeName);
+      const url = await uploadAsset(file, safeName, "images/instructor");
       updateSidebarBlock(block.id, { imageUrl: url });
       setImageUploadStatus((current) => ({ ...current, [block.id]: "Image uploaded." }));
     } catch (error) {
@@ -1985,7 +1985,7 @@ export default function InstructorWorkstationPage({
             const file = customResource.file;
             if (!file) throw new Error(`Choose a file for ${customResource.title}.`);
             const safeFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-            resourceUrl = await uploadAsset(file, safeFilename);
+            resourceUrl = await uploadAsset(file, safeFilename, "resource-hub");
             uploadedAssets.push(resourceUrl);
             linkUrl = resourceUrl;
             resourceType = "file";
@@ -2298,7 +2298,7 @@ export default function InstructorWorkstationPage({
       let resourceUrl = resourceDraft.linkUrl.trim();
       if (usesMediaUpload && mediaUploadFile && resourceFileMediaType) {
         const safeFileName = mediaUploadFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        resourceFileStoragePath = await uploadAsset(mediaUploadFile, safeFileName);
+        resourceFileStoragePath = await uploadAsset(mediaUploadFile, safeFileName, "resource-hub");
         resourceUrl = resourceFileStoragePath;
       }
       if (!resolvedLessonId || !resolvedStudent || lessonStatus === "draft") {

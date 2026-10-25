@@ -78,7 +78,7 @@ export function InstructorBannerManager({
   const getUploadedBannerPath = (url: string) => {
     try {
       const parsed = new URL(url, window.location.origin);
-      return parsed.pathname.startsWith("/api/assets/") ? url : null;
+      return parsed.pathname.includes("/banners/") || parsed.pathname.startsWith("/api/assets/") ? url : null;
     } catch {
       return null;
     }
@@ -139,7 +139,7 @@ export function InstructorBannerManager({
     setUploadMessage("Uploading banner...");
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     try {
-      const url = await uploadAsset(file, `banner-${Date.now()}-${safeName}`);
+      const url = await uploadAsset(file, `banner-${Date.now()}-${safeName}`, "banners");
       handleSelect(url);
       onUpdateCustomInput?.("");
       setUploadMessage("Banner uploaded and applied.");

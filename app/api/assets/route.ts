@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
 import { getServerSessionUser } from "@/lib/server/session";
+import { deleteS3Object, uploadToS3 } from "@/lib/s3-storage";
 
 export const runtime = "nodejs";
 
@@ -25,18 +26,19 @@ export async function POST(request: Request) {
   }
 
   try {
-    await initializeDatabase();
-    const id = randomUUID();
-    const result = await getPostgresPool().query(
-      `INSERT INTO public.media_assets (id, owner_id, file_name, content_type, data)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id`,
-      [id, user.id, file.name.slice(0, 255) || id, file.type || "application/octet-stream", Buffer.from(await file.arrayBuffer())],
+    const folder = formData.get("folder");
+    const folderName = typeof folder === "string" && folder.trim() ? folder.trim() : "assets";
+    const fileName = file.name || randomUUID();
+    const url = await uploadToS3(
+      Buffer.from(await file.arrayBuffer()),
+      fileName,
+      folderName,
+      user.id,
+      file.type || "application/octet-stream",
     );
-    if (!result.rows[0]) throw new Error("Uploaded file record was not returned.");
-    return NextResponse.json({ url: `/api/assets/${result.rows[0].id}` }, { status: 201 });
+    return NextResponse.json({ url }, { status: 201 });
   } catch (error) {
-    logDatabaseError("PostgreSQL asset upload failed:", error);
+    console.error("Asset upload API failed:", error);
     return NextResponse.json({ error: "Unable to save the uploaded file." }, { status: 500 });
   }
 }
@@ -54,6 +56,20 @@ export async function DELETE(request: Request) {
   } catch {
     return NextResponse.json({ error: "Provide a file identifier." }, { status: 400 });
   }
+  if (typeof body.url === "string") {
+    try {
+      const deleted = await deleteS3Object(
+        body.url,
+        user.id,
+        user.role === "instructor" || user.role === "admin",
+      );
+      return NextResponse.json({ deleted });
+    } catch (error) {
+      console.error("Asset deletion API failed:", error);
+      return NextResponse.json({ error: "Unable to delete the file." }, { status: 500 });
+    }
+  }
+
   const assetId = typeof body.id === "string" ? body.id : "";
   if (!ASSET_ID_PATTERN.test(assetId)) return NextResponse.json({ error: "Invalid file identifier." }, { status: 400 });
   try {
