@@ -126,8 +126,24 @@ async function instructorOwnsStudent(instructorId: string, assignedInstructor: s
   const result = await getPostgresPool().query<{ owned: boolean }>(
     `SELECT (
        $1::text = $2
-       OR $2 = (SELECT token FROM public.instructors WHERE id = $1::uuid LIMIT 1)
-       OR $2 = (SELECT slug FROM public.instructors WHERE id = $1::uuid LIMIT 1)
+       OR EXISTS (
+         SELECT 1
+         FROM public.instructors AS instructor
+         WHERE instructor.id = $1::uuid
+           AND (
+             lower(btrim($2)) = lower(btrim(instructor.token))
+             OR lower(btrim($2)) = lower(btrim(instructor.slug))
+             OR (
+               lower(btrim($2)) = lower(btrim(instructor.name))
+               AND NOT EXISTS (
+                 SELECT 1
+                 FROM public.instructors AS duplicate
+                 WHERE duplicate.id <> instructor.id
+                   AND lower(btrim(duplicate.name)) = lower(btrim(instructor.name))
+               )
+             )
+           )
+       )
      ) AS owned`,
     [instructorId, assignedInstructor],
   );
