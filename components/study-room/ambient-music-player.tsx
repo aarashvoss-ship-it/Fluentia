@@ -381,10 +381,6 @@ export function AmbientMusicPlayer({ src, studentScope = "student" }: AmbientMus
       setTrackError("Choose a supported audio file.");
       return;
     }
-    if (file.size > 25 * 1024 * 1024) {
-      setTrackError("Choose an audio file smaller than 25 MB.");
-      return;
-    }
     const id = `student-file-${crypto.randomUUID()}`;
     const title = customTitle.trim() || file.name.replace(/\.[^.]+$/, "");
     try {

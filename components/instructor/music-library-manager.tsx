@@ -122,10 +122,6 @@ export function MusicLibraryManager({ instructorId }: { instructorId: string }) 
       setStatus("Choose an MP3, WAV, M4A, or AAC audio file.");
       return;
     }
-    if (file.size > 15 * 1024 * 1024) {
-      setStatus("Choose an audio file smaller than 15 MB.");
-      return;
-    }
     const title = trackTitle.trim() || file.name.replace(/\.[^.]+$/, "").trim() || "Uploaded Track";
     setStatus("Uploading track...");
     setIsSaving(true);
@@ -254,7 +250,7 @@ export function MusicLibraryManager({ instructorId }: { instructorId: string }) 
       <div className="space-y-3 rounded-md border border-border bg-background p-4">
         <h3 className="text-sm font-semibold text-stone-200">Upload an audio file</h3>
         <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2.5 text-xs text-stone-300 hover:border-amber-500/40 hover:text-amber-400"><Upload className="h-4 w-4" />{trackFile?.name || "Choose MP3, WAV, M4A, or AAC"}<input ref={fileInputRef} type="file" accept="audio/mpeg,audio/wav,audio/x-wav,audio/mp4,audio/aac,audio/x-m4a,.mp3,.wav,.m4a,.aac" onChange={(event) => setTrackFile(event.target.files?.[0] || null)} className="sr-only" /></label>
-        <p className="text-[10px] text-stone-500">Maximum file size: 15 MB. The uploaded file is stored in the shared audio bucket.</p>
+        <p className="text-[10px] text-stone-500">The uploaded file is stored in the shared audio bucket.</p>
         <Tooltip content="Upload the selected audio file to the shared student library"><button type="button" disabled={!trackFile || isSaving} onClick={() => void uploadTrack(trackFile || undefined)} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/20 px-3 py-2 text-xs  text-amber-400 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"><Upload className="h-3.5 w-3.5" />{isSaving ? "Uploading..." : "Upload track"}</button></Tooltip>
       </div>
     </section>}

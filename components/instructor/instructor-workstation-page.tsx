@@ -146,7 +146,6 @@ function LessonMetadataDisclosure({
 type SidebarBlock = { id: string; title: string; body: string; icon?: string; parentMainBlockId?: string; imageUrl?: string; altText?: string };
 type SidebarBlocksByStep = Partial<Record<"warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking", SidebarBlock[]>>;
 
-const SIDEBAR_IMAGE_MAX_SIZE = 5 * 1024 * 1024;
 const SIDEBAR_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 
 function StepSidebarEditorPanel({
@@ -176,10 +175,6 @@ function StepSidebarEditorPanel({
     if (!file) return;
     if (!SIDEBAR_IMAGE_TYPES.has(file.type)) {
       setImageUploadStatus((current) => ({ ...current, [block.id]: "Choose a PNG, JPG, or WebP image." }));
-      return;
-    }
-    if (file.size > SIDEBAR_IMAGE_MAX_SIZE) {
-      setImageUploadStatus((current) => ({ ...current, [block.id]: "Sidebar images must be 5 MB or smaller." }));
       return;
     }
     setImageUploadStatus((current) => ({ ...current, [block.id]: "Uploading image..." }));
@@ -2110,11 +2105,6 @@ export default function InstructorWorkstationPage({
       setResourceStatus("Choose an image, text document, PDF, audio, or video file.");
       return;
     }
-    if (file.size > 50 * 1024 * 1024) {
-      setResourceFile(null);
-      setResourceStatus("Files must be 50 MB or smaller.");
-      return;
-    }
     setResourceFile(file);
     setResourceStatus(null);
     setResourceDraft((previous) => ({
@@ -2278,11 +2268,6 @@ export default function InstructorWorkstationPage({
     }
     if (resourceType === "video" && usesMediaUpload && !resourceFileMediaType?.startsWith("video/")) {
       setResourceStatus("Choose a valid video file.");
-      return;
-    }
-
-    if (usesMediaUpload && mediaUploadFile && mediaUploadFile.size > 50 * 1024 * 1024) {
-      setResourceStatus("Files must be 50 MB or smaller.");
       return;
     }
 
@@ -5349,7 +5334,7 @@ export default function InstructorWorkstationPage({
                           />
                           <UploadCloud className="mx-auto h-7 w-7 text-amber-400" aria-hidden="true" />
                           <p className="mt-2 text-sm font-medium text-stone-200">{isResourceFileDragging ? "Drop file to attach" : "Drag a file here or choose a file"}</p>
-                          <p className="mt-1 text-[11px] leading-relaxed text-stone-500">{resourceDraft.type === "image" ? "Image files" : resourceDraft.type === "video" ? "Video files" : resourceDraft.type === "reading" ? "PDF or document attachments" : "Images, text documents, PDFs, audio, and video"} · up to 50 MB</p>
+                          <p className="mt-1 text-[11px] leading-relaxed text-stone-500">{resourceDraft.type === "image" ? "Image files" : resourceDraft.type === "video" ? "Video files" : resourceDraft.type === "reading" ? "PDF or document attachments" : "Images, text documents, PDFs, audio, and video"}</p>
                           <label htmlFor="student-resource-file-input" className="mt-3 inline-flex cursor-pointer items-center rounded-md border border-amber-500/40 px-3 py-2 text-xs font-semibold text-amber-400 hover:border-amber-500/40">
                             Choose file
                           </label>

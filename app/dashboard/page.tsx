@@ -900,11 +900,6 @@ function DashboardContent() {
 
   const uploadProfileImage = async (file: File | undefined, kind: "avatar" | "banner") => {
     if (!file) return;
-    const maxSize = kind === "avatar" ? 2 * 1024 * 1024 : 5 * 1024 * 1024;
-    if (file.size > maxSize) {
-      setProfileImageStatus(`${kind === "avatar" ? "Avatar" : "Banner"} images must be ${kind === "avatar" ? "2" : "5"} MB or smaller.`);
-      return;
-    }
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
       setProfileImageStatus("Choose a JPG, PNG, or WEBP image.");
       return;
@@ -1587,7 +1582,7 @@ function DashboardContent() {
                             <Upload className="h-4 w-4" />{isUploadingAvatar ? "Uploading avatar..." : "Upload avatar image"}
                             <input ref={avatarFileRef} type="file" accept="image/jpeg,image/png,image/webp" disabled={isUploadingAvatar} onChange={(event) => void uploadProfileImage(event.target.files?.[0], "avatar")} className="sr-only" />
                           </label>
-                          <p className="text-[10px] leading-relaxed text-stone-500">Recommended: 400×400 px (1:1). Max 2 MB. JPG, PNG, or WEBP.</p>
+                          <p className="text-[10px] leading-relaxed text-stone-500">Recommended: 400×400 px (1:1). JPG, PNG, or WEBP.</p>
                           <label className="block text-xs text-stone-400">Or use an image URL
                             <input value={customAvatarUrl} onChange={(event) => setCustomAvatarUrl(event.target.value)} placeholder="https://..." className="mt-1 w-full rounded-md border border-border bg-background p-2 text-xs text-stone-200" />
                           </label>
@@ -1639,7 +1634,7 @@ function DashboardContent() {
                             <Upload className="h-4 w-4" />{isUploadingBanner ? "Uploading banner..." : "Upload banner image"}
                             <input ref={bannerFileRef} type="file" accept="image/jpeg,image/png,image/webp" disabled={isUploadingBanner} onChange={(event) => void uploadProfileImage(event.target.files?.[0], "banner")} className="sr-only" />
                           </label>
-                          <p className="text-[10px] leading-relaxed text-stone-500">Recommended: 1200×300 px (4:1). Max 5 MB. JPG, PNG, or WEBP.</p>
+                          <p className="text-[10px] leading-relaxed text-stone-500">Recommended: 1200×300 px (4:1). JPG, PNG, or WEBP.</p>
                           <label className="block text-xs text-stone-400">Or use an image URL
                             <input value={customBannerUrl} onChange={(event) => setCustomBannerUrl(event.target.value)} placeholder="https://..." className="mt-1 w-full rounded-md border border-border bg-background p-2 text-xs text-stone-200" />
                           </label>

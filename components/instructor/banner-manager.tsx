@@ -27,7 +27,6 @@ const PRESET_BANNERS = [
   "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1200&q=80",
   "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1200&q=80",
 ];
-const MAX_BANNER_FILE_SIZE = 5 * 1024 * 1024;
 const ALLOWED_BANNER_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 
 export function InstructorBannerManager({
@@ -130,11 +129,6 @@ export function InstructorBannerManager({
       setUploadMessage("Choose a PNG, JPG, or WebP image.");
       return;
     }
-    if (file.size > MAX_BANNER_FILE_SIZE) {
-      setUploadMessage("Banner images must be 5 MB or smaller.");
-      return;
-    }
-
     setIsUploading(true);
     setUploadMessage("Uploading banner...");
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -157,7 +151,6 @@ export function InstructorBannerManager({
     uploadMessage.startsWith("Upload failed")
     || uploadMessage.startsWith("Delete failed")
     || uploadMessage.startsWith("Choose")
-    || uploadMessage.startsWith("Banner images")
   ));
 
   return (
@@ -273,7 +266,7 @@ export function InstructorBannerManager({
             {isUploading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
             {isUploading ? "Uploading..." : "Choose image to upload"}
           </button>
-          <p className="mt-1.5 text-[10px] text-stone-500">PNG, JPG, or WebP. Maximum 5 MB.</p>
+          <p className="mt-1.5 text-[10px] text-stone-500">PNG, JPG, or WebP.</p>
           {uploadMessage && <p className={`mt-2 text-xs ${uploadMessageIsError ? "text-red-300" : "text-amber-400"}`} role={uploadMessageIsError ? "alert" : "status"}>{uploadMessage}</p>}
         </div>
 

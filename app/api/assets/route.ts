@@ -6,35 +6,49 @@ import { deleteS3Object, uploadToS3 } from "@/lib/s3-storage";
 
 export const runtime = "nodejs";
 
-const MAX_ASSET_BYTES = 50 * 1024 * 1024;
 const ASSET_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export async function POST(request: Request) {
   const user = await getServerSessionUser();
   if (!user) return NextResponse.json({ error: "Sign in before uploading a file." }, { status: 401 });
 
-  let formData: FormData;
-  try {
-    formData = await request.formData();
-  } catch {
-    return NextResponse.json({ error: "Provide a valid file upload." }, { status: 400 });
+  const url = new URL(request.url);
+  let fileBody = request.body;
+  let fileSize = Number(request.headers.get("x-file-size") || request.headers.get("content-length"));
+  let fileName = url.searchParams.get("fileName") || randomUUID();
+  let folderName = url.searchParams.get("folder") || "assets";
+  let contentType = request.headers.get("content-type") || "application/octet-stream";
+
+  if (contentType.toLowerCase().startsWith("multipart/form-data")) {
+    try {
+      const formData = await request.formData();
+      const file = formData.get("file");
+      if (!(file instanceof File)) return NextResponse.json({ error: "Choose a file to upload." }, { status: 400 });
+      fileBody = file.stream();
+      fileSize = file.size;
+      fileName = file.name || fileName;
+      const folder = formData.get("folder");
+      folderName = typeof folder === "string" && folder.trim() ? folder.trim() : folderName;
+      contentType = file.type || "application/octet-stream";
+    } catch (error) {
+      console.error("Asset upload multipart parsing failed:", error);
+      return NextResponse.json({ error: "Provide a valid file upload." }, { status: 400 });
+    }
   }
-  const file = formData.get("file");
-  if (!(file instanceof File)) return NextResponse.json({ error: "Choose a file to upload." }, { status: 400 });
-  if (file.size <= 0 || file.size > MAX_ASSET_BYTES) {
-    return NextResponse.json({ error: "File must be no larger than 50 MB." }, { status: 413 });
+
+  if (!fileBody) return NextResponse.json({ error: "Choose a file to upload." }, { status: 400 });
+  if (!Number.isSafeInteger(fileSize) || fileSize <= 0) {
+    return NextResponse.json({ error: "Provide a valid non-empty file size." }, { status: 400 });
   }
 
   try {
-    const folder = formData.get("folder");
-    const folderName = typeof folder === "string" && folder.trim() ? folder.trim() : "assets";
-    const fileName = file.name || randomUUID();
     const url = await uploadToS3(
-      Buffer.from(await file.arrayBuffer()),
+      fileBody,
+      fileSize,
       fileName,
       folderName,
       user.id,
-      file.type || "application/octet-stream",
+      contentType,
     );
     return NextResponse.json({ url }, { status: 201 });
   } catch (error) {

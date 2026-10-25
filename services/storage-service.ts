@@ -174,7 +174,7 @@ async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
     ...init,
     credentials: "same-origin",
     headers: {
-      ...(init?.body && !(init.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
+      ...(typeof init?.body === "string" ? { "Content-Type": "application/json" } : {}),
       ...init?.headers,
     },
   });
@@ -570,10 +570,15 @@ export async function saveInstructorFeedback(
 }
 
 async function uploadMediaBlob(blob: Blob, name: string, folderName: string): Promise<string> {
-  const form = new FormData();
-  form.set("file", blob, name);
-  form.set("folder", folderName);
-  const result = await apiRequest<{ url: string }>("/api/assets", { method: "POST", body: form });
+  const params = new URLSearchParams({ fileName: name, folder: folderName });
+  const result = await apiRequest<{ url: string }>(`/api/assets?${params.toString()}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": blob.type || "application/octet-stream",
+      "X-File-Size": String(blob.size),
+    },
+    body: blob,
+  });
   return result.url;
 }
 

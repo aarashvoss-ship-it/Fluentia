@@ -1,8 +1,8 @@
 import {
   DeleteObjectCommand,
-  PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { Upload } from "@aws-sdk/lib-storage";
 
 type S3Configuration = {
   client: S3Client;
@@ -98,7 +98,8 @@ function getPublicObjectUrl(endpoint: URL, bucket: string, key: string): string 
 }
 
 export async function uploadToS3(
-  fileBuffer: Buffer | Uint8Array,
+  fileBody: ReadableStream<Uint8Array>,
+  fileSize: number,
   fileName: string,
   folderName: string,
   ownerId: string,
@@ -107,15 +108,46 @@ export async function uploadToS3(
   try {
     const configuration = getS3Configuration();
     const key = `${cleanFolderName(folderName)}/${ownerId}/${cleanFileName(fileName)}`;
-    await configuration.client.send(new PutObjectCommand({
-      Bucket: configuration.bucket,
-      Key: key,
-      Body: fileBuffer,
-      ContentType: contentType,
-    }));
+    const partSize = Math.max(5 * 1024 * 1024, Math.ceil(fileSize / 10_000));
+    await new Upload({
+      client: configuration.client,
+      params: {
+        Bucket: configuration.bucket,
+        Key: key,
+        Body: fileBody,
+        ContentLength: fileSize,
+        ContentType: contentType,
+      },
+      partSize,
+      queueSize: 4,
+      leavePartsOnError: false,
+    }).done();
     return getPublicObjectUrl(configuration.endpoint, configuration.bucket, key);
   } catch (error) {
-    console.error("Paasta S3 upload failed:", error);
+    if (error instanceof Error) {
+      const s3Error = error as Error & {
+        Code?: string;
+        code?: string;
+        $metadata?: {
+          httpStatusCode?: number;
+          requestId?: string;
+          extendedRequestId?: string;
+          attempts?: number;
+        };
+      };
+      console.error("Paasta S3 upload failed:", {
+        name: s3Error.name,
+        message: s3Error.message,
+        code: s3Error.Code || s3Error.code,
+        httpStatusCode: s3Error.$metadata?.httpStatusCode,
+        requestId: s3Error.$metadata?.requestId,
+        extendedRequestId: s3Error.$metadata?.extendedRequestId,
+        attempts: s3Error.$metadata?.attempts,
+        stack: s3Error.stack,
+      });
+    } else {
+      console.error("Paasta S3 upload failed with a non-Error exception:", error);
+    }
     throw error;
   }
 }

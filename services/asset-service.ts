@@ -1,11 +1,16 @@
 export async function uploadAsset(file: File | Blob, name?: string, folderName = "assets"): Promise<string> {
-  const formData = new FormData();
-  formData.append("file", file, name || (file instanceof File ? file.name : "uploaded-file"));
-  formData.append("folder", folderName);
-  const response = await fetch("/api/assets", {
+  const params = new URLSearchParams({
+    fileName: name || (file instanceof File ? file.name : "uploaded-file"),
+    folder: folderName,
+  });
+  const response = await fetch(`/api/assets?${params.toString()}`, {
     method: "POST",
     credentials: "same-origin",
-    body: formData,
+    headers: {
+      "Content-Type": file.type || "application/octet-stream",
+      "X-File-Size": String(file.size),
+    },
+    body: file,
   });
   const result = await response.json().catch(() => ({})) as { error?: string; url?: string };
   if (!response.ok || !result.url) {

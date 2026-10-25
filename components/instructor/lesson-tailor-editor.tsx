@@ -269,10 +269,6 @@ function MediaAssetInput({
   const handleFile = async (file?: File) => {
     if (!file || disabled || isUploading) return;
     setError(null);
-    if (file.size > 15 * 1024 * 1024) {
-      setError("Files must be 15 MB or smaller.");
-      return;
-    }
     const isPdf = kind === "resource" && (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf"));
     if (kind === "resource" ? !isPdf : !file.type.startsWith(`${kind}/`)) {
       setError(`Please choose ${rules.label} with a supported file type.`);
@@ -303,7 +299,7 @@ function MediaAssetInput({
           <label htmlFor={inputId} onDragOver={(event) => { event.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} onDrop={(event) => { event.preventDefault(); setIsDragging(false); void handleFile(event.dataTransfer.files[0]); }} className={`flex cursor-pointer flex-col items-center justify-center rounded border border-dashed p-4 text-center transition ${isDragging ? "border-amber-500/40 bg-amber-500/20" : "border-border hover:border-amber-500/40"} ${disabled || isUploading ? "cursor-not-allowed opacity-60" : ""}`}>
             {isUploading ? <LoaderCircle className="mb-2 h-5 w-5 animate-spin text-amber-400" /> : <UploadCloud className="mb-2 h-5 w-5 text-amber-400" />}
             <span className="text-xs font-semibold text-stone-200">{isUploading ? "Uploading..." : `Drop ${rules.label} here or browse`}</span>
-            <span className="mt-1 text-[10px] text-stone-500">{rules.description} · Max 15 MB</span>
+            <span className="mt-1 text-[10px] text-stone-500">{rules.description}</span>
             <input id={inputId} type="file" accept={rules.accept} className="sr-only" disabled={disabled || isUploading} onChange={(event) => void handleFile(event.target.files?.[0])} />
           </label>
           {value && kind !== "audio" && <div className="flex items-center gap-3 rounded border border-emerald-500/30 bg-emerald-500/5 p-2">
