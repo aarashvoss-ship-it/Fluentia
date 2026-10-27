@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { getBannerOverlayStyles, getBannerPositionStyles, type BannerFocalPosition } from "@/lib/banner-position";
+import { getBannerOverlayStyles, type BannerFocalPosition } from "@/lib/banner-position";
 
 interface HeroBannerProps {
   imageUrl?: string;
@@ -53,14 +53,14 @@ export function HeroBanner({
   className = "",
 }: HeroBannerProps) {
   return (
-    <section className={`relative h-[280px] w-full overflow-hidden rounded-2xl bg-slate-950 md:h-[320px] ${className}`}>
+    <section className={`relative aspect-video min-h-[280px] w-full overflow-hidden rounded-2xl bg-slate-950 ${className}`}>
       {imageUrl ? (
         <img
           src={imageUrl}
           alt=""
           onError={onImageError}
-          style={getBannerPositionStyles(position)}
-          className="absolute inset-0 h-full w-full object-cover"
+          style={{ objectPosition: `${position.x}% ${position.y}%` }}
+          className="absolute inset-0 h-full w-full object-contain"
           aria-hidden="true"
         />
       ) : (
@@ -71,7 +71,7 @@ export function HeroBanner({
         className="absolute inset-0"
         aria-hidden="true"
       />
-      <div className="absolute inset-0 z-10 flex flex-col items-start justify-start p-6 text-left md:p-8">
+      <div className="relative z-10 flex min-h-[280px] flex-col items-start justify-start p-6 text-left md:p-8">
         {children}
       </div>
     </section>
