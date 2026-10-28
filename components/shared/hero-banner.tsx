@@ -53,7 +53,7 @@ export function HeroBanner({
   className = "",
 }: HeroBannerProps) {
   return (
-    <section className={`relative aspect-video min-h-[280px] w-full overflow-hidden rounded-2xl bg-slate-950 ${className}`}>
+    <section className={`relative flex aspect-video min-h-[280px] w-full flex-col overflow-hidden rounded-2xl bg-slate-950 ${className}`}>
       {imageUrl ? (
         <img
           src={imageUrl}
@@ -71,7 +71,11 @@ export function HeroBanner({
         className="absolute inset-0"
         aria-hidden="true"
       />
-      <div className="relative z-10 flex min-h-[280px] flex-col items-start justify-start p-6 text-left md:p-8">
+      <div
+        className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-slate-950/85 via-slate-950/35 to-transparent"
+        aria-hidden="true"
+      />
+      <div className="relative z-10 flex min-h-[280px] flex-1 flex-col items-start justify-end p-6 text-left md:px-12 md:py-8">
         {children}
       </div>
     </section>
