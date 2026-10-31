@@ -450,7 +450,7 @@ export function LessonTailorEditor({
     const base = { id, type, enabled: true, is_active: true };
     if (type === "text") return { ...base, type: "text", title: "Text block", body: "", hasStudentResponseInput: false, studentResponseType: "text", studentResponseConfig: { enabled: false, allowedTypes: ["text"] } };
     if (type === "audio") return { ...base, type: "audio", title: "Audio lesson", audioUrl: "", transcript: "", allowStudentVoiceResponse: false, transcriptUnlockedByDefault: false };
-    if (type === "video") return { ...base, type: "video", title: "Video lesson", videoUrl: "", transcript: "", show_reflection_prompt: true, reflection_prompt_text: "" };
+    if (type === "video") return { ...base, type: "video", title: "Video lesson", videoUrl: "", transcript: "", transcriptUnlockedByDefault: false, show_reflection_prompt: true, reflection_prompt_text: "" };
     if (type === "image") return { ...base, type: "image", title: "Image", imageUrl: "", caption: "" };
     if (type === "resource") return { ...base, type: "resource", title: "Document", resourceUrl: "", description: "" };
     if (type === "question") return { ...base, type: "question", title: "Question", prompt: "", options: ["", "", ""], correct_answer: "", question_type: "multiple_choice", optionIndexingStyle: "none", sample_answer: "" };
@@ -894,6 +894,10 @@ export function LessonTailorEditor({
                   <MediaAssetInput kind="video" value={block.videoUrl} onChange={(value) => updateDynamicBlockById(step, block.id, { videoUrl: value })} />
                   <InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} editable showTranscript={false} />
                   {renderTranscriptField(step, index, block)}
+                  <label className="flex cursor-pointer items-start gap-3 rounded border border-border bg-background/60 p-3">
+                    <input type="checkbox" checked={block.transcriptUnlockedByDefault === true} onChange={(event) => updateDynamicBlock(step, index, { transcriptUnlockedByDefault: event.target.checked })} className="mt-0.5 h-4 w-4 shrink-0 accent-amber-500" />
+                    <span><span className="block text-xs font-semibold text-stone-200">Unlock Transcript by default</span><span className="mt-1 block text-[11px] leading-relaxed text-stone-500">Lets students view the transcript before submitting the lesson.</span></span>
+                  </label>
                   <div className="overflow-hidden rounded border border-border bg-background/50">
                     <div className="flex items-center justify-between gap-3 px-3 py-2">
                       <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-stone-300">

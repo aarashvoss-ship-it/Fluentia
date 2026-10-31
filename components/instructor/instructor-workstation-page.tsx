@@ -2368,7 +2368,7 @@ export default function InstructorWorkstationPage({
           ? resourceFile?.name.replace(/\.[^.]+$/, "") || "Data Table"
           : trimmedTitle),
         updated_at: new Date().toISOString(),
-        body: ["note", "reading", "quiz", "audio", "data_table"].includes(resourceType)
+        body: ["note", "reading", "quiz", "audio", "video", "data_table"].includes(resourceType)
           ? resourceDraft.body.trim() || null
           : null,
         link_url: ["reading", "audio", "file", "image", "video", "data_table", "links"].includes(resourceType)
@@ -5390,6 +5390,21 @@ export default function InstructorWorkstationPage({
                             placeholder="Add context or transcript notes for the student."
                             ariaLabel="Optional audio description and transcript notes"
                           />
+                        </label>
+                      )}
+
+                      {resourceDraft.type === "video" && (
+                        <label className="block text-xs text-stone-400">
+                          Optional video transcript / subtitles
+                          <textarea
+                            value={resourceDraft.body}
+                            onChange={(event) => setResourceDraft((previous) => ({ ...previous, body: event.target.value }))}
+                            placeholder="Paste transcript or VTT/SRT content here. Timestamp examples: 00:00:12 Welcome..."
+                            rows={8}
+                            className="mt-1 max-h-80 min-h-[140px] w-full resize-y overflow-y-auto rounded-md border border-border bg-background p-2.5 text-xs leading-relaxed text-stone-200 outline-none focus:border-amber-500/40"
+                            aria-label="Optional video transcript and subtitles"
+                          />
+                          <span className="mt-1 block text-[11px] leading-relaxed text-stone-500">Timestamped lines appear as clickable subtitles in the Study Hub video player.</span>
                         </label>
                       )}
 

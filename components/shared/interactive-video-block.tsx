@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { parseInteractiveTranscript } from "@/lib/transcripts";
 
@@ -11,6 +11,7 @@ interface InteractiveVideoBlockProps {
   transcriptLocked?: boolean;
   editable?: boolean;
   showTranscript?: boolean;
+  transcriptOpenByDefault?: boolean;
 }
 
 function getVideoEmbedUrl(url: string) {
@@ -54,14 +55,19 @@ export function InteractiveVideoBlock({
   transcriptLocked = false,
   editable = false,
   showTranscript = true,
+  transcriptOpenByDefault = false,
 }: InteractiveVideoBlockProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const loadedIframeSrcRef = useRef("");
-  const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(false);
+  const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(transcriptOpenByDefault);
   const transcriptId = useId();
   const transcriptLines = parseInteractiveTranscript(transcript || "");
   const embedUrl = getVideoEmbedUrl(videoUrl);
   const directVideoUrl = !embedUrl && /^https?:\/\//i.test(videoUrl.trim()) ? videoUrl.trim() : "";
+
+  useEffect(() => {
+    if (transcriptOpenByDefault) setIsTranscriptExpanded(true);
+  }, [transcriptOpenByDefault]);
 
   const seekToTimestamp = (seconds: number) => {
     const iframe = iframeRef.current;

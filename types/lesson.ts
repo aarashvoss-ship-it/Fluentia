@@ -128,6 +128,7 @@ export interface VideoContentBlock extends ContentBlockBase {
   type: "video";
   videoUrl: string;
   transcript?: string;
+  transcriptUnlockedByDefault?: boolean;
   show_reflection_prompt?: boolean;
   reflection_prompt_text?: string;
 }

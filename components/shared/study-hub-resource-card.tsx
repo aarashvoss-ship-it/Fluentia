@@ -7,6 +7,7 @@ import { InteractiveVideoBlock } from "@/components/shared/interactive-video-blo
 import { DataTableResource, getDataTableResourceTitle, isDataTableResourceTitle } from "@/components/shared/data-table-resource";
 import { MarkdownContent } from "@/components/study-room/markdown-content";
 import { StudyHubMarkdownResource } from "@/components/shared/study-hub-markdown-resource";
+import { parseInteractiveTranscript } from "@/lib/transcripts";
 
 export type StudyHubResourceType = "note" | "reading" | "flashcard" | "flashcards" | "quiz" | "audio" | "data_table" | "file" | "image" | "video" | "links";
 
@@ -193,8 +194,8 @@ export function StudyHubResourceCard({
 
       {resource.resource_type === "video" && (
         <>
-          {href ? <InteractiveVideoBlock videoUrl={href} title={title} /> : <p className="text-xs text-stone-500">Video is not available.</p>}
-          {resource.body && <MarkdownContent value={resource.body} className="text-xs leading-relaxed text-stone-400" />}
+          {href ? <InteractiveVideoBlock videoUrl={href} title={title} transcript={resource.body || undefined} /> : <p className="text-xs text-stone-500">Video is not available.</p>}
+          {resource.body && parseInteractiveTranscript(resource.body).length === 0 && <MarkdownContent value={resource.body} className="text-xs leading-relaxed text-stone-400" />}
         </>
       )}
 
