@@ -563,7 +563,7 @@ export default function LessonPage() {
       const hydratedSubmission = state?.submission;
       const canShowResults = hydratedSubmission?.status === "submitted" || hydratedSubmission?.status === "pending_evaluation" || hydratedSubmission?.status === "reviewed" || hydratedSubmission?.status === "evaluated";
       const requestedNonResultsStep = requestedStep && requestedStep !== "results" ? requestedStep : null;
-      const allowedRequestedStep = requestedNonResultsStep
+      const allowedRequestedStep = !canShowResults && requestedNonResultsStep
         && !getLockedSteps(progress.completedSteps).includes(requestedNonResultsStep)
         ? requestedNonResultsStep
         : null;
@@ -1240,6 +1240,7 @@ export default function LessonPage() {
   }
 
   async function handleNext() {
+    if (submission.status !== "in_progress") return;
     if (hasPendingUploads()) {
       setSubmissionSaveError("Wait for audio and file uploads to finish before continuing.");
       return;
@@ -1257,6 +1258,7 @@ export default function LessonPage() {
   }
 
   function handlePrev() {
+    if (submission.status !== "in_progress") return;
     if (hasPendingUploads()) {
       setSubmissionSaveError("Wait for audio and file uploads to finish before changing steps.");
       return;
@@ -1267,6 +1269,7 @@ export default function LessonPage() {
   }
 
   function handleStepClick(stepId: StudyStepId) {
+    if (submission.status !== "in_progress") return;
     if (hasPendingUploads()) {
       setSubmissionSaveError("Wait for audio and file uploads to finish before changing steps.");
       return;
@@ -1776,7 +1779,7 @@ export default function LessonPage() {
                 <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">Recommended review</p>
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={() => updateStudyHubUrl(true, "notes")} className="rounded-md border border-amber-500/40 bg-amber-500/20 px-2.5 py-1.5 text-xs text-amber-400 hover:bg-amber-500/20">Review lexicon notes</button>
-                  <button type="button" onClick={() => setCurrentStep("warm_up")} className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs text-stone-300 hover:border-amber-500/40">Revisit lesson content</button>
+                  {submission.status === "in_progress" && <button type="button" onClick={() => setCurrentStep("warm_up")} className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs text-stone-300 hover:border-amber-500/40">Revisit lesson content</button>}
                 </div>
               </div>}
 

@@ -290,8 +290,8 @@ export async function updateLessonStatus(slug: string, status: LessonStatus): Pr
 }
 
 /**
- * Interactive loads expose only the current draft; review loads include answers,
- * while summary loads return progress metadata without answer contents.
+ * Interactive and review loads include the student's saved answers, while
+ * summary loads return progress metadata without answer contents.
  */
 export async function fetchLessonState(
   slug: string,

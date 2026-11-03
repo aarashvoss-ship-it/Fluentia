@@ -864,17 +864,11 @@ function DashboardContent() {
     (lesson) => lesson.id !== nextLesson?.id,
   );
   const getLessonHref = (lesson: LessonWithVersion, status: LessonStatus) => {
-    const stepParam =
-      status === "completed"
-        ? "&step=7"
-        : status === "pending-review"
-          ? "&start=warm_up"
-          : "";
     const lessonPath = lesson.content?.slug || lesson.slug || lesson.id;
-    return `/lessons/${lessonPath}?${stepParam.replace(/^&/, "")}`.replace(
-      /\?$/,
-      "",
-    );
+    const reviewParam = status === "completed" || status === "pending-review"
+      ? "?stage=report-card"
+      : "";
+    return `/lessons/${encodeURIComponent(lessonPath)}${reviewParam}`;
   };
   const getEvaluationHref = (lesson: LessonWithVersion, submissionId?: string) => {
     const lessonPath = lesson.content?.slug || lesson.slug || lesson.id;
@@ -1969,7 +1963,7 @@ function DashboardContent() {
                     status === "completed"
                       ? "View Results & Feedback"
                       : status === "pending-review"
-                        ? "Submitted - Pending Evaluation"
+                        ? "Review Submission"
                         : status === "in-progress"
                           ? "Continue Lesson"
                           : "Start Lesson";
@@ -2038,21 +2032,15 @@ function DashboardContent() {
                           </div>
                         </div>
                         <div className="mt-auto flex justify-end pt-5">
-                          {status === "pending-review" ? (
-                            <span className="inline-flex rounded-md border-none bg-slate-800/40 px-3 py-1.5 text-xs text-slate-400">
+                          <Tooltip content={`${ctaCopy}: ${lesson.title}`}>
+                            <Link
+                              href={getLessonHref(lesson, status)}
+                              onClick={() => rememberLesson(lesson.id)}
+                              className="inline-flex rounded-lg border-none bg-amber-500/10 px-4 py-2 text-xs font-medium text-amber-400 transition-all hover:bg-amber-500/20"
+                            >
                               {ctaCopy}
-                            </span>
-                          ) : (
-                            <Tooltip content={`${ctaCopy}: ${lesson.title}`}>
-                              <Link
-                                href={getLessonHref(lesson, status)}
-                                onClick={() => rememberLesson(lesson.id)}
-                                className="inline-flex rounded-lg border-none bg-amber-500/10 px-4 py-2 text-xs font-medium text-amber-400 transition-all hover:bg-amber-500/20"
-                              >
-                                {ctaCopy}
-                              </Link>
-                            </Tooltip>
-                          )}
+                            </Link>
+                          </Tooltip>
                         </div>
                       </div>
                     </article>
