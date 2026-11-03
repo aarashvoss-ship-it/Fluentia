@@ -218,7 +218,7 @@ function mapSubmission(row: ApiRecord): StudentSubmission {
     listeningAnswers: content.listeningAnswers || {},
     readingAnswers: content.readingAnswers || {},
     writingText: content.writingText || "",
-    writing_responses: content.writing_responses || {},
+    writing_responses: content.writing_responses || content.writingAnswers || {},
     speakingAudioUrl: row.audio_url || content.speakingAudioUrl,
     blockResponses: content.blockResponses || {},
     quizSelections: content.quizSelections || {},
@@ -350,7 +350,7 @@ function getStateForMode(slug: string, studentToken: string | undefined, mode: L
     ...state,
     evaluation: state.evaluation?.published ? state.evaluation : emptyEvaluation(),
   };
-  if (mode === "review") return studentState;
+  if (mode !== "summary") return studentState;
   const submission = studentState.submission;
   if (!submission) return studentState;
   return {

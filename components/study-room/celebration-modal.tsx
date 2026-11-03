@@ -17,6 +17,7 @@ export interface StepResult {
     explanation?: string;
     isCorrect?: boolean;
     mediaUrls?: string[];
+    fileUrls?: string[];
   }[];
 }
 

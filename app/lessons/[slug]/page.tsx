@@ -88,12 +88,13 @@ function hasStudentResponse(block: ContentBlock) {
   return block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true;
 }
 
-function FileResponseBlock({ value, onChange, studentId }: { value?: string; onChange: (value: string) => void; studentId?: string }) {
+function FileResponseBlock({ value, onChange, onUploadPending, studentId }: { value?: string; onChange: (value: string) => void; onUploadPending?: (pending: boolean) => void; studentId?: string }) {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const upload = async (file?: File) => {
     if (!file) return;
     setIsUploading(true);
+    onUploadPending?.(true);
     setError(null);
     try {
       const asset = await uploadStudentAudio(file, studentId?.trim() || "anonymous", file.name);
@@ -102,12 +103,13 @@ function FileResponseBlock({ value, onChange, studentId }: { value?: string; onC
       setError(uploadError instanceof Error ? uploadError.message : "Upload failed");
     } finally {
       setIsUploading(false);
+      onUploadPending?.(false);
     }
   };
   return <div className="mt-4 rounded-lg border border-border bg-background p-3"><label className="inline-flex cursor-pointer items-center rounded-md border border-border px-3 py-2 text-xs text-stone-300 hover:border-amber-500/40 hover:text-amber-400">{isUploading ? "Uploading..." : "Upload File"}<input type="file" onChange={(event) => void upload(event.target.files?.[0])} disabled={isUploading} className="sr-only" /></label>{value && <p className="mt-2 truncate text-xs text-emerald-300">File uploaded</p>}{error && <p className="mt-2 text-xs text-red-300">{error}</p>}</div>;
 }
 
-function AudioResponseBlock({ value, onChange, studentId }: { value?: string; onChange: (value: string) => void; studentId?: string }) {
+function AudioResponseBlock({ value, onChange, onUploadPending, studentId }: { value?: string; onChange: (value: string) => void; onUploadPending?: (pending: boolean) => void; studentId?: string }) {
   const [isUploading, setIsUploading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -141,11 +143,12 @@ function AudioResponseBlock({ value, onChange, studentId }: { value?: string; on
 
   const uploadFile = async (file: File|Blob, name?: string) => {
     setIsUploading(true); setError(null);
+    onUploadPending?.(true);
     try {
       const asset = await uploadStudentAudio(file, studentId?.trim()||"anonymous", name||`response-${Date.now()}.webm`);
       onChange(asset.url);
     } catch (err) { setError(err instanceof Error?err.message:"Upload failed"); }
-    finally { setIsUploading(false); }
+    finally { setIsUploading(false); onUploadPending?.(false); }
   };
 
   const pickMime = () => {
@@ -157,6 +160,7 @@ function AudioResponseBlock({ value, onChange, studentId }: { value?: string; on
 
   const startRecording = async () => {
     if (!navigator.mediaDevices?.getUserMedia) { setError("Recording not supported"); return; }
+    onUploadPending?.(true);
     setError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -166,7 +170,7 @@ function AudioResponseBlock({ value, onChange, studentId }: { value?: string; on
       chunksRef.current=[];
       rec.ondataavailable=e=>{ if(e.data.size>0) chunksRef.current.push(e.data); };
       rec.onstop=()=>{ const blob=new Blob(chunksRef.current,{type:rec.mimeType||mime||"audio/webm"}); const ext=(rec.mimeType||mime||"").includes("mp4")?"mp4":"webm"; cleanup(); stopTracks(); setIsRecording(false); setElapsed(0); void uploadFile(blob,`voice-${Date.now()}.${ext}`); };
-      rec.onerror=()=>{ cleanup(); stopTracks(); setIsRecording(false); setError("Recording failed"); };
+      rec.onerror=()=>{ cleanup(); stopTracks(); setIsRecording(false); setError("Recording failed"); onUploadPending?.(false); };
       recorderRef.current=rec; rec.start(100); setIsRecording(true); startAt.current=Date.now();
       timerRef.current=setInterval(()=> setElapsed((Date.now()-startAt.current)/1000),80);
       try{
@@ -192,6 +196,7 @@ function AudioResponseBlock({ value, onChange, studentId }: { value?: string; on
     } catch(err){
       const m=err instanceof Error?err.message:String(err);
       setError(/permission|not allowed|denied/i.test(m)?"Microphone permission denied":"Could not start recording");
+      onUploadPending?.(false);
     }
   };
   const stopRecording=()=>{ if(recorderRef.current?.state==="recording") recorderRef.current.stop(); else { cleanup(); stopTracks(); setIsRecording(false); } };
@@ -302,6 +307,7 @@ export default function LessonPage() {
   });
   const submissionSaveQueue = useRef<Promise<void>>(Promise.resolve());
   const submissionSaveInFlight = useRef<Promise<boolean> | null>(null);
+  const pendingUploadIds = useRef(new Set<string>());
   const evaluationViewedSubmissionRef = useRef<string | null>(null);
   const submissionSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSubmissionSave = useRef<QueuedSubmissionSave | null>(null);
@@ -319,6 +325,23 @@ export default function LessonPage() {
   const [submissionSyncStatus, setSubmissionSyncStatus] = useState<"saving" | "saved" | "unsaved">("saved");
   const [pendingExitHref, setPendingExitHref] = useState<string | null>(null);
   const [failedBannerUrls, setFailedBannerUrls] = useState<string[]>([]);
+  function setUploadPending(id: string, pending: boolean) {
+    if (pending) {
+      pendingUploadIds.current.add(id);
+      setSubmissionSyncStatus("saving");
+      return;
+    }
+    pendingUploadIds.current.delete(id);
+    setSubmissionSyncStatus("unsaved");
+    setSubmissionSaveError((current) => current?.startsWith("Wait for audio and file uploads to finish") ? null : current);
+  }
+
+  function hasPendingUploads() {
+    return pendingUploadIds.current.size > 0
+      || Object.values(submission.audioUploads || {}).some((url) => /^blob:/i.test(url))
+      || Boolean(submission.speakingAudioUrl && /^blob:/i.test(submission.speakingAudioUrl));
+  }
+
   useEffect(() => {
     setFailedBannerUrls([]);
   }, [lesson?.id, activeStudent?.id]);
@@ -842,7 +865,7 @@ export default function LessonPage() {
   }
 
   function discardPendingChangesAndExit(): void {
-    if (!pendingExitHref) return;
+    if (!pendingExitHref || hasPendingUploads()) return;
     if (submissionSaveTimer.current) clearTimeout(submissionSaveTimer.current);
     submissionSaveTimer.current = null;
     pendingSubmissionSave.current?.resolve(false);
@@ -859,7 +882,7 @@ export default function LessonPage() {
   }
 
   async function saveChangesAndExit(): Promise<void> {
-    if (!pendingExitHref) return;
+    if (!pendingExitHref || hasPendingUploads()) return;
     const saved = await saveSubmissionProgress();
     if (!saved) return;
     const destination = pendingExitHref;
@@ -1001,15 +1024,16 @@ export default function LessonPage() {
       acceptedAnswers?: string[],
       caseSensitive = false,
       autoCheck = true,
+      fileUrls?: string[],
     ) => {
       const cleanedQuestion = stripMarkdown(question);
       const cleanedMediaUrls = (mediaUrls || []).filter(Boolean);
+      const cleanedFileUrls = (fileUrls || []).filter(Boolean);
       const cleanedAnswer = value && /^(https?:|blob:)/i.test(value.trim())
         ? "Response submitted"
         : stripMarkdown(value || "");
       const cleanedCorrectAnswer = correctAnswer ? stripMarkdown(correctAnswer) : undefined;
       const cleanedExplanation = explanation ? stripMarkdown(explanation) : undefined;
-      if (responses.some((response) => response.question === cleanedQuestion && response.answer === cleanedAnswer && response.mediaUrls?.join() === cleanedMediaUrls.join())) return;
       const normalizedAnswer = caseSensitive ? cleanedAnswer : cleanedAnswer.toLocaleLowerCase();
       const isCorrect = autoCheck && cleanedAnswer && cleanedCorrectAnswer
         ? (acceptedAnswers?.length ? acceptedAnswers : [cleanedCorrectAnswer]).some((answer) => {
@@ -1027,6 +1051,7 @@ export default function LessonPage() {
         explanation: cleanedExplanation || undefined,
         isCorrect,
         mediaUrls: cleanedMediaUrls.length ? cleanedMediaUrls : undefined,
+        fileUrls: cleanedFileUrls.length ? cleanedFileUrls : undefined,
       });
     };
     const blocks = ((lessonContent[step] as { blocks?: ContentBlock[] } | undefined)?.blocks || [])
@@ -1073,7 +1098,8 @@ export default function LessonPage() {
         addResponse(block.title || "Text response", responseType === "audio" || responseType === "voice"
           ? value ? "Audio response submitted" : ""
           : responseType === "file" && value ? "File response submitted" : value,
-          undefined, undefined, responseType === "audio" || responseType === "voice" ? value ? [value] : undefined : undefined, block.id);
+          undefined, undefined, responseType === "audio" || responseType === "voice" ? value ? [value] : undefined : undefined, block.id, undefined, false, true,
+          responseType === "file" && value ? [value] : undefined);
       } else if (block.type === "audio") {
         if (block.allowStudentVoiceResponse) {
           const recording = submission.audioUploads?.[block.id];
@@ -1196,6 +1222,7 @@ export default function LessonPage() {
       isCorrect: response.isCorrect,
       autoCheck: response.isCorrect !== undefined,
       audioUrls: response.mediaUrls,
+      fileUrls: response.fileUrls,
       explanation: response.explanation,
     })),
   }));
@@ -1213,6 +1240,10 @@ export default function LessonPage() {
   }
 
   async function handleNext() {
+    if (hasPendingUploads()) {
+      setSubmissionSaveError("Wait for audio and file uploads to finish before continuing.");
+      return;
+    }
     markStepComplete(currentStep);
     const nextCompletedSteps = completedSteps.includes(currentStep) ? completedSteps : [...completedSteps, currentStep];
     if (currentIndex < STUDY_STEPS.length - 2) {
@@ -1226,23 +1257,39 @@ export default function LessonPage() {
   }
 
   function handlePrev() {
+    if (hasPendingUploads()) {
+      setSubmissionSaveError("Wait for audio and file uploads to finish before changing steps.");
+      return;
+    }
     if (currentIndex > 0) {
       setCurrentStep(STUDY_STEPS[currentIndex - 1].id);
     }
   }
 
   function handleStepClick(stepId: StudyStepId) {
+    if (hasPendingUploads()) {
+      setSubmissionSaveError("Wait for audio and file uploads to finish before changing steps.");
+      return;
+    }
     if (stepperLockedSteps.includes(stepId)) return;
     setCurrentStep(stepId);
   }
 
   function handleReviewAnswers() {
+    if (hasPendingUploads()) {
+      setSubmissionSaveError("Wait for audio and file uploads to finish before changing steps.");
+      return;
+    }
     setIsModalOpen(false);
     setCurrentStep("warm_up");
   }
 
   async function handleSubmitFinal() {
     if (isSubmitting) return;
+    if (hasPendingUploads()) {
+      setSubmissionSaveError("Wait for audio and file uploads to finish before submitting.");
+      return;
+    }
     setIsSubmitting(true);
     try {
       const submittedAt = new Date().toISOString();
@@ -1254,14 +1301,12 @@ export default function LessonPage() {
         true,
         true,
       );
-      setIsModalOpen(false);
-      setCompletedSteps(completed);
-      setCurrentStep("results");
-      void save.then((saved) => {
-        if (!saved) console.warn("[Lesson Submission] Results are available locally; remote save did not complete.");
-      }).catch((error) => {
-        console.warn("[Lesson Submission] Results are available locally; remote save failed.", error);
-      });
+      const saved = await save;
+      if (saved) {
+        setIsModalOpen(false);
+        setCompletedSteps(completed);
+        setCurrentStep("results");
+      }
     } catch (error) {
       setSubmissionSaveError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -1338,8 +1383,8 @@ export default function LessonPage() {
         const article = (
         <article key={block.id} className="flex h-auto min-h-max flex-col overflow-visible rounded-xl border border-border bg-surface p-5 pb-8">
           {block.title && <h3 className="mb-3 flex items-center gap-2 font-sans text-xl font-semibold text-stone-100">{block.icon && <DynamicLucideIcon name={block.icon} className="h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />}{block.title}</h3>}
-          {block.type === "text" && <><MarkdownContent value={block.body} className="text-sm leading-relaxed text-stone-300" />{hasStudentResponse(block) && (() => { const responseType = getStudentResponseType(block); if (responseType === "voice" || responseType === "audio") return <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />; if (responseType === "file") return <FileResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value } })} />; return <WordCountedTextarea value={submission.blockResponses?.[block.id] || ""} onChange={(value) => updateTextResponse(block.id, value)} wordCountConfig={block.wordCountConfig} rows={8} placeholder="Write your response here..." className="mt-4 w-full min-h-[200px] resize-y rounded-lg border border-border bg-background p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" ariaLabel={`${block.title || "Text"} response`} />; })()}</>}
-          {block.type === "audio" && <>{block.audioUrl && <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio assignment"} />}<MediaTranscriptAccordion transcript={block.transcript} isUnlocked={areTranscriptsUnlocked || block.transcriptUnlockedByDefault === true} openByDefault={block.transcriptUnlockedByDefault === true} showIntonationNote />{block.allowStudentVoiceResponse === true && <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />}</>}
+          {block.type === "text" && <><MarkdownContent value={block.body} className="text-sm leading-relaxed text-stone-300" />{hasStudentResponse(block) && (() => { const responseType = getStudentResponseType(block); if (responseType === "voice" || responseType === "audio") return <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onUploadPending={(pending) => setUploadPending(block.id, pending)} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />; if (responseType === "file") return <FileResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onUploadPending={(pending) => setUploadPending(block.id, pending)} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value } })} />; return <WordCountedTextarea value={submission.blockResponses?.[block.id] || ""} onChange={(value) => updateTextResponse(block.id, value)} wordCountConfig={block.wordCountConfig} rows={8} placeholder="Write your response here..." className="mt-4 w-full min-h-[200px] resize-y rounded-lg border border-border bg-background p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" ariaLabel={`${block.title || "Text"} response`} />; })()}</>}
+          {block.type === "audio" && <>{block.audioUrl && <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio assignment"} />}<MediaTranscriptAccordion transcript={block.transcript} isUnlocked={areTranscriptsUnlocked || block.transcriptUnlockedByDefault === true} openByDefault={block.transcriptUnlockedByDefault === true} showIntonationNote />{block.allowStudentVoiceResponse === true && <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onUploadPending={(pending) => setUploadPending(block.id, pending)} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />}</>}
           {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} transcriptLocked={!areTranscriptsUnlocked && block.transcriptUnlockedByDefault !== true} transcriptOpenByDefault={block.transcriptUnlockedByDefault === true} />{!areTranscriptsUnlocked && block.transcriptUnlockedByDefault !== true && <MediaTranscriptAccordion transcript={block.transcript} isUnlocked={false} />}{block.show_reflection_prompt !== false && block.reflection_prompt_text?.trim() && <div className="mt-4 flex h-auto min-h-fit flex-col overflow-visible p-0 pb-2"><p className="text-sm font-semibold text-amber-400">Reflection Question</p><MarkdownContent value={block.reflection_prompt_text.trim()} className="mt-2 text-sm leading-relaxed text-stone-300" /><textarea value={submission.blockResponses?.[`${block.id}-reflection`] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [`${block.id}-reflection`]: event.target.value } })} rows={5} placeholder="Write your reflection here..." className="mt-3 w-full resize-y rounded-lg border border-border bg-background p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" aria-label="Reflection question response" /></div>}</>}
           {block.type === "fill-in-the-blanks" && renderFillInTheBlanks(block)}
           {block.type === "writing" && <WritingBlockRenderer block={block} value={submission.writing_responses?.[block.id] || ""} onChange={(value) => void persistSubmission({ ...submission, writingText: value, writing_responses: { ...(submission.writing_responses || {}), [block.id]: value } })} />}
@@ -1410,16 +1455,18 @@ export default function LessonPage() {
           >
             <h2 id="unsaved-response-title" className="text-lg font-semibold text-stone-100">Unsaved response changes</h2>
             <p className="mt-2 text-sm leading-relaxed text-stone-400">
-              Your latest responses have a local backup, but may not be synced to the server yet.
+              {hasPendingUploads()
+                ? "An audio or file upload is still in progress. Wait for it to finish before leaving this lesson."
+                : "Your latest responses have a local backup, but may not be synced to the server yet."}
             </p>
             <div className="mt-5 flex flex-wrap justify-end gap-2">
               <button type="button" onClick={() => setPendingExitHref(null)} className="rounded-md border border-border px-3 py-2 text-sm text-stone-300 hover:text-white">
                 Cancel
               </button>
-              <button type="button" onClick={discardPendingChangesAndExit} className="rounded-md border border-red-500/40 px-3 py-2 text-sm text-red-200 hover:bg-red-950/30">
+              <button type="button" onClick={discardPendingChangesAndExit} disabled={hasPendingUploads()} className="rounded-md border border-red-500/40 px-3 py-2 text-sm text-red-200 hover:bg-red-950/30 disabled:cursor-not-allowed disabled:opacity-50">
                 Discard &amp; Exit
               </button>
-              <button type="button" onClick={() => void saveChangesAndExit()} className="rounded-md bg-amber-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-400">
+              <button type="button" onClick={() => void saveChangesAndExit()} disabled={hasPendingUploads()} className="rounded-md bg-amber-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50">
                 Save &amp; Exit
               </button>
             </div>
@@ -1673,6 +1720,7 @@ export default function LessonPage() {
                 <AudioResponseBlock
                   studentId={activeStudent?.id}
                   value={submission.speakingAudioUrl || submission.audioUploads?.speaking}
+                  onUploadPending={(pending) => setUploadPending("speaking", pending)}
                   onChange={(value) => void persistSubmission({ ...submission, speakingAudioUrl: value, audioUploads: { ...(submission.audioUploads || {}), speaking: value } })}
                 />
               )}

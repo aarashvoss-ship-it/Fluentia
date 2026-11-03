@@ -22,6 +22,7 @@ export interface UnifiedReportTask {
   isCorrect?: boolean;
   autoCheck?: boolean;
   audioUrls?: string[];
+  fileUrls?: string[];
   explanation?: string;
 }
 
@@ -208,8 +209,9 @@ export function UnifiedReportCard({
               </div>
               <div className={`mt-3 rounded-md border p-4 ${responseCardClass}`}>
                 <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${responseLabelClass}`}>Your Response</p>
-                <p className={`mt-2 whitespace-pre-wrap break-words rounded-sm px-2 py-3 text-sm leading-relaxed ${isEvaluationView && isCorrect ? "bg-emerald-300/10" : isEvaluationView && isIncorrect ? "bg-rose-300/10" : "bg-surface"} ${responseTextClass}`}>{stripMarkdown(task.studentAnswer) || <span className={`italic ${responseLabelClass}`}>No response submitted.</span>}</p>
+                <p className={`mt-2 whitespace-pre-wrap break-words rounded-sm px-2 py-3 text-sm leading-relaxed ${isEvaluationView && isCorrect ? "bg-emerald-300/10" : isEvaluationView && isIncorrect ? "bg-rose-300/10" : "bg-surface"} ${responseTextClass}`}>{stripMarkdown(task.studentAnswer) || (task.audioUrls?.length || task.fileUrls?.length ? "Response submitted" : <span className={`italic ${responseLabelClass}`}>No response submitted.</span>)}</p>
                 {task.audioUrls?.map((url, mediaIndex) => <div key={`${url}-${mediaIndex}`} className="mt-2 min-w-0 max-w-full overflow-hidden"><CustomAudioPlayer src={url} label={`${stripMarkdown(task.title)} recording`} /></div>)}
+                {task.fileUrls?.map((url, mediaIndex) => <a key={`${url}-${mediaIndex}`} href={url} target="_blank" rel="noreferrer" className="mt-2 inline-flex max-w-full break-all text-sm text-amber-300 underline underline-offset-2 hover:text-amber-200">Open uploaded file</a>)}
               </div>
               {task.modelAnswer && <div className={`mt-3 rounded-md border p-4 ${modelCardClass}`}>
                 <p className={`text-[10px] font-semibold uppercase tracking-wider ${modelLabelClass}`}>Correct / Model Answer</p>
