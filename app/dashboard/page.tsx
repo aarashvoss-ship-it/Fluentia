@@ -5,10 +5,15 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   BookOpen,
+  ChevronDown,
+  ChevronUp,
   CheckCircle2,
   Clock3,
   Flame,
+  GripVertical,
   Layers3,
+  LayoutGrid,
+  List,
   MessageSquareText,
   PanelRight,
   Settings2,
@@ -55,6 +60,17 @@ type LessonStatus =
   | "in-progress"
   | "pending-review"
   | "completed";
+
+type LessonCardViewMode = "grid" | "list";
+
+interface LessonCardPreferences {
+  order: string[];
+  viewMode: LessonCardViewMode;
+}
+
+function getLessonCardPreferencesKey(studentToken: string) {
+  return `fluentia:dashboard:lesson-cards:${studentToken}`;
+}
 
 const AVATAR_PRESETS = Object.values({
   amber: {
@@ -197,6 +213,10 @@ function DashboardContent() {
   const [activeStudent, setActiveStudent] = useState<StudentUser | null>(null);
   const [lessons, setLessons] = useState<LessonWithVersion[]>([]);
   const lessonsRef = useRef<LessonWithVersion[]>([]);
+  const [lessonCardOrder, setLessonCardOrder] = useState<string[]>([]);
+  const [lessonCardViewMode, setLessonCardViewMode] = useState<LessonCardViewMode>("grid");
+  const [lessonCardPreferencesLoaded, setLessonCardPreferencesLoaded] = useState(false);
+  const [draggedLessonId, setDraggedLessonId] = useState<string | null>(null);
   const [lessonStates, setLessonStates] = useState<
     Record<string, PublishedLessonState | null>
   >({});
@@ -235,6 +255,43 @@ function DashboardContent() {
 
   const [dictionaryWord, setDictionaryWord] = useState<string | null>(null);
   const [dictionaryAnchor, setDictionaryAnchor] = useState<{ top: number; right: number; bottom: number; left: number } | null>(null);
+
+  useEffect(() => {
+    const studentToken = activeStudent?.token;
+    if (!studentToken) {
+      setLessonCardPreferencesLoaded(false);
+      setLessonCardOrder([]);
+      setLessonCardViewMode("grid");
+      return;
+    }
+
+    setLessonCardPreferencesLoaded(false);
+    try {
+      const stored = window.localStorage.getItem(getLessonCardPreferencesKey(studentToken));
+      if (stored) {
+        const preferences: unknown = JSON.parse(stored);
+        if (preferences && typeof preferences === "object") {
+          const record = preferences as Partial<LessonCardPreferences>;
+          setLessonCardOrder(Array.isArray(record.order)
+            ? record.order.filter((id): id is string => typeof id === "string")
+            : []);
+          setLessonCardViewMode(record.viewMode === "list" ? "list" : "grid");
+        } else {
+          setLessonCardOrder([]);
+          setLessonCardViewMode("grid");
+        }
+      } else {
+        setLessonCardOrder([]);
+        setLessonCardViewMode("grid");
+      }
+    } catch (error) {
+      console.warn("Unable to load lesson card preferences:", error);
+      setLessonCardOrder([]);
+      setLessonCardViewMode("grid");
+    } finally {
+      setLessonCardPreferencesLoaded(true);
+    }
+  }, [activeStudent?.token]);
 
   useEffect(() => {
     function onDblClick(e: MouseEvent) {
@@ -863,6 +920,60 @@ function DashboardContent() {
   const availableLessons = displayLessons.filter(
     (lesson) => lesson.id !== nextLesson?.id,
   );
+  const lessonCardOrderIndex = new Map(lessonCardOrder.map((id, index) => [id, index]));
+  const orderedAvailableLessons = [...availableLessons].sort((left, right) => {
+    const leftIndex = lessonCardOrderIndex.get(left.id);
+    const rightIndex = lessonCardOrderIndex.get(right.id);
+    if (leftIndex === undefined && rightIndex === undefined) return 0;
+    if (leftIndex === undefined) return 1;
+    if (rightIndex === undefined) return -1;
+    return leftIndex - rightIndex;
+  });
+  const saveLessonCardPreferences = (
+    order: string[] = lessonCardOrder,
+    viewMode: LessonCardViewMode = lessonCardViewMode,
+  ) => {
+    if (!activeStudent?.token || !lessonCardPreferencesLoaded) return;
+    try {
+      window.localStorage.setItem(getLessonCardPreferencesKey(activeStudent.token), JSON.stringify({ order, viewMode }));
+    } catch (error) {
+      console.warn("Unable to save lesson card preferences:", error);
+    }
+  };
+  const updateLessonCardOrder = (draggedId: string, targetId: string) => {
+    if (draggedId === targetId) return;
+    const currentOrder = orderedAvailableLessons.map((lesson) => lesson.id);
+    const fromIndex = currentOrder.indexOf(draggedId);
+    const toIndex = currentOrder.indexOf(targetId);
+    if (fromIndex < 0 || toIndex < 0) return;
+    currentOrder.splice(fromIndex, 1);
+    currentOrder.splice(toIndex, 0, draggedId);
+    const nextOrder = [
+      ...(nextLesson ? [nextLesson.id] : []),
+      ...currentOrder,
+      ...displayLessons.map((lesson) => lesson.id).filter((id) => !currentOrder.includes(id) && id !== nextLesson?.id),
+    ];
+    setLessonCardOrder(nextOrder);
+    saveLessonCardPreferences(nextOrder);
+  };
+  const moveLessonCard = (lessonId: string, direction: -1 | 1) => {
+    const currentOrder = orderedAvailableLessons.map((lesson) => lesson.id);
+    const index = currentOrder.indexOf(lessonId);
+    const targetIndex = index + direction;
+    if (index < 0 || targetIndex < 0 || targetIndex >= currentOrder.length) return;
+    [currentOrder[index], currentOrder[targetIndex]] = [currentOrder[targetIndex], currentOrder[index]];
+    const nextOrder = [
+      ...(nextLesson ? [nextLesson.id] : []),
+      ...currentOrder,
+      ...displayLessons.map((lesson) => lesson.id).filter((id) => !currentOrder.includes(id) && id !== nextLesson?.id),
+    ];
+    setLessonCardOrder(nextOrder);
+    saveLessonCardPreferences(nextOrder);
+  };
+  const changeLessonCardViewMode = (viewMode: LessonCardViewMode) => {
+    setLessonCardViewMode(viewMode);
+    saveLessonCardPreferences(lessonCardOrder, viewMode);
+  };
   const getLessonHref = (lesson: LessonWithVersion, status: LessonStatus) => {
     const lessonPath = lesson.content?.slug || lesson.slug || lesson.id;
     const reviewParam = status === "completed" || status === "pending-review"
@@ -1939,18 +2050,43 @@ function DashboardContent() {
 
           <section className="pt-8" aria-label="Previous lessons">
             {availableLessons.length > 0 && (
-              <h2 className="mb-4 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#667084]">
-                Previous lessons
-              </h2>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#667084]">
+                  Previous lessons
+                </h2>
+                <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface p-1" role="group" aria-label="Lesson card view">
+                  <button
+                    type="button"
+                    onClick={() => changeLessonCardViewMode("grid")}
+                    aria-label="Show lessons in a grid"
+                    aria-pressed={lessonCardViewMode === "grid"}
+                    className={`rounded-md p-2 transition ${lessonCardViewMode === "grid" ? "bg-amber-500/20 text-amber-400" : "text-stone-400 hover:text-stone-200"}`}
+                  >
+                    <LayoutGrid className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => changeLessonCardViewMode("list")}
+                    aria-label="Show lessons as a list"
+                    aria-pressed={lessonCardViewMode === "list"}
+                    className={`rounded-md p-2 transition ${lessonCardViewMode === "list" ? "bg-amber-500/20 text-amber-400" : "text-stone-400 hover:text-stone-200"}`}
+                  >
+                    <List className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
             )}
-            <div className="grid gap-5 md:grid-cols-2">
-              {availableLessons.length === 0 ? (
+            {availableLessons.length > 1 && (
+              <p className="mb-3 text-xs text-stone-500">Drag cards to reorder, or use the arrow controls to move them.</p>
+            )}
+            <div className={lessonCardViewMode === "grid" ? "grid gap-5 md:grid-cols-2" : "flex flex-col gap-3"}>
+              {orderedAvailableLessons.length === 0 ? (
                 <p className="col-span-full rounded-xl border border-dashed border-border bg-surface p-6 text-center text-sm text-stone-500">
                   No previous lessons yet. Your instructor will assign more
                   lessons here.
                 </p>
               ) : (
-                availableLessons.map((lesson) => {
+                orderedAvailableLessons.map((lesson, lessonIndex) => {
                   const status = getLessonStatus(lessonStates[lesson.id]);
                   const lessonBannerPosition = normalizeBannerPosition(
                     lesson.content?.bannerPosition ?? lesson.content?.banner_position,
@@ -1970,9 +2106,16 @@ function DashboardContent() {
                   return (
                     <article
                       key={lesson.id}
-                      className="group flex flex-col overflow-hidden rounded-xl border border-border bg-surface transition-colors duration-300 hover:border-amber-500/40"
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        const draggedId = event.dataTransfer.getData("text/plain");
+                        if (draggedId) updateLessonCardOrder(draggedId, lesson.id);
+                        setDraggedLessonId(null);
+                      }}
+                      className={`group flex overflow-hidden rounded-xl border border-border bg-surface transition-colors duration-300 hover:border-amber-500/40 ${lessonCardViewMode === "grid" ? "flex-col" : "flex-col md:flex-row"} ${draggedLessonId === lesson.id ? "opacity-50" : ""}`}
                     >
-                      <div className="relative h-44 overflow-hidden border-b border-border">
+                      <div className={`relative h-44 overflow-hidden border-b border-border ${lessonCardViewMode === "list" ? "md:h-auto md:w-48 md:shrink-0 md:border-b-0 md:border-r" : ""}`}>
                         <img
                           src={
                             getFirstNonEmptyBannerUrl(
@@ -1998,21 +2141,60 @@ function DashboardContent() {
                               Lesson
                             </span>
                           </div>
-                          <Tooltip content={`Lesson status: ${statusCopy.toLowerCase()}`}>
-                          <span
-                            className={`rounded-md border-none px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${
-                              status === "completed"
-                                ? "bg-emerald-500/10 text-emerald-400"
-                                : status === "pending-review"
-                                  ? "bg-amber-500/10 text-amber-400"
-                                  : status === "in-progress"
-                                    ? "bg-sky-500/10 text-sky-400"
-                                    : "bg-slate-800/40 text-slate-400"
-                            }`}
-                          >
-                            {statusCopy}
-                          </span>
-                          </Tooltip>
+                          <div className="flex items-center gap-2">
+                            <Tooltip content={`Lesson status: ${statusCopy.toLowerCase()}`}>
+                              <span
+                                className={`rounded-md border-none px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${
+                                  status === "completed"
+                                    ? "bg-emerald-500/10 text-emerald-400"
+                                    : status === "pending-review"
+                                      ? "bg-amber-500/10 text-amber-400"
+                                      : status === "in-progress"
+                                        ? "bg-sky-500/10 text-sky-400"
+                                        : "bg-slate-800/40 text-slate-400"
+                                }`}
+                              >
+                                {statusCopy}
+                              </span>
+                            </Tooltip>
+                            {availableLessons.length > 1 && (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  draggable
+                                  onDragStart={(event) => {
+                                    event.dataTransfer.setData("text/plain", lesson.id);
+                                    event.dataTransfer.effectAllowed = "move";
+                                    setDraggedLessonId(lesson.id);
+                                  }}
+                                  onDragEnd={() => setDraggedLessonId(null)}
+                                  aria-label={`Drag to move ${lesson.title}`}
+                                  title="Drag to reorder"
+                                  className="touch-none cursor-grab rounded p-1 text-stone-500 hover:bg-background hover:text-stone-200 active:cursor-grabbing"
+                                >
+                                  <GripVertical className="h-4 w-4" aria-hidden="true" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => moveLessonCard(lesson.id, -1)}
+                                  disabled={lessonIndex === 0}
+                                  aria-label={`Move ${lesson.title} up`}
+                                  className="rounded p-1 text-stone-500 hover:bg-background hover:text-stone-200 disabled:cursor-not-allowed disabled:opacity-30"
+                                >
+                                  <ChevronUp className="h-4 w-4" aria-hidden="true" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => moveLessonCard(lesson.id, 1)}
+                                  disabled={lessonIndex === orderedAvailableLessons.length - 1}
+                                  aria-label={`Move ${lesson.title} down`}
+                                  className="rounded p-1 text-stone-500 hover:bg-background hover:text-stone-200 disabled:cursor-not-allowed disabled:opacity-30"
+                                >
+                                  <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <div>
                           <h2 className="mt-2 font-sans text-xl font-semibold text-stone-100">
