@@ -563,8 +563,8 @@ export default function LessonPage() {
       const hydratedSubmission = state?.submission;
       const canShowResults = hydratedSubmission?.status === "submitted" || hydratedSubmission?.status === "pending_evaluation" || hydratedSubmission?.status === "reviewed" || hydratedSubmission?.status === "evaluated";
       const requestedNonResultsStep = requestedStep && requestedStep !== "results" ? requestedStep : null;
-      const allowedRequestedStep = !canShowResults && requestedNonResultsStep
-        && !getLockedSteps(progress.completedSteps).includes(requestedNonResultsStep)
+      const allowedRequestedStep = requestedNonResultsStep
+        && (canShowResults || !getLockedSteps(progress.completedSteps).includes(requestedNonResultsStep))
         ? requestedNonResultsStep
         : null;
       const persistedStep = progress.currentStep !== "results" || canShowResults ? progress.currentStep : "warm_up";
@@ -1229,9 +1229,15 @@ export default function LessonPage() {
 
   const currentIndex = STUDY_STEPS.findIndex((s) => s.id === currentStep);
   const lockedSteps = getLockedSteps(completedSteps);
-  const stepperLockedSteps = completedSteps.includes("results")
-    ? lockedSteps
-    : [...new Set([...lockedSteps, "results" as StudyStepId])];
+  const isSubmittedReview = submission.status === "submitted"
+    || submission.status === "pending_evaluation"
+    || submission.status === "reviewed"
+    || submission.status === "evaluated";
+  const stepperLockedSteps = isSubmittedReview
+    ? []
+    : completedSteps.includes("results")
+      ? lockedSteps
+      : [...new Set([...lockedSteps, "results" as StudyStepId])];
 
   function markStepComplete(stepId: StudyStepId) {
     setCompletedSteps((prev) =>
@@ -1240,6 +1246,10 @@ export default function LessonPage() {
   }
 
   async function handleNext() {
+    if (isSubmittedReview) {
+      if (currentIndex < STUDY_STEPS.length - 1) setCurrentStep(STUDY_STEPS[currentIndex + 1].id);
+      return;
+    }
     if (submission.status !== "in_progress") return;
     if (hasPendingUploads()) {
       setSubmissionSaveError("Wait for audio and file uploads to finish before continuing.");
@@ -1258,6 +1268,10 @@ export default function LessonPage() {
   }
 
   function handlePrev() {
+    if (isSubmittedReview) {
+      if (currentIndex > 0) setCurrentStep(STUDY_STEPS[currentIndex - 1].id);
+      return;
+    }
     if (submission.status !== "in_progress") return;
     if (hasPendingUploads()) {
       setSubmissionSaveError("Wait for audio and file uploads to finish before changing steps.");
@@ -1269,7 +1283,7 @@ export default function LessonPage() {
   }
 
   function handleStepClick(stepId: StudyStepId) {
-    if (submission.status !== "in_progress") return;
+    if (!isSubmittedReview && submission.status !== "in_progress") return;
     if (hasPendingUploads()) {
       setSubmissionSaveError("Wait for audio and file uploads to finish before changing steps.");
       return;
@@ -1368,7 +1382,7 @@ export default function LessonPage() {
     );
     const renderFillInTheBlanks = (block: Extract<ContentBlock, { type: "fill-in-the-blanks" }>) => {
       const values = submission.blockResponses || {};
-      return <FillInBlanksMarkdown blockId={block.id} text={block.textWithBlanks} acceptableAnswers={block.acceptableAnswers} wordBank={block.wordBank} caseSensitive={block.caseSensitive} values={values} onChange={(blankIndex, value) => void persistSubmission({ ...submission, blockResponses: { ...values, [`${block.id}-blank-${blankIndex}`]: value } })} className="text-sm leading-relaxed text-stone-300" />;
+      return <FillInBlanksMarkdown blockId={block.id} text={block.textWithBlanks} acceptableAnswers={block.acceptableAnswers} wordBank={block.wordBank} caseSensitive={block.caseSensitive} values={values} onChange={(blankIndex, value) => void persistSubmission({ ...submission, blockResponses: { ...values, [`${block.id}-blank-${blankIndex}`]: value } })} readOnly={isSubmittedReview} showFeedback={isSubmittedReview} showResults={isSubmittedReview} isEvaluationView={isSubmittedReview} className="text-sm leading-relaxed text-stone-300" />;
     };
     const visibleBlocks = blocks.filter((block) => block.is_active !== false && block.enabled !== false);
     const questionBlocks = visibleBlocks.filter((block) => block.type === "question");
@@ -1386,15 +1400,16 @@ export default function LessonPage() {
         const article = (
         <article key={block.id} className="flex h-auto min-h-max flex-col overflow-visible rounded-xl border border-border bg-surface p-5 pb-8">
           {block.title && <h3 className="mb-3 flex items-center gap-2 font-sans text-xl font-semibold text-stone-100">{block.icon && <DynamicLucideIcon name={block.icon} className="h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />}{block.title}</h3>}
-          {block.type === "text" && <><MarkdownContent value={block.body} className="text-sm leading-relaxed text-stone-300" />{hasStudentResponse(block) && (() => { const responseType = getStudentResponseType(block); if (responseType === "voice" || responseType === "audio") return <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onUploadPending={(pending) => setUploadPending(block.id, pending)} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />; if (responseType === "file") return <FileResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onUploadPending={(pending) => setUploadPending(block.id, pending)} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value } })} />; return <WordCountedTextarea value={submission.blockResponses?.[block.id] || ""} onChange={(value) => updateTextResponse(block.id, value)} wordCountConfig={block.wordCountConfig} rows={8} placeholder="Write your response here..." className="mt-4 w-full min-h-[200px] resize-y rounded-lg border border-border bg-background p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" ariaLabel={`${block.title || "Text"} response`} />; })()}</>}
-          {block.type === "audio" && <>{block.audioUrl && <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio assignment"} />}<MediaTranscriptAccordion transcript={block.transcript} isUnlocked={areTranscriptsUnlocked || block.transcriptUnlockedByDefault === true} openByDefault={block.transcriptUnlockedByDefault === true} showIntonationNote />{block.allowStudentVoiceResponse === true && <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onUploadPending={(pending) => setUploadPending(block.id, pending)} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />}</>}
-          {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} transcriptLocked={!areTranscriptsUnlocked && block.transcriptUnlockedByDefault !== true} transcriptOpenByDefault={block.transcriptUnlockedByDefault === true} />{!areTranscriptsUnlocked && block.transcriptUnlockedByDefault !== true && <MediaTranscriptAccordion transcript={block.transcript} isUnlocked={false} />}{block.show_reflection_prompt !== false && block.reflection_prompt_text?.trim() && <div className="mt-4 flex h-auto min-h-fit flex-col overflow-visible p-0 pb-2"><p className="text-sm font-semibold text-amber-400">Reflection Question</p><MarkdownContent value={block.reflection_prompt_text.trim()} className="mt-2 text-sm leading-relaxed text-stone-300" /><textarea value={submission.blockResponses?.[`${block.id}-reflection`] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [`${block.id}-reflection`]: event.target.value } })} rows={5} placeholder="Write your reflection here..." className="mt-3 w-full resize-y rounded-lg border border-border bg-background p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" aria-label="Reflection question response" /></div>}</>}
+          {block.type === "text" && <><MarkdownContent value={block.body} className="text-sm leading-relaxed text-stone-300" />{hasStudentResponse(block) && (() => { const responseType = getStudentResponseType(block); const responseUrl = submission.audioUploads?.[block.id]; if (responseType === "voice" || responseType === "audio") return isSubmittedReview ? (responseUrl ? <CustomAudioPlayer src={responseUrl} label="Your submitted audio response" /> : <p className="mt-4 text-sm text-stone-400">No audio response was submitted.</p>) : <AudioResponseBlock studentId={activeStudent?.id} value={responseUrl} onUploadPending={(pending) => setUploadPending(block.id, pending)} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />; if (responseType === "file") return isSubmittedReview ? (responseUrl ? <a href={responseUrl} target="_blank" rel="noreferrer" className="mt-4 inline-flex text-sm text-amber-400 underline">View your submitted file</a> : <p className="mt-4 text-sm text-stone-400">No file was submitted.</p>) : <FileResponseBlock studentId={activeStudent?.id} value={responseUrl} onUploadPending={(pending) => setUploadPending(block.id, pending)} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value } })} />; return <WordCountedTextarea value={submission.blockResponses?.[block.id] || ""} onChange={(value) => updateTextResponse(block.id, value)} wordCountConfig={block.wordCountConfig} rows={8} placeholder="Write your response here..." className="mt-4 w-full min-h-[200px] resize-y rounded-lg border border-border bg-background p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" ariaLabel={`${block.title || "Text"} response`} readOnly={isSubmittedReview} />; })()}</>}
+          {block.type === "audio" && <>{block.audioUrl && <CustomAudioPlayer src={block.audioUrl} label={block.title || "Audio assignment"} />}<MediaTranscriptAccordion transcript={block.transcript} isUnlocked={areTranscriptsUnlocked || block.transcriptUnlockedByDefault === true} openByDefault={block.transcriptUnlockedByDefault === true} showIntonationNote />{block.allowStudentVoiceResponse === true && (isSubmittedReview ? submission.audioUploads?.[block.id] ? <CustomAudioPlayer src={submission.audioUploads[block.id]} label="Your submitted audio response" /> : <p className="text-sm text-stone-400">No audio response was submitted.</p> : <AudioResponseBlock studentId={activeStudent?.id} value={submission.audioUploads?.[block.id]} onUploadPending={(pending) => setUploadPending(block.id, pending)} onChange={(value) => void persistSubmission({ ...submission, audioUploads: { ...(submission.audioUploads || {}), [block.id]: value }, speakingAudioUrl: value })} />)}</>}
+          {block.type === "video" && <><InteractiveVideoBlock videoUrl={block.videoUrl} title={block.title || "Lesson video"} transcript={block.transcript} transcriptLocked={!areTranscriptsUnlocked && block.transcriptUnlockedByDefault !== true} transcriptOpenByDefault={block.transcriptUnlockedByDefault === true} />{!areTranscriptsUnlocked && block.transcriptUnlockedByDefault !== true && <MediaTranscriptAccordion transcript={block.transcript} isUnlocked={false} />}{block.show_reflection_prompt !== false && block.reflection_prompt_text?.trim() && <div className="mt-4 flex h-auto min-h-fit flex-col overflow-visible p-0 pb-2"><p className="text-sm font-semibold text-amber-400">Reflection Question</p><MarkdownContent value={block.reflection_prompt_text.trim()} className="mt-2 text-sm leading-relaxed text-stone-300" /><textarea value={submission.blockResponses?.[`${block.id}-reflection`] || ""} onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [`${block.id}-reflection`]: event.target.value } })} readOnly={isSubmittedReview} rows={5} placeholder="Write your reflection here..." className="mt-3 w-full resize-y rounded-lg border border-border bg-background p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40" aria-label="Reflection question response" /></div>}</>}
           {block.type === "fill-in-the-blanks" && renderFillInTheBlanks(block)}
-          {block.type === "writing" && <WritingBlockRenderer block={block} value={submission.writing_responses?.[block.id] || ""} onChange={(value) => void persistSubmission({ ...submission, writingText: value, writing_responses: { ...(submission.writing_responses || {}), [block.id]: value } })} />}
+          {block.type === "writing" && <WritingBlockRenderer block={block} value={submission.writing_responses?.[block.id] || ""} onChange={(value) => void persistSubmission({ ...submission, writingText: value, writing_responses: { ...(submission.writing_responses || {}), [block.id]: value } })} readOnly={isSubmittedReview} />}
           {block.type === "image" && <ImageBlockRenderer imageUrl={block.imageUrl} title={block.title} caption={block.caption} />}
           {block.type === "resource" && block.resourceUrl && <a href={block.resourceUrl} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-lg border border-amber-500/40 bg-amber-500/20 p-4 text-sm text-amber-400 hover:border-amber-500/40">{block.description || "Open document"}<span aria-hidden="true">PDF</span></a>}
           {block.type === "question" && <ExerciseQuestions
-            mode="interactive"
+            mode={isSubmittedReview ? "review" : "interactive"}
+            readOnly={isSubmittedReview}
             questions={questionBlocks.map((questionBlock) => ({
               id: questionBlock.id,
               type: questionBlock.question_type === "open_ended" ? "short_answer" : "multiple_choice",
@@ -1411,7 +1426,8 @@ export default function LessonPage() {
             onTextAnswer={(questionId, answer) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), [questionId]: answer } })}
           />}
           {block.type === "quiz" && <ExerciseQuestions
-            mode="interactive"
+            mode={isSubmittedReview ? "review" : "interactive"}
+            readOnly={isSubmittedReview}
             questions={block.questions}
             choiceAnswers={submission.quizSelections}
             textAnswers={submission.blockResponses}
@@ -1563,6 +1579,7 @@ export default function LessonPage() {
               <textarea
                 value={submission.blockResponses?.warm_up || ""}
                 onChange={(event) => void persistSubmission({ ...submission, blockResponses: { ...(submission.blockResponses || {}), warm_up: event.target.value } })}
+                readOnly={isSubmittedReview}
                 className="mt-2 w-full min-h-[200px] resize-y rounded-[10px] border border-border bg-surface px-5 py-5 text-[15px] leading-relaxed text-[#d9dce0] placeholder-[#7b8290] shadow-[0_8px_24px_rgba(0,0,0,.12)] transition-colors placeholder:text-[13px] focus:border-amber-500/40 focus:outline-none focus:ring-1 focus:ring-amber-500/40"
                 rows={8}
                 placeholder=""
@@ -1626,6 +1643,8 @@ export default function LessonPage() {
                           key={option}
                           type="button"
                           onClick={() => persistSubmission({ ...submission, listeningAnswers: { ...submission.listeningAnswers, [question.id]: option } })}
+                          disabled={isSubmittedReview}
+                          aria-pressed={submission.listeningAnswers[question.id] === option}
                           className={`rounded-md border px-3 py-2 text-left text-xs transition ${submission.listeningAnswers[question.id] === option ? "border-amber-500/40 bg-amber-500/20 text-amber-400" : "border-border bg-background text-stone-400 hover:border-amber-500/40"}`}
                         >
                           {option}
@@ -1670,6 +1689,7 @@ export default function LessonPage() {
                     <textarea
                       value={submission.readingAnswers[question.id] || ""}
                       onChange={(event) => persistSubmission({ ...submission, readingAnswers: { ...submission.readingAnswers, [question.id]: event.target.value } })}
+                      readOnly={isSubmittedReview}
                       rows={3}
                       placeholder="Write your answer here..."
                       className="mt-1 w-full resize-none rounded-xl border border-stone-700/60 bg-stone-900 px-4 py-3 text-sm text-stone-200 placeholder-stone-600 focus:border-amber-500/40 focus:outline-none"
@@ -1695,6 +1715,7 @@ export default function LessonPage() {
               <textarea
                 value={submission.writingText}
                 onChange={(event) => persistSubmission({ ...submission, writingText: event.target.value })}
+                readOnly={isSubmittedReview}
                 className="w-full min-h-[200px] bg-stone-900 border border-stone-700/60 rounded-xl px-4 py-3 text-sm text-stone-200 placeholder-stone-600 resize-y focus:outline-none focus:ring-1 focus:ring-amber-500/40 focus:border-amber-500/40 transition-colors"
                 rows={8}
                 placeholder={lessonContent.writing?.draft_editor?.placeholder || "Write your response here..."}
@@ -1719,14 +1740,18 @@ export default function LessonPage() {
                   <p key={point.text}>{point.text}</p>
                 ))}
               </div>
-              {!lessonContent.speaking?.blocks?.length && (
+              {!lessonContent.speaking?.blocks?.length && (isSubmittedReview
+                ? (submission.speakingAudioUrl || submission.audioUploads?.speaking)
+                  ? <CustomAudioPlayer src={submission.speakingAudioUrl || submission.audioUploads?.speaking || ""} label="Your submitted audio response" />
+                  : <p className="text-sm text-stone-400">No audio response was submitted.</p>
+                : (
                 <AudioResponseBlock
                   studentId={activeStudent?.id}
                   value={submission.speakingAudioUrl || submission.audioUploads?.speaking}
                   onUploadPending={(pending) => setUploadPending("speaking", pending)}
                   onChange={(value) => void persistSubmission({ ...submission, speakingAudioUrl: value, audioUploads: { ...(submission.audioUploads || {}), speaking: value } })}
                 />
-              )}
+                ))}
               </>}
             </section>
           )}
@@ -1779,7 +1804,7 @@ export default function LessonPage() {
                 <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">Recommended review</p>
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={() => updateStudyHubUrl(true, "notes")} className="rounded-md border border-amber-500/40 bg-amber-500/20 px-2.5 py-1.5 text-xs text-amber-400 hover:bg-amber-500/20">Review lexicon notes</button>
-                  {submission.status === "in_progress" && <button type="button" onClick={() => setCurrentStep("warm_up")} className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs text-stone-300 hover:border-amber-500/40">Revisit lesson content</button>}
+                  {(submission.status === "in_progress" || isSubmittedReview) && <button type="button" onClick={() => setCurrentStep("warm_up")} className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs text-stone-300 hover:border-amber-500/40">Revisit lesson content</button>}
                 </div>
               </div>}
 
@@ -1799,7 +1824,7 @@ export default function LessonPage() {
 
 
         {/* Save status and progress action are stage-level so they remain available without response fields. */}
-        {!isResultsStep && (
+        {!isResultsStep && !isSubmittedReview && (
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
             <span
               className={`inline-flex items-center gap-1.5 text-xs ${
@@ -1831,7 +1856,7 @@ export default function LessonPage() {
         )}
 
         {/* Bottom Navigation */}
-        {!isResultsStep && (
+        {(!isResultsStep || isSubmittedReview) && (
           <div className="mt-4 flex items-center justify-between border-t border-border pt-6">
             <Tooltip content="Return to the previous lesson step"><button
               onClick={handlePrev}
@@ -1840,9 +1865,10 @@ export default function LessonPage() {
             >
               Previous
             </button></Tooltip>
-            <Tooltip content={currentIndex === STUDY_STEPS.length - 2 ? "Finish the lesson and view your results" : "Continue to the next lesson step"}><button
+            <Tooltip content={isResultsStep ? "You are viewing the lesson results" : currentIndex === STUDY_STEPS.length - 2 && !isSubmittedReview ? "Finish the lesson and view your results" : "Continue to the next lesson step"}><button
               onClick={handleNext}
-              className="flex items-center gap-2 rounded-lg bg-amber-500/20 px-6 py-2.5 text-[12px]  text-amber-400 shadow-md transition-all hover:bg-amber-500/20"
+              disabled={isResultsStep}
+              className="flex items-center gap-2 rounded-lg bg-amber-500/20 px-6 py-2.5 text-[12px] text-amber-400 shadow-md transition-all hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {currentIndex === STUDY_STEPS.length - 2 ? (
                 <>

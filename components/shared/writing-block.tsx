@@ -76,6 +76,7 @@ export interface WritingBlockRendererProps {
   value?: string;
   onChange?: (value: string) => void;
   isPreview?: boolean;
+  readOnly?: boolean;
   className?: string;
 }
 
@@ -84,7 +85,7 @@ function countWords(value: string) {
   return trimmed ? trimmed.split(/\s+/).length : 0;
 }
 
-export function WritingBlockRenderer({ block, value = "", onChange, isPreview = false, className = "" }: WritingBlockRendererProps) {
+export function WritingBlockRenderer({ block, value = "", onChange, isPreview = false, readOnly = false, className = "" }: WritingBlockRendererProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const wordCount = countWords(value);
   const characterCount = value.length;
@@ -105,7 +106,7 @@ export function WritingBlockRenderer({ block, value = "", onChange, isPreview = 
         <textarea
           ref={textareaRef}
           value={value}
-          readOnly={isPreview}
+          readOnly={isPreview || readOnly}
           onChange={(event) => onChange?.(event.target.value)}
           placeholder={isPreview ? "Student essay response" : "Start writing your response..."}
           className="min-h-[180px] w-full resize-none overflow-hidden rounded-lg border border-border bg-background p-4 pb-12 text-sm leading-7 text-stone-200 outline-none transition focus:border-amber-500/40 read-only:cursor-default read-only:opacity-80"
