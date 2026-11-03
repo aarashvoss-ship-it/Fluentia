@@ -170,7 +170,7 @@ export function CustomAudioPlayer({ src, label = "Audio", blob, transcript }: { 
               <div className="mb-1 flex items-center justify-between gap-2 text-[10px] text-stone-500">
                 <span className="min-w-0 truncate">{label}</span>
                 <select value={playbackRate} onChange={(event) => changePlaybackRate(Number(event.target.value))} aria-label={`${label} playback speed`} className="shrink-0 rounded border border-border bg-background px-1 py-0.5 text-[10px] text-stone-300 outline-none focus:border-amber-500/40">
-                  {[0.95, 0.9, 0.85, 0.8, 1, 1.25, 1.5, 2].map((rate) => <option key={rate} value={rate}>{rate}x</option>)}
+                  {[0.8, 0.85, 0.9, 0.95, 1, 1.25, 1.5, 2].map((rate) => <option key={rate} value={rate}>{rate === 1 ? "1.0x (Normal)" : `${rate}x`}</option>)}
                 </select>
                 <span className="shrink-0 tabular-nums">{formatTime(currentTime)} / {formatTime(duration)}</span>
               </div>
