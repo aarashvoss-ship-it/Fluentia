@@ -180,7 +180,7 @@ export function UnifiedReportCard({
 
   return <div className="w-full space-y-5 text-left">
     {!isInstructorView && <nav className="w-full min-w-0 overflow-x-auto border-b border-border" role="tablist" aria-label="Results and review stages">
-      <div className="flex min-w-max items-center gap-5 sm:gap-7">
+      <div className="flex w-full min-w-max items-center justify-between gap-5 sm:gap-7">
         {studentTabs.map((tab, index) => <button
           key={tab.id}
           id={`student-report-tab-${tab.id}`}
