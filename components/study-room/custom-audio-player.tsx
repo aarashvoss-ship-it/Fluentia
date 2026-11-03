@@ -39,6 +39,7 @@ export function CustomAudioPlayer({ src, label = "Audio", blob, transcript }: { 
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const playbackRateRef = useRef(playbackRate);
   const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(false);
   const transcriptLines = parseInteractiveTranscript(transcript || "");
   const isAudioPrompt = /\baudio\s+prompt\b/i.test(label);
@@ -84,22 +85,36 @@ export function CustomAudioPlayer({ src, label = "Audio", blob, transcript }: { 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || sourceStatus !== "ready") return;
-    const handleLoadedMetadata = () => setDuration(audio.duration);
+    const handleLoadedMetadata = () => {
+      audio.playbackRate = playbackRateRef.current;
+      setDuration(audio.duration);
+    };
     const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
+    const handleRateChange = () => {
+      playbackRateRef.current = audio.playbackRate;
+      setPlaybackRate(audio.playbackRate);
+    };
     const handleEnded = () => {
       setIsPlaying(false);
       setCurrentTime(0);
     };
     audio.addEventListener("loadedmetadata", handleLoadedMetadata);
     audio.addEventListener("timeupdate", handleTimeUpdate);
+    audio.addEventListener("ratechange", handleRateChange);
     audio.addEventListener("ended", handleEnded);
     audio.load();
     return () => {
       audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
       audio.removeEventListener("timeupdate", handleTimeUpdate);
+      audio.removeEventListener("ratechange", handleRateChange);
       audio.removeEventListener("ended", handleEnded);
     };
   }, [playbackSrc]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (audio && sourceStatus === "ready") audio.playbackRate = playbackRate;
+  }, [playbackRate, playbackSrc, sourceStatus]);
 
   const togglePlayback = async () => {
     const audio = audioRef.current;
@@ -135,6 +150,7 @@ export function CustomAudioPlayer({ src, label = "Audio", blob, transcript }: { 
   };
 
   const changePlaybackRate = (value: number) => {
+    playbackRateRef.current = value;
     setPlaybackRate(value);
     if (audioRef.current) audioRef.current.playbackRate = value;
   };
