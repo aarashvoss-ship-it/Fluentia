@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import { combineTaskFeedback } from "@/lib/evaluation-feedback";
@@ -70,6 +71,15 @@ const RUBRIC_CRITERIA = [
   { id: "grammar", label: "Grammatical Accuracy" },
 ];
 
+const STUDENT_REPORT_TABS = [
+  { id: "warm-up", title: "Warm-up", aliases: ["warm-up", "warm_up", "warmup"] },
+  { id: "lesson", title: "Lesson", aliases: ["lesson"] },
+  { id: "listening", title: "Listening", aliases: ["listening"] },
+  { id: "reading", title: "Reading", aliases: ["reading"] },
+  { id: "writing", title: "Writing", aliases: ["writing"] },
+  { id: "speaking", title: "Speaking", aliases: ["speaking"] },
+] as const;
+
 function stripMarkdown(value: string) {
   return value
     .replace(/<br\s*\/?>/gi, "\n")
@@ -125,6 +135,7 @@ export function UnifiedReportCard({
   isSubmitted = false,
   submitError,
 }: UnifiedReportCardProps) {
+  const [activeStudentTab, setActiveStudentTab] = useState<string>("warm-up");
   const overallAggregation = aggregateOverallRubric({
     criterionIds: RUBRIC_CRITERIA.map(({ id }) => id),
     stageScores,
@@ -136,6 +147,20 @@ export function UnifiedReportCard({
   const overallScale = getRubricScale(overallScaleId);
   const displayScores = overallAggregation.displayCriterionScores;
   const totalScore = overallAggregation.totalScore;
+  const studentTabs = [
+    ...STUDENT_REPORT_TABS.map((tab) => ({
+      id: tab.id,
+      title: tab.title,
+      stage: stages.find((stage) => tab.aliases.some((alias: string) => alias === stage.id)),
+    })),
+    { id: "report-card", title: "Report Card", stage: undefined },
+  ];
+  const activeStudentTabIndex = studentTabs.findIndex((tab) => tab.id === activeStudentTab);
+  const activeStudentStage = studentTabs[activeStudentTabIndex]?.stage;
+  const changeStudentTab = (nextIndex: number) => {
+    const nextTab = studentTabs[nextIndex];
+    if (nextTab) setActiveStudentTab(nextTab.id);
+  };
 
   const renderGeneralField = (
     field: "comments" | "strengths" | "areasToImprove" | "studyHubPrescription",
@@ -153,16 +178,43 @@ export function UnifiedReportCard({
     /> : <FeedbackValue value={value} isEvaluated={isEvaluated} />}
   </div>;
 
-  return <div className="w-full space-y-8 text-left">
-    <section aria-label="Report card tasks" className="space-y-4">
+  return <div className="w-full space-y-5 text-left">
+    {!isInstructorView && <nav className="w-full min-w-0 overflow-x-auto border-b border-border" role="tablist" aria-label="Results and review stages">
+      <div className="flex min-w-max items-center gap-5 sm:gap-7">
+        {studentTabs.map((tab, index) => <button
+          key={tab.id}
+          id={`student-report-tab-${tab.id}`}
+          type="button"
+          role="tab"
+          aria-selected={activeStudentTab === tab.id}
+          aria-controls={`student-report-panel-${tab.id}`}
+          onClick={() => setActiveStudentTab(tab.id)}
+          className={`shrink-0 whitespace-nowrap border-b-2 px-1 py-3 text-left text-xs transition ${
+            activeStudentTab === tab.id
+              ? "border-amber-400 text-amber-300"
+              : "border-transparent text-stone-500 hover:text-stone-200"
+          }`}
+        >
+          <span className="mr-1.5 font-mono text-[10px] text-stone-600">{String(index + 1).padStart(2, "0")}</span>{tab.title}
+        </button>)}
+      </div>
+    </nav>}
+
+    {(!isInstructorView || activeStudentTab !== "report-card") && <section
+      aria-label="Report card tasks"
+      role={!isInstructorView ? "tabpanel" : undefined}
+      id={!isInstructorView ? `student-report-panel-${activeStudentTab}` : undefined}
+      aria-labelledby={!isInstructorView ? `student-report-tab-${activeStudentTab}` : undefined}
+      className="space-y-4"
+    >
       <div className="flex items-end justify-between gap-4 border-b border-border pb-3">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">{isInstructorView ? "Submission Report Card" : "Results & Review"}</p>
-          <h2 className="mt-1 text-xl font-semibold text-stone-100">Lesson Tasks</h2>
+          <h2 className="mt-1 text-xl font-semibold text-stone-100">{isInstructorView ? "Lesson Tasks" : activeStudentStage?.title || "Lesson Tasks"}</h2>
         </div>
       </div>
       <div className="flex w-full min-w-0 flex-col gap-4">
-        {stages.map((stage) => <section key={stage.id} className="w-full min-w-0 space-y-3 rounded-xl border border-border bg-surface/60 p-5">
+        {stages.filter((stage) => isInstructorView || stage.id === activeStudentStage?.id).map((stage) => <section key={stage.id} className="w-full min-w-0 space-y-3 rounded-xl border border-border bg-surface/60 p-5">
           <div className="border-b border-border pb-3">
             <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-amber-400">{stage.title}</h3>
             {stage.prompt && <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-stone-400">{stripMarkdown(stage.prompt)}</p>}
@@ -269,8 +321,14 @@ export function UnifiedReportCard({
           </div>}
         </section>)}
       </div>
-    </section>
+    </section>}
 
+    {(isInstructorView || activeStudentTab === "report-card") && <div
+      role={!isInstructorView ? "tabpanel" : undefined}
+      id={!isInstructorView ? "student-report-panel-report-card" : undefined}
+      aria-labelledby={!isInstructorView ? "student-report-tab-report-card" : undefined}
+      className="space-y-5"
+    >
     <section aria-label="Overall Performance Breakdown" className="space-y-3 rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4 sm:p-5">
       <div className="flex items-center justify-between border-b border-emerald-800/40 pb-3">
         <h3 className="text-lg font-semibold text-white">Overall Performance Breakdown</h3>
@@ -314,6 +372,26 @@ export function UnifiedReportCard({
     </section>
 
     {submitError && <p role="alert" className="rounded-lg border border-red-700 bg-red-900/30 p-3 text-xs text-red-200">{submitError}</p>}
+    </div>}
+    {!isInstructorView && <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
+      <button
+        type="button"
+        onClick={() => changeStudentTab(activeStudentTabIndex - 1)}
+        disabled={activeStudentTabIndex <= 0}
+        className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-stone-300 transition hover:border-amber-500/40 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        <span aria-hidden="true">←</span> Previous Stage
+      </button>
+      <span className="text-[10px] text-stone-500">{String(activeStudentTabIndex + 1).padStart(2, "0")} / {String(studentTabs.length).padStart(2, "0")}</span>
+      <button
+        type="button"
+        onClick={() => changeStudentTab(activeStudentTabIndex + 1)}
+        disabled={activeStudentTabIndex >= studentTabs.length - 1}
+        className="inline-flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        Next Stage <span aria-hidden="true">→</span>
+      </button>
+    </div>}
     {isInstructorView && <button type="button" onClick={onPublish} disabled={isSubmitting || isSubmitted} className="w-full rounded-lg bg-amber-500/20 px-6 py-3 text-sm  text-amber-400 transition hover:bg-amber-500/20 disabled:cursor-wait disabled:opacity-50">
       {isSubmitting ? "Saving..." : isSubmitted ? "Evaluation Published" : "Publish Evaluation & Send to Student"}
     </button>}
