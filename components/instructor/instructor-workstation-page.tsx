@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Archive, ArchiveRestore, Check, ChevronDown, ChevronRight, Eye, EyeOff, FileText, Folder, Grid3X3, Image, List, MoreVertical, Pencil, Plus, Search, Trash2, X, Lightbulb, UploadCloud } from "lucide-react";
+import { Archive, ArchiveRestore, Check, ChevronDown, ChevronRight, Eye, EyeOff, FileText, Folder, Grid3X3, Image, List, MoreVertical, MoveDown, MoveUp, Pencil, Plus, Search, Trash2, X, Lightbulb, UploadCloud } from "lucide-react";
 import { deleteAsset, uploadAsset } from "@/services/asset-service";
 import { LessonBuilderSidebar, LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
 import { InstructorBannerManager, type BannerPosition } from "@/components/instructor/banner-manager";
@@ -11,7 +11,7 @@ import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/su
 import { updateSubmission } from "@/lib/evaluations";
 import type { UnifiedReportStage } from "@/components/shared/unified-report-card";
 import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission, StudyStepId, type LessonResource } from "@/types/lesson";
-import { assignLessonToAllActiveStudents, clearStudentLessonResources, createLesson, deleteLesson, getLessons, publishLessonAndAssign, removeLessonResource, removeStudentLessonCustomResource, saveLessonResource, saveLessonResources, setLessonAssignments, setStudentLessonResourceSelected, unassignLesson, updateLesson, type LessonAssignmentResourceOptions, type LessonTags, type LessonWithVersion } from "@/lib/lessons";
+import { assignLessonToAllActiveStudents, clearStudentLessonResources, createLesson, deleteLesson, getLessons, publishLessonAndAssign, removeLessonResource, removeStudentLessonCustomResource, saveLessonResources, setLessonAssignments, setStudentLessonResourceSelected, unassignLesson, updateLesson, type LessonAssignmentResourceOptions, type LessonTags, type LessonWithVersion } from "@/lib/lessons";
 import { PublishedLessonState } from "@/lib/lesson-store";
 import { deduplicateStudents, StudentUser } from "@/lib/users";
 import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/storage-service";
@@ -729,7 +729,17 @@ function collectStudentFlashcards(resources: StudentResourceEntry[]) {
   })));
 }
 
-function FlashcardDraftList({ cards, onRemove }: { cards: FlashcardItem[]; onRemove?: (index: number) => void }) {
+function FlashcardDraftList({
+  cards,
+  onRemove,
+  onEdit,
+  onMove,
+}: {
+  cards: FlashcardItem[];
+  onRemove?: (index: number) => void;
+  onEdit?: (index: number) => void;
+  onMove?: (index: number, direction: -1 | 1) => void;
+}) {
   if (cards.length === 0) {
     return <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-stone-500">Cards you add will appear here before the deck is saved.</p>;
   }
@@ -739,7 +749,14 @@ function FlashcardDraftList({ cards, onRemove }: { cards: FlashcardItem[]; onRem
         <li key={card.id || index} className="rounded-md border border-border bg-background p-3 text-xs text-stone-300">
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="font-semibold text-amber-400">Card {index + 1}</span>
-            {onRemove && <button type="button" onClick={() => onRemove(index)} className="text-stone-500 hover:text-red-300" aria-label={`Remove card ${index + 1}`}>Remove</button>}
+            <div className="flex items-center gap-2">
+              {onEdit && <button type="button" onClick={() => onEdit(index)} className="text-stone-400 hover:text-amber-300" aria-label={`Edit card ${index + 1}`}>Edit</button>}
+              {onMove && <>
+                <button type="button" onClick={() => onMove(index, -1)} disabled={index === 0} className="text-stone-400 hover:text-amber-300 disabled:cursor-not-allowed disabled:opacity-40" aria-label={`Move card ${index + 1} up`}><MoveUp className="h-3.5 w-3.5" aria-hidden="true" /></button>
+                <button type="button" onClick={() => onMove(index, 1)} disabled={index === cards.length - 1} className="text-stone-400 hover:text-amber-300 disabled:cursor-not-allowed disabled:opacity-40" aria-label={`Move card ${index + 1} down`}><MoveDown className="h-3.5 w-3.5" aria-hidden="true" /></button>
+              </>}
+              {onRemove && <button type="button" onClick={() => onRemove(index)} className="text-stone-500 hover:text-red-300" aria-label={`Remove card ${index + 1}`}>Remove</button>}
+            </div>
           </div>
           <p><span className="font-semibold text-stone-100">Front:</span> <MarkdownContent value={card.front} /></p>
           <p className="mt-1"><span className="font-semibold text-stone-100">Back:</span> <MarkdownContent value={card.back} /></p>
@@ -984,11 +1001,10 @@ export default function InstructorWorkstationPage({
   const [sidebarBlocksByStep, setSidebarBlocksByStep] = useState<SidebarBlocksByStep>({});
   const [lessonResources, setLessonResources] = useState<LessonResource[]>([]);
   const [isResourceHubImportOpen, setIsResourceHubImportOpen] = useState(false);
-  const [manualLessonResourceDraft, setManualLessonResourceDraft] = useState({ title: "", url: "" });
   const [isManualLessonResourceOpen, setIsManualLessonResourceOpen] = useState(false);
   const [editingLessonResourceId, setEditingLessonResourceId] = useState<string | null>(null);
-  const [lessonResourceEditDraft, setLessonResourceEditDraft] = useState({ title: "", url: "" });
   const [isSavingLessonResources, setIsSavingLessonResources] = useState(false);
+  const [isSavingResourceDraft, setIsSavingResourceDraft] = useState(false);
   const [studentResources, setStudentResources] = useState<StudentResourceEntry[]>([]);
   const [builderResourcesExpanded, setBuilderResourcesExpanded] = useState(false);
   const [resourceStudyHubPreviewOpen, setResourceStudyHubPreviewOpen] = useState(false);
@@ -1007,6 +1023,7 @@ export default function InstructorWorkstationPage({
   const [isResourceFileDragging, setIsResourceFileDragging] = useState(false);
   const [resourceStatus, setResourceStatus] = useState<string | null>(null);
   const [flashcardIndex, setFlashcardIndex] = useState(0);
+  const [editingFlashcardIndex, setEditingFlashcardIndex] = useState<number | null>(null);
   const [flashcardFlipped, setFlashcardFlipped] = useState(false);
   const [draftFlashcardFlipped, setDraftFlashcardFlipped] = useState(false);
   const [showFlashcardExplanation, setShowFlashcardExplanation] = useState(false);
@@ -1284,6 +1301,7 @@ export default function InstructorWorkstationPage({
     setIsResourceHubImportOpen(false);
     setIsManualLessonResourceOpen(false);
     setEditingLessonResourceId(null);
+    setEditingFlashcardIndex(null);
     setSelectedStudentId(studentId || null);
     setNewLesson({ studentId, title: "", slug: "", subtitle: "", instructorGuidance: "", moduleNumber: "", level: "B1", tags: { ...EMPTY_LESSON_TAGS }, customTagsText: "", status: "draft" });
     setWorkstationState((previous) => ({
@@ -1330,6 +1348,7 @@ export default function InstructorWorkstationPage({
     setIsResourceHubImportOpen(false);
     setIsManualLessonResourceOpen(false);
     setEditingLessonResourceId(null);
+    setEditingFlashcardIndex(null);
   };
 
   const startNewLesson = () => {
@@ -1700,42 +1719,6 @@ export default function InstructorWorkstationPage({
       }
     } else {
       setIsResourceHubImportOpen(false);
-    }
-  };
-
-  const addManualLessonResource = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const title = manualLessonResourceDraft.title.trim();
-    const url = manualLessonResourceDraft.url.trim();
-    if (!title || !url) return;
-    const newResource: LessonResource = {
-      id: crypto.randomUUID(),
-      title,
-      url,
-      type: "Article",
-      importedFromResourceHub: false,
-    };
-    try {
-      await persistLessonResourceList([...lessonResources, newResource]);
-      setManualLessonResourceDraft({ title: "", url: "" });
-      setIsManualLessonResourceOpen(false);
-    } catch (error) {
-      setPublishStatus(`Unable to add lesson resource: ${error instanceof Error ? error.message : "The request failed."}`);
-    }
-  };
-
-  const saveLessonResourceEdit = async (resourceId: string) => {
-    const title = lessonResourceEditDraft.title.trim();
-    const url = lessonResourceEditDraft.url.trim();
-    if (!title || !url) return;
-    const nextResources = lessonResources.map((resource) => (
-      resource.id === resourceId ? { ...resource, title, url } : resource
-    ));
-    try {
-      await persistLessonResourceList(nextResources);
-      setEditingLessonResourceId(null);
-    } catch (error) {
-      setPublishStatus(`Unable to update lesson resource: ${error instanceof Error ? error.message : "The request failed."}`);
     }
   };
 
@@ -2337,15 +2320,18 @@ export default function InstructorWorkstationPage({
       setResourceStatus("Add both a front and a back before adding this card to the deck.");
       return;
     }
+    const previousCard = editingFlashcardIndex === null ? undefined : resourceDraft.cards[editingFlashcardIndex];
     const card: FlashcardItem = {
-      id: crypto.randomUUID(),
+      id: previousCard?.id || crypto.randomUUID(),
       front: resourceDraft.question.trim(),
       back: resourceDraft.answer.trim(),
       ...(resourceDraft.explanation.trim() ? { explanation: resourceDraft.explanation.trim() } : {}),
     };
     setResourceDraft((previous) => ({
       ...previous,
-      cards: [...previous.cards, card],
+      cards: editingFlashcardIndex === null
+        ? [...previous.cards, card]
+        : previous.cards.map((existing, index) => index === editingFlashcardIndex ? card : existing),
       question: "",
       answer: "",
       explanation: "",
@@ -2354,12 +2340,18 @@ export default function InstructorWorkstationPage({
     setResourceAnswerHtml("");
     setResourceExplanationHtml("");
     setDraftFlashcardFlipped(false);
-    setResourceStatus(`Card added to this deck (${resourceDraft.cards.length + 1} total).`);
+    setEditingFlashcardIndex(null);
+    setResourceStatus(editingFlashcardIndex === null
+      ? `Card added to this deck (${resourceDraft.cards.length + 1} total).`
+      : "Flashcard updated.");
   };
 
   const editStudentResource = (resource: StudentResourceEntry) => {
     const type: ResourceEditorType = resource.resource_type === "flashcards" ? "flashcard" : resource.resource_type;
     setEditingStudentResourceId(resource.id);
+    setEditingLessonResourceId(null);
+    setIsManualLessonResourceOpen(false);
+    setEditingFlashcardIndex(null);
     setResourceDraft({
       ...EMPTY_RESOURCE_DRAFT,
       type,
@@ -2380,15 +2372,90 @@ export default function InstructorWorkstationPage({
     window.setTimeout(() => document.getElementById("student-resource-editor")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   };
 
+  const editLessonResource = (resource: LessonResource) => {
+    const resourceType: ResourceEditorType = resource.resourceType && resource.resourceType !== "flashcards"
+      ? resource.resourceType
+      : resource.resourceType === "flashcards"
+        ? "flashcard"
+        : resource.cards?.length || (resource.question && resource.answer)
+          ? "flashcard"
+        : resource.type === "Audio"
+          ? "audio"
+          : resource.type === "Video"
+            ? "video"
+            : resource.type === "Image"
+              ? "image"
+              : resource.type === "PDF"
+                ? "file"
+                : "reading";
+    setEditingLessonResourceId(resource.id);
+    setEditingStudentResourceId(null);
+    setIsManualLessonResourceOpen(false);
+    setEditingFlashcardIndex(null);
+    setResourceDraft({
+      ...EMPTY_RESOURCE_DRAFT,
+      type: resourceType,
+      title: resource.title,
+      body: resource.body ?? resource.description ?? "",
+      linkUrl: resource.url || "",
+      question: resource.question || "",
+      answer: resource.answer || "",
+      explanation: resource.explanation || "",
+      cards: (resource.cards || []).map((card) => ({
+        id: card.id || crypto.randomUUID(),
+        front: card.front,
+        back: card.back,
+        ...(card.explanation ? { explanation: card.explanation } : {}),
+      })),
+    });
+    setResourceBodyHtml(resource.body ?? resource.description ?? "");
+    setResourceQuestionHtml(resource.question || "");
+    setResourceAnswerHtml(resource.answer || "");
+    setResourceExplanationHtml(resource.explanation || "");
+    setResourceInputMode(resource.url ? "url" : "upload");
+    setAudioFile(null);
+    setAudioFilePreviewUrl(null);
+    setResourceFile(null);
+    setResourceFilePreviewUrl(null);
+    setResourceStatus(null);
+    setActiveTab("builder");
+    window.setTimeout(() => document.getElementById("student-resource-editor")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  };
+
+  const startNewLessonResource = () => {
+    setBuilderResourcesExpanded(true);
+    setIsManualLessonResourceOpen(true);
+    setEditingLessonResourceId(null);
+    setEditingStudentResourceId(null);
+    setEditingFlashcardIndex(null);
+    setResourceDraft(EMPTY_RESOURCE_DRAFT);
+    setResourceBodyHtml("");
+    setResourceQuestionHtml("");
+    setResourceAnswerHtml("");
+    setResourceExplanationHtml("");
+    setResourceInputMode("upload");
+    setAudioFile(null);
+    setAudioFilePreviewUrl(null);
+    setResourceFile(null);
+    setResourceFilePreviewUrl(null);
+    setResourceStatus(null);
+    window.setTimeout(() => document.getElementById("student-resource-editor")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  };
+
   const cancelStudentResourceEdit = () => {
     setEditingStudentResourceId(null);
+    setEditingLessonResourceId(null);
+    setIsManualLessonResourceOpen(false);
+    setEditingFlashcardIndex(null);
     setResourceDraft(EMPTY_RESOURCE_DRAFT);
     setResourceBodyHtml("");
     setResourceQuestionHtml("");
     setResourceAnswerHtml("");
     setResourceExplanationHtml("");
     setAudioFile(null);
+    setAudioFilePreviewUrl(null);
     setResourceFile(null);
+    setResourceFilePreviewUrl(null);
     setResourceStatus(null);
   };
 
@@ -2405,17 +2472,28 @@ export default function InstructorWorkstationPage({
     const resourceBeingEdited = editingStudentResourceId
       ? studentResources.find((resource) => resource.id === editingStudentResourceId) || null
       : null;
+    const lessonResourceBeingEdited = editingLessonResourceId
+      ? lessonResources.find((resource) => resource.id === editingLessonResourceId) || null
+      : null;
     if (editingStudentResourceId && !resourceBeingEdited) {
       setResourceStatus("This resource is no longer available. Refresh the list and try again.");
       return;
     }
+    if (editingLessonResourceId && !lessonResourceBeingEdited) {
+      setResourceStatus("This lesson resource is no longer available. Refresh the list and try again.");
+      return;
+    }
     const resetDraftAfterSave = () => {
       setResourceDraft({ ...EMPTY_RESOURCE_DRAFT, type: resourceType });
+      setResourceBodyHtml("");
       setResourceQuestionHtml("");
       setResourceAnswerHtml("");
       setResourceExplanationHtml("");
       setDraftFlashcardFlipped(false);
       setEditingStudentResourceId(null);
+      setEditingLessonResourceId(null);
+      setIsManualLessonResourceOpen(false);
+      setEditingFlashcardIndex(null);
     };
 
     if (resourceType === "flashcard" && resourceDraft.cards.length === 0) {
@@ -2498,6 +2576,12 @@ export default function InstructorWorkstationPage({
       && resourceBeingEdited.link_url === resourceDraft.linkUrl.trim()
       && (resourceBeingEdited.storage_path || resourceBeingEdited.original_filename || resourceBeingEdited.media_type),
     );
+    const preserveExistingLessonAttachment = Boolean(
+      lessonResourceBeingEdited?.url
+      && lessonResourceBeingEdited.url === resourceDraft.linkUrl.trim()
+      && !usesMediaUpload,
+    );
+    setIsSavingResourceDraft(true);
     try {
       let resourceUrl = resourceDraft.linkUrl.trim();
       if (usesMediaUpload && mediaUploadFile && resourceFileMediaType) {
@@ -2505,7 +2589,7 @@ export default function InstructorWorkstationPage({
         resourceFileStoragePath = await uploadAsset(mediaUploadFile, safeFileName, "resource-hub");
         resourceUrl = resourceFileStoragePath;
       }
-      if (!resolvedLessonId || !resolvedStudent || lessonStatus === "draft") {
+      if (lessonResourceBeingEdited || isManualLessonResourceOpen || !resolvedLessonId || !resolvedStudent || lessonStatus === "draft") {
         const lessonResourceType: LessonResource["type"] = resourceType === "audio"
           ? "Audio"
           : resourceType === "video"
@@ -2515,60 +2599,50 @@ export default function InstructorWorkstationPage({
               : resourceType === "file"
                 ? "PDF"
                 : "Article";
-        const draftResourceBeingEdited = editingStudentResourceId
-          ? lessonResources.find((resource) => resource.id === editingStudentResourceId)
-          : undefined;
         const draftResource: LessonResource = {
-          id: draftResourceBeingEdited?.id || crypto.randomUUID(),
+          ...(lessonResourceBeingEdited || {}),
+          id: lessonResourceBeingEdited?.id || crypto.randomUUID(),
           title: trimmedTitle || (resourceType === "data_table" ? "Data Table" : "Untitled resource"),
-          url: resourceUrl,
+          url: resourceUrl || "",
           type: lessonResourceType,
           resourceType: storedResourceType,
           description: resourceDraft.body.trim() || undefined,
           body: resourceDraft.body.trim() || null,
-          question: resourceDraft.question.trim() || null,
-          answer: resourceDraft.answer.trim() || null,
-          explanation: resourceDraft.explanation.trim() || null,
-          cards: resourceDraft.cards.map((card) => ({ ...card })),
-          original_filename: usesMediaUpload ? mediaUploadFile?.name || null : null,
-          media_type: usesMediaUpload ? resourceFileMediaType : null,
-          storage_path: usesMediaUpload ? resourceFileStoragePath : null,
+          question: resourceType === "flashcard" ? null : resourceDraft.question.trim() || null,
+          answer: resourceType === "flashcard" ? null : resourceDraft.answer.trim() || null,
+          explanation: resourceType === "flashcard" ? null : resourceDraft.explanation.trim() || null,
+          cards: resourceType === "flashcard" ? resourceDraft.cards.map((card) => ({ ...card })) : null,
+          original_filename: usesMediaUpload
+            ? mediaUploadFile?.name || null
+            : preserveExistingLessonAttachment ? lessonResourceBeingEdited?.original_filename || null : null,
+          media_type: usesMediaUpload
+            ? resourceFileMediaType
+            : preserveExistingLessonAttachment ? lessonResourceBeingEdited?.media_type || null : null,
+          storage_path: usesMediaUpload
+            ? resourceFileStoragePath
+            : preserveExistingLessonAttachment ? lessonResourceBeingEdited?.storage_path || null : null,
         };
         const hasDraftResource = lessonResources.some((resource) => resource.id === draftResource.id);
         const nextLessonResources = hasDraftResource
           ? lessonResources.map((resource) => resource.id === draftResource.id ? draftResource : resource)
           : [...lessonResources, draftResource];
-        const nextContent = { ...workstationState.content, lessonResources: nextLessonResources };
-        let updatedLesson: LessonWithVersion | undefined;
-        if (resolvedLessonId) {
-          updatedLesson = await saveLessonResource(resolvedLessonId, draftResource);
-        }
-        setLessonResources(nextLessonResources);
-        setWorkstationState((previous) => ({ ...previous, content: nextContent }));
-        if (updatedLesson) {
-          setCreatedLessons((current) => current.map((lesson) => lesson.id === updatedLesson.id ? updatedLesson : lesson));
-          const savedSignature = getDraftSignature(
-            nextContent,
-            newLesson.title,
-            newLesson.subtitle,
-            newLesson.moduleNumber,
-          );
-          lastSavedDraftSignature.current = savedSignature;
-          currentDraftSignatureRef.current = savedSignature;
-          setIsDirty(false);
-        } else {
-          setIsDirty(true);
-        }
+        await persistLessonResourceList(nextLessonResources);
         setResourceFile(null);
+        setResourceFilePreviewUrl(null);
         setAudioFile(null);
+        setAudioFilePreviewUrl(null);
         resetDraftAfterSave();
-        setResourceStatus(resolvedLessonId
-          ? "Resource saved to the lesson draft. Assign the lesson to make it available to students."
-          : "Resource added to the draft. Save the lesson to persist it.");
-        if (draftResourceBeingEdited?.storage_path
-          && draftResourceBeingEdited.storage_path !== draftResource.storage_path) {
+        setResourceStatus(lessonStatus === "published"
+          ? "Lesson resource saved and synced to active student Study Hubs."
+          : resolvedLessonId
+            ? "Resource saved to the lesson draft. Assign the lesson to make it available to students."
+            : "Resource added to the draft. Save the lesson to persist it.");
+        const previousAttachment = lessonResourceBeingEdited?.storage_path || lessonResourceBeingEdited?.url;
+        if (previousAttachment
+          && previousAttachment !== draftResource.storage_path
+          && previousAttachment !== draftResource.url) {
           try {
-            await deleteAsset(draftResourceBeingEdited.storage_path);
+            await deleteAsset(previousAttachment);
           } catch (cleanupError) {
             console.error("Replaced lesson draft resource file cleanup failed:", cleanupError);
             setResourceStatus("Resource saved, but its previous uploaded file could not be removed.");
@@ -2587,7 +2661,7 @@ export default function InstructorWorkstationPage({
           ? resourceFile?.name.replace(/\.[^.]+$/, "") || "Data Table"
           : trimmedTitle),
         updated_at: new Date().toISOString(),
-        body: ["note", "reading", "quiz", "audio", "video", "data_table"].includes(resourceType)
+        body: ["note", "reading", "quiz", "audio", "video", "image", "file", "data_table"].includes(resourceType)
           ? resourceDraft.body.trim() || null
           : null,
         link_url: ["reading", "audio", "file", "image", "video", "data_table", "links"].includes(resourceType)
@@ -2728,6 +2802,8 @@ export default function InstructorWorkstationPage({
       const diagnostic = [details, hint].filter(Boolean).join(" ");
       console.error("Student resource save failed:", { message, details, hint, code: errorObject?.code, constraint: errorObject?.constraint });
       setResourceStatus(`Resource save failed: ${message}${diagnostic ? ` (${diagnostic})` : ""}`);
+    } finally {
+      setIsSavingResourceDraft(false);
     }
   };
 
@@ -5623,11 +5699,8 @@ export default function InstructorWorkstationPage({
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setBuilderResourcesExpanded(true);
-                    setIsManualLessonResourceOpen((open) => !open);
-                    setEditingLessonResourceId(null);
-                  }}
+                  disabled={isSavingResourceDraft || isSavingLessonResources}
+                  onClick={startNewLessonResource}
                   className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-xs font-medium text-stone-300 transition hover:border-amber-500/40 hover:text-stone-100"
                 >
                   <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Add Resource
@@ -5673,70 +5746,13 @@ export default function InstructorWorkstationPage({
                     </div>
                     <span className="rounded-full border border-border px-2 py-0.5 text-[10px] text-stone-400">{lessonResources.length}</span>
                   </div>
-                  {isManualLessonResourceOpen && (
-                    <form onSubmit={addManualLessonResource} className="mb-3 grid gap-2 rounded-md border border-border bg-background p-3 sm:grid-cols-[1fr_1fr_auto_auto]">
-                      <label className="text-xs text-stone-400">
-                        Title
-                        <input
-                          required
-                          value={manualLessonResourceDraft.title}
-                          onChange={(event) => setManualLessonResourceDraft((current) => ({ ...current, title: event.target.value }))}
-                          placeholder="Resource title"
-                          className="mt-1 w-full rounded-md border border-border bg-surface p-2 text-xs text-stone-200"
-                        />
-                      </label>
-                      <label className="text-xs text-stone-400">
-                        URL
-                        <input
-                          required
-                          type="url"
-                          value={manualLessonResourceDraft.url}
-                          onChange={(event) => setManualLessonResourceDraft((current) => ({ ...current, url: event.target.value }))}
-                          placeholder="https://..."
-                          className="mt-1 w-full rounded-md border border-border bg-surface p-2 text-xs text-stone-200"
-                        />
-                      </label>
-                      <button type="submit" disabled={isSavingLessonResources} className="self-end rounded-md bg-amber-500/20 px-3 py-2 text-xs font-medium text-amber-300 hover:bg-amber-500/30 disabled:cursor-wait disabled:opacity-50">{isSavingLessonResources ? "Saving..." : "Add"}</button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsManualLessonResourceOpen(false);
-                          setManualLessonResourceDraft({ title: "", url: "" });
-                        }}
-                        className="self-end rounded-md border border-border px-3 py-2 text-xs text-stone-400 hover:text-stone-200"
-                      >Cancel</button>
-                    </form>
-                  )}
                   {lessonResources.length === 0 ? (
                     <p className="rounded-md border border-dashed border-border px-3 py-5 text-center text-xs text-stone-500">No lesson resources yet. Add one or import assets from the Resource Hub.</p>
                   ) : (
                     <ul className="divide-y divide-border rounded-md border border-border">
                       {lessonResources.map((resource) => (
                         <li key={resource.id} className="p-3">
-                          {editingLessonResourceId === resource.id ? (
-                            <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto_auto]">
-                              <label className="text-xs text-stone-400">
-                                Title
-                                <input
-                                  value={lessonResourceEditDraft.title}
-                                  onChange={(event) => setLessonResourceEditDraft((current) => ({ ...current, title: event.target.value }))}
-                                  className="mt-1 w-full rounded-md border border-border bg-surface p-2 text-xs text-stone-200"
-                                />
-                              </label>
-                              <label className="text-xs text-stone-400">
-                                URL
-                                <input
-                                  type="url"
-                                  value={lessonResourceEditDraft.url}
-                                  onChange={(event) => setLessonResourceEditDraft((current) => ({ ...current, url: event.target.value }))}
-                                  className="mt-1 w-full rounded-md border border-border bg-surface p-2 text-xs text-stone-200"
-                                />
-                              </label>
-                              <button type="button" disabled={isSavingLessonResources} onClick={() => void saveLessonResourceEdit(resource.id)} className="self-end rounded-md bg-amber-500/20 px-3 py-2 text-xs font-medium text-amber-300 hover:bg-amber-500/30 disabled:cursor-wait disabled:opacity-50">{isSavingLessonResources ? "Saving..." : "Save"}</button>
-                              <button type="button" onClick={() => setEditingLessonResourceId(null)} className="self-end rounded-md border border-border px-3 py-2 text-xs text-stone-400 hover:text-stone-200">Cancel</button>
-                            </div>
-                          ) : (
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                               <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
                                   <span className="text-sm font-medium text-stone-100">{resource.title}</span>
@@ -5755,16 +5771,14 @@ export default function InstructorWorkstationPage({
                               <div className="flex shrink-0 items-center gap-2">
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    setLessonResourceEditDraft({ title: resource.title, url: resource.url });
-                                    setEditingLessonResourceId(resource.id);
-                                    setIsManualLessonResourceOpen(false);
-                                  }}
+                                  disabled={isSavingResourceDraft || isSavingLessonResources}
+                                  onClick={() => editLessonResource(resource)}
                                   aria-label={`Edit ${resource.title}`}
                                   className="rounded-md border border-border p-2 text-stone-400 hover:text-stone-100"
                                 ><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
                                 <button
                                   type="button"
+                                  disabled={isSavingResourceDraft || isSavingLessonResources}
                                   onClick={() => setDeleteConfirmation({
                                     title: `Remove ${resource.title} from this lesson?`,
                                     description: "This removes the resource from the lesson. The source resource itself will not be deleted.",
@@ -5778,7 +5792,6 @@ export default function InstructorWorkstationPage({
                                 ><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>
                               </div>
                             </div>
-                          )}
                         </li>
                       ))}
                     </ul>
@@ -5789,7 +5802,7 @@ export default function InstructorWorkstationPage({
                     <button
                       key={type}
                       type="button"
-                      disabled={Boolean(editingStudentResourceId && activeResourceType !== type)}
+                      disabled={isSavingResourceDraft || isSavingLessonResources || Boolean((editingStudentResourceId || editingLessonResourceId) && activeResourceType !== type)}
                       aria-pressed={activeResourceType === type}
                       onClick={() => setResourceDraft((previous) => ({ ...previous, type }))}
                       className={`min-w-0 truncate rounded-md border px-2 py-2 text-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${activeResourceType === type ? 'border-amber-500/40 bg-amber-500/20 text-amber-400 shadow-sm' : 'border-border bg-background text-stone-400 hover:border-amber-500/40 hover:text-stone-100'}`}
@@ -5807,13 +5820,15 @@ export default function InstructorWorkstationPage({
                 <div className="grid min-w-0 grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.35fr)]">
                   <div className="w-full min-w-0 rounded-2xl border border-border bg-surface/60 p-5">
                     <div id="student-resource-editor" className="mb-4 border-b border-border pb-3">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">{editingStudentResourceId ? "Edit saved resource" : "Resource Editor"}</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">
+                        {editingStudentResourceId || editingLessonResourceId ? "Edit resource content" : isManualLessonResourceOpen ? "New lesson resource" : "Resource Editor"}
+                      </p>
                       <h4 className="mt-1 font-sans text-lg font-semibold text-stone-100">
                         {activeResourceType === "note" ? "Note Editor" : activeResourceType === "reading" ? "Reading Editor" : activeResourceType === "flashcard" ? "Flashcard Builder" : activeResourceType === "quiz" ? "Quiz Editor" : activeResourceType === "audio" ? "Audio Editor" : activeResourceType === "video" ? "Video Editor" : activeResourceType === "image" ? "Image Editor" : activeResourceType === "file" ? "File Upload" : activeResourceType === "links" ? "Links Editor" : "Data Table Editor"}
                       </h4>
                     </div>
 
-                    <div className="space-y-3">
+                    <fieldset disabled={isSavingResourceDraft || isSavingLessonResources} className="space-y-3">
                       <label className="block text-xs text-stone-400">
                         {activeResourceType === "links" ? "Link Title" : "Title"}
                         <input
@@ -5842,6 +5857,11 @@ export default function InstructorWorkstationPage({
                           <button type="button" role="tab" aria-selected={resourceInputMode === "upload"} onClick={() => setResourceInputMode("upload")} className={`rounded px-3 py-2 text-xs  transition ${resourceInputMode === "upload" ? "bg-amber-500/20 text-amber-400" : "text-stone-400 hover:text-stone-200"}`}>Upload File</button>
                           <button type="button" role="tab" aria-selected={resourceInputMode === "url"} onClick={() => setResourceInputMode("url")} className={`rounded px-3 py-2 text-xs  transition ${resourceInputMode === "url" ? "bg-amber-500/20 text-amber-400" : "text-stone-400 hover:text-stone-200"}`}>Paste URL</button>
                         </div>
+                      )}
+                      {editingLessonResourceId && lessonResources.find((resource) => resource.id === editingLessonResourceId)?.url && (
+                        <p className="break-all rounded-md border border-border bg-background px-3 py-2 text-[11px] leading-relaxed text-stone-400">
+                          Current attachment: {lessonResources.find((resource) => resource.id === editingLessonResourceId)?.original_filename || lessonResources.find((resource) => resource.id === editingLessonResourceId)?.url}. It is retained unless you choose a replacement.
+                        </p>
                       )}
 
                       {resourceDraft.type !== "audio" && (["file", "image", "video"].includes(resourceDraft.type) || (resourceDraft.type === "reading" && resourceInputMode === "upload")) && resourceInputMode === "upload" && (
@@ -5935,6 +5955,19 @@ export default function InstructorWorkstationPage({
                             aria-label="Optional video transcript and subtitles"
                           />
                           <span className="mt-1 block text-[11px] leading-relaxed text-stone-500">Timestamped lines appear as clickable subtitles in the Study Hub video player.</span>
+                        </label>
+                      )}
+
+                      {["file", "image"].includes(resourceDraft.type) && (
+                        <label className="block text-xs text-stone-400">
+                          Optional description
+                          <TiptapEditor
+                            value={resourceDraft.body}
+                            onChange={(body) => setResourceDraft((previous) => ({ ...previous, body }))}
+                            onHtmlChange={setResourceBodyHtml}
+                            placeholder="Describe this attachment for students."
+                            ariaLabel="Optional attachment description"
+                          />
                         </label>
                       )}
 
@@ -6040,30 +6073,59 @@ export default function InstructorWorkstationPage({
                             onClick={addFlashcardToDeck}
                             className="w-full rounded-md border border-border px-4 py-2.5 text-xs text-stone-200 transition hover:border-amber-500/40 hover:text-amber-400"
                           >
-                            + Add Card to Deck
+                            {editingFlashcardIndex === null ? "+ Add Card to Deck" : "Update Card"}
                           </button>
                           <FlashcardDraftList
                             cards={resourceDraft.cards}
+                            onEdit={(index) => {
+                              const card = resourceDraft.cards[index];
+                              if (!card) return;
+                              setEditingFlashcardIndex(index);
+                              setResourceDraft((previous) => ({
+                                ...previous,
+                                question: card.front,
+                                answer: card.back,
+                                explanation: card.explanation || "",
+                              }));
+                              setResourceQuestionHtml(card.front);
+                              setResourceAnswerHtml(card.back);
+                              setResourceExplanationHtml(card.explanation || "");
+                              setResourceStatus(null);
+                            }}
+                            onMove={(index, direction) => {
+                              const destination = index + direction;
+                              if (destination < 0 || destination >= resourceDraft.cards.length) return;
+                              setResourceDraft((previous) => {
+                                const cards = [...previous.cards];
+                                [cards[index], cards[destination]] = [cards[destination], cards[index]];
+                                return { ...previous, cards };
+                              });
+                              if (editingFlashcardIndex === index) setEditingFlashcardIndex(destination);
+                              else if (editingFlashcardIndex === destination) setEditingFlashcardIndex(index);
+                            }}
                             onRemove={(index) => setDeleteConfirmation({
                               title: `Remove flashcard ${index + 1}?`,
                               description: "Are you sure you want to remove this card from the draft deck? This action cannot be undone.",
-                              onConfirm: () => setResourceDraft((previous) => ({
-                                ...previous,
-                                cards: previous.cards.filter((_, cardIndex) => cardIndex !== index),
-                              })),
+                              onConfirm: () => {
+                                setResourceDraft((previous) => ({
+                                  ...previous,
+                                  cards: previous.cards.filter((_, cardIndex) => cardIndex !== index),
+                                }));
+                                setEditingFlashcardIndex((current) => current === index ? null : current !== null && current > index ? current - 1 : current);
+                              },
                             })}
                           />
                         </>
                       )}
 
-                      <button type="button" onClick={() => void saveStudentResource()} className="w-full rounded-md bg-amber-500/20 px-4 py-2.5 text-xs text-amber-400 transition hover:bg-amber-500/30">
-                        {editingStudentResourceId
+                      <button type="button" disabled={isSavingResourceDraft || isSavingLessonResources} onClick={() => void saveStudentResource()} className="w-full rounded-md bg-amber-500/20 px-4 py-2.5 text-xs text-amber-400 transition hover:bg-amber-500/30 disabled:cursor-wait disabled:opacity-50">
+                        {isSavingResourceDraft || isSavingLessonResources ? "Saving..." : editingStudentResourceId || editingLessonResourceId
                           ? resourceDraft.type === "flashcard" ? "Update Deck" : "Update resource"
                           : resourceDraft.type === "data_table" ? "Save Data Table" : resourceDraft.type === "flashcard" ? "Save Deck" : "Save resource"}
                       </button>
-                      {editingStudentResourceId && <button type="button" onClick={cancelStudentResourceEdit} className="w-full rounded-md border border-border px-4 py-2.5 text-xs text-stone-300 transition hover:border-stone-300 hover:text-stone-100">Cancel edit</button>}
+                      {(editingStudentResourceId || editingLessonResourceId || isManualLessonResourceOpen) && <button type="button" disabled={isSavingResourceDraft || isSavingLessonResources} onClick={cancelStudentResourceEdit} className="w-full rounded-md border border-border px-4 py-2.5 text-xs text-stone-300 transition hover:border-stone-300 hover:text-stone-100 disabled:opacity-50">Cancel</button>}
                       {resourceStatus && <p role="status" className="text-xs leading-relaxed text-amber-400">{resourceStatus}</p>}
-                    </div>
+                    </fieldset>
                   </div>
 
                   {activeResourceType === "flashcard" ? (
