@@ -553,6 +553,80 @@ type PendingReviewSubmission = {
   submission: StudentSubmission;
 };
 
+type LessonBuilderFormState = {
+  studentId: string;
+  title: string;
+  slug: string;
+  subtitle: string;
+  instructorGuidance: string;
+  moduleNumber: string;
+  level: string;
+  tags: LessonTags;
+  customTagsText: string;
+  status: "draft" | "published";
+};
+
+type LessonBuilderDraftSnapshot = {
+  version: 1;
+  lessonId: string | null;
+  signature: string;
+  syncedSignature: string;
+  savedAt: string;
+  lesson: LessonBuilderFormState;
+  content: StrictStepContent;
+  bannerUrl: string;
+  customBannerUrl: string;
+  bannerPosition: BannerPosition;
+  bannerDimness: number;
+  sidebarBlocksByStep: SidebarBlocksByStep;
+  lessonResources: LessonResource[];
+  lessonStatus: "draft" | "published";
+};
+
+function isLessonBuilderDraftSnapshot(value: unknown): value is LessonBuilderDraftSnapshot {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const snapshot = value as Record<string, unknown>;
+  const lesson = snapshot.lesson && typeof snapshot.lesson === "object" && !Array.isArray(snapshot.lesson)
+    ? snapshot.lesson as Record<string, unknown>
+    : null;
+  const tags = lesson?.tags && typeof lesson.tags === "object" && !Array.isArray(lesson.tags)
+    ? lesson.tags as Record<string, unknown>
+    : null;
+  const position = snapshot.bannerPosition && typeof snapshot.bannerPosition === "object" && !Array.isArray(snapshot.bannerPosition)
+    ? snapshot.bannerPosition as Record<string, unknown>
+    : null;
+  return snapshot.version === 1
+    && (snapshot.lessonId === null || typeof snapshot.lessonId === "string")
+    && typeof snapshot.signature === "string"
+    && typeof snapshot.syncedSignature === "string"
+    && typeof snapshot.savedAt === "string"
+    && !!lesson
+    && typeof lesson.studentId === "string"
+    && typeof lesson.title === "string"
+    && typeof lesson.slug === "string"
+    && typeof lesson.subtitle === "string"
+    && typeof lesson.instructorGuidance === "string"
+    && typeof lesson.moduleNumber === "string"
+    && typeof lesson.level === "string"
+    && !!tags
+    && Array.isArray(tags.custom)
+    && (lesson.status === "draft" || lesson.status === "published")
+    && !!snapshot.content
+    && typeof snapshot.content === "object"
+    && !Array.isArray(snapshot.content)
+    && typeof snapshot.bannerUrl === "string"
+    && typeof snapshot.customBannerUrl === "string"
+    && typeof snapshot.bannerDimness === "number"
+    && !!position
+    && typeof position.x === "number"
+    && typeof position.y === "number"
+    && !!snapshot.sidebarBlocksByStep
+    && typeof snapshot.sidebarBlocksByStep === "object"
+    && !Array.isArray(snapshot.sidebarBlocksByStep)
+    && Array.isArray(snapshot.lessonResources)
+    && (snapshot.lessonStatus === "draft" || snapshot.lessonStatus === "published");
+}
+
 type DashboardActivity = {
   id: string;
   type: "Evaluation" | "Active Workspace" | "Lesson Edit" | "Lesson Created";
@@ -1001,11 +1075,25 @@ export default function InstructorWorkstationPage({
   const [previewStep, setPreviewStep] = useState<"warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking" | "results">("warm_up");
   const previewChannelRef = useRef<BroadcastChannel | null>(null);
   const [saveIndicator, setSaveIndicator] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [consecutiveSaveFailures, setConsecutiveSaveFailures] = useState(0);
+  const [persistentSaveError, setPersistentSaveError] = useState<string | null>(null);
+  const [localDraftError, setLocalDraftError] = useState<string | null>(null);
+  const [cacheSyncVersion, setCacheSyncVersion] = useState(0);
+  const [pendingRecoveryDraft, setPendingRecoveryDraft] = useState<LessonBuilderDraftSnapshot | null>(null);
+  const [reauthenticationOpen, setReauthenticationOpen] = useState(false);
+  const [reauthenticationEmail, setReauthenticationEmail] = useState("");
+  const [reauthenticationPassword, setReauthenticationPassword] = useState("");
+  const [reauthenticationError, setReauthenticationError] = useState<string | null>(null);
+  const [reauthenticationLoading, setReauthenticationLoading] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [showSuccessCheck, setShowSuccessCheck] = useState(false);
   const hasLoadedLesson = useRef(false);
   const lastSavedDraftSignature = useRef<string | null>(null);
   const saveRequestId = useRef(0);
+  const consecutiveSaveFailuresRef = useRef(0);
+  const cacheSyncedSignatureRef = useRef<string | null>(null);
+  const pendingRecoveryKeyRef = useRef<string | null>(null);
+  const recoveryCheckedKeyRef = useRef<string | null>(null);
   const activeLessonIdRef = useRef<string | null>(null);
   const lastEditQueryRef = useRef<string | null>(null);
   const workstationMountedRef = useRef(false);
@@ -1015,6 +1103,10 @@ export default function InstructorWorkstationPage({
   const inputTimer = useRef<number | null>(null);
   const autoSaveTimer = useRef<number | null>(null);
   const savedIndicatorTimer = useRef<number | null>(null);
+  const getBuilderDraftStorageKey = useCallback(
+    (lessonId: string | null = databaseLessonId) => `fluentia:lesson-builder-draft:${instructorId}:${lessonId || "new"}`,
+    [databaseLessonId, instructorId],
+  );
   const [validationErrors, setValidationErrors] = useState<Partial<Record<"selectedStudentId" | "title" | "slug" | "moduleNumber", string>>>({});
   const [createdLessons, setCreatedLessons] = useState<LessonWithVersion[]>([]);
   const [lessonTracks, setLessonTracks] = useState<LessonTrack[]>([]);
@@ -1175,6 +1267,10 @@ export default function InstructorWorkstationPage({
     activeLessonIdRef.current = null;
     hasLoadedLesson.current = false;
     lastSavedDraftSignature.current = null;
+    cacheSyncedSignatureRef.current = null;
+    pendingRecoveryKeyRef.current = null;
+    recoveryCheckedKeyRef.current = null;
+    setPendingRecoveryDraft(null);
     resetStore();
     setDatabaseLessonId(null);
     setResourceLessonId(null);
@@ -1201,6 +1297,7 @@ export default function InstructorWorkstationPage({
     }));
     setLessonStatus("draft");
     setSaveIndicator("idle");
+    setLocalDraftError(null);
     setIsDirty(false);
     setShowSuccessCheck(false);
     setValidationErrors({});
@@ -1236,6 +1333,7 @@ export default function InstructorWorkstationPage({
   const startNewLesson = () => {
     writeEditLessonQuery(null);
     resetBuilderState();
+    hasLoadedLesson.current = true;
     setActiveTab("builder");
   };
 
@@ -1586,6 +1684,7 @@ export default function InstructorWorkstationPage({
       if (!readEditLessonQuery()) {
         writeEditLessonQuery(null);
         resetBuilderState();
+        hasLoadedLesson.current = true;
       }
     } else if (activeTab === "builder") {
       writeEditLessonQuery(null);
@@ -1692,6 +1791,9 @@ export default function InstructorWorkstationPage({
     saveInFlight.current = false;
     activeLessonIdRef.current = lesson.id;
     lastSavedDraftSignature.current = null;
+    cacheSyncedSignatureRef.current = null;
+    pendingRecoveryKeyRef.current = null;
+    setPendingRecoveryDraft(null);
     setIsDirty(false);
     setSaveIndicator("idle");
     setShowSuccessCheck(false);
@@ -1737,9 +1839,7 @@ export default function InstructorWorkstationPage({
     setResourceLessonId(lesson.id);
     setResourceFile(null);
     setLessonStatus(lesson.status === "published" ? "published" : "draft");
-    window.setTimeout(() => {
-      if (activeLessonIdRef.current === lesson.id) hasLoadedLesson.current = true;
-    }, 0);
+    hasLoadedLesson.current = true;
   };
 
   const handleEditLesson = (lesson: LessonWithVersion) => {
@@ -1808,6 +1908,7 @@ export default function InstructorWorkstationPage({
     setSidebarBlocksByStep(nextSidebar);
     setLessonResources(nextResources);
     setLessonStatus("draft");
+    hasLoadedLesson.current = true;
     setSaveIndicator("idle");
     setPublishStatus("Copy ready. Save this draft now, then assign it to students when you are ready.");
     setActiveTab("builder");
@@ -2705,6 +2806,14 @@ export default function InstructorWorkstationPage({
       setDatabaseLessonId(created.id);
       activeLessonIdRef.current = created.id;
       hasLoadedLesson.current = true;
+      lastSavedDraftSignature.current = currentDraftSignatureRef.current;
+      cacheSyncedSignatureRef.current = currentDraftSignatureRef.current;
+      setCacheSyncVersion((version) => version + 1);
+      try {
+        window.localStorage.removeItem(getBuilderDraftStorageKey(null));
+      } catch (error) {
+        console.warn("Unable to remove the temporary Lesson Builder recovery draft:", error);
+      }
       setSaveIndicator("saved");
       await refreshCreatedLessons();
       setValidationErrors({});
@@ -2779,9 +2888,14 @@ export default function InstructorWorkstationPage({
       const previousEditId = lastEditQueryRef.current;
       lastEditQueryRef.current = editId;
       if (!editId) {
-        if (activeTab === "builder" && previousEditId) resetBuilderState();
+        if (activeTab === "builder" && !databaseLessonId) hasLoadedLesson.current = true;
+        if (activeTab === "builder" && previousEditId) {
+          resetBuilderState();
+          hasLoadedLesson.current = true;
+        }
         if (window.location.pathname.endsWith("/builder") && activeTab !== "builder") {
           resetBuilderState();
+          hasLoadedLesson.current = true;
           setActiveTab("builder");
         }
         return;
@@ -2812,6 +2926,73 @@ export default function InstructorWorkstationPage({
     setIsDirty(draftIsDirty);
     if (draftIsDirty) setShowSuccessCheck(false);
   }, [currentDraftSignature, databaseLessonId]);
+
+  useEffect(() => {
+    if (activeTab !== "builder" || !hasLoadedLesson.current) return;
+    const key = getBuilderDraftStorageKey();
+    const recoveryIdentity = `${key}:${databaseLessonId || "new"}`;
+    if (recoveryCheckedKeyRef.current === recoveryIdentity) return;
+    recoveryCheckedKeyRef.current = recoveryIdentity;
+    try {
+      const rawSnapshot = window.localStorage.getItem(key);
+      if (!rawSnapshot) return;
+      const parsed: unknown = JSON.parse(rawSnapshot);
+      if (!isLessonBuilderDraftSnapshot(parsed) || parsed.lessonId !== databaseLessonId) return;
+      if (parsed.signature === parsed.syncedSignature) return;
+      pendingRecoveryKeyRef.current = key;
+      setPendingRecoveryDraft(parsed);
+    } catch (error) {
+      console.warn("Unable to read the local Lesson Builder recovery draft:", error);
+      setLocalDraftError("A local recovery draft could not be read. The current editor contents remain unchanged.");
+    }
+  }, [activeTab, currentDraftSignature, databaseLessonId, getBuilderDraftStorageKey]);
+
+  useEffect(() => {
+    if (activeTab !== "builder" || !hasLoadedLesson.current) return;
+    const key = getBuilderDraftStorageKey();
+    if (pendingRecoveryKeyRef.current === key) return;
+    const syncedSignature = cacheSyncedSignatureRef.current
+      ?? lastSavedDraftSignature.current
+      ?? currentDraftSignature;
+    const snapshot: LessonBuilderDraftSnapshot = {
+      version: 1,
+      lessonId: databaseLessonId,
+      signature: currentDraftSignature,
+      syncedSignature,
+      savedAt: new Date().toISOString(),
+      lesson: { ...newLesson, tags: { ...newLesson.tags, custom: [...newLesson.tags.custom] } },
+      content: workstationState.content,
+      bannerUrl: workstationState.bannerUrl,
+      customBannerUrl: workstationState.customBannerUrl,
+      bannerPosition: workstationState.bannerPosition,
+      bannerDimness: workstationState.bannerDimness,
+      sidebarBlocksByStep,
+      lessonResources,
+      lessonStatus,
+    };
+    try {
+      window.localStorage.setItem(key, JSON.stringify(snapshot));
+      setLocalDraftError(null);
+    } catch (error) {
+      console.error("Unable to back up Lesson Builder draft locally:", error);
+      setLocalDraftError("Browser storage is unavailable or full. Keep this page open while you retry synchronization.");
+    }
+  }, [
+    activeTab,
+    currentDraftSignature,
+    databaseLessonId,
+    getBuilderDraftStorageKey,
+    lessonResources,
+    lessonStatus,
+    newLesson,
+    sidebarBlocksByStep,
+    cacheSyncVersion,
+    workstationState.customBannerUrl,
+    workstationState.bannerDimness,
+    workstationState.bannerPosition,
+    workstationState.bannerUrl,
+    workstationState.content,
+  ]);
 
   useEffect(() => {
     if (!databaseLessonId || !hasLoadedLesson.current) return;
@@ -3259,6 +3440,19 @@ export default function InstructorWorkstationPage({
       }
       console.log("Lesson saved successfully", { lessonId: lesson.id, status });
       if (!isAutoSave) setPublishStatus(`Lesson saved as ${status}.${assignmentSyncWarning || " Synced with student view."}`);
+      consecutiveSaveFailuresRef.current = 0;
+      setConsecutiveSaveFailures(0);
+      setPersistentSaveError(null);
+      setLocalDraftError(null);
+      cacheSyncedSignatureRef.current = savedDraftSignature;
+      setCacheSyncVersion((version) => version + 1);
+      if (!selectedLessonId) {
+        try {
+          window.localStorage.removeItem(getBuilderDraftStorageKey(null));
+        } catch (error) {
+          console.warn("Unable to remove the temporary Lesson Builder recovery draft:", error);
+        }
+      }
       return true;
     } catch (error) {
       if (requestId !== saveRequestId.current || activeLessonIdRef.current !== selectedLessonId) return false;
@@ -3282,6 +3476,26 @@ export default function InstructorWorkstationPage({
         );
       }
       setSaveIndicator("error");
+      const errorMessage = error instanceof Error ? error.message : details?.message || "The PostgreSQL request failed.";
+      const unauthorized = details?.status === 401 || /unauthori[sz]ed|session (?:has )?expired|sign in to/i.test(errorMessage);
+      consecutiveSaveFailuresRef.current += 1;
+      const failureCount = consecutiveSaveFailuresRef.current;
+      setConsecutiveSaveFailures(failureCount);
+      if (!isAutoSave || failureCount >= 2 || unauthorized) {
+        setPersistentSaveError(unauthorized
+          ? "Save failed: your session may have expired. Changes are backed up in this browser but are not syncing."
+          : `Save failed after ${failureCount} attempt${failureCount === 1 ? "" : "s"}. Changes are backed up in this browser but are not syncing.`);
+      }
+      if (unauthorized) {
+        setReauthenticationError(null);
+        setReauthenticationOpen(true);
+      } else if (isAutoSave && activeLessonIdRef.current === selectedLessonId) {
+        if (autoSaveTimer.current !== null) window.clearTimeout(autoSaveTimer.current);
+        autoSaveTimer.current = window.setTimeout(() => {
+          autoSaveTimer.current = null;
+          void saveLessonChangesRef.current?.(status, true);
+        }, 5000);
+      }
       if (!isAutoSave) setPublishStatus(`Lesson save failed: ${error instanceof Error ? error.message : "The PostgreSQL request failed."}`);
       return false;
     } finally {
@@ -3299,6 +3513,86 @@ export default function InstructorWorkstationPage({
   };
 
   saveLessonChangesRef.current = saveLessonChanges;
+
+  const restoreLocalBuilderDraft = () => {
+    if (!pendingRecoveryDraft) return;
+    const snapshot = pendingRecoveryDraft;
+    pendingRecoveryKeyRef.current = null;
+    cacheSyncedSignatureRef.current = snapshot.syncedSignature;
+    lastSavedDraftSignature.current = snapshot.syncedSignature;
+    setNewLesson(snapshot.lesson);
+    setSelectedStudentId(snapshot.lesson.studentId || null);
+    setWorkstationState((previous) => ({
+      ...previous,
+      content: snapshot.content,
+      bannerUrl: snapshot.bannerUrl,
+      customBannerUrl: snapshot.customBannerUrl,
+      bannerPosition: snapshot.bannerPosition,
+      bannerDimness: snapshot.bannerDimness,
+    }));
+    setSidebarBlocksByStep(snapshot.sidebarBlocksByStep);
+    setLessonResources(snapshot.lessonResources);
+    setLessonStatus(snapshot.lessonStatus);
+    setIsDirty(true);
+    setPendingRecoveryDraft(null);
+    setPersistentSaveError("Recovered local changes are ready to sync. Saving will retry automatically.");
+  };
+
+  const discardLocalBuilderDraft = () => {
+    const key = pendingRecoveryKeyRef.current;
+    pendingRecoveryKeyRef.current = null;
+    if (key) {
+      try {
+        window.localStorage.removeItem(key);
+      } catch (error) {
+        console.error("Unable to discard the local Lesson Builder recovery draft:", error);
+        setLocalDraftError("Unable to remove the discarded local recovery draft from browser storage.");
+      }
+    }
+    const currentSignature = currentDraftSignatureRef.current;
+    cacheSyncedSignatureRef.current = currentSignature;
+    lastSavedDraftSignature.current = currentSignature;
+    setIsDirty(false);
+    setPendingRecoveryDraft(null);
+  };
+
+  const handleReauthentication = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setReauthenticationLoading(true);
+    setReauthenticationError(null);
+    try {
+      const response = await fetch("/api/auth/signin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ email: reauthenticationEmail.trim(), password: reauthenticationPassword }),
+      });
+      const result = await response.json().catch(() => ({})) as {
+        error?: string;
+        user?: { id?: string; email?: string; role?: string };
+      };
+      if (!response.ok || !result.user) {
+        setReauthenticationError(result.error || "Unable to re-authenticate. Check your credentials and try again.");
+        return;
+      }
+      if ((result.user.role !== "instructor" && result.user.role !== "admin") || result.user.id !== instructorId) {
+        await fetch("/api/auth/signout", { method: "POST", credentials: "same-origin" }).catch((error) => {
+          console.error("Unable to end a mismatched re-authenticated session:", error);
+        });
+        setReauthenticationError("Sign in with the same instructor account that owns this workstation.");
+        return;
+      }
+      setReauthenticationPassword("");
+      setReauthenticationOpen(false);
+      setReauthenticationError(null);
+      setPersistentSaveError("Session restored. Retrying synchronization…");
+      await saveLessonChangesRef.current?.(lessonStatus);
+    } catch (error) {
+      setReauthenticationError(error instanceof Error ? error.message : "Re-authentication failed. Please try again.");
+    } finally {
+      setReauthenticationLoading(false);
+    }
+  };
 
   const handleSaveDraft = () => {
     console.log("Saving lesson...", { ...newLesson, content: workstationState.content });
@@ -3997,6 +4291,45 @@ export default function InstructorWorkstationPage({
 
   return (
     <div className="min-h-screen w-full bg-background font-sans text-[#e8e7e4]">
+      {(persistentSaveError || localDraftError) && (
+        <aside
+          role="alert"
+          aria-live="assertive"
+          className="sticky top-0 z-[90] border-b border-amber-400/50 bg-amber-950/95 px-4 py-3 text-amber-100 shadow-lg backdrop-blur"
+        >
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">{persistentSaveError || "Local draft backup needs attention."}</p>
+              {localDraftError && <p className="mt-1 text-xs text-amber-200">{localDraftError}</p>}
+              {consecutiveSaveFailures > 1 && <p className="mt-1 text-xs text-amber-200">Consecutive save failures: {consecutiveSaveFailures}</p>}
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              {persistentSaveError && (
+                <button
+                  type="button"
+                  onClick={() => reauthenticationOpen ? setReauthenticationOpen(false) : void saveLessonChangesRef.current?.(lessonStatus)}
+                  disabled={saveIndicator === "saving"}
+                  className="rounded-md border border-amber-300/50 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-400/10 disabled:opacity-50"
+                >
+                  {reauthenticationOpen ? "Close sign-in" : "Retry Save"}
+                </button>
+              )}
+              {persistentSaveError && !reauthenticationOpen && /session may have expired|unauthori[sz]ed/i.test(persistentSaveError) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReauthenticationError(null);
+                    setReauthenticationOpen(true);
+                  }}
+                  className="rounded-md bg-amber-300 px-3 py-1.5 text-xs font-semibold text-amber-950 hover:bg-amber-200"
+                >
+                  Re-authenticate
+                </button>
+              )}
+            </div>
+          </div>
+        </aside>
+      )}
       <div className={`mx-auto w-full ${activeTab === "builder" ? "max-w-none px-4 md:px-8" : "max-w-7xl px-4 sm:px-6 lg:px-8"} py-6 md:py-8 ${activeTab === "builder" ? "pb-28" : ""}`}>
         <div className="mb-6 flex items-center">
           <img src="/logo.png" alt="Fluentia" className="h-10 w-auto object-contain" />
@@ -6156,6 +6489,83 @@ export default function InstructorWorkstationPage({
         onAssign={(options, customResources) => void saveAssignmentWithResources(options, customResources)}
       />}
       {lessonPendingDelete && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-lesson-title" aria-describedby="delete-lesson-warning"><div className="w-full max-w-md rounded-xl border border-red-500/30 bg-surface p-6 shadow-2xl"><h2 id="delete-lesson-title" className="font-sans text-xl font-semibold text-stone-100">Delete lesson permanently?</h2><p id="delete-lesson-warning" className="mt-3 text-sm leading-relaxed text-stone-300">This permanently deletes the lesson, its versions, assignments, submissions, feedback, and lesson-linked student resources. This action cannot be undone.</p><p className="mt-2 truncate text-xs text-amber-400">{lessonPendingDelete.title}</p><div className="mt-6 flex justify-end gap-3"><button type="button" disabled={isDeletingLesson} onClick={() => setLessonPendingDelete(null)} className="rounded-md border border-border px-4 py-2 text-xs  text-stone-300 hover:border-stone-300 disabled:cursor-not-allowed disabled:opacity-50">Cancel</button><button type="button" disabled={isDeletingLesson} onClick={() => void handleDeleteLesson()} className="rounded-md bg-red-500 px-4 py-2 text-xs  text-white hover:bg-red-400 disabled:cursor-wait disabled:opacity-60">{isDeletingLesson ? "Deleting..." : "Delete lesson"}</button></div></div></div>}
+      {pendingRecoveryDraft && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-4">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="lesson-draft-recovery-title"
+            className="w-full max-w-lg rounded-xl border border-amber-500/40 bg-surface p-6 shadow-2xl"
+          >
+            <h2 id="lesson-draft-recovery-title" className="text-lg font-semibold text-stone-100">Recover local lesson changes?</h2>
+            <p className="mt-2 text-sm leading-relaxed text-stone-300">
+              This browser has Lesson Builder changes that were not confirmed as saved to the server
+              {pendingRecoveryDraft.savedAt ? ` (backed up ${new Date(pendingRecoveryDraft.savedAt).toLocaleString()})` : ""}.
+              Restore them to continue, or discard the local copy and use the saved lesson.
+            </p>
+            <div className="mt-5 flex flex-wrap justify-end gap-3">
+              <button type="button" onClick={discardLocalBuilderDraft} className="rounded-md border border-border px-4 py-2 text-sm text-stone-300 hover:border-stone-500">
+                Use saved lesson
+              </button>
+              <button type="button" onClick={restoreLocalBuilderDraft} className="rounded-md bg-amber-500/20 px-4 py-2 text-sm font-medium text-amber-300 hover:bg-amber-500/30">
+                Restore local changes
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+      {reauthenticationOpen && (
+        <div className="fixed inset-0 z-[140] flex items-center justify-center bg-black/75 p-4">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="workstation-reauth-title"
+            className="w-full max-w-md rounded-xl border border-amber-500/40 bg-surface p-6 shadow-2xl"
+          >
+            <h2 id="workstation-reauth-title" className="text-lg font-semibold text-stone-100">Sign in to restore saving</h2>
+            <p className="mt-2 text-sm leading-relaxed text-stone-300">
+              Your local draft is protected in this browser. Sign back in with the same instructor account to resume synchronization without leaving this page.
+            </p>
+            <form onSubmit={(event) => void handleReauthentication(event)} className="mt-5 space-y-4">
+              <label className="block text-sm text-stone-300">
+                Email address
+                <input
+                  type="email"
+                  name="username"
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  required
+                  value={reauthenticationEmail}
+                  onChange={(event) => setReauthenticationEmail(event.target.value)}
+                  className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2.5 text-stone-100 outline-none focus:border-amber-500/40"
+                />
+              </label>
+              <label className="block text-sm text-stone-300">
+                Password
+                <input
+                  type="password"
+                  name="current-password"
+                  autoComplete="current-password"
+                  required
+                  value={reauthenticationPassword}
+                  onChange={(event) => setReauthenticationPassword(event.target.value)}
+                  className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2.5 text-stone-100 outline-none focus:border-amber-500/40"
+                />
+              </label>
+              {reauthenticationError && <p role="alert" className="rounded-md border border-red-500/30 bg-red-950/30 px-3 py-2 text-sm text-red-200">{reauthenticationError}</p>}
+              <div className="flex justify-end gap-3">
+                <button type="button" onClick={() => setReauthenticationOpen(false)} disabled={reauthenticationLoading} className="rounded-md border border-border px-4 py-2 text-sm text-stone-300 hover:border-stone-500 disabled:opacity-50">
+                  Later
+                </button>
+                <button type="submit" disabled={reauthenticationLoading} className="rounded-md bg-amber-500/20 px-4 py-2 text-sm font-medium text-amber-300 hover:bg-amber-500/30 disabled:cursor-wait disabled:opacity-50">
+                  {reauthenticationLoading ? "Signing in..." : "Sign in and sync"}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
       <DeleteConfirmationDialog request={deleteConfirmation} onCancel={() => setDeleteConfirmation(null)} />
     </div>
   );

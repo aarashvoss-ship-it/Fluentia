@@ -105,6 +105,13 @@ export interface LessonWithVersion extends LessonRow {
 export const BENCHMARK_LESSON_ID = "b1b10001-1001-4001-8001-000000000001";
 export const BENCHMARK_LESSON_SLUG = "the-architecture-of-daily-habits-b1";
 
+class LessonApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "LessonApiError";
+  }
+}
+
 async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     credentials: "same-origin",
@@ -115,7 +122,7 @@ async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
     },
   });
   const result = await response.json().catch(() => ({})) as T & { error?: string };
-  if (!response.ok) throw new Error(result.error || `Lesson request failed (${response.status}).`);
+  if (!response.ok) throw new LessonApiError(result.error || `Lesson request failed (${response.status}).`, response.status);
   return result;
 }
 
