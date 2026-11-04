@@ -15,7 +15,8 @@ import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import { WordCountedTextarea } from "@/components/shared/word-counted-textarea";
 import { parseInteractiveTranscript } from "@/lib/transcripts";
 import { deleteAsset } from "@/services/asset-service";
-import { ExternalLink, Eye, FileText, GripVertical, Layers, LoaderCircle, MoveDown, MoveUp, Plus, Rocket, Save, Trash2, UploadCloud, X, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Mic, Square } from "lucide-react";
+import { CircleHelp, ExternalLink, Eye, FileText, GripVertical, Image, Layers, LoaderCircle, Mic, MoveDown, MoveUp, PenLine, Plus, Rocket, Save, Trash2, Type, UploadCloud, Video, X, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Square } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Tooltip } from "@/components/shared/tooltip";
 import { DeleteConfirmationDialog, type DeleteConfirmationRequest } from "@/components/shared/delete-confirmation-dialog";
 
@@ -50,6 +51,21 @@ const defaultBlockTitles = new Set([
   "writing prompt",
   "quiz / exercise",
 ]);
+
+const BLOCK_PICKER_OPTIONS: {
+  type: ContentBlockType;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+}[] = [
+  { type: "text", label: "Text", description: "Add formatted lesson content and student response fields.", icon: Type },
+  { type: "audio", label: "Audio", description: "Embed audio and optional transcripts or voice responses.", icon: Mic },
+  { type: "video", label: "Video", description: "Add a video lesson with optional transcript and reflection.", icon: Video },
+  { type: "image", label: "Image", description: "Show an image with an optional caption.", icon: Image },
+  { type: "resource", label: "Resource", description: "Link a document or external learning resource.", icon: FileText },
+  { type: "quiz", label: "Quiz", description: "Create an exercise with questions and answer keys.", icon: CircleHelp },
+  { type: "writing", label: "Writing", description: "Set a writing task with guidance and word-count limits.", icon: PenLine },
+];
 
 function isDefaultBlockTitle(title: string): boolean {
   return defaultBlockTitles.has(title.trim().toLowerCase());
@@ -386,7 +402,9 @@ export function LessonTailorEditor({
 }: LessonTailorEditorProps) {
   const [localActiveStep, setLocalActiveStep] = useState<StudyStepId>("warm_up");
   const activeStep = activeStepOverride ?? localActiveStep;
-  const addBlockSelectRef = useRef<HTMLSelectElement | null>(null);
+  const addBlockButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [isBlockPickerOpen, setIsBlockPickerOpen] = useState(false);
+  const [blockInsertIndex, setBlockInsertIndex] = useState(0);
   const [draftContent, setDraftContent] = useState(content);
   const draftContentRef = useRef(content);
   const lastEmittedContentRef = useRef(JSON.stringify(content));
@@ -394,6 +412,7 @@ export function LessonTailorEditor({
   const [openTranscript, setOpenTranscript] = useState<Record<string, boolean>>({});
   const [openReflectionSettings, setOpenReflectionSettings] = useState<Record<string, boolean>>({});
   const [expandedBlocks, setExpandedBlocks] = useState<Record<string, boolean>>({});
+  const [expandedBlockOptions, setExpandedBlockOptions] = useState<Record<string, boolean>>({});
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
   const draggedBlockIdRef = useRef<string | null>(null);
   const [fillBlankModes, setFillBlankModes] = useState<Record<string, "edit" | "preview">>({});
@@ -411,14 +430,22 @@ export function LessonTailorEditor({
 
   useEffect(() => {
     onAddBlockMenuReady?.(() => {
-      const select = addBlockSelectRef.current;
-      if (!select) return;
-      select.scrollIntoView({ behavior: "smooth", block: "center" });
-      select.focus({ preventScroll: true });
-      if (typeof select.showPicker === "function") select.showPicker();
-      else select.click();
+      const button = addBlockButtonRef.current;
+      button?.scrollIntoView({ behavior: "smooth", block: "center" });
+      button?.focus({ preventScroll: true });
+      setBlockInsertIndex(getBlocks(activeStep).length);
+      setIsBlockPickerOpen(true);
     });
-  }, [onAddBlockMenuReady]);
+  }, [activeStep, onAddBlockMenuReady]);
+
+  useEffect(() => {
+    if (!isBlockPickerOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsBlockPickerOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isBlockPickerOpen]);
   
   // Zustand store integration
   const {
@@ -757,16 +784,45 @@ export function LessonTailorEditor({
       });
     };
 
-    const handleAddBlock = (type: ContentBlockType) => {
+    const handleAddBlock = (type: ContentBlockType, requestedIndex = blocks.length) => {
       if (!type) return;
       const newBlock = createBlock(type);
-      updateBlocks(step, [...blocks, newBlock]);
-      
-      // Persist the change.
-      addBlock(step, newBlock).catch((error: any) => {
+      const insertIndex = Math.max(0, Math.min(requestedIndex, blocks.length));
+      const nextBlocks = [...blocks];
+      nextBlocks.splice(insertIndex, 0, newBlock);
+      updateBlocks(step, nextBlocks);
+      setExpandedBlocks((current) => ({ ...current, [newBlock.id]: true }));
+
+      void addBlock(step, newBlock).then(() => {
+        if (insertIndex < blocks.length) {
+          return reorderBlocks(step, blocks.length, insertIndex);
+        }
+      }).catch((error: unknown) => {
         console.error("Failed to add block:", error);
       });
+      setIsBlockPickerOpen(false);
     };
+
+    const openBlockPicker = (insertIndex: number) => {
+      setBlockInsertIndex(insertIndex);
+      setIsBlockPickerOpen(true);
+    };
+
+    const renderQuickAdd = (insertIndex: number) => (
+      <div className="group flex items-center gap-2 py-1" key={`quick-add-${step}-${insertIndex}`}>
+        <span className="h-px flex-1 bg-border transition-colors group-hover:bg-amber-500/30" />
+        <button
+          type="button"
+          onClick={() => openBlockPicker(insertIndex)}
+          className="inline-flex h-7 items-center gap-1 rounded-full border border-border bg-background px-2.5 text-[10px] font-medium text-stone-400 transition hover:border-amber-500/40 hover:bg-amber-500/10 hover:text-amber-300"
+          aria-label={`Add a content block at position ${insertIndex + 1}`}
+        >
+          <Plus className="h-3 w-3" aria-hidden="true" />
+          Add block here
+        </button>
+        <span className="h-px flex-1 bg-border transition-colors group-hover:bg-amber-500/30" />
+      </div>
+    );
 
     const handleDeleteBlock = (index: number, blockId: string) => {
       // Tear down any in-flight recording for the deleted block.
@@ -807,24 +863,19 @@ export function LessonTailorEditor({
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Content Builder</p>
             <p className="mt-1 text-xs text-stone-500">Arrange reusable blocks in the exact order students should see them.</p>
           </div>
-          <select
-            ref={addBlockSelectRef}
-            value=""
-            onChange={(event) => {
-              handleAddBlock(event.target.value as ContentBlockType);
-            }}
+          <button
+            ref={addBlockButtonRef}
+            type="button"
+            onClick={() => openBlockPicker(blocks.length)}
             aria-label={`Add content block to ${step}`}
-            className="min-h-9 rounded border border-amber-500/40 bg-background px-3 text-xs font-normal text-stone-200 [color-scheme:dark] outline-none transition hover:border-amber-500/40 focus:border-amber-500/40"
+            aria-haspopup="dialog"
+            aria-expanded={isBlockPickerOpen}
+            className="inline-flex min-h-9 items-center gap-2 rounded border border-amber-500/40 bg-background px-3 text-xs font-medium text-stone-200 outline-none transition hover:bg-amber-500/10 hover:text-amber-300 focus:border-amber-500/40"
           >
-            <option value="" className="bg-slate-900 text-slate-100">+ Add Content Block</option>
-            <option value="text" className="bg-slate-900 text-slate-100">Text Block</option>
-            <option value="audio" className="bg-slate-900 text-slate-100">Audio Block</option>
-            <option value="video" className="bg-slate-900 text-slate-100">Video Block</option>
-            <option value="image" className="bg-slate-900 text-slate-100">Image Block</option>
-            <option value="resource" className="bg-slate-900 text-slate-100">Resource / Document Block</option>
-            <option value="quiz" className="bg-slate-900 text-slate-100">Quiz / Exercise Block</option>
-            <option value="writing" className="bg-slate-900 text-slate-100">Writing Block</option>
-          </select>
+            <Plus className="h-3.5 w-3.5 text-amber-400" aria-hidden="true" />
+            Add Content Block
+            <ChevronDown className="h-3.5 w-3.5 text-stone-500" aria-hidden="true" />
+          </button>
         </div>
 
         {blocks.length === 0 && <p className="py-3 text-xs text-stone-500">No content blocks yet. Add a block to begin building this step.</p>}
@@ -832,8 +883,9 @@ export function LessonTailorEditor({
           const isExpanded = expandedBlocks[block.id] ?? false;
           const isActive = block.is_active ?? block.enabled !== false;
           return (
+          <React.Fragment key={block.id}>
+          {renderQuickAdd(index)}
           <div
-            key={block.id}
             id={`lesson-builder-block-${block.id}`}
             onDragOver={(event) => {
               if (!draggedBlockIdRef.current) return;
@@ -885,6 +937,26 @@ export function LessonTailorEditor({
             </div>
             <div id={`block-content-${block.id}`} className={`transition-opacity duration-200 ${isExpanded ? "h-auto overflow-visible opacity-100" : "h-0 overflow-hidden opacity-0"}`} aria-hidden={!isExpanded}>
             <input value={isDefaultBlockTitle(block.title) ? "" : block.title} onChange={(event) => updateDynamicBlock(step, index, { title: event.target.value })} placeholder={`Enter ${block.type} block title...`} className="mb-2 w-full rounded border border-border bg-background p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40" aria-label={`${block.type} block title`} />
+            <button
+              type="button"
+              onClick={() => setExpandedBlockOptions((current) => ({ ...current, [block.id]: !(current[block.id] ?? false) }))}
+              aria-expanded={expandedBlockOptions[block.id] ?? false}
+              aria-controls={`block-options-${block.id}`}
+              className="mb-2 flex w-full items-center justify-between rounded border border-border bg-background/40 px-3 py-2 text-left transition hover:border-amber-500/30"
+            >
+              <span>
+                <span className="block text-xs font-medium text-stone-300">Layout & appearance</span>
+                <span className="mt-0.5 block text-[10px] text-stone-500">Optional icon and sidebar placement settings</span>
+              </span>
+              {expandedBlockOptions[block.id] ? <ChevronUp className="h-3.5 w-3.5 text-amber-400" aria-hidden="true" /> : <ChevronDown className="h-3.5 w-3.5 text-stone-500" aria-hidden="true" />}
+            </button>
+            <div
+              id={`block-options-${block.id}`}
+              aria-hidden={!(expandedBlockOptions[block.id] ?? false)}
+              inert={!(expandedBlockOptions[block.id] ?? false)}
+              className={`grid transition-[grid-template-rows,opacity] duration-200 ease-in-out ${expandedBlockOptions[block.id] ? "mb-3 grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
+            >
+            <div className="min-h-0 overflow-hidden">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded border border-border bg-background/60 px-3 py-2">
               <span className="text-xs font-medium text-stone-300">Block Icon</span>
               <div className="flex items-center gap-2">
@@ -911,6 +983,8 @@ export function LessonTailorEditor({
                   <option value="empty">Leave sidebar space</option>
                 </select>
               </label>}
+            </div>
+            </div>
             </div>
             {block.type === "text" && <div className="space-y-3">
               <label className="flex cursor-pointer items-start gap-3 rounded border border-border bg-background/60 p-3">
@@ -1207,8 +1281,61 @@ export function LessonTailorEditor({
             )}
             </div>
           </div>
+          </React.Fragment>
           );
         })}
+        {renderQuickAdd(blocks.length)}
+        {isBlockPickerOpen && (
+          <div
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+            onClick={() => setIsBlockPickerOpen(false)}
+          >
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={`block-picker-title-${step}`}
+              className="w-full max-w-2xl rounded-xl border border-amber-500/30 bg-[#141a23] p-5 shadow-2xl sm:p-6"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="mb-5 flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Content Builder</p>
+                  <h3 id={`block-picker-title-${step}`} className="mt-1 font-sans text-lg font-semibold text-stone-100">Choose a block</h3>
+                  <p className="mt-1 text-xs text-stone-400">Select a block to add it at position {blockInsertIndex + 1}.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsBlockPickerOpen(false)}
+                  className="rounded-md p-2 text-stone-400 transition hover:bg-white/5 hover:text-stone-100"
+                  aria-label="Close block picker"
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {BLOCK_PICKER_OPTIONS.map((option) => {
+                  const Icon = option.icon;
+                  return (
+                    <button
+                      key={option.type}
+                      type="button"
+                      onClick={() => handleAddBlock(option.type, blockInsertIndex)}
+                      className="group flex min-h-20 items-start gap-3 rounded-lg border border-border bg-background/70 p-3 text-left transition hover:border-amber-500/50 hover:bg-amber-500/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60"
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-amber-500/20 bg-amber-500/10 text-amber-400 transition group-hover:border-amber-500/40 group-hover:bg-amber-500/15">
+                        <Icon className="h-4 w-4" aria-hidden="true" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium text-stone-100">{option.label}</span>
+                        <span className="mt-1 block text-[11px] leading-relaxed text-stone-500">{option.description}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          </div>
+        )}
       </div>
     );
   };
