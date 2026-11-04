@@ -134,9 +134,18 @@ export function InstructorBannerManager({
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     try {
       const url = await uploadAsset(file, `banner-${Date.now()}-${safeName}`, "banners");
+      const previousUrl = selectedUrl;
       handleSelect(url);
       onUpdateCustomInput?.("");
       setUploadMessage("Banner uploaded and applied.");
+      if (previousUrl && previousUrl !== url) {
+        try {
+          await deleteAsset(previousUrl);
+        } catch (error) {
+          console.error("Previous hero banner cleanup failed:", error);
+          setUploadMessage("Previous banner cleanup failed. The new banner was uploaded and applied.");
+        }
+      }
     } catch (error) {
       const details = error && typeof error === "object" ? error as { message?: string } : undefined;
       console.error("Hero banner upload failed:", error);
@@ -150,6 +159,7 @@ export function InstructorBannerManager({
   const uploadMessageIsError = Boolean(uploadMessage && (
     uploadMessage.startsWith("Upload failed")
     || uploadMessage.startsWith("Delete failed")
+    || uploadMessage.startsWith("Previous banner cleanup failed")
     || uploadMessage.startsWith("Choose")
   ));
 

@@ -14,9 +14,30 @@ import { DynamicLucideIcon, LucideIconPicker } from "@/components/shared/lucide-
 import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import { WordCountedTextarea } from "@/components/shared/word-counted-textarea";
 import { parseInteractiveTranscript } from "@/lib/transcripts";
+import { deleteAsset } from "@/services/asset-service";
 import { ExternalLink, Eye, FileText, Layers, LoaderCircle, MoveDown, MoveUp, Plus, Rocket, Save, Trash2, UploadCloud, X, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Mic, Square } from "lucide-react";
 import { Tooltip } from "@/components/shared/tooltip";
 import { DeleteConfirmationDialog, type DeleteConfirmationRequest } from "@/components/shared/delete-confirmation-dialog";
+
+async function deleteAssetBestEffort(url: string, context: string): Promise<boolean> {
+  try {
+    await deleteAsset(url);
+    return true;
+  } catch (error) {
+    console.error(`${context}:`, error);
+    return false;
+  }
+}
+
+function getContentBlockAssetUrl(block: ContentBlock): string {
+  switch (block.type) {
+    case "audio": return block.audioUrl;
+    case "image": return block.imageUrl;
+    case "video": return block.videoUrl;
+    case "resource": return block.resourceUrl;
+    default: return "";
+  }
+}
 
 interface LessonTailorEditorProps {
   content: StrictStepContent;
@@ -277,13 +298,23 @@ function MediaAssetInput({
     setIsUploading(true);
     try {
       const asset = await uploadLessonAsset(file, kind);
+      const previousValue = value;
       onChange(asset.url);
       setMode("upload");
+      if (previousValue && previousValue !== asset.url) {
+        const deleted = await deleteAssetBestEffort(previousValue, "Previous lesson asset cleanup failed");
+        if (!deleted) setError("The new file was uploaded, but the previous file could not be deleted from storage.");
+      }
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Upload failed. Check the Storage bucket and try again.");
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const removeCurrentAsset = async () => {
+    if (value) await deleteAsset(value);
+    onChange("");
   };
 
   return (
@@ -308,7 +339,7 @@ function MediaAssetInput({
             <button type="button" onClick={() => setDeleteConfirmation({
               title: `Remove ${kind} from this block?`,
               description: "This removes the current media from the block. This action cannot be undone.",
-              onConfirm: () => onChange(""),
+              onConfirm: removeCurrentAsset,
             })} disabled={disabled || isUploading} className="shrink-0 text-[11px] text-stone-400 underline hover:text-red-300 disabled:opacity-50">Remove / Replace</button>
           </div>}
         </>
@@ -318,7 +349,7 @@ function MediaAssetInput({
         <button type="button" onClick={() => setDeleteConfirmation({
           title: "Remove audio from this block?",
           description: "This removes the current media from the block. This action cannot be undone.",
-          onConfirm: () => onChange(""),
+          onConfirm: removeCurrentAsset,
         })} disabled={disabled || isUploading} className="text-[11px] text-stone-400 underline hover:text-red-300 disabled:opacity-50">Remove / Replace</button>
       </div>}
       {error && <p className="text-[11px] text-red-300" role="alert">{error}</p>}
@@ -528,6 +559,8 @@ export function LessonTailorEditor({
       setRecordingState(blockId, { status: "error", error: "No audio captured. Try again." });
       return;
     }
+    const previousBlock = getBlocks(step).find((block) => block.id === blockId);
+    const previousAudioUrl = previousBlock?.type === "audio" ? previousBlock.audioUrl : "";
     const mimeType = recorder?.mimeType || pickRecordingMimeType() || "audio/webm";
     const blob = new Blob(chunks as BlobPart[], { type: mimeType });
     const extension = mimeType.includes("mp4") ? "mp4" : mimeType.includes("ogg") ? "ogg" : "webm";
@@ -536,6 +569,9 @@ export function LessonTailorEditor({
     try {
       const asset = await uploadLessonMedia(file, `lesson-${step}-${Date.now()}`);
       updateDynamicBlockById(step, blockId, { audioUrl: asset.url });
+      if (previousAudioUrl && previousAudioUrl !== asset.url) {
+        await deleteAssetBestEffort(previousAudioUrl, "Previous lesson recording cleanup failed");
+      }
       setRecordingState(blockId, null);
     } catch (error) {
       console.error("Lesson voice recording upload failed:", error);
@@ -736,7 +772,12 @@ export function LessonTailorEditor({
       updateBlocks(step, blocks.filter((_, blockIndex) => blockIndex !== index));
       
       // Persist the change.
-      deleteBlock(step, blockId).catch((error: any) => {
+      const deletedAssetUrl = getContentBlockAssetUrl(blocks[index]);
+      deleteBlock(step, blockId).then(async () => {
+        if (deletedAssetUrl) {
+          await deleteAssetBestEffort(deletedAssetUrl, "Deleted lesson block asset cleanup failed");
+        }
+      }).catch((error: any) => {
         console.error("Failed to delete block:", error);
       });
     };
