@@ -229,7 +229,7 @@ function StepSidebarEditorPanel({
           type="button"
           onClick={() => setSidebarBlocksByStep((current) => ({
             ...current,
-            [sidebarStep]: [...(current[sidebarStep] || []), { id: `sidebar-${Date.now()}`, title: "Sidebar note", body: "", includeImage: false }],
+            [sidebarStep]: [...(current[sidebarStep] || []), { id: `sidebar-${Date.now()}`, title: "", body: "", includeImage: false }],
           }))}
           className="inline-flex min-h-9 items-center gap-1.5 rounded border border-amber-500/40 bg-background px-3 text-xs font-normal text-stone-200 transition hover:border-amber-500/40"
         >
@@ -291,13 +291,14 @@ function StepSidebarEditorPanel({
                 <GripVertical className="h-4 w-4" aria-hidden="true" />
               </button>
               <input
-                value={block.title}
+                value={block.title.trim().toLowerCase() === "sidebar note" ? "" : block.title}
                 onChange={(event) => setSidebarBlocksByStep((current) => ({
                   ...current,
                   [sidebarStep]: (current[sidebarStep] || []).map((item) => item.id === block.id ? { ...item, title: event.target.value } : item),
                 }))}
                 className="h-9 min-w-0 flex-1 rounded border border-border bg-background px-2.5 text-xs font-semibold text-stone-200 outline-none focus:border-amber-500/40"
                 aria-label="Sidebar block title"
+                placeholder="Enter sidebar block title..."
               />
               <button
                 type="button"
@@ -556,7 +557,7 @@ function normalizeSidebarBlocksByStep(raw: unknown): SidebarBlocksByStep {
         .filter((item): item is Record<string, unknown> => !!item && typeof item === "object" && !Array.isArray(item))
         .map((item, index) => ({
           id: typeof item.id === "string" && item.id.trim() ? item.id.trim() : `sidebar-${key}-${Date.now()}-${index}`,
-          title: typeof item.title === "string" ? item.title : typeof item.name === "string" ? item.name : "Sidebar note",
+          title: typeof item.title === "string" ? item.title : typeof item.name === "string" ? item.name : "",
           body: typeof item.body === "string" ? item.body : typeof item.text === "string" ? item.text : "",
           imageUrl: typeof item.imageUrl === "string" ? item.imageUrl : undefined,
           altText: typeof item.altText === "string" ? item.altText : undefined,
@@ -577,7 +578,7 @@ function normalizeSidebarBlocksByStep(raw: unknown): SidebarBlocksByStep {
         .filter((item): item is Record<string, unknown> => !!item && typeof item === "object" && !Array.isArray(item))
         .map((item, index) => ({
           id: typeof item.id === "string" && item.id.trim() ? item.id.trim() : `sidebar-${normalizedKey}-${Date.now()}-${index}`,
-          title: typeof item.title === "string" ? item.title : typeof item.name === "string" ? item.name : "Sidebar note",
+          title: typeof item.title === "string" ? item.title : typeof item.name === "string" ? item.name : "",
           body: typeof item.body === "string" ? item.body : typeof item.text === "string" ? item.text : "",
           imageUrl: typeof item.imageUrl === "string" ? item.imageUrl : undefined,
           altText: typeof item.altText === "string" ? item.altText : undefined,

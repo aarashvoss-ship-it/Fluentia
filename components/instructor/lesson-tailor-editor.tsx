@@ -39,6 +39,22 @@ function getContentBlockAssetUrl(block: ContentBlock): string {
   }
 }
 
+const defaultBlockTitles = new Set([
+  "text block",
+  "audio lesson",
+  "video lesson",
+  "image",
+  "document",
+  "question",
+  "fill in the blanks",
+  "writing prompt",
+  "quiz / exercise",
+]);
+
+function isDefaultBlockTitle(title: string): boolean {
+  return defaultBlockTitles.has(title.trim().toLowerCase());
+}
+
 interface LessonTailorEditorProps {
   content: StrictStepContent;
   onChange?: (updatedContent: StrictStepContent) => void;
@@ -481,15 +497,15 @@ export function LessonTailorEditor({
       ? crypto.randomUUID()
       : `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const base = { id, type, enabled: true, is_active: true };
-    if (type === "text") return { ...base, type: "text", title: "Text block", body: "", hasStudentResponseInput: false, studentResponseType: "text", studentResponseConfig: { enabled: false, allowedTypes: ["text"] } };
-    if (type === "audio") return { ...base, type: "audio", title: "Audio lesson", audioUrl: "", transcript: "", allowStudentVoiceResponse: false, transcriptUnlockedByDefault: false };
-    if (type === "video") return { ...base, type: "video", title: "Video lesson", videoUrl: "", transcript: "", transcriptUnlockedByDefault: false, show_reflection_prompt: true, reflection_prompt_text: "" };
-    if (type === "image") return { ...base, type: "image", title: "Image", imageUrl: "", caption: "" };
-    if (type === "resource") return { ...base, type: "resource", title: "Document", resourceUrl: "", description: "" };
-    if (type === "question") return { ...base, type: "question", title: "Question", prompt: "", options: ["", "", ""], correct_answer: "", question_type: "multiple_choice", optionIndexingStyle: "none", sample_answer: "" };
-    if (type === "fill-in-the-blanks") return { ...base, type: "fill-in-the-blanks", title: "Fill in the Blanks", textWithBlanks: "", acceptableAnswers: [], wordBank: [], caseSensitive: false };
-    if (type === "writing") return { ...base, type: "writing", title: "Writing prompt", prompt: "", minWordCount: 150, maxWordCount: 250, guidance: "" };
-    return { ...base, type: "quiz", block_id: id, block_type: "quiz", title: "Quiz / Exercise", questions: [{ id: `${id}-q1`, type: "multiple_choice", prompt: "", options: ["", "", ""], correct_answer: "" }] };
+    if (type === "text") return { ...base, type: "text", title: "", body: "", hasStudentResponseInput: false, studentResponseType: "text", studentResponseConfig: { enabled: false, allowedTypes: ["text"] } };
+    if (type === "audio") return { ...base, type: "audio", title: "", audioUrl: "", transcript: "", allowStudentVoiceResponse: false, transcriptUnlockedByDefault: false };
+    if (type === "video") return { ...base, type: "video", title: "", videoUrl: "", transcript: "", transcriptUnlockedByDefault: false, show_reflection_prompt: true, reflection_prompt_text: "" };
+    if (type === "image") return { ...base, type: "image", title: "", imageUrl: "", caption: "" };
+    if (type === "resource") return { ...base, type: "resource", title: "", resourceUrl: "", description: "" };
+    if (type === "question") return { ...base, type: "question", title: "", prompt: "", options: ["", "", ""], correct_answer: "", question_type: "multiple_choice", optionIndexingStyle: "none", sample_answer: "" };
+    if (type === "fill-in-the-blanks") return { ...base, type: "fill-in-the-blanks", title: "", textWithBlanks: "", acceptableAnswers: [], wordBank: [], caseSensitive: false };
+    if (type === "writing") return { ...base, type: "writing", title: "", prompt: "", minWordCount: 150, maxWordCount: 250, guidance: "" };
+    return { ...base, type: "quiz", block_id: id, block_type: "quiz", title: "", questions: [{ id: `${id}-q1`, type: "multiple_choice", prompt: "", options: ["", "", ""], correct_answer: "" }] };
   };
 
   const updateDynamicBlockById = (step: StudyStepId, blockId: string, patch: Partial<ContentBlock>) => {
@@ -868,7 +884,7 @@ export function LessonTailorEditor({
               </div>
             </div>
             <div id={`block-content-${block.id}`} className={`transition-opacity duration-200 ${isExpanded ? "h-auto overflow-visible opacity-100" : "h-0 overflow-hidden opacity-0"}`} aria-hidden={!isExpanded}>
-            <input value={block.title} onChange={(event) => updateDynamicBlock(step, index, { title: event.target.value })} placeholder="Block title" className="mb-2 w-full rounded border border-border bg-background p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40" aria-label={`${block.type} block title`} />
+            <input value={isDefaultBlockTitle(block.title) ? "" : block.title} onChange={(event) => updateDynamicBlock(step, index, { title: event.target.value })} placeholder={`Enter ${block.type} block title...`} className="mb-2 w-full rounded border border-border bg-background p-2 text-xs text-stone-200 outline-none focus:border-amber-500/40" aria-label={`${block.type} block title`} />
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded border border-border bg-background/60 px-3 py-2">
               <span className="text-xs font-medium text-stone-300">Block Icon</span>
               <div className="flex items-center gap-2">

@@ -136,6 +136,51 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+const defaultLessonBlockTitles = new Set([
+  "text block",
+  "audio lesson",
+  "video lesson",
+  "image",
+  "document",
+  "question",
+  "fill in the blanks",
+  "writing prompt",
+  "quiz / exercise",
+  "sidebar note",
+]);
+
+function sanitizeBlockList(value: unknown): unknown {
+  if (!Array.isArray(value)) return value;
+  return value.map((block) => {
+    if (!isRecord(block) || typeof block.title !== "string") return block;
+    return defaultLessonBlockTitles.has(block.title.trim().toLowerCase())
+      ? { ...block, title: "" }
+      : block;
+  });
+}
+
+function sanitizeLessonBlockTitles(content: Record<string, unknown>): Record<string, unknown> {
+  const sanitized = { ...content };
+  for (const [stepKey, stepContent] of Object.entries(sanitized)) {
+    if (isRecord(stepContent) && Array.isArray(stepContent.blocks)) {
+      sanitized[stepKey] = { ...stepContent, blocks: sanitizeBlockList(stepContent.blocks) };
+    }
+  }
+
+  for (const key of ["sidebarBlocks", "sidebar_blocks", "sidebarBlocksByStep", "sidebar_blocks_by_step"]) {
+    const sidebarBlocks = sanitized[key];
+    if (Array.isArray(sidebarBlocks)) {
+      sanitized[key] = sanitizeBlockList(sidebarBlocks);
+    } else if (isRecord(sidebarBlocks)) {
+      sanitized[key] = Object.fromEntries(
+        Object.entries(sidebarBlocks).map(([step, blocks]) => [step, sanitizeBlockList(blocks)]),
+      );
+    }
+  }
+
+  return sanitized;
+}
+
 const lessonResourceTypes = new Set([
   "note", "reading", "flashcard", "flashcards", "quiz", "audio",
   "data_table", "file", "image", "video", "links",
@@ -557,7 +602,7 @@ export async function POST(request: Request) {
     && uuidPattern.test(input.instructor_id)
     ? input.instructor_id
     : access.user.id;
-  const content = isRecord(input.content) ? input.content : {};
+  const content = isRecord(input.content) ? sanitizeLessonBlockTitles(input.content) : {};
   const rawLessonResources = Array.isArray(content.lessonResources) ? content.lessonResources : [];
   const initialResources = rawLessonResources.map(normalizeLessonResource);
   if (initialResources.some((resource) => !resource)) {
@@ -947,11 +992,11 @@ export async function PATCH(request: Request) {
         await client.query(`UPDATE public.lessons SET ${sets.join(", ")} WHERE id = $1`, values);
       }
       if (isRecord(input.content)) {
-        let content: Record<string, unknown> = {
+        let content: Record<string, unknown> = sanitizeLessonBlockTitles({
           ...input.content,
           ...(typeof input.title === "string" ? { title: input.title } : {}),
           ...(typeof input.slug === "string" ? { slug: input.slug } : {}),
-        };
+        });
         let fullLessonResources: Record<string, unknown>[] | null = null;
         if (Array.isArray(content.lessonResources)) {
           const normalizedResources = content.lessonResources.map(normalizeLessonResource);
