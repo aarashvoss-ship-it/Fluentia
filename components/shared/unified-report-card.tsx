@@ -106,7 +106,7 @@ function normalizeAnswer(value: string) {
 }
 
 function FeedbackValue({ value, isEvaluated }: { value?: string; isEvaluated: boolean }) {
-  return <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-stone-300">{value?.trim() || <span className="italic text-stone-500">{isEvaluated ? "No comment provided." : "Pending Review"}</span>}</p>;
+  return <p className="mt-1 whitespace-pre-wrap text-base leading-relaxed text-white">{value?.trim() || <span className="italic text-white/70">{isEvaluated ? "No comment provided." : "Pending Review"}</span>}</p>;
 }
 
 export function UnifiedReportCard({
@@ -169,13 +169,13 @@ export function UnifiedReportCard({
     value?: string,
     placeholder = "",
   ) => <div key={field} className="rounded-lg border border-blue-500/20 bg-blue-950/30 p-4">
-    <p className="text-xs font-semibold text-stone-300">{label}</p>
+    <p className="text-base font-semibold text-white">{label}</p>
     {isInstructorView ? <textarea
       value={value || ""}
       onChange={(event) => onGeneralFeedbackChange?.(field, event.target.value)}
       placeholder={placeholder}
       rows={4}
-      className="mt-2 w-full resize-y rounded-md border border-border bg-surface p-3 text-sm leading-relaxed text-stone-200 outline-none focus:border-amber-500/40"
+      className="mt-2 w-full resize-y rounded-md border border-border bg-surface p-3 text-base leading-relaxed text-white outline-none placeholder:text-white/60 focus:border-amber-500/40"
     /> : <FeedbackValue value={value} isEvaluated={isEvaluated} />}
   </div>;
 
@@ -334,18 +334,18 @@ export function UnifiedReportCard({
     <section aria-label="Overall Performance Breakdown" className="space-y-3 rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4 sm:p-5">
       <div className="flex items-center justify-between border-b border-emerald-800/40 pb-3">
         <h3 className="text-lg font-semibold text-white">Overall Performance Breakdown</h3>
-        <span className="inline-flex items-baseline gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 px-2.5 py-1 font-bold leading-tight text-amber-400">
+        <span className="inline-flex items-baseline gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 px-2.5 py-1 text-white font-bold leading-tight">
           {overallScaleId === "ielts" ? <>
-            <span className="text-xs">Overall Band Score:</span>
-            <span className="text-sm">{totalScore.toFixed(1)} / {overallAggregation.totalDenominator}</span>
-          </> : <span className="text-sm">{formatOverallRubricTotal(totalScore, overallScaleId, overallAggregation.totalDenominator)}</span>}
+            <span className="text-sm">Overall Band Score:</span>
+            <span className="text-base">{totalScore.toFixed(1)} / {overallAggregation.totalDenominator}</span>
+          </> : <span className="text-base">{formatOverallRubricTotal(totalScore, overallScaleId, overallAggregation.totalDenominator)}</span>}
         </span>
       </div>
       <div className="flex flex-col gap-3">
         {RUBRIC_CRITERIA.map((criterion) => <div key={criterion.id} className="space-y-3 rounded-lg border border-emerald-500/20 bg-emerald-950/30 p-4">
           <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-medium text-stone-300">{criterion.label}</span>
-            <span className="text-sm font-semibold text-amber-400">{displayScores[criterion.id] === undefined ? (!isInstructorView && !isEvaluated ? "Pending Review" : `—/${overallScale.max}`) : `${formatRubricScore(displayScores[criterion.id])}/${overallScale.max}`}</span>
+            <span className="text-base font-semibold text-white">{criterion.label}</span>
+            <span className="text-base font-semibold text-white">{displayScores[criterion.id] === undefined ? (!isInstructorView && !isEvaluated ? "Pending Review" : `—/${overallScale.max}`) : `${formatRubricScore(displayScores[criterion.id])}/${overallScale.max}`}</span>
           </div>
           {isInstructorView ? <>
             <div className="flex items-center gap-2">
@@ -355,9 +355,9 @@ export function UnifiedReportCard({
                 if (event.target.value !== "" && Number.isFinite(value) && value >= overallScale.min && value <= overallScale.max) {
                   onScoreChange?.(criterion.id, normalizeRubricScore(value, overallScaleId));
                 }
-              }} className="rubric-score-input w-20 rounded-md border border-border bg-surface px-2 py-1.5 text-center text-xs text-amber-300 outline-none focus:border-amber-500/40" aria-label={`${criterion.label} score value`} />
+              }} className="rubric-score-input w-20 rounded-md border border-border bg-surface px-2 py-1.5 text-center text-sm text-white outline-none focus:border-amber-500/40" aria-label={`${criterion.label} score value`} />
             </div>
-            <textarea value={criterionFeedback[criterion.id] || ""} onChange={(event) => onCriterionFeedbackChange?.(criterion.id, event.target.value)} placeholder={`Written feedback for ${criterion.label.toLowerCase()}...`} rows={2} className="w-full resize-y rounded-md border border-border bg-surface p-2.5 text-xs text-stone-200 outline-none focus:border-amber-500/40" aria-label={`${criterion.label} feedback`} />
+            <textarea value={criterionFeedback[criterion.id] || ""} onChange={(event) => onCriterionFeedbackChange?.(criterion.id, event.target.value)} placeholder={`Written feedback for ${criterion.label.toLowerCase()}...`} rows={2} className="w-full resize-y rounded-md border border-border bg-surface p-2.5 text-base text-white outline-none placeholder:text-white/60 focus:border-amber-500/40" aria-label={`${criterion.label} feedback`} />
           </> : <FeedbackValue value={criterionFeedback[criterion.id]} isEvaluated={isEvaluated} />}
         </div>)}
       </div>
