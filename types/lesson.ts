@@ -167,6 +167,7 @@ export interface LessonResource {
   subCategory?: SubCategory;
   cefrLevel?: CEFRLevel;
   isDownloadable?: boolean;
+  tags?: string[];
   importedFromResourceHub?: boolean;
   resourceHubAssetId?: string;
 }

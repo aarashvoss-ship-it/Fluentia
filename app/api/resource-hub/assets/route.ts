@@ -55,9 +55,10 @@ export async function POST(request: Request) {
     const result = await getPostgresPool().query<ResourceAssetRow>(
       `INSERT INTO public.resource_assets (
          instructor_id, title, description, main_category, sub_category, url,
-         allow_student_download, cefr_level, tags
+         allow_student_download, cefr_level, tags, resource_type, content,
+         original_filename, media_type, storage_path
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14)
        RETURNING ${RESOURCE_ASSET_COLUMNS}`,
       [
         access.user.id,
@@ -69,6 +70,11 @@ export async function POST(request: Request) {
         body.isDownloadable,
         body.cefrLevel,
         body.tags,
+        body.resourceType || "link",
+        JSON.stringify(body.content || {}),
+        body.originalFilename || null,
+        body.mediaType || null,
+        body.storagePath || null,
       ],
     );
     const asset = result.rows[0];

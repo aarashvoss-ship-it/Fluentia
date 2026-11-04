@@ -18,6 +18,11 @@ function mapResourceAsset(row: ResourceAssetRow): ResourceAsset {
     isDownloadable: row.allow_student_download,
     cefrLevel: row.cefr_level,
     tags: row.tags,
+    resourceType: row.resource_type,
+    content: row.content || {},
+    originalFilename: row.original_filename || undefined,
+    mediaType: row.media_type || undefined,
+    storagePath: row.storage_path || undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -106,6 +111,11 @@ export async function updateResourceAsset(
   if (assetData.isDownloadable !== undefined) updates.isDownloadable = assetData.isDownloadable;
   if (assetData.cefrLevel !== undefined) updates.cefrLevel = assetData.cefrLevel;
   if (assetData.tags !== undefined) updates.tags = assetData.tags;
+  if (assetData.resourceType !== undefined) updates.resourceType = assetData.resourceType;
+  if (assetData.content !== undefined) updates.content = assetData.content;
+  if (assetData.originalFilename !== undefined) updates.originalFilename = assetData.originalFilename;
+  if (assetData.mediaType !== undefined) updates.mediaType = assetData.mediaType;
+  if (assetData.storagePath !== undefined) updates.storagePath = assetData.storagePath;
   if (!Object.keys(updates).length) throw new Error("At least one Resource Hub asset field must be updated.");
 
   try {

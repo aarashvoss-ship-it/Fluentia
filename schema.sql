@@ -326,6 +326,26 @@ CREATE TABLE public.resource_assets (
   cefr_level text NOT NULL CHECK (cefr_level = ANY (ARRAY['A1'::text, 'A2'::text, 'B1'::text, 'B2'::text, 'C1'::text, 'C2'::text, 'All Levels'::text]::text[])),
   tags text[] NOT NULL DEFAULT '{}'::text[],
   allow_student_download boolean NOT NULL DEFAULT true,
+  resource_type text NOT NULL DEFAULT 'link',
+  content jsonb NOT NULL DEFAULT '{}'::jsonb,
+  original_filename text,
+  media_type text,
+  storage_path text,
   CONSTRAINT resource_assets_pkey PRIMARY KEY (id),
   CONSTRAINT resource_assets_instructor_id_fkey FOREIGN KEY (instructor_id) REFERENCES public.users(id)
 );
+CREATE UNIQUE INDEX resource_assets_id_instructor_key ON public.resource_assets (id, instructor_id);
+CREATE TABLE public.lesson_resource_links (
+  lesson_id uuid NOT NULL,
+  instructor_id uuid NOT NULL,
+  lesson_resource_id text NOT NULL,
+  resource_asset_id uuid NOT NULL,
+  position integer NOT NULL DEFAULT 0 CHECK (position >= 0),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT lesson_resource_links_pkey PRIMARY KEY (lesson_id, lesson_resource_id),
+  CONSTRAINT lesson_resource_links_lesson_id_fkey FOREIGN KEY (lesson_id) REFERENCES public.lessons(id) ON DELETE CASCADE,
+  CONSTRAINT lesson_resource_links_asset_owner_fkey FOREIGN KEY (resource_asset_id, instructor_id) REFERENCES public.resource_assets(id, instructor_id) ON DELETE RESTRICT
+);
+CREATE INDEX lesson_resource_links_asset_idx ON public.lesson_resource_links (resource_asset_id);
+CREATE INDEX lesson_resource_links_lesson_order_idx ON public.lesson_resource_links (lesson_id, position);

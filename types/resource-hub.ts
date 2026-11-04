@@ -34,6 +34,11 @@ export interface ResourceAsset {
   isDownloadable: boolean;
   cefrLevel: CEFRLevel;
   tags: string[];
+  resourceType?: string;
+  content?: Record<string, unknown>;
+  originalFilename?: string | null;
+  mediaType?: string | null;
+  storagePath?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -47,6 +52,11 @@ export interface ResourceAssetInput {
   isDownloadable: boolean;
   cefrLevel: CEFRLevel;
   tags: string[];
+  resourceType?: string;
+  content?: Record<string, unknown>;
+  originalFilename?: string | null;
+  mediaType?: string | null;
+  storagePath?: string | null;
 }
 
 export interface ResourceAssetRow {
@@ -60,6 +70,11 @@ export interface ResourceAssetRow {
   allow_student_download: boolean;
   cefr_level: CEFRLevel;
   tags: string[];
+  resource_type: string;
+  content: Record<string, unknown>;
+  original_filename: string | null;
+  media_type: string | null;
+  storage_path: string | null;
   created_at: string;
   updated_at: string;
 }

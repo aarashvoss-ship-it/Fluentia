@@ -16,6 +16,7 @@ const lessonSelect = `
          latest.content AS version_content,
          latest.changes_summary,
          latest.version_created_at,
+         current_resources.resources AS current_lesson_resources,
          track.name AS track_name,
          track.is_archived AS track_is_archived,
          COALESCE((
@@ -33,6 +34,63 @@ const lessonSelect = `
     ORDER BY versions.version_number DESC, versions.created_at DESC
     LIMIT 1
   ) AS latest ON true
+  LEFT JOIN LATERAL (
+    SELECT jsonb_agg(resource_entry.resource ORDER BY resource_entry.position) AS resources
+    FROM (
+      SELECT
+        resource_link.position,
+        jsonb_build_object(
+          'id', resource_link.lesson_resource_id,
+          'resourceHubAssetId', asset.id::text,
+          'title', asset.title,
+          'url', asset.url,
+          'type', CASE asset.resource_type
+            WHEN 'audio' THEN 'Audio'
+            WHEN 'video' THEN 'Video'
+            WHEN 'image' THEN 'Image'
+            WHEN 'file' THEN 'PDF'
+            ELSE 'Article'
+          END,
+          'resourceType', asset.resource_type,
+          'description', asset.description,
+          'mainCategory', asset.main_category,
+          'subCategory', asset.sub_category,
+          'cefrLevel', asset.cefr_level,
+          'isDownloadable', asset.allow_student_download,
+          'tags', asset.tags,
+          'importedFromResourceHub', true,
+          'original_filename', asset.original_filename,
+          'media_type', asset.media_type,
+          'storage_path', asset.storage_path
+        ) || COALESCE(asset.content, '{}'::jsonb) AS resource
+      FROM public.lesson_resource_links AS resource_link
+      JOIN public.resource_assets AS asset
+        ON asset.id = resource_link.resource_asset_id
+       AND asset.instructor_id = resource_link.instructor_id
+      WHERE resource_link.lesson_id = lesson.id
+        AND resource_link.instructor_id = lesson.instructor_id
+
+      UNION ALL
+
+      SELECT
+        (legacy.ordinality - 1)::integer AS position,
+        legacy.resource
+      FROM jsonb_array_elements(
+        CASE
+          WHEN jsonb_typeof(latest.content -> 'lessonResources') = 'array'
+            THEN latest.content -> 'lessonResources'
+          ELSE '[]'::jsonb
+        END
+      ) WITH ORDINALITY AS legacy(resource, ordinality)
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM public.lesson_resource_links AS resource_link
+        WHERE resource_link.lesson_id = lesson.id
+          AND resource_link.instructor_id = lesson.instructor_id
+          AND resource_link.lesson_resource_id = legacy.resource ->> 'id'
+      )
+    ) AS resource_entry
+  ) AS current_resources ON true
 `;
 
 function lessonFromRow(row: Record<string, unknown>): Record<string, unknown> & {
@@ -41,13 +99,17 @@ function lessonFromRow(row: Record<string, unknown>): Record<string, unknown> & 
   assigned_all_students?: unknown;
   assigned_student_ids: string[];
 } {
-  const content = row.version_content && typeof row.version_content === "object"
+  const versionContent = row.version_content && typeof row.version_content === "object"
     ? row.version_content as Record<string, unknown>
     : {};
+  const content = { ...versionContent };
 
   const sidebarBlocks = content.sidebarBlocks ?? content.sidebar_blocks ?? content.sidebarBlocksByStep ?? content.sidebar_blocks_by_step;
   if (sidebarBlocks && typeof sidebarBlocks === "object" && !Array.isArray(sidebarBlocks)) {
     content.sidebarBlocks = sidebarBlocks as Record<string, unknown>;
+  }
+  if (Array.isArray(row.current_lesson_resources)) {
+    content.lessonResources = row.current_lesson_resources;
   }
 
   const currentVersion = row.version_id
@@ -55,7 +117,7 @@ function lessonFromRow(row: Record<string, unknown>): Record<string, unknown> & 
         id: row.version_id,
         lesson_id: row.id,
         version_number: row.version_number,
-        content,
+        content: versionContent,
         changes_summary: row.changes_summary ?? null,
         created_at: row.version_created_at,
       }
@@ -88,6 +150,7 @@ function normalizeLessonResource(value: unknown) {
   if (!id || id.length > 200 || !title || title.length > 500
     || !["PDF", "Article", "Video", "Audio", "Image"].includes(String(type))
     || (resourceType !== undefined && (typeof resourceType !== "string" || !lessonResourceTypes.has(resourceType)))
+    || (value.resourceHubAssetId !== undefined && (typeof value.resourceHubAssetId !== "string" || !uuidPattern.test(value.resourceHubAssetId)))
     || (value.url !== undefined && typeof value.url !== "string")) {
     return null;
   }
@@ -112,9 +175,156 @@ function normalizeLessonResource(value: unknown) {
     if (typeof value[key] === "string" || value[key] === null) resource[key] = value[key];
   });
   if (Array.isArray(value.cards)) resource.cards = value.cards;
+  if (Array.isArray(value.tags) && value.tags.every((tag) => typeof tag === "string")) {
+    resource.tags = value.tags;
+  }
   if (typeof value.isDownloadable === "boolean") resource.isDownloadable = value.isDownloadable;
   if (typeof value.importedFromResourceHub === "boolean") resource.importedFromResourceHub = value.importedFromResourceHub;
   return resource;
+}
+
+class ResourceAssetAccessError extends Error {}
+
+function lessonResourceCategory(resource: Record<string, unknown>) {
+  const resourceType = typeof resource.resourceType === "string" ? resource.resourceType : "";
+  const mainCategory = ["documents", "videos", "audios", "visuals", "others"].includes(String(resource.mainCategory))
+    ? String(resource.mainCategory)
+    : resourceType === "audio" ? "audios"
+      : resourceType === "video" ? "videos"
+        : resourceType === "image" || resourceType === "flashcard" || resourceType === "flashcards" ? "visuals"
+          : ["note", "reading", "quiz", "file", "data_table"].includes(resourceType) ? "documents" : "others";
+  const defaultSubCategory = resourceType === "flashcard" || resourceType === "flashcards" ? "Flashcards"
+    : resourceType === "audio" ? "Podcasts"
+      : resourceType === "video" ? "Other Videos"
+        : resourceType === "image" ? "Images"
+          : resourceType === "file" ? "PDFs"
+            : mainCategory === "documents" ? "Texts" : "General";
+  return {
+    mainCategory,
+    subCategory: typeof resource.subCategory === "string" ? resource.subCategory : defaultSubCategory,
+  };
+}
+
+function lessonResourceContent(resource: Record<string, unknown>) {
+  const content: Record<string, unknown> = {};
+  for (const key of ["body", "question", "answer", "explanation", "subtitle", "sub_title", "example"]) {
+    if (typeof resource[key] === "string" || resource[key] === null) content[key] = resource[key];
+  }
+  if (Array.isArray(resource.cards)) content.cards = resource.cards;
+  return content;
+}
+
+function toLessonResourceReference(resource: Record<string, unknown>, assetId: string) {
+  const reference: Record<string, unknown> = {
+    id: resource.id,
+    resourceHubAssetId: assetId,
+    title: resource.title,
+    url: resource.url,
+    type: resource.type,
+    resourceType: resource.resourceType || "link",
+  };
+  for (const key of ["mainCategory", "subCategory", "cefrLevel"] as const) {
+    if (typeof resource[key] === "string") reference[key] = resource[key];
+  }
+  if (typeof resource.isDownloadable === "boolean") reference.isDownloadable = resource.isDownloadable;
+  if (Array.isArray(resource.tags)) reference.tags = resource.tags;
+  if (resource.importedFromResourceHub === true) reference.importedFromResourceHub = true;
+  return reference;
+}
+
+async function saveCanonicalLessonResources(
+  client: PoolClient,
+  instructorId: string,
+  lessonId: string,
+  resources: Record<string, unknown>[],
+) {
+  await client.query(
+    "UPDATE public.lessons SET instructor_id = COALESCE(instructor_id, $2) WHERE id = $1",
+    [lessonId, instructorId],
+  );
+  const references: Record<string, unknown>[] = [];
+  for (let position = 0; position < resources.length; position += 1) {
+    const resource = resources[position];
+    const resourceId = typeof resource.id === "string" ? resource.id : "";
+    if (!resourceId) throw new Error("Every lesson resource must have an ID.");
+    const categories = lessonResourceCategory(resource);
+    const resourceType = typeof resource.resourceType === "string" ? resource.resourceType : "links";
+    const richContent = lessonResourceContent(resource);
+    let assetId = typeof resource.resourceHubAssetId === "string" ? resource.resourceHubAssetId : "";
+    if (!assetId) {
+      const existing = await client.query<{ resource_asset_id: string }>(
+        `SELECT resource_asset_id::text
+         FROM public.lesson_resource_links
+         WHERE lesson_id = $1 AND instructor_id = $2 AND lesson_resource_id = $3`,
+        [lessonId, instructorId, resourceId],
+      );
+      assetId = existing.rows[0]?.resource_asset_id || "";
+    }
+
+    const assetValues = [
+      instructorId,
+      resource.title,
+      typeof resource.description === "string" ? resource.description : null,
+      categories.mainCategory,
+      categories.subCategory,
+      typeof resource.url === "string" ? resource.url : "",
+      typeof resource.isDownloadable === "boolean" ? resource.isDownloadable : true,
+      typeof resource.cefrLevel === "string"
+        && ["A1", "A2", "B1", "B2", "C1", "C2", "All Levels"].includes(resource.cefrLevel)
+        ? resource.cefrLevel
+        : "All Levels",
+      Array.isArray(resource.tags) ? resource.tags.filter((tag): tag is string => typeof tag === "string") : [],
+      resourceType,
+      JSON.stringify(richContent),
+      typeof resource.original_filename === "string" ? resource.original_filename : null,
+      typeof resource.media_type === "string" ? resource.media_type : null,
+      typeof resource.storage_path === "string" ? resource.storage_path : null,
+    ];
+    let savedAsset;
+    if (assetId) {
+      savedAsset = await client.query<{ id: string }>(
+        `UPDATE public.resource_assets
+         SET title = $3, description = $4, main_category = $5, sub_category = $6,
+             url = $7, allow_student_download = $8, cefr_level = $9, tags = $10,
+             resource_type = $11, content = $12::jsonb, original_filename = $13,
+             media_type = $14, storage_path = $15, updated_at = now()
+         WHERE id = $1 AND instructor_id = $2
+         RETURNING id::text`,
+        [assetId, ...assetValues],
+      );
+      if (!savedAsset.rowCount) throw new ResourceAssetAccessError("The linked Resource Hub asset was not found or is not owned by this instructor.");
+    } else {
+      savedAsset = await client.query<{ id: string }>(
+        `INSERT INTO public.resource_assets (
+           instructor_id, title, description, main_category, sub_category, url,
+           allow_student_download, cefr_level, tags, resource_type, content,
+           original_filename, media_type, storage_path
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14)
+         RETURNING id::text`,
+        assetValues,
+      );
+    }
+    const savedAssetId = savedAsset.rows[0]?.id;
+    if (!savedAssetId) throw new Error("The canonical lesson resource was not returned after saving.");
+    await client.query(
+      `INSERT INTO public.lesson_resource_links
+         (lesson_id, instructor_id, lesson_resource_id, resource_asset_id, position)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (lesson_id, lesson_resource_id)
+       DO UPDATE SET instructor_id = EXCLUDED.instructor_id,
+         resource_asset_id = EXCLUDED.resource_asset_id, position = EXCLUDED.position`,
+      [lessonId, instructorId, resourceId, savedAssetId, position],
+    );
+    references.push(toLessonResourceReference(resource, savedAssetId));
+  }
+  await client.query(
+    `DELETE FROM public.lesson_resource_links
+     WHERE lesson_id = $1 AND instructor_id = $2
+       AND NOT (lesson_resource_id = ANY($3::text[]))`,
+    [lessonId, instructorId, resources.map((resource) => resource.id)],
+  );
+  return references;
 }
 
 function toAssignedStudentResource(resource: Record<string, unknown>) {
@@ -342,14 +552,28 @@ export async function POST(request: Request) {
   const slugBase = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "lesson";
   const slug = `${slugBase}-${Date.now()}`;
   const status = input.status === "published" || input.status === "evaluated" ? input.status : "draft";
+  const lessonOwnerId = access.user.role === "admin"
+    && typeof input.instructor_id === "string"
+    && uuidPattern.test(input.instructor_id)
+    ? input.instructor_id
+    : access.user.id;
   const content = isRecord(input.content) ? input.content : {};
+  const rawLessonResources = Array.isArray(content.lessonResources) ? content.lessonResources : [];
+  const initialResources = rawLessonResources.map(normalizeLessonResource);
+  if (initialResources.some((resource) => !resource)) {
+    return NextResponse.json({ error: "Provide valid lesson resources." }, { status: 400 });
+  }
+  const initialResourceIds = (initialResources as Record<string, unknown>[]).map((resource) => resource.id);
+  if (new Set(initialResourceIds).size !== initialResourceIds.length) {
+    return NextResponse.json({ error: "Lesson resource IDs must be unique." }, { status: 400 });
+  }
   const trackId = input.track_id === null ? null
     : typeof input.track_id === "string" && uuidPattern.test(input.track_id) ? input.track_id
       : input.track_id === undefined ? null : undefined;
   if (trackId === undefined) {
     return NextResponse.json({ error: "Provide a valid lesson track." }, { status: 400 });
   }
-  const versionContent = { ...content, slug, title };
+  let versionContent: Record<string, unknown> = { ...content, slug, title };
   const id = randomUUID();
   const client = await getPostgresPool().connect();
   try {
@@ -365,7 +589,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Choose a track owned by this instructor." }, { status: 400 });
       }
     }
-    const lesson = await client.query(
+    await client.query(
       `INSERT INTO public.lessons
         (id, title, subtitle, module_number, slug, subject, grade, status, is_published,
          banner_url, student_id, student_token, instructor_id, instructor_note, assigned_all_students, tags,
@@ -385,20 +609,32 @@ export async function POST(request: Request) {
         typeof input.banner_url === "string" ? input.banner_url : null,
         typeof input.student_id === "string" && uuidPattern.test(input.student_id) ? input.student_id : null,
         typeof input.student_token === "string" ? input.student_token : null,
-        typeof input.instructor_id === "string" && uuidPattern.test(input.instructor_id) ? input.instructor_id : access.user.id,
+        lessonOwnerId,
         typeof input.instructor_note === "string" ? input.instructor_note : null,
         input.assigned_all_students === true,
         JSON.stringify(isRecord(input.tags) ? input.tags : {}),
         trackId,
       ],
     );
+    if (initialResources.length) {
+      const references = await saveCanonicalLessonResources(
+        client,
+        lessonOwnerId,
+        id,
+        initialResources as Record<string, unknown>[],
+      );
+      versionContent = { ...versionContent, lessonResources: references };
+    } else if (Array.isArray(content.lessonResources)) {
+      versionContent = { ...versionContent, lessonResources: [] };
+    }
     const version = await client.query(
       `INSERT INTO public.lesson_versions (lesson_id, version_number, content, changes_summary)
        VALUES ($1, 1, $2::jsonb, $3) RETURNING *`,
       [id, JSON.stringify(versionContent), typeof input.changes_summary === "string" ? input.changes_summary : "Initial version"],
     );
+    const savedLesson = await client.query(`${lessonSelect} WHERE lesson.id = $1`, [id]);
     await client.query("COMMIT");
-    return NextResponse.json({ lesson: { ...lesson.rows[0], current_version: version.rows[0], content: versionContent } }, { status: 201 });
+    return NextResponse.json({ lesson: lessonFromRow(savedLesson.rows[0]) }, { status: 201 });
   } catch (error) {
     try {
       await client.query("ROLLBACK");
@@ -406,6 +642,9 @@ export async function POST(request: Request) {
       logDatabaseError("Lesson creation rollback failed:", rollbackError);
     }
     logDatabaseError("PostgreSQL lesson creation failed:", error);
+    if (error instanceof ResourceAssetAccessError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
     return NextResponse.json({ error: "Unable to create lesson." }, { status: 500 });
   } finally {
     client.release();
@@ -486,10 +725,13 @@ export async function PATCH(request: Request) {
           nextResource,
         ];
       }
-      const nextContent = {
-        ...content,
-        lessonResources: nextResources,
-      };
+      const ownerId = typeof lesson.instructor_id === "string" ? lesson.instructor_id : access.user.id;
+      const references = await saveCanonicalLessonResources(client, ownerId, id, nextResources);
+      nextResources = nextResources.map((resource, index) => ({
+        ...resource,
+        resourceHubAssetId: references[index]?.resourceHubAssetId,
+      }));
+      const nextContent = { ...content, lessonResources: references };
       const currentVersion = isRecord(lesson.current_version) ? lesson.current_version : null;
       if (lesson.status === "draft" && typeof currentVersion?.id === "string") {
         await client.query(
@@ -705,11 +947,27 @@ export async function PATCH(request: Request) {
         await client.query(`UPDATE public.lessons SET ${sets.join(", ")} WHERE id = $1`, values);
       }
       if (isRecord(input.content)) {
-        const content: Record<string, unknown> = {
+        let content: Record<string, unknown> = {
           ...input.content,
           ...(typeof input.title === "string" ? { title: input.title } : {}),
           ...(typeof input.slug === "string" ? { slug: input.slug } : {}),
         };
+        let fullLessonResources: Record<string, unknown>[] | null = null;
+        if (Array.isArray(content.lessonResources)) {
+          const normalizedResources = content.lessonResources.map(normalizeLessonResource);
+          if (normalizedResources.some((resource) => !resource)) {
+            await client.query("ROLLBACK");
+            return NextResponse.json({ error: "Provide valid lesson resources." }, { status: 400 });
+          }
+          fullLessonResources = normalizedResources as Record<string, unknown>[];
+          const ownerId = typeof lesson.instructor_id === "string" ? lesson.instructor_id : access.user.id;
+          const references = await saveCanonicalLessonResources(client, ownerId, id, fullLessonResources);
+          fullLessonResources = fullLessonResources.map((resource, index) => ({
+            ...resource,
+            resourceHubAssetId: references[index]?.resourceHubAssetId,
+          }));
+          content = { ...content, lessonResources: references };
+        }
         const currentVersion = isRecord(lesson.current_version) ? lesson.current_version : null;
         const isDraftSave = input.status === "draft" || (input.status === undefined && lesson.status === "draft");
         const changesSummary = typeof input.changes_summary === "string" ? input.changes_summary : "Updated lesson";
@@ -731,10 +989,9 @@ export async function PATCH(request: Request) {
             [id, versionNumber, JSON.stringify(content), changesSummary],
           );
         }
-        const nextResources = Array.isArray(content.lessonResources)
-          ? content.lessonResources.filter(isRecord)
-          : [];
-        await propagatePublishedLessonResourceChanges(client, lesson, nextResources);
+        if (fullLessonResources) {
+          await propagatePublishedLessonResourceChanges(client, lesson, fullLessonResources);
+        }
       }
     }
 
@@ -748,6 +1005,9 @@ export async function PATCH(request: Request) {
       logDatabaseError("Lesson update rollback failed:", rollbackError);
     }
     logDatabaseError("PostgreSQL lesson update failed:", error);
+    if (error instanceof ResourceAssetAccessError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
     return NextResponse.json({ error: "Unable to save lesson changes." }, { status: 500 });
   } finally {
     client.release();

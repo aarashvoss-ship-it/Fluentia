@@ -3,10 +3,14 @@ import { getServerSessionUser } from "@/lib/server/session";
 import type { ResourceAssetInput } from "@/types/resource-hub";
 
 export const RESOURCE_ASSET_COLUMNS =
-  "id,instructor_id,title,description,main_category,sub_category,url,allow_student_download,cefr_level,tags,created_at,updated_at";
+  "id,instructor_id,title,description,main_category,sub_category,url,allow_student_download,cefr_level,tags,resource_type,content,original_filename,media_type,storage_path,created_at,updated_at";
 
 const MAIN_CATEGORIES = new Set(["documents", "videos", "audios", "visuals", "others"]);
 const CEFR_LEVELS = new Set(["A1", "A2", "B1", "B2", "C1", "C2", "All Levels"]);
+const RESOURCE_TYPES = new Set([
+  "note", "reading", "flashcard", "flashcards", "quiz", "audio",
+  "data_table", "file", "image", "video", "links", "link",
+]);
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -24,7 +28,12 @@ export function isResourceAssetInput(value: unknown): value is ResourceAssetInpu
     && typeof value.cefrLevel === "string"
     && CEFR_LEVELS.has(value.cefrLevel)
     && Array.isArray(value.tags)
-    && value.tags.every((tag) => typeof tag === "string");
+    && value.tags.every((tag) => typeof tag === "string")
+    && (value.resourceType === undefined || (typeof value.resourceType === "string" && RESOURCE_TYPES.has(value.resourceType)))
+    && (value.content === undefined || isRecord(value.content))
+    && (value.originalFilename === undefined || typeof value.originalFilename === "string" || value.originalFilename === null)
+    && (value.mediaType === undefined || typeof value.mediaType === "string" || value.mediaType === null)
+    && (value.storagePath === undefined || typeof value.storagePath === "string" || value.storagePath === null);
 }
 
 export async function requireInstructor() {

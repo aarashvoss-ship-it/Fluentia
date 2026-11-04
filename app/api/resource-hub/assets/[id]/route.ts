@@ -19,6 +19,11 @@ const UPDATE_COLUMNS: Record<string, string> = {
   isDownloadable: "allow_student_download",
   cefrLevel: "cefr_level",
   tags: "tags",
+  resourceType: "resource_type",
+  content: "content",
+  originalFilename: "original_filename",
+  mediaType: "media_type",
+  storagePath: "storage_path",
 };
 const MAIN_CATEGORIES = new Set(["documents", "videos", "audios", "visuals", "others"]);
 const CEFR_LEVELS = new Set(["A1", "A2", "B1", "B2", "C1", "C2", "All Levels"]);
@@ -34,7 +39,10 @@ function isValidUpdate(body: Record<string, unknown>) {
       case "url":
         return typeof value === "string";
       case "description":
-        return typeof value === "string";
+      case "originalFilename":
+      case "mediaType":
+      case "storagePath":
+        return typeof value === "string" || value === null;
       case "mainCategory":
         return typeof value === "string" && MAIN_CATEGORIES.has(value);
       case "isDownloadable":
@@ -43,6 +51,13 @@ function isValidUpdate(body: Record<string, unknown>) {
         return typeof value === "string" && CEFR_LEVELS.has(value);
       case "tags":
         return Array.isArray(value) && value.every((tag) => typeof tag === "string");
+      case "resourceType":
+        return typeof value === "string" && [
+          "note", "reading", "flashcard", "flashcards", "quiz", "audio",
+          "data_table", "file", "image", "video", "links", "link",
+        ].includes(value);
+      case "content":
+        return isRecord(value);
       default:
         return false;
     }
@@ -70,7 +85,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const values: unknown[] = [id, access.user.id];
   const assignments = entries.map(([key, value]) => {
     values.push(key === "description" && value === "" ? null : value);
-    return `${UPDATE_COLUMNS[key]} = $${values.length}`;
+    return `${UPDATE_COLUMNS[key]} = $${values.length}${key === "content" ? "::jsonb" : ""}`;
   });
   assignments.push("updated_at = now()");
 
@@ -101,7 +116,20 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
 
   try {
     await initializeDatabase();
-    const result = await getPostgresPool().query(
+    const pool = getPostgresPool();
+    const linked = await pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count
+       FROM public.lesson_resource_links
+       WHERE resource_asset_id = $1 AND instructor_id = $2`,
+      [id, access.user.id],
+    );
+    if (Number(linked.rows[0]?.count || 0) > 0) {
+      return NextResponse.json(
+        { error: "Detach this resource from its lessons before deleting it." },
+        { status: 409 },
+      );
+    }
+    const result = await pool.query(
       `DELETE FROM public.resource_assets
        WHERE id = $1 AND instructor_id = $2
        RETURNING id`,

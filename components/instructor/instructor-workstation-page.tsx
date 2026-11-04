@@ -33,6 +33,7 @@ import { getStudentDirectory, getStudentProfile, normalizeStudentLevel, saveStud
 import { getInstructorDirectory, type InstructorDirectoryEntry, type InstructorStatus } from "@/lib/instructors";
 import { InstructorChatWidget } from "@/components/instructor/instructor-chat-widget";
 import { useLessonEditorStore } from "@/lib/lesson-editor-store";
+import { addResourceAsset, updateResourceAsset } from "@/lib/resource-hub-store";
 import { Tooltip } from "@/components/shared/tooltip";
 import { DeleteConfirmationDialog, type DeleteConfirmationRequest } from "@/components/shared/delete-confirmation-dialog";
 import { DisplaySettingsControl } from "@/components/shared/display-settings";
@@ -48,7 +49,7 @@ import type { StudyHubResource } from "@/components/shared/study-hub-resource-ca
 import { ResourceHubPage } from "@/components/instructor/resource-hub-page";
 import { ResourceHubImportDialog } from "@/components/instructor/resource-hub-import-dialog";
 import { LessonAssignmentResourceDialog, type LessonAssignmentCustomResourceDraft } from "@/components/instructor/lesson-assignment-resource-dialog";
-import type { ResourceAsset } from "@/types/resource-hub";
+import type { MainCategory, ResourceAsset, ResourceAssetInput, SubCategory } from "@/types/resource-hub";
 import { createLessonTrack, getLessonTracks, updateLessonTrack, type LessonTrack } from "@/lib/lesson-tracks";
 
 interface InstructorWorkstationProps {
@@ -697,6 +698,52 @@ const EMPTY_RESOURCE_DRAFT = {
   explanation: "",
   cards: [] as FlashcardItem[],
 };
+
+function getLessonResourceAssetInput(resource: LessonResource): ResourceAssetInput {
+  const resourceType = resource.resourceType || "reading";
+  const mainCategory: MainCategory = resourceType === "audio"
+    ? "audios"
+    : resourceType === "video"
+      ? "videos"
+      : ["image", "flashcard", "flashcards"].includes(resourceType)
+        ? "visuals"
+        : ["note", "reading", "quiz", "file", "data_table"].includes(resourceType)
+          ? "documents"
+          : "others";
+  const subCategory: SubCategory = resource.subCategory || (
+    resourceType === "audio" ? "Podcasts"
+      : resourceType === "video" ? "Other Videos"
+        : resourceType === "image" ? "Images"
+          : resourceType === "flashcard" || resourceType === "flashcards" ? "Flashcards"
+            : resourceType === "file" ? "PDFs"
+              : mainCategory === "documents" ? "Texts" : "General"
+  );
+  const content: Record<string, unknown> = {
+    body: resource.body ?? null,
+    question: resource.question ?? null,
+    answer: resource.answer ?? null,
+    explanation: resource.explanation ?? null,
+    subtitle: resource.subtitle ?? null,
+    sub_title: resource.sub_title ?? null,
+    example: resource.example ?? null,
+    cards: resource.cards ?? [],
+  };
+  return {
+    title: resource.title,
+    description: resource.description || undefined,
+    mainCategory,
+    subCategory,
+    url: resource.url,
+    isDownloadable: resource.isDownloadable ?? true,
+    cefrLevel: resource.cefrLevel || "All Levels",
+    tags: resource.tags || [],
+    resourceType,
+    content,
+    originalFilename: resource.original_filename ?? null,
+    mediaType: resource.media_type ?? null,
+    storagePath: resource.storage_path ?? null,
+  };
+}
 
 function getResourceFlashcards(resource: StudentResourceEntry): FlashcardItem[] {
   const savedCards = resource.cards?.filter((card) => (
@@ -1689,27 +1736,67 @@ export default function InstructorWorkstationPage({
     const existingAssetIds = new Set(lessonResources.flatMap((resource) => resource.resourceHubAssetId ? [resource.resourceHubAssetId] : []));
     const importedResources: LessonResource[] = assets
       .filter((asset) => !existingAssetIds.has(asset.id))
-      .map((asset) => ({
-        id: crypto.randomUUID(),
-        title: asset.title,
-        url: asset.url,
-        type: asset.mainCategory === "videos"
-          ? "Video"
+      .map((asset) => {
+        const content = asset.content || {};
+        const allowedResourceTypes: NonNullable<LessonResource["resourceType"]>[] = [
+          "note", "reading", "flashcard", "flashcards", "quiz", "audio",
+          "data_table", "file", "image", "video", "links",
+        ];
+        const inferredType: NonNullable<LessonResource["resourceType"]> = asset.mainCategory === "videos"
+          ? "video"
           : asset.mainCategory === "audios"
+            ? "audio"
+            : asset.subCategory === "Flashcards"
+              ? "flashcard"
+              : asset.mainCategory === "visuals"
+                ? "image"
+                : asset.mainCategory === "documents" && asset.subCategory === "PDFs"
+                  ? "file"
+                  : "reading";
+        const resourceType = asset.resourceType && allowedResourceTypes.includes(asset.resourceType as NonNullable<LessonResource["resourceType"]>)
+          ? asset.resourceType as NonNullable<LessonResource["resourceType"]>
+          : inferredType;
+        const asString = (value: unknown) => typeof value === "string" ? value : null;
+        return {
+          id: crypto.randomUUID(),
+          title: asset.title,
+          url: asset.url,
+          type: resourceType === "audio"
             ? "Audio"
-            : asset.mainCategory === "visuals"
-              ? "Image"
-              : asset.mainCategory === "documents" && asset.subCategory === "PDFs"
-                ? "PDF"
-                : "Article",
-        description: asset.description,
-        mainCategory: asset.mainCategory,
-        subCategory: asset.subCategory,
-        cefrLevel: asset.cefrLevel,
-        isDownloadable: asset.isDownloadable,
-        importedFromResourceHub: true,
-        resourceHubAssetId: asset.id,
-      }));
+            : resourceType === "video"
+              ? "Video"
+              : resourceType === "image"
+                ? "Image"
+                : resourceType === "file"
+                  ? "PDF"
+                  : "Article",
+          resourceType,
+          description: asset.description,
+          body: asString(content.body),
+          question: asString(content.question),
+          answer: asString(content.answer),
+          explanation: asString(content.explanation),
+          subtitle: asString(content.subtitle),
+          sub_title: asString(content.sub_title),
+          example: asString(content.example),
+          cards: Array.isArray(content.cards)
+            ? content.cards.filter((card): card is { front: string; back: string; id?: string; explanation?: string } => (
+                typeof card === "object" && card !== null && "front" in card && "back" in card
+                && typeof card.front === "string" && typeof card.back === "string"
+              ))
+            : null,
+          original_filename: asset.originalFilename || null,
+          media_type: asset.mediaType || null,
+          storage_path: asset.storagePath || null,
+          mainCategory: asset.mainCategory,
+          subCategory: asset.subCategory,
+          cefrLevel: asset.cefrLevel,
+          isDownloadable: asset.isDownloadable,
+          tags: asset.tags,
+          importedFromResourceHub: true,
+          resourceHubAssetId: asset.id,
+        };
+      });
     if (importedResources.length) {
       try {
         await persistLessonResourceList([...lessonResources, ...importedResources]);
@@ -2622,10 +2709,26 @@ export default function InstructorWorkstationPage({
             ? resourceFileStoragePath
             : preserveExistingLessonAttachment ? lessonResourceBeingEdited?.storage_path || null : null,
         };
-        const hasDraftResource = lessonResources.some((resource) => resource.id === draftResource.id);
+        let canonicalResource = draftResource;
+        if (!resolvedLessonId) {
+          const assetInput = getLessonResourceAssetInput(draftResource);
+          const savedAsset = lessonResourceBeingEdited?.resourceHubAssetId
+            ? await updateResourceAsset(lessonResourceBeingEdited.resourceHubAssetId, assetInput)
+            : await addResourceAsset(assetInput, instructorId);
+          canonicalResource = {
+            ...draftResource,
+            resourceHubAssetId: savedAsset.id,
+            importedFromResourceHub: true,
+            mainCategory: savedAsset.mainCategory,
+            subCategory: savedAsset.subCategory,
+            cefrLevel: savedAsset.cefrLevel,
+            isDownloadable: savedAsset.isDownloadable,
+          };
+        }
+        const hasDraftResource = lessonResources.some((resource) => resource.id === canonicalResource.id);
         const nextLessonResources = hasDraftResource
-          ? lessonResources.map((resource) => resource.id === draftResource.id ? draftResource : resource)
-          : [...lessonResources, draftResource];
+          ? lessonResources.map((resource) => resource.id === canonicalResource.id ? canonicalResource : resource)
+          : [...lessonResources, canonicalResource];
         await persistLessonResourceList(nextLessonResources);
         setResourceFile(null);
         setResourceFilePreviewUrl(null);
@@ -2636,11 +2739,11 @@ export default function InstructorWorkstationPage({
           ? "Lesson resource saved and synced to active student Study Hubs."
           : resolvedLessonId
             ? "Resource saved to the lesson draft. Assign the lesson to make it available to students."
-            : "Resource added to the draft. Save the lesson to persist it.");
+            : "Resource saved to the Resource Hub and lesson draft. Save the lesson to attach it.");
         const previousAttachment = lessonResourceBeingEdited?.storage_path || lessonResourceBeingEdited?.url;
         if (previousAttachment
-          && previousAttachment !== draftResource.storage_path
-          && previousAttachment !== draftResource.url) {
+          && previousAttachment !== canonicalResource.storage_path
+          && previousAttachment !== canonicalResource.url) {
           try {
             await deleteAsset(previousAttachment);
           } catch (cleanupError) {
