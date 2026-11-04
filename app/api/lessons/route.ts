@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
+import type { PoolClient } from "pg";
 import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
 import { getServerSessionUser } from "@/lib/server/session";
 import { assignUnownedSampleLesson } from "@/lib/server/sample-lesson";
@@ -71,6 +72,153 @@ function lessonFromRow(row: Record<string, unknown>): Record<string, unknown> & 
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+const lessonResourceTypes = new Set([
+  "note", "reading", "flashcard", "flashcards", "quiz", "audio",
+  "data_table", "file", "image", "video", "links",
+]);
+
+function normalizeLessonResource(value: unknown) {
+  if (!isRecord(value)) return null;
+  const id = typeof value.id === "string" ? value.id.trim() : "";
+  const title = typeof value.title === "string" ? value.title.trim() : "";
+  const type = value.type;
+  const resourceType = value.resourceType;
+  if (!id || id.length > 200 || !title || title.length > 500
+    || !["PDF", "Article", "Video", "Audio", "Image"].includes(String(type))
+    || (resourceType !== undefined && (typeof resourceType !== "string" || !lessonResourceTypes.has(resourceType)))
+    || (value.url !== undefined && typeof value.url !== "string")) {
+    return null;
+  }
+  const resource: Record<string, unknown> = {
+    id,
+    title,
+    url: typeof value.url === "string" ? value.url : "",
+    type,
+  };
+  const optionalStrings = [
+    "resourceType", "description", "mainCategory", "subCategory", "cefrLevel",
+    "resourceHubAssetId",
+  ] as const;
+  optionalStrings.forEach((key) => {
+    if (typeof value[key] === "string") resource[key] = value[key];
+  });
+  const nullableStrings = [
+    "body", "question", "answer", "explanation", "subtitle", "sub_title",
+    "example", "original_filename", "media_type", "storage_path",
+  ] as const;
+  nullableStrings.forEach((key) => {
+    if (typeof value[key] === "string" || value[key] === null) resource[key] = value[key];
+  });
+  if (Array.isArray(value.cards)) resource.cards = value.cards;
+  if (typeof value.isDownloadable === "boolean") resource.isDownloadable = value.isDownloadable;
+  if (typeof value.importedFromResourceHub === "boolean") resource.importedFromResourceHub = value.importedFromResourceHub;
+  return resource;
+}
+
+function toAssignedStudentResource(resource: Record<string, unknown>) {
+  const type = typeof resource.type === "string" ? resource.type : "";
+  const resourceType = typeof resource.resourceType === "string" ? resource.resourceType
+    : type === "Audio" ? "audio"
+    : type === "Video" ? "video"
+      : type === "Image" ? "image"
+        : type === "PDF" ? "file"
+          : "reading";
+  const url = typeof resource.url === "string" ? resource.url : "";
+  return {
+    id: resource.id,
+    resource_type: resourceType,
+    title: resource.title,
+    body: typeof resource.body === "string" ? resource.body
+      : typeof resource.description === "string" ? resource.description : null,
+    link_url: url || null,
+    question: typeof resource.question === "string" ? resource.question : null,
+    answer: typeof resource.answer === "string" ? resource.answer : null,
+    explanation: typeof resource.explanation === "string" ? resource.explanation : null,
+    subtitle: typeof resource.subtitle === "string" ? resource.subtitle : null,
+    sub_title: typeof resource.sub_title === "string" ? resource.sub_title : null,
+    example: typeof resource.example === "string" ? resource.example : null,
+    cards: Array.isArray(resource.cards) ? resource.cards : null,
+    original_filename: typeof resource.original_filename === "string"
+      ? resource.original_filename
+      : type === "PDF" && typeof resource.title === "string" ? resource.title : null,
+    media_type: typeof resource.media_type === "string" ? resource.media_type : null,
+    storage_path: typeof resource.storage_path === "string" ? resource.storage_path : null,
+    resourceHubAssetId: typeof resource.resourceHubAssetId === "string" ? resource.resourceHubAssetId : null,
+    is_external_url: !url.includes("/storage/v1/object/"),
+  };
+}
+
+async function propagatePublishedLessonResourceChanges(
+  client: PoolClient,
+  lesson: Record<string, unknown>,
+  nextResources: Record<string, unknown>[],
+) {
+  if (lesson.status !== "published" && lesson.is_published !== true) return;
+
+  const lessonId = typeof lesson.id === "string" ? lesson.id : "";
+  if (!lessonId) return;
+
+  const previousContent = isRecord(lesson.content) ? lesson.content : {};
+  const previousResources = Array.isArray(previousContent.lessonResources)
+    ? previousContent.lessonResources.filter(isRecord)
+    : [];
+  const previousById = new Map(previousResources.flatMap((resource) => (
+    typeof resource.id === "string" ? [[resource.id, resource] as const] : []
+  )));
+  const nextById = new Map(nextResources.flatMap((resource) => (
+    typeof resource.id === "string" ? [[resource.id, resource] as const] : []
+  )));
+  const removedIds = [...previousById.keys()].filter((resourceId) => !nextById.has(resourceId));
+  const changedResources = [...nextById.values()].filter((resource) => {
+    const resourceId = typeof resource.id === "string" ? resource.id : "";
+    return JSON.stringify(previousById.get(resourceId)) !== JSON.stringify(resource);
+  });
+  if (!removedIds.length && !changedResources.length) return;
+
+  const students = await client.query<{ id: string; token: string }>(
+    `SELECT student.id::text, student.token
+     FROM public.students AS student
+     JOIN public.profiles AS profile ON profile.id = student.id
+     WHERE COALESCE(profile.role, 'student') = 'student'
+       AND (
+         student.id = $2::uuid
+         OR $3::boolean IS TRUE
+         OR EXISTS (
+           SELECT 1
+           FROM public.lesson_assignments AS assignment
+           WHERE assignment.lesson_id = $1::uuid
+             AND assignment.student_id = student.id
+             AND assignment.status = 'assigned'
+         )
+       )`,
+    [lessonId, typeof lesson.student_id === "string" ? lesson.student_id : null, lesson.assigned_all_students === true],
+  );
+
+  for (const student of students.rows) {
+    if (removedIds.length) {
+      await client.query(
+        `DELETE FROM public.student_lesson_resources
+         WHERE lesson_id = $1::uuid
+           AND student_id = $2::uuid
+           AND source_type = 'lesson'
+           AND source_resource_id = ANY($3::text[])`,
+        [lessonId, student.id, removedIds],
+      );
+    }
+    for (const resource of changedResources) {
+      const sourceResourceId = typeof resource.id === "string" ? resource.id : "";
+      await client.query(
+        `INSERT INTO public.student_lesson_resources
+           (student_id, student_token, lesson_id, source_resource_id, source_type, resource)
+         VALUES ($1::uuid, $2, $3::uuid, $4, 'lesson', $5::jsonb)
+         ON CONFLICT (student_id, lesson_id, source_resource_id)
+         DO UPDATE SET source_type = 'lesson', resource = EXCLUDED.resource, updated_at = now()`,
+        [student.id, student.token, lessonId, sourceResourceId, JSON.stringify(toAssignedStudentResource(resource))],
+      );
+    }
+  }
 }
 
 async function requireInstructor() {
@@ -301,49 +449,46 @@ export async function PATCH(request: Request) {
     }
     const lesson = lessonFromRow(current.rows[0]);
 
-    if (action === "resource") {
-      const resource = isRecord(body.resource) ? body.resource : null;
-      const id = typeof resource?.id === "string" ? resource.id.trim() : "";
-      const title = typeof resource?.title === "string" ? resource.title.trim() : "";
-      const type = resource?.type;
-      const url = resource?.url;
-      const resourceType = resource?.resourceType;
-      if (!resource || !id || id.length > 200 || !title || title.length > 500
-        || !["PDF", "Article", "Video", "Audio", "Image"].includes(String(type))
-        || (resourceType !== undefined && ![
-          "note", "reading", "flashcard", "flashcards", "quiz", "audio",
-          "data_table", "file", "image", "video", "links",
-        ].includes(String(resourceType)))
-        || (url !== undefined && typeof url !== "string")) {
-        await client.query("ROLLBACK");
-        return NextResponse.json({ error: "Provide a valid lesson resource." }, { status: 400 });
-      }
+    if (action === "resource" || action === "resources" || action === "resource-remove") {
       const content = isRecord(lesson.content) ? lesson.content : {};
       const lessonResources = Array.isArray(content.lessonResources)
         ? content.lessonResources.filter(isRecord)
         : [];
-      const nextResource = {
-        id,
-        title,
-        url: typeof url === "string" ? url : "",
-        type,
-        ...(typeof resource.resourceType === "string" ? { resourceType: resource.resourceType } : {}),
-        ...(typeof resource.description === "string" ? { description: resource.description } : {}),
-        ...(typeof resource.body === "string" || resource.body === null ? { body: resource.body } : {}),
-        ...(typeof resource.question === "string" || resource.question === null ? { question: resource.question } : {}),
-        ...(typeof resource.answer === "string" || resource.answer === null ? { answer: resource.answer } : {}),
-        ...(typeof resource.explanation === "string" || resource.explanation === null ? { explanation: resource.explanation } : {}),
-        ...(Array.isArray(resource.cards) ? { cards: resource.cards } : {}),
-        ...(typeof resource.original_filename === "string" || resource.original_filename === null ? { original_filename: resource.original_filename } : {}),
-        ...(typeof resource.media_type === "string" || resource.media_type === null ? { media_type: resource.media_type } : {}),
-        ...(typeof resource.storage_path === "string" || resource.storage_path === null ? { storage_path: resource.storage_path } : {}),
-      };
+      let nextResources: Record<string, unknown>[];
+      if (action === "resource-remove") {
+        const resourceId = typeof body.resourceId === "string" ? body.resourceId.trim() : "";
+        if (!resourceId || !lessonResources.some((resource) => resource.id === resourceId)) {
+          await client.query("ROLLBACK");
+          return NextResponse.json({ error: "The lesson resource was not found." }, { status: 404 });
+        }
+        nextResources = lessonResources.filter((resource) => resource.id !== resourceId);
+      } else if (action === "resources") {
+        const submittedResources = Array.isArray(body.resources) ? body.resources : null;
+        const normalizedResources = submittedResources?.map(normalizeLessonResource) || null;
+        if (!normalizedResources || normalizedResources.some((resource) => !resource)) {
+          await client.query("ROLLBACK");
+          return NextResponse.json({ error: "Provide a valid list of lesson resources." }, { status: 400 });
+        }
+        nextResources = normalizedResources as Record<string, unknown>[];
+        const resourceIds = nextResources.map((resource) => resource.id);
+        if (new Set(resourceIds).size !== resourceIds.length) {
+          await client.query("ROLLBACK");
+          return NextResponse.json({ error: "Lesson resource IDs must be unique." }, { status: 400 });
+        }
+      } else {
+        const nextResource = normalizeLessonResource(body.resource);
+        if (!nextResource) {
+          await client.query("ROLLBACK");
+          return NextResponse.json({ error: "Provide a valid lesson resource." }, { status: 400 });
+        }
+        nextResources = [
+          ...lessonResources.filter((resource) => resource.id !== nextResource.id),
+          nextResource,
+        ];
+      }
       const nextContent = {
         ...content,
-        lessonResources: [
-          ...lessonResources.filter((item) => item.id !== id),
-          nextResource,
-        ],
+        lessonResources: nextResources,
       };
       const currentVersion = isRecord(lesson.current_version) ? lesson.current_version : null;
       if (lesson.status === "draft" && typeof currentVersion?.id === "string") {
@@ -351,7 +496,7 @@ export async function PATCH(request: Request) {
           `UPDATE public.lesson_versions
            SET content = $2::jsonb, changes_summary = $3
            WHERE id = $1 AND lesson_id = $4`,
-          [currentVersion.id, JSON.stringify(nextContent), "Updated lesson resources", id],
+          [currentVersion.id, JSON.stringify(nextContent), action === "resource-remove" ? "Removed lesson resource" : "Updated lesson resources", id],
         );
       } else {
         const versionNumber = Number((await client.query(
@@ -361,10 +506,11 @@ export async function PATCH(request: Request) {
         await client.query(
           `INSERT INTO public.lesson_versions (lesson_id, version_number, content, changes_summary)
            VALUES ($1, $2, $3::jsonb, $4)`,
-          [id, versionNumber, JSON.stringify(nextContent), "Updated lesson resources"],
+          [id, versionNumber, JSON.stringify(nextContent), action === "resource-remove" ? "Removed lesson resource" : "Updated lesson resources"],
         );
       }
       await client.query("UPDATE public.lessons SET updated_at = now() WHERE id = $1", [id]);
+      await propagatePublishedLessonResourceChanges(client, lesson, nextResources);
     } else if (action === "assignments") {
       const studentIds = Array.isArray(body.studentIds)
         ? [...new Set(body.studentIds.filter((value): value is string => typeof value === "string" && uuidPattern.test(value)))]
@@ -381,7 +527,7 @@ export async function PATCH(request: Request) {
           [id, studentIds],
         );
       }
-      const content = {
+      const content: Record<string, unknown> = {
         ...(isRecord(lesson.content) ? lesson.content : {}),
         assignedAllStudents: assignAll,
         assignedStudents: assignAll ? [] : studentIds,
@@ -409,10 +555,18 @@ export async function PATCH(request: Request) {
           ? options.customResourcesByStudentId
           : {};
         for (const studentId of resourceStudentIds) {
+          const studentResult = await client.query<{ token: string }>(
+            "SELECT token FROM public.students WHERE id = $1::uuid",
+            [studentId],
+          );
+          const studentToken = studentResult.rows[0]?.token;
+          if (!studentToken) throw new Error("An assigned student is missing its lesson-resource identity.");
           await client.query(
             `DELETE FROM public.student_lesson_resources
-             WHERE lesson_id = $1 AND student_id = $2`,
-            [id, studentId],
+             WHERE lesson_id = $1::uuid AND student_id = $2::uuid
+               AND source_type = 'lesson'
+               AND NOT (source_resource_id = ANY($3::text[]))`,
+            [id, studentId, [...selectedResourceIds]],
           );
           for (const resource of lessonResources) {
             const resourceId = typeof resource.id === "string" ? resource.id : "";
@@ -445,9 +599,12 @@ export async function PATCH(request: Request) {
             };
             await client.query(
               `INSERT INTO public.student_lesson_resources
-                 (student_id, lesson_id, source_resource_id, source_type, resource)
-               VALUES ($1, $2, $3, 'lesson', $4::jsonb)`,
-              [studentId, id, resourceId, JSON.stringify(assignedResource)],
+                 (student_id, student_token, lesson_id, source_resource_id, source_type, resource)
+               VALUES ($1::uuid, $2, $3::uuid, $4, 'lesson', $5::jsonb)
+               ON CONFLICT (student_id, lesson_id, source_resource_id)
+               DO UPDATE SET student_token = EXCLUDED.student_token,
+                 source_type = 'lesson', resource = EXCLUDED.resource, updated_at = now()`,
+              [studentId, studentToken, id, resourceId, JSON.stringify(assignedResource)],
             );
           }
           const customResources = customResourcesByStudentId[studentId];
@@ -456,9 +613,12 @@ export async function PATCH(request: Request) {
               if (!isRecord(customResource) || typeof customResource.id !== "string" || !isRecord(customResource.resource)) continue;
               await client.query(
                 `INSERT INTO public.student_lesson_resources
-                   (student_id, lesson_id, source_resource_id, source_type, resource)
-                 VALUES ($1, $2, $3, 'custom', $4::jsonb)`,
-                [studentId, id, customResource.id, JSON.stringify(customResource.resource)],
+                   (student_id, student_token, lesson_id, source_resource_id, source_type, resource)
+                 VALUES ($1::uuid, $2, $3::uuid, $4, 'custom', $5::jsonb)
+                 ON CONFLICT (student_id, lesson_id, source_resource_id)
+                 DO UPDATE SET student_token = EXCLUDED.student_token,
+                   source_type = 'custom', resource = EXCLUDED.resource, updated_at = now()`,
+                [studentId, studentToken, id, customResource.id, JSON.stringify(customResource.resource)],
               );
             }
           }
@@ -545,7 +705,7 @@ export async function PATCH(request: Request) {
         await client.query(`UPDATE public.lessons SET ${sets.join(", ")} WHERE id = $1`, values);
       }
       if (isRecord(input.content)) {
-        const content = {
+        const content: Record<string, unknown> = {
           ...input.content,
           ...(typeof input.title === "string" ? { title: input.title } : {}),
           ...(typeof input.slug === "string" ? { slug: input.slug } : {}),
@@ -571,6 +731,10 @@ export async function PATCH(request: Request) {
             [id, versionNumber, JSON.stringify(content), changesSummary],
           );
         }
+        const nextResources = Array.isArray(content.lessonResources)
+          ? content.lessonResources.filter(isRecord)
+          : [];
+        await propagatePublishedLessonResourceChanges(client, lesson, nextResources);
       }
     }
 

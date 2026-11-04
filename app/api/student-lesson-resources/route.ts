@@ -125,19 +125,30 @@ export async function POST(request: Request) {
           if (!await canAccessLesson(user, lessonId, targetStudentId)) {
             throw new Error("A selected student is not assigned to this instructor.");
           }
+          const studentResult = await client.query<{ token: string }>(
+            "SELECT token FROM public.students WHERE id = $1::uuid",
+            [targetStudentId],
+          );
+          const studentToken = studentResult.rows[0]?.token;
+          if (!studentToken) throw new Error("A selected student is missing its lesson-resource identity.");
           await client.query(
             `DELETE FROM public.student_lesson_resources
-             WHERE student_id = $1 AND lesson_id = $2`,
-            [targetStudentId, lessonId],
+             WHERE student_id = $1::uuid AND lesson_id = $2::uuid
+               AND source_type = 'lesson'
+               AND NOT (source_resource_id = ANY($3::text[]))`,
+            [targetStudentId, lessonId, [...resourceIds]],
           );
           for (const item of resources) {
             const resourceId = typeof item.resourceId === "string" ? item.resourceId : "";
             if (!resourceId || !resourceIds.has(resourceId) || !isRecord(item.resource)) continue;
             await client.query(
               `INSERT INTO public.student_lesson_resources
-                 (student_id, lesson_id, source_resource_id, source_type, resource)
-               VALUES ($1, $2, $3, 'lesson', $4::jsonb)`,
-              [targetStudentId, lessonId, resourceId, JSON.stringify(item.resource)],
+                 (student_id, student_token, lesson_id, source_resource_id, source_type, resource)
+               VALUES ($1::uuid, $2, $3::uuid, $4, 'lesson', $5::jsonb)
+               ON CONFLICT (student_id, lesson_id, source_resource_id)
+               DO UPDATE SET student_token = EXCLUDED.student_token,
+                 source_type = 'lesson', resource = EXCLUDED.resource, updated_at = now()`,
+              [targetStudentId, studentToken, lessonId, resourceId, JSON.stringify(item.resource)],
             );
           }
           const customResources = customResourcesByStudentId[targetStudentId];
@@ -146,9 +157,12 @@ export async function POST(request: Request) {
               if (!isRecord(item) || typeof item.id !== "string" || !isRecord(item.resource)) continue;
               await client.query(
                 `INSERT INTO public.student_lesson_resources
-                   (student_id, lesson_id, source_resource_id, source_type, resource)
-                 VALUES ($1, $2, $3, 'custom', $4::jsonb)`,
-                [targetStudentId, lessonId, item.id, JSON.stringify(item.resource)],
+                   (student_id, student_token, lesson_id, source_resource_id, source_type, resource)
+                 VALUES ($1::uuid, $2, $3::uuid, $4, 'custom', $5::jsonb)
+                 ON CONFLICT (student_id, lesson_id, source_resource_id)
+                 DO UPDATE SET student_token = EXCLUDED.student_token,
+                   source_type = 'custom', resource = EXCLUDED.resource, updated_at = now()`,
+                [targetStudentId, studentToken, lessonId, item.id, JSON.stringify(item.resource)],
               );
             }
           }
@@ -192,13 +206,22 @@ export async function POST(request: Request) {
         if (!isRecord(body.resource)) {
           return NextResponse.json({ error: "Provide the selected resource details." }, { status: 400 });
         }
+        const studentResult = await pool.query<{ token: string }>(
+          "SELECT token FROM public.students WHERE id = $1::uuid",
+          [studentId],
+        );
+        const studentToken = studentResult.rows[0]?.token;
+        if (!studentToken) {
+          return NextResponse.json({ error: "The student is missing its lesson-resource identity." }, { status: 409 });
+        }
         await pool.query(
           `INSERT INTO public.student_lesson_resources
-             (student_id, lesson_id, source_resource_id, source_type, resource)
-           VALUES ($1, $2, $3, 'lesson', $4::jsonb)
+             (student_id, student_token, lesson_id, source_resource_id, source_type, resource)
+           VALUES ($1::uuid, $2, $3::uuid, $4, 'lesson', $5::jsonb)
            ON CONFLICT (student_id, lesson_id, source_resource_id)
-           DO UPDATE SET source_type = 'lesson', resource = EXCLUDED.resource, updated_at = now()`,
-          [studentId, lessonId, resourceId, JSON.stringify(body.resource)],
+           DO UPDATE SET student_token = EXCLUDED.student_token,
+             source_type = 'lesson', resource = EXCLUDED.resource, updated_at = now()`,
+          [studentId, studentToken, lessonId, resourceId, JSON.stringify(body.resource)],
         );
       }
       return NextResponse.json({ saved: true });

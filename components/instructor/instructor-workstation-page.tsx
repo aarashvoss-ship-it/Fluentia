@@ -11,7 +11,7 @@ import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/su
 import { updateSubmission } from "@/lib/evaluations";
 import type { UnifiedReportStage } from "@/components/shared/unified-report-card";
 import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission, StudyStepId, type LessonResource } from "@/types/lesson";
-import { assignLessonToAllActiveStudents, clearStudentLessonResources, createLesson, deleteLesson, getLessons, publishLessonAndAssign, removeStudentLessonCustomResource, saveLessonResource, setLessonAssignments, setStudentLessonResourceSelected, unassignLesson, updateLesson, type LessonAssignmentResourceOptions, type LessonTags, type LessonWithVersion } from "@/lib/lessons";
+import { assignLessonToAllActiveStudents, clearStudentLessonResources, createLesson, deleteLesson, getLessons, publishLessonAndAssign, removeLessonResource, removeStudentLessonCustomResource, saveLessonResource, saveLessonResources, setLessonAssignments, setStudentLessonResourceSelected, unassignLesson, updateLesson, type LessonAssignmentResourceOptions, type LessonTags, type LessonWithVersion } from "@/lib/lessons";
 import { PublishedLessonState } from "@/lib/lesson-store";
 import { deduplicateStudents, StudentUser } from "@/lib/users";
 import { FLUENTIA_DATA_UPDATED_EVENT, saveInstructorFeedback } from "@/services/storage-service";
@@ -988,6 +988,7 @@ export default function InstructorWorkstationPage({
   const [isManualLessonResourceOpen, setIsManualLessonResourceOpen] = useState(false);
   const [editingLessonResourceId, setEditingLessonResourceId] = useState<string | null>(null);
   const [lessonResourceEditDraft, setLessonResourceEditDraft] = useState({ title: "", url: "" });
+  const [isSavingLessonResources, setIsSavingLessonResources] = useState(false);
   const [studentResources, setStudentResources] = useState<StudentResourceEntry[]>([]);
   const [builderResourcesExpanded, setBuilderResourcesExpanded] = useState(false);
   const [resourceStudyHubPreviewOpen, setResourceStudyHubPreviewOpen] = useState(false);
@@ -1625,7 +1626,47 @@ export default function InstructorWorkstationPage({
     }
   }
 
-  const importResourceHubAssets = (assets: ResourceAsset[]) => {
+  const persistLessonResourceList = async (nextResources: LessonResource[], removedResourceId?: string) => {
+    setIsSavingLessonResources(true);
+    try {
+      const updatedLesson = databaseLessonId
+        ? removedResourceId
+          ? await removeLessonResource(databaseLessonId, removedResourceId)
+          : await saveLessonResources(databaseLessonId, nextResources)
+        : null;
+      const nextContent = { ...workstationState.content, lessonResources: nextResources };
+      setLessonResources(nextResources);
+      setWorkstationState((previous) => ({ ...previous, content: { ...previous.content, lessonResources: nextResources } }));
+      if (updatedLesson) {
+        setCreatedLessons((current) => current.map((lesson) => lesson.id === updatedLesson.id ? updatedLesson : lesson));
+        const savedSignature = getDraftSignature(
+          nextContent,
+          newLesson.title,
+          newLesson.subtitle,
+          newLesson.moduleNumber,
+        );
+        lastSavedDraftSignature.current = savedSignature;
+        currentDraftSignatureRef.current = savedSignature;
+        cacheSyncedSignatureRef.current = savedSignature;
+        setIsDirty(false);
+        setSaveIndicator("saved");
+        setCacheSyncVersion((version) => version + 1);
+        consecutiveSaveFailuresRef.current = 0;
+        setConsecutiveSaveFailures(0);
+        setPersistentSaveError(null);
+        setPublishStatus(lessonStatus === "published"
+          ? "Resource changes saved and synced to active student Study Hubs."
+          : "Resources saved to the lesson draft.");
+      } else {
+        setIsDirty(true);
+      }
+      return updatedLesson;
+    } finally {
+      setIsSavingLessonResources(false);
+    }
+  };
+
+  const importResourceHubAssets = async (assets: ResourceAsset[]) => {
     const existingAssetIds = new Set(lessonResources.flatMap((resource) => resource.resourceHubAssetId ? [resource.resourceHubAssetId] : []));
     const importedResources: LessonResource[] = assets
       .filter((asset) => !existingAssetIds.has(asset.id))
@@ -1650,34 +1691,52 @@ export default function InstructorWorkstationPage({
         importedFromResourceHub: true,
         resourceHubAssetId: asset.id,
       }));
-    if (importedResources.length) setLessonResources((current) => [...current, ...importedResources]);
-    setIsResourceHubImportOpen(false);
+    if (importedResources.length) {
+      try {
+        await persistLessonResourceList([...lessonResources, ...importedResources]);
+        setIsResourceHubImportOpen(false);
+      } catch (error) {
+        setPublishStatus(`Unable to attach Resource Hub assets: ${error instanceof Error ? error.message : "The request failed."}`);
+      }
+    } else {
+      setIsResourceHubImportOpen(false);
+    }
   };
 
-  const addManualLessonResource = (event: React.FormEvent<HTMLFormElement>) => {
+  const addManualLessonResource = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const title = manualLessonResourceDraft.title.trim();
     const url = manualLessonResourceDraft.url.trim();
     if (!title || !url) return;
-    setLessonResources((current) => [...current, {
+    const newResource: LessonResource = {
       id: crypto.randomUUID(),
       title,
       url,
       type: "Article",
       importedFromResourceHub: false,
-    }]);
-    setManualLessonResourceDraft({ title: "", url: "" });
-    setIsManualLessonResourceOpen(false);
+    };
+    try {
+      await persistLessonResourceList([...lessonResources, newResource]);
+      setManualLessonResourceDraft({ title: "", url: "" });
+      setIsManualLessonResourceOpen(false);
+    } catch (error) {
+      setPublishStatus(`Unable to add lesson resource: ${error instanceof Error ? error.message : "The request failed."}`);
+    }
   };
 
-  const saveLessonResourceEdit = (resourceId: string) => {
+  const saveLessonResourceEdit = async (resourceId: string) => {
     const title = lessonResourceEditDraft.title.trim();
     const url = lessonResourceEditDraft.url.trim();
     if (!title || !url) return;
-    setLessonResources((current) => current.map((resource) => (
+    const nextResources = lessonResources.map((resource) => (
       resource.id === resourceId ? { ...resource, title, url } : resource
-    )));
-    setEditingLessonResourceId(null);
+    ));
+    try {
+      await persistLessonResourceList(nextResources);
+      setEditingLessonResourceId(null);
+    } catch (error) {
+      setPublishStatus(`Unable to update lesson resource: ${error instanceof Error ? error.message : "The request failed."}`);
+    }
   };
 
   const handleWorkspaceTabChange = (tab: typeof activeTab) => {
@@ -5637,7 +5696,7 @@ export default function InstructorWorkstationPage({
                           className="mt-1 w-full rounded-md border border-border bg-surface p-2 text-xs text-stone-200"
                         />
                       </label>
-                      <button type="submit" className="self-end rounded-md bg-amber-500/20 px-3 py-2 text-xs font-medium text-amber-300 hover:bg-amber-500/30">Add</button>
+                      <button type="submit" disabled={isSavingLessonResources} className="self-end rounded-md bg-amber-500/20 px-3 py-2 text-xs font-medium text-amber-300 hover:bg-amber-500/30 disabled:cursor-wait disabled:opacity-50">{isSavingLessonResources ? "Saving..." : "Add"}</button>
                       <button
                         type="button"
                         onClick={() => {
@@ -5673,7 +5732,7 @@ export default function InstructorWorkstationPage({
                                   className="mt-1 w-full rounded-md border border-border bg-surface p-2 text-xs text-stone-200"
                                 />
                               </label>
-                              <button type="button" onClick={() => saveLessonResourceEdit(resource.id)} className="self-end rounded-md bg-amber-500/20 px-3 py-2 text-xs font-medium text-amber-300 hover:bg-amber-500/30">Save</button>
+                              <button type="button" disabled={isSavingLessonResources} onClick={() => void saveLessonResourceEdit(resource.id)} className="self-end rounded-md bg-amber-500/20 px-3 py-2 text-xs font-medium text-amber-300 hover:bg-amber-500/30 disabled:cursor-wait disabled:opacity-50">{isSavingLessonResources ? "Saving..." : "Save"}</button>
                               <button type="button" onClick={() => setEditingLessonResourceId(null)} className="self-end rounded-md border border-border px-3 py-2 text-xs text-stone-400 hover:text-stone-200">Cancel</button>
                             </div>
                           ) : (
@@ -5709,7 +5768,10 @@ export default function InstructorWorkstationPage({
                                   onClick={() => setDeleteConfirmation({
                                     title: `Remove ${resource.title} from this lesson?`,
                                     description: "This removes the resource from the lesson. The source resource itself will not be deleted.",
-                                    onConfirm: () => setLessonResources((current) => current.filter(({ id }) => id !== resource.id)),
+                                    onConfirm: async () => {
+                                      const nextResources = lessonResources.filter(({ id }) => id !== resource.id);
+                                      await persistLessonResourceList(nextResources, resource.id);
+                                    },
                                   })}
                                   aria-label={`Remove ${resource.title} from this lesson`}
                                   className="rounded-md border border-border p-2 text-stone-400 hover:border-red-500/40 hover:text-red-300"
