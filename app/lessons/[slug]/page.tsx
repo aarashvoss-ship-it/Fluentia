@@ -1074,7 +1074,11 @@ export default function LessonPage() {
       .filter((block) => block.is_active !== false && block.enabled !== false);
     if (blocks.length === 0) {
       if (step === "warm_up") {
-        addResponse(lessonContent.warm_up?.prompt?.text || "Warm-up reflection", submission.blockResponses?.warm_up, undefined, undefined, undefined, "warm_up");
+        const prompt = [
+          lessonContent.warm_up?.prompt?.text,
+          ...(lessonContent.warm_up?.quick_prompts || []).map((item: { text?: string }) => item.text),
+        ].filter((text): text is string => typeof text === "string" && text.trim().length > 0).join("\n\n");
+        addResponse(prompt || "Warm-up reflection", submission.blockResponses?.warm_up, undefined, undefined, undefined, "warm_up");
       } else if (step === "listening") {
         (lessonContent.listening?.questions || []).filter((question: { options?: string[] }) => question.options?.some(Boolean)).forEach((question: { id: string; question: string; options?: string[]; correct_answer?: string; explanation?: string }) => addResponse(
           question.question,
@@ -1097,7 +1101,11 @@ export default function LessonPage() {
         addResponse(lessonContent.writing?.prompt?.text || "Writing response", submission.writingText, undefined, undefined, undefined, "writingText");
       } else if (step === "speaking") {
         const recording = submission.speakingAudioUrl || submission.audioUploads?.speaking;
-        addResponse(lessonContent.speaking?.scenario?.text || "Speaking recording", recording ? "Audio response submitted" : "", undefined, undefined, recording ? [recording] : undefined, "speaking");
+        const prompt = [
+          lessonContent.speaking?.scenario?.text,
+          ...(lessonContent.speaking?.discussion_points || []).map((point: { text?: string }) => point.text),
+        ].filter((text): text is string => typeof text === "string" && text.trim().length > 0).join("\n\n");
+        addResponse(prompt || "Speaking recording", recording ? "Audio response submitted" : "", undefined, undefined, recording ? [recording] : undefined, "speaking");
       }
       return responses;
     }
@@ -1106,12 +1114,13 @@ export default function LessonPage() {
       if (block.type === "text") {
         if (!hasStudentResponse(block)) return;
         const responseType = getStudentResponseType(block);
+        const taskDefinition = block as typeof block & { prompt?: string; question?: string };
         const value = responseType === "audio" || responseType === "voice"
           ? submission.audioUploads?.[block.id]
           : responseType === "file"
             ? submission.audioUploads?.[block.id]
             : submission.blockResponses?.[block.id];
-        addResponse(block.title || "Text response", responseType === "audio" || responseType === "voice"
+        addResponse(taskDefinition.prompt || taskDefinition.question || block.body || block.title || "Text response", responseType === "audio" || responseType === "voice"
           ? value ? "Audio response submitted" : ""
           : responseType === "file" && value ? "File response submitted" : value,
           undefined, undefined, responseType === "audio" || responseType === "voice" ? value ? [value] : undefined : undefined, block.id, undefined, false, true,
@@ -1119,7 +1128,8 @@ export default function LessonPage() {
       } else if (block.type === "audio") {
         if (block.allowStudentVoiceResponse) {
           const recording = submission.audioUploads?.[block.id];
-          addResponse(block.title || "Audio response", recording ? "Audio response submitted" : "", undefined, undefined, recording ? [recording] : undefined, block.id);
+          const taskDefinition = block as typeof block & { prompt?: string; question?: string };
+          addResponse(taskDefinition.prompt || taskDefinition.question || block.title || "Audio response", recording ? "Audio response submitted" : "", undefined, undefined, recording ? [recording] : undefined, block.id);
         }
       } else if (block.type === "video") {
         if (block.show_reflection_prompt !== false && block.reflection_prompt_text?.trim()) {
@@ -1233,6 +1243,7 @@ export default function LessonPage() {
     tasks: result.responses.map((response, index) => ({
       id: response.id || `${result.id}-${index}`,
       title: response.question,
+      prompt: response.question,
       studentAnswer: response.answer,
       modelAnswer: response.correctAnswer,
       isCorrect: response.isCorrect,

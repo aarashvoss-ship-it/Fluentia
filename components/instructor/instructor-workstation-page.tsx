@@ -3743,7 +3743,12 @@ export default function InstructorWorkstationPage({
     { id: "speaking", title: "Speaking", prompt: reviewContent.speaking?.scenario?.text, tasks: [] },
   ];
   const reviewQuestionText: Record<string, string> = {};
-  const warmUpPrompt = getReviewPrompt(reviewContent.warm_up?.prompt?.text, reviewContent.warm_up?.intro_narrative?.text, reviewContent.warm_up?.quote?.text);
+  const warmUpPrompt = getReviewPrompt(
+    reviewContent.warm_up?.prompt?.text,
+    ...(reviewContent.warm_up?.quick_prompts || []).map((item: { text?: string }) => item.text),
+    reviewContent.warm_up?.intro_narrative?.text,
+    reviewContent.warm_up?.quote?.text,
+  );
   const writingPrompt = getReviewPrompt(reviewContent.writing?.prompt?.text);
   const speakingPrompt = getReviewPrompt(
     reviewContent.speaking?.scenario?.text,
@@ -3859,8 +3864,8 @@ export default function InstructorWorkstationPage({
         const taskDefinition = block as unknown as { prompt?: string; question?: string };
         addReviewReference(step, block.id, getReviewPrompt(taskDefinition.prompt, taskDefinition.question, block.title));
       } else if (block.type === "text" && (block.hasStudentResponseInput === true || block.studentResponseConfig?.enabled === true)) {
-        const taskDefinition = block as ContentBlock & { prompt?: string; question?: string };
-        addReviewReference(step, block.id, getReviewPrompt(taskDefinition.prompt, taskDefinition.question, block.title, reviewStages.find((stage) => stage.id === step)?.prompt));
+        const taskDefinition = block as ContentBlock & { prompt?: string; question?: string; body?: string };
+        addReviewReference(step, block.id, getReviewPrompt(taskDefinition.prompt, taskDefinition.question, taskDefinition.body, block.title, reviewStages.find((stage) => stage.id === step)?.prompt));
       } else if (block.type === "audio" && block.allowStudentVoiceResponse) {
         const taskDefinition = block as ContentBlock & { prompt?: string; question?: string };
         addReviewReference(step, block.id, getReviewPrompt(taskDefinition.prompt, taskDefinition.question, block.title, reviewStages.find((stage) => stage.id === step)?.prompt));
@@ -3889,6 +3894,7 @@ export default function InstructorWorkstationPage({
     stage.tasks.push({
       id: key,
       title: getDisplayQuestion(key, stageId),
+      prompt: getDisplayQuestion(key, stageId),
       studentAnswer: audioUrl || isUrl ? "Audio response submitted" : answer,
       taskNumber: reviewTaskNumbers[key],
       modelAnswer,

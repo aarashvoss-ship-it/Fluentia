@@ -16,7 +16,8 @@ import {
 
 export interface UnifiedReportTask {
   id: string;
-  title: string;
+  title?: string;
+  prompt?: string;
   studentAnswer: string;
   taskNumber?: number;
   modelAnswer?: string;
@@ -227,6 +228,7 @@ export function UnifiedReportCard({
           </details>}
           {stage.tasks.length > 0 ? <div className="space-y-3">
             {stage.tasks.map((task, index) => {
+              const taskPrompt = task.prompt?.trim() || task.title?.trim() || "Task prompt not available.";
               const normalizedStudentAnswer = normalizeAnswer(task.studentAnswer);
               const matchesModelAnswer = task.modelAnswer?.split(/[\/|]/).some(
                 (candidate) => normalizeAnswer(candidate) === normalizedStudentAnswer,
@@ -257,12 +259,12 @@ export function UnifiedReportCard({
               return <article key={task.id} className="w-full min-w-0 rounded-lg border border-border bg-background p-4">
               <div className="rounded-md border border-zinc-800 bg-zinc-900/90 p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Task Prompt</p>
-                <h4 className="mt-1 text-sm font-medium leading-relaxed text-stone-100">{index + 1}. {stripMarkdown(task.title)}</h4>
+                <h4 className="mt-1 whitespace-pre-wrap break-words text-sm font-medium leading-relaxed text-stone-100">{index + 1}. {stripMarkdown(taskPrompt)}</h4>
               </div>
               <div className={`mt-3 rounded-md border p-4 ${responseCardClass}`}>
                 <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${responseLabelClass}`}>Your Response</p>
                 <p className={`mt-2 whitespace-pre-wrap break-words rounded-sm px-2 py-3 text-sm leading-relaxed ${isEvaluationView && isCorrect ? "bg-emerald-300/10" : isEvaluationView && isIncorrect ? "bg-rose-300/10" : "bg-surface"} ${responseTextClass}`}>{stripMarkdown(task.studentAnswer) || (task.audioUrls?.length || task.fileUrls?.length ? "Response submitted" : <span className={`italic ${responseLabelClass}`}>No response submitted.</span>)}</p>
-                {task.audioUrls?.map((url, mediaIndex) => <div key={`${url}-${mediaIndex}`} className="mt-2 min-w-0 max-w-full overflow-hidden"><CustomAudioPlayer src={url} label={`${stripMarkdown(task.title)} recording`} /></div>)}
+                {task.audioUrls?.map((url, mediaIndex) => <div key={`${url}-${mediaIndex}`} className="mt-2 min-w-0 max-w-full overflow-hidden"><CustomAudioPlayer src={url} label={`${stripMarkdown(taskPrompt)} recording`} /></div>)}
                 {task.fileUrls?.map((url, mediaIndex) => <a key={`${url}-${mediaIndex}`} href={url} target="_blank" rel="noreferrer" className="mt-2 inline-flex max-w-full break-all text-sm text-amber-300 underline underline-offset-2 hover:text-amber-200">Open uploaded file</a>)}
               </div>
               {task.modelAnswer && <div className={`mt-3 rounded-md border p-4 ${modelCardClass}`}>
@@ -275,7 +277,7 @@ export function UnifiedReportCard({
               </div>}
               {!isInstructorView && combineTaskFeedback(taskFeedback[task.id], inlineCorrections[task.id]) && <div className="mt-3 rounded-md border border-border bg-surface p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-300">INSTRUCTOR FEEDBACK &amp; CORRECTION</p>
-                <TiptapEditor value={combineTaskFeedback(taskFeedback[task.id], inlineCorrections[task.id])} onChange={() => {}} ariaLabel={`${stripMarkdown(task.title)} instructor feedback`} readOnly />
+              <TiptapEditor value={combineTaskFeedback(taskFeedback[task.id], inlineCorrections[task.id])} onChange={() => {}} ariaLabel={`${stripMarkdown(taskPrompt)} instructor feedback`} readOnly />
               </div>}
             </article>;
             })}

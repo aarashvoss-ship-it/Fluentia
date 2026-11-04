@@ -629,13 +629,13 @@ export function SubmissionEvaluator({
               const modelTextClass = "text-emerald-100";
               return <article key={task.id} className="space-y-3 rounded-xl border border-border bg-surface p-4">
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Student task {task.taskNumber ?? index + 1}</p>
-                  <h3 className="mt-1 text-sm font-medium leading-relaxed text-stone-100">{stripMarkdown(task.title)}</h3>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Task Prompt {task.taskNumber ?? index + 1}</p>
+                  <h3 className="mt-1 whitespace-pre-wrap break-words text-sm font-medium leading-relaxed text-stone-100">{stripMarkdown(task.prompt || task.title || "Task prompt not available.")}</h3>
                 </div>
                 <div className={`rounded-lg border p-4 ${responseBoxClass}`}>
                   <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${responseLabelClass}`}>Student response</p>
                   <p className={`mt-2 whitespace-pre-wrap break-words rounded-sm px-2 py-3 text-sm leading-relaxed ${isCorrect ? "bg-emerald-300/10" : isObjectiveAnswer ? "bg-rose-300/10" : "bg-surface"} ${responseTextClass}`}>{stripMarkdown(task.studentAnswer) || <span className="italic text-stone-500">No response submitted.</span>}</p>
-                  {task.audioUrls?.map((url, audioIndex) => <div key={`${url}-${audioIndex}`} className="mt-2"><CustomAudioPlayer src={url} label={`${task.title} student recording`} /></div>)}
+                  {task.audioUrls?.map((url, audioIndex) => <div key={`${url}-${audioIndex}`} className="mt-2"><CustomAudioPlayer src={url} label={`${task.prompt || task.title || "Task"} student recording`} /></div>)}
                 </div>
                 {task.modelAnswer && <div className={`rounded-md border p-4 ${modelBoxClass}`}>
                   <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${modelLabelClass}`}>Model answer</p>
@@ -671,7 +671,7 @@ export function SubmissionEvaluator({
                           inlineCorrections: Object.fromEntries(Object.entries(inlineCorrections).filter(([id]) => id !== task.id)),
                         })}
                         placeholder="Write a correction, explanation, or note about this response..."
-                        ariaLabel={`${task.title} instructor feedback and correction`}
+                        ariaLabel={`${task.prompt || task.title || "Task"} instructor feedback and correction`}
                         compact
                         wrapToolbar
                       />
