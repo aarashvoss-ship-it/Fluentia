@@ -549,14 +549,14 @@ export function TiptapEditor({
   };
 
   const textColors = [
-    { label: "Amber", color: "#d97706" },
+    { label: "Amber", color: "#F59E0B" },
     { label: "Indigo", color: "#5053C3" },
     { label: "Emerald", color: "#1F7F5B" },
     { label: "Rose", color: "#B23838" },
     { label: "Muted gray", color: "#94a3b8" },
   ];
   const highlightColors = [
-    { label: "Amber", color: "rgba(217, 119, 6, 0.3)" },
+    { label: "Amber", color: "rgba(245, 158, 11, 0.3)" },
     { label: "Indigo", color: "rgba(129, 140, 248, 0.3)" },
     { label: "Emerald", color: "rgba(54, 179, 126, 0.3)" },
     { label: "Rose", color: "rgba(166, 83, 104, 0.3)" },

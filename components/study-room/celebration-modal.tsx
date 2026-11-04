@@ -57,7 +57,7 @@ export function CelebrationModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="relative flex h-[85vh] max-h-[52rem] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-amber-500/20 bg-[#141413] shadow-2xl shadow-amber-950/20">
         <div className="shrink-0 border-b border-stone-800 bg-gradient-to-b from-amber-500/[0.08] to-transparent px-6 pb-5 pt-7 text-center sm:px-10 sm:pt-8">
-          <div className="relative mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full border border-amber-400/50 bg-amber-500/15 text-amber-300 shadow-[0_0_38px_rgba(217,119,6,0.3)]">
+          <div className="relative mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full border border-amber-400/50 bg-amber-500/15 text-amber-300 shadow-[0_0_38px_rgba(245,158,11,0.3)]">
             <span className="absolute -right-2 top-1 text-amber-300/80" aria-hidden="true"><Sparkles className="h-4 w-4" /></span>
             <span className="absolute -left-2 bottom-2 text-amber-400/70" aria-hidden="true"><Sparkles className="h-3 w-3" /></span>
             <CheckCircle2 className="h-11 w-11" strokeWidth={1.8} />

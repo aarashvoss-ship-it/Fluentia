@@ -20,7 +20,7 @@ module.exports = {
         background: "rgb(var(--app-background-rgb) / <alpha-value>)",
         surface: "rgb(var(--card-surface-rgb) / <alpha-value>)",
         border: "rgb(var(--card-border-rgb) / <alpha-value>)",
-        amber: semanticPalette("amber", [200, 300, 400, 500, 950]),
+        amber: semanticPalette("amber", [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]),
         indigo: semanticPalette("indigo", [100, 200, 300, 400, 500, 600, 700, 800, 900, 950]),
         blue: semanticPalette("indigo", [100, 200, 300, 400, 500, 600, 700, 800, 900, 950]),
         sky: semanticPalette("indigo", [200, 300, 400, 500]),
@@ -29,9 +29,9 @@ module.exports = {
         rose: semanticPalette("rose", [100, 300, 400, 500, 600, 700, 800, 900, 950]),
         red: semanticPalette("rose", [100, 200, 300, 400, 500, 700, 900]),
         accent: {
-          DEFAULT: "rgb(var(--fluentia-amber-500-rgb) / <alpha-value>)",
-          hover: "rgb(var(--fluentia-amber-400-rgb) / <alpha-value>)",
-          subtle: "rgb(var(--fluentia-amber-500-rgb) / 0.2)",
+          DEFAULT: "rgb(var(--brand-amber-rgb) / <alpha-value>)",
+          hover: "rgb(var(--brand-amber-rgb) / <alpha-value>)",
+          subtle: "rgb(var(--brand-amber-rgb) / 0.2)",
         },
         text: {
           primary: "#F3F4F6",
@@ -43,8 +43,8 @@ module.exports = {
           subtle: "rgb(var(--fluentia-emerald-950-rgb) / <alpha-value>)",
         },
         warning: {
-          DEFAULT: "rgb(var(--fluentia-amber-400-rgb) / <alpha-value>)",
-          subtle: "rgb(var(--fluentia-amber-950-rgb) / <alpha-value>)",
+          DEFAULT: "rgb(var(--brand-amber-rgb) / <alpha-value>)",
+          subtle: "rgb(var(--brand-amber-rgb) / <alpha-value>)",
         },
         info: {
           DEFAULT: "rgb(var(--fluentia-indigo-400-rgb) / <alpha-value>)",

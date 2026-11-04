@@ -70,7 +70,7 @@ function printMarkdownTables(title: string, tables: MarkdownTable[]) {
     h1 { font-size: 18pt; margin: 0 0 18pt; }
     table { border-collapse: collapse; margin: 0 0 18pt; width: 100%; break-inside: avoid; }
     th, td { border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
-    th { background: #fef3c7; color: #b45309; font-weight: 700; }
+    th { background: #F59E0B; color: #0c1017; font-weight: 700; }
     tbody tr:nth-child(even) { background: #f8fafc; }
   </style></head><body><h1>${escapeHtml(title)}</h1>${tableMarkup}</body></html>`);
   printWindow.document.close();

@@ -1557,7 +1557,7 @@ export default function LessonPage() {
             }
             footer={
               <div className="inline-flex items-center gap-2">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#d97706] text-xs font-bold text-white">AV</span>
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#F59E0B] text-xs font-bold text-white">AV</span>
                 <span className="text-base font-medium text-[#9ca3af]" style={{ color: "#9ca3af" }}>Guided by {instructor.fullName}</span>
               </div>
             }

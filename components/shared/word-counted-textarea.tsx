@@ -35,7 +35,7 @@ function getCounterColor(wordCount: number, config: WordCountConfig) {
   const minWords = config.minWords ?? 0;
   const maxWords = config.maxWords;
   if (maxWords !== undefined && maxWords > 0 && wordCount > maxWords) return "text-red-400";
-  if (wordCount < minWords) return wordCount >= Math.max(0, minWords - 10) ? "text-yellow-400" : "text-stone-500";
+  if (wordCount < minWords) return wordCount >= Math.max(0, minWords - 10) ? "text-amber-500" : "text-stone-500";
   return "text-emerald-400";
 }
 

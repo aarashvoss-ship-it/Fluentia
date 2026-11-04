@@ -77,7 +77,7 @@ const AVATAR_PRESETS = Object.values({
   amber: {
     id: "amber",
     label: "Amber",
-    backgroundColor: "#d97706",
+    backgroundColor: "#F59E0B",
     className: "text-white",
   },
   indigo: {
@@ -1955,7 +1955,7 @@ function DashboardContent() {
                     </p>
                     <div className="mt-3 flex items-center">
                       <div className="flex min-w-0 items-center gap-2">
-                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#d97706] text-[10px] font-bold text-white">AV</span>
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#F59E0B] text-[10px] font-bold text-white">AV</span>
                         <p className="min-w-0 text-xs text-slate-400">
                           Guided by{" "}
                         {nextLesson.content?.instructor?.fullName ||
@@ -2245,7 +2245,7 @@ function DashboardContent() {
                               "Continue your personalized language practice."}
                           </p>
                           <div className="mt-3 flex min-w-0 items-center gap-2">
-                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#d97706] text-[10px] font-bold text-white">AV</span>
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#F59E0B] text-[10px] font-bold text-white">AV</span>
                             <p className="min-w-0 text-xs text-slate-400">
                               Guided by{" "}
                             {lesson.content?.instructor?.fullName ||
