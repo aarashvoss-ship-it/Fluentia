@@ -142,6 +142,7 @@ export function SubmissionEvaluator({
   const stages = reportCardStages.length ? reportCardStages : DEFAULT_REPORT_STAGES;
   const [activeStageId, setActiveStageId] = useState(stages[0]?.id || "report-card");
   const [expandedTaskFeedback, setExpandedTaskFeedback] = useState<Record<string, boolean>>({});
+  const [isEvaluationSidebarCollapsed, setIsEvaluationSidebarCollapsed] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isSavingDraft, setIsSavingDraft] = useState<boolean>(false);
@@ -446,12 +447,26 @@ export function SubmissionEvaluator({
       <span className="flex-1">{publishNotice.message}</span>
       <button type="button" onClick={() => setPublishNotice(null)} className="shrink-0 text-xs opacity-75 hover:opacity-100" aria-label="Dismiss notification">Dismiss</button>
     </div>}
-    <div className="grid items-start gap-5 lg:grid-cols-[250px_minmax(0,1fr)]">
-      <aside className="flex flex-col rounded-xl border border-border bg-surface p-4 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)]" aria-label="Evaluation tools">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-amber-400">Evaluation Studio</p>
-          <h2 className="mt-1 text-sm font-semibold text-stone-100">{studentName}</h2>
-          <label className="mt-4 block text-xs text-stone-400">
+    <div className={`grid min-w-0 items-start gap-5 transition-[grid-template-columns] duration-300 ease-in-out ${isEvaluationSidebarCollapsed ? "lg:grid-cols-[3.5rem_minmax(0,1fr)]" : "lg:grid-cols-[250px_minmax(0,1fr)]"}`}>
+      <aside className={`flex min-w-0 flex-col rounded-xl border border-border bg-surface transition-[padding] duration-300 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] ${isEvaluationSidebarCollapsed ? "p-2" : "p-4"}`} aria-label="Evaluation tools">
+        <div className={`flex shrink-0 items-center ${isEvaluationSidebarCollapsed ? "justify-center" : "justify-between gap-2"}`}>
+          {!isEvaluationSidebarCollapsed && <div className="min-w-0">
+            <p className="truncate text-[10px] font-semibold uppercase tracking-[0.15em] text-amber-400">Evaluation Studio</p>
+            <h2 className="mt-1 truncate text-sm font-semibold text-stone-100">{studentName}</h2>
+          </div>}
+          <button
+            type="button"
+            onClick={() => setIsEvaluationSidebarCollapsed((collapsed) => !collapsed)}
+            aria-label={isEvaluationSidebarCollapsed ? "Expand evaluation sidebar" : "Collapse evaluation sidebar"}
+            aria-expanded={!isEvaluationSidebarCollapsed}
+            aria-controls="evaluation-sidebar-content"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-border text-stone-300 transition hover:border-amber-500/40 hover:text-amber-400"
+          >
+            {isEvaluationSidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </button>
+        </div>
+        <div id="evaluation-sidebar-content" hidden={isEvaluationSidebarCollapsed} className={`mt-4 min-h-0 flex-1 flex-col ${isEvaluationSidebarCollapsed ? "hidden" : "flex"}`}>
+          <label className="block text-xs text-stone-400">
             <span className="mb-1.5 block font-medium text-stone-300">Scoring Scale</span>
             <select
               value={globalRubricScale}
@@ -462,7 +477,6 @@ export function SubmissionEvaluator({
               {RUBRIC_SCALE_OPTIONS.map((scale) => <option key={scale.id} value={scale.id}>{scale.label}</option>)}
             </select>
           </label>
-        </div>
         <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto py-4" aria-label="Stage status">
           {stages.map((stage, index) => {
             const status = evaluationStatus(stage.id);
@@ -496,6 +510,7 @@ export function SubmissionEvaluator({
             {isSubmitting ? "Publishing..." : isSubmitted ? "Evaluation Published" : "Publish Evaluation"}
           </button>
           {draftStatus && <p role="status" className="text-[11px] leading-relaxed text-emerald-300">{draftStatus}</p>}
+        </div>
         </div>
       </aside>
 
