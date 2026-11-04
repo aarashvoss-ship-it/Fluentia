@@ -15,12 +15,15 @@ const lessonSelect = `
          latest.content AS version_content,
          latest.changes_summary,
          latest.version_created_at,
+         track.name AS track_name,
+         track.is_archived AS track_is_archived,
          COALESCE((
            SELECT jsonb_agg(assignments.student_id::text ORDER BY assignments.assigned_at)
            FROM public.lesson_assignments AS assignments
            WHERE assignments.lesson_id = lesson.id AND assignments.status = 'assigned'
          ), '[]'::jsonb) AS assigned_student_ids
   FROM public.lessons AS lesson
+  LEFT JOIN public.lesson_tracks AS track ON track.id = lesson.track_id
   LEFT JOIN LATERAL (
     SELECT versions.id, versions.version_number, versions.content,
            versions.changes_summary, versions.created_at AS version_created_at
@@ -138,6 +141,8 @@ export async function GET(request: Request) {
       }
       values.push(studentId);
       where = `WHERE (lesson.status = 'published' OR lesson.is_published = true)
+        AND lesson.is_archived IS NOT TRUE
+        AND track.is_archived IS NOT TRUE
         AND (lesson.student_id = $1::uuid
           OR lesson.assigned_all_students = true
           OR EXISTS (
@@ -190,17 +195,34 @@ export async function POST(request: Request) {
   const slug = `${slugBase}-${Date.now()}`;
   const status = input.status === "published" || input.status === "evaluated" ? input.status : "draft";
   const content = isRecord(input.content) ? input.content : {};
+  const trackId = input.track_id === null ? null
+    : typeof input.track_id === "string" && uuidPattern.test(input.track_id) ? input.track_id
+      : input.track_id === undefined ? null : undefined;
+  if (trackId === undefined) {
+    return NextResponse.json({ error: "Provide a valid lesson track." }, { status: 400 });
+  }
   const versionContent = { ...content, slug, title };
   const id = randomUUID();
   const client = await getPostgresPool().connect();
   try {
     await initializeDatabase();
     await client.query("BEGIN");
+    if (trackId) {
+      const ownedTrack = await client.query(
+        "SELECT id FROM public.lesson_tracks WHERE id = $1 AND instructor_id = $2",
+        [trackId, access.user.id],
+      );
+      if (!ownedTrack.rowCount) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ error: "Choose a track owned by this instructor." }, { status: 400 });
+      }
+    }
     const lesson = await client.query(
       `INSERT INTO public.lessons
         (id, title, subtitle, module_number, slug, subject, grade, status, is_published,
-         banner_url, student_id, student_token, instructor_id, instructor_note, assigned_all_students, tags)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+         banner_url, student_id, student_token, instructor_id, instructor_note, assigned_all_students, tags,
+         track_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
        RETURNING *`,
       [
         id,
@@ -219,6 +241,7 @@ export async function POST(request: Request) {
         typeof input.instructor_note === "string" ? input.instructor_note : null,
         input.assigned_all_students === true,
         JSON.stringify(isRecord(input.tags) ? input.tags : {}),
+        trackId,
       ],
     );
     const version = await client.query(
@@ -485,7 +508,31 @@ export async function PATCH(request: Request) {
         instructor_guidance: "instructor_guidance",
         is_published: "is_published",
         tags: "tags",
+        track_id: "track_id",
+        is_archived: "is_archived",
       };
+      if ("track_id" in input) {
+        const trackId = input.track_id;
+        if (trackId !== null && (typeof trackId !== "string" || !uuidPattern.test(trackId))) {
+          await client.query("ROLLBACK");
+          return NextResponse.json({ error: "Provide a valid lesson track." }, { status: 400 });
+        }
+        if (typeof trackId === "string") {
+          const trackOwnerId = current.rows[0].instructor_id || access.user.id;
+          const ownedTrack = await client.query(
+            "SELECT id FROM public.lesson_tracks WHERE id = $1 AND instructor_id = $2",
+            [trackId, trackOwnerId],
+          );
+          if (!ownedTrack.rowCount) {
+            await client.query("ROLLBACK");
+            return NextResponse.json({ error: "Choose a track owned by this lesson's instructor." }, { status: 400 });
+          }
+        }
+      }
+      if ("is_archived" in input && typeof input.is_archived !== "boolean") {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ error: "Provide a valid lesson archive state." }, { status: 400 });
+      }
       const sets: string[] = [];
       const values: unknown[] = [id];
       for (const [key, column] of Object.entries(allowedColumns)) {

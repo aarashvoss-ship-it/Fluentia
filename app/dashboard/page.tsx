@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Clock3,
   Flame,
+  Folder,
   GripVertical,
   Layers3,
   LayoutGrid,
@@ -217,6 +218,7 @@ function DashboardContent() {
   const [lessonCardViewMode, setLessonCardViewMode] = useState<LessonCardViewMode>("grid");
   const [lessonCardPreferencesLoaded, setLessonCardPreferencesLoaded] = useState(false);
   const [draggedLessonId, setDraggedLessonId] = useState<string | null>(null);
+  const [collapsedTrackIds, setCollapsedTrackIds] = useState<Set<string>>(() => new Set());
   const [lessonStates, setLessonStates] = useState<
     Record<string, PublishedLessonState | null>
   >({});
@@ -929,6 +931,16 @@ function DashboardContent() {
     if (rightIndex === undefined) return -1;
     return leftIndex - rightIndex;
   });
+  const lessonGroups = orderedAvailableLessons.reduce<Array<{ key: string; name: string; lessons: LessonWithVersion[] }>>((groups, lesson) => {
+    const key = lesson.track_id || "__untracked__";
+    let group = groups.find((candidate) => candidate.key === key);
+    if (!group) {
+      group = { key, name: lesson.track_name?.trim() || "My Lessons", lessons: [] };
+      groups.push(group);
+    }
+    group.lessons.push(lesson);
+    return groups;
+  }, []);
   const saveLessonCardPreferences = (
     order: string[] = lessonCardOrder,
     viewMode: LessonCardViewMode = lessonCardViewMode,
@@ -1927,6 +1939,7 @@ function DashboardContent() {
                 )}
                 <div className="relative flex h-full flex-col justify-end p-5 md:p-7">
                   <div className="max-w-3xl pr-28 md:pr-36">
+                    {nextLesson.track_name && <p className="mb-2 inline-flex max-w-full items-center gap-1.5 truncate rounded-md border border-amber-500/30 bg-black/30 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-amber-300"><Folder className="h-3 w-3 shrink-0" />{nextLesson.track_name}</p>}
                     <div className="flex items-center gap-2 text-slate-400">
                       <BookOpen className="h-4 w-4" />
                       <span className="text-xs font-medium uppercase tracking-[0.14em]">
@@ -2077,16 +2090,43 @@ function DashboardContent() {
               </div>
             )}
             {availableLessons.length > 1 && (
-              <p className="mb-3 text-xs text-stone-500">Drag cards to reorder, or use the arrow controls to move them.</p>
+              <p className="mb-3 text-xs text-stone-500">Lessons are grouped by track. Drag cards or use the arrows to reorder lessons.</p>
             )}
-            <div className={lessonCardViewMode === "grid" ? "grid gap-5 md:grid-cols-2" : "flex flex-col gap-3"}>
+            <div className="space-y-5">
               {orderedAvailableLessons.length === 0 ? (
                 <p className="col-span-full rounded-xl border border-dashed border-border bg-surface p-6 text-center text-sm text-stone-500">
                   No previous lessons yet. Your instructor will assign more
                   lessons here.
                 </p>
               ) : (
-                orderedAvailableLessons.map((lesson, lessonIndex) => {
+                lessonGroups.map((group) => {
+                  const isCollapsed = collapsedTrackIds.has(group.key);
+                  const allGroupLessons = displayLessons.filter((lesson) => (lesson.track_id || "__untracked__") === group.key);
+                  const completedInGroup = allGroupLessons.filter((lesson) => {
+                    const status = getLessonStatus(lessonStates[lesson.id]);
+                    return status === "completed" || status === "pending-review";
+                  }).length;
+                  return (
+                    <section key={group.key} className="rounded-xl border border-border/70 bg-background/30 p-3 sm:p-4">
+                      <button
+                        type="button"
+                        onClick={() => setCollapsedTrackIds((current) => {
+                          const next = new Set(current);
+                          if (next.has(group.key)) next.delete(group.key);
+                          else next.add(group.key);
+                          return next;
+                        })}
+                        aria-expanded={!isCollapsed}
+                        className="mb-3 flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition hover:bg-surface/70"
+                      >
+                        <Folder className="h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />
+                        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-stone-100">{group.name}</span>
+                        <span className="shrink-0 text-[11px] text-stone-500">{completedInGroup}/{allGroupLessons.length} complete</span>
+                        <ChevronDown className={`h-4 w-4 shrink-0 text-stone-400 transition-transform ${isCollapsed ? "-rotate-90" : ""}`} aria-hidden="true" />
+                      </button>
+                      {!isCollapsed && <div className={lessonCardViewMode === "grid" ? "grid gap-5 md:grid-cols-2" : "flex flex-col gap-3"}>
+                {group.lessons.map((lesson) => {
+                  const lessonIndex = orderedAvailableLessons.findIndex((orderedLesson) => orderedLesson.id === lesson.id);
                   const status = getLessonStatus(lessonStates[lesson.id]);
                   const lessonBannerPosition = normalizeBannerPosition(
                     lesson.content?.bannerPosition ?? lesson.content?.banner_position,
@@ -2226,6 +2266,10 @@ function DashboardContent() {
                         </div>
                       </div>
                     </article>
+                  );
+                })
+                      }</div>}
+                    </section>
                   );
                 })
               )}

@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, ChevronRight, Eye, FileText, Grid3X3, Image, List, MoreVertical, Pencil, Plus, Search, Trash2, X, Lightbulb, UploadCloud } from "lucide-react";
+import { Archive, ArchiveRestore, Check, ChevronDown, ChevronRight, Eye, FileText, Folder, Grid3X3, Image, List, MoreVertical, Pencil, Plus, Search, Trash2, X, Lightbulb, UploadCloud } from "lucide-react";
 import { deleteAsset, uploadAsset } from "@/services/asset-service";
 import { LessonBuilderSidebar, LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
 import { InstructorBannerManager, type BannerPosition } from "@/components/instructor/banner-manager";
@@ -48,6 +48,7 @@ import { ResourceHubPage } from "@/components/instructor/resource-hub-page";
 import { ResourceHubImportDialog } from "@/components/instructor/resource-hub-import-dialog";
 import { LessonAssignmentResourceDialog, type LessonAssignmentCustomResourceDraft } from "@/components/instructor/lesson-assignment-resource-dialog";
 import type { ResourceAsset } from "@/types/resource-hub";
+import { createLessonTrack, getLessonTracks, updateLessonTrack, type LessonTrack } from "@/lib/lesson-tracks";
 
 interface InstructorWorkstationProps {
   instructorId: string;
@@ -1013,6 +1014,11 @@ export default function InstructorWorkstationPage({
   const savedIndicatorTimer = useRef<number | null>(null);
   const [validationErrors, setValidationErrors] = useState<Partial<Record<"selectedStudentId" | "title" | "slug" | "moduleNumber", string>>>({});
   const [createdLessons, setCreatedLessons] = useState<LessonWithVersion[]>([]);
+  const [lessonTracks, setLessonTracks] = useState<LessonTrack[]>([]);
+  const [newTrackName, setNewTrackName] = useState("");
+  const [editingTrack, setEditingTrack] = useState<{ id: string; name: string } | null>(null);
+  const [trackError, setTrackError] = useState<string | null>(null);
+  const [libraryArchiveTab, setLibraryArchiveTab] = useState<"active" | "archived">("active");
   const [lessonPendingDelete, setLessonPendingDelete] = useState<LessonWithVersion | null>(null);
   const [isDeletingLesson, setIsDeletingLesson] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmationRequest | null>(null);
@@ -1595,12 +1601,61 @@ export default function InstructorWorkstationPage({
   };
 
   const refreshCreatedLessons = async () => {
-    try {
-      const lessons = await getLessons();
-      setCreatedLessons(lessons);
-    } catch (error) {
-      console.error("Failed to load lessons from PostgreSQL:", (error as { message?: string })?.message || JSON.stringify(error));
+    const [lessonResult, trackResult] = await Promise.allSettled([getLessons(), getLessonTracks()]);
+    if (lessonResult.status === "fulfilled") {
+      setCreatedLessons(lessonResult.value);
+    } else {
+      console.error("Failed to load lessons from PostgreSQL:", lessonResult.reason);
       setPublishStatus("Unable to refresh lessons. Previously loaded lessons remain available.");
+    }
+    if (trackResult.status === "fulfilled") setLessonTracks(trackResult.value);
+    else {
+      console.error("Failed to load lesson tracks:", trackResult.reason);
+      setTrackError(trackResult.reason instanceof Error ? trackResult.reason.message : "Unable to load lesson tracks.");
+    }
+  };
+
+  const handleCreateTrack = async () => {
+    const name = newTrackName.trim();
+    if (!name) return;
+    setTrackError(null);
+    try {
+      const track = await createLessonTrack(name);
+      setLessonTracks((current) => [...current, track].sort((a, b) => a.name.localeCompare(b.name)));
+      setNewTrackName("");
+    } catch (error) {
+      setTrackError(error instanceof Error ? error.message : "Unable to create the track.");
+    }
+  };
+
+  const handleTrackUpdate = async (track: LessonTrack, changes: { name?: string; is_archived?: boolean }) => {
+    setTrackError(null);
+    try {
+      const updatedTrack = await updateLessonTrack(track.id, changes);
+      setLessonTracks((current) => current.map((item) => item.id === track.id ? updatedTrack : item));
+      setEditingTrack(null);
+    } catch (error) {
+      setTrackError(error instanceof Error ? error.message : "Unable to update the track.");
+    }
+  };
+
+  const handleLessonTrackChange = async (lesson: LessonWithVersion, trackId: string) => {
+    setTrackError(null);
+    try {
+      const updatedLesson = await updateLesson(lesson.id, { track_id: trackId || null });
+      setCreatedLessons((current) => current.map((item) => item.id === lesson.id ? updatedLesson : item));
+    } catch (error) {
+      setTrackError(error instanceof Error ? error.message : "Unable to assign the lesson to that track.");
+    }
+  };
+
+  const handleLessonArchiveChange = async (lesson: LessonWithVersion) => {
+    setTrackError(null);
+    try {
+      const updatedLesson = await updateLesson(lesson.id, { is_archived: !lesson.is_archived });
+      setCreatedLessons((current) => current.map((item) => item.id === lesson.id ? updatedLesson : item));
+    } catch (error) {
+      setTrackError(error instanceof Error ? error.message : "Unable to update the lesson archive state.");
     }
   };
 
@@ -3670,9 +3725,12 @@ export default function InstructorWorkstationPage({
       return next;
     });
   };
-  const publishedLibraryCount = createdLessons.filter((lesson) => lesson.status === "published").length;
-  const draftLibraryCount = createdLessons.filter((lesson) => lesson.status === "draft").length;
-  const statusLibraryLessons = createdLessons.filter((lesson) => lesson.status === libraryStatusTab);
+  const archiveFilteredLibraryLessons = createdLessons.filter((lesson) =>
+    (lesson.is_archived === true) === (libraryArchiveTab === "archived"),
+  );
+  const publishedLibraryCount = archiveFilteredLibraryLessons.filter((lesson) => lesson.status === "published").length;
+  const draftLibraryCount = archiveFilteredLibraryLessons.filter((lesson) => lesson.status === "draft").length;
+  const statusLibraryLessons = archiveFilteredLibraryLessons.filter((lesson) => lesson.status === libraryStatusTab);
   const filteredLibraryLessons = statusLibraryLessons.filter((lesson) => {
     const metadata = getLessonMetadata(lesson);
     const query = librarySearch.trim().toLowerCase();
@@ -4163,6 +4221,42 @@ export default function InstructorWorkstationPage({
               <div className="flex rounded-md border border-border bg-background p-1" role="group" aria-label="Lesson view mode"><Tooltip content="Show lessons as cards"><button type="button" onClick={() => setLibraryView("grid")} aria-label="Grid view" className={`rounded p-1.5 ${libraryView === "grid" ? "bg-amber-500/20 text-amber-400" : "text-stone-500 hover:text-stone-200"}`}><Grid3X3 className="h-4 w-4" /></button></Tooltip><Tooltip content="Show lessons in a table"><button type="button" onClick={() => setLibraryView("table")} aria-label="Table view" className={`rounded p-1.5 ${libraryView === "table" ? "bg-amber-500/20 text-amber-400" : "text-stone-500 hover:text-stone-200"}`}><List className="h-4 w-4" /></button></Tooltip></div>
             </div>
           </div>
+          <section className="space-y-4 rounded-xl border border-border bg-surface/60 p-5" aria-label="Lesson tracks and archive">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-stone-100"><Folder className="h-4 w-4 text-amber-400" />Tracks &amp; Collections</h3>
+                <p className="mt-1 text-xs text-stone-500">Group lessons into student-facing collections, rename tracks, and archive lessons you no longer want students to see.</p>
+              </div>
+              <div className="flex rounded-md border border-border bg-background p-1" role="tablist" aria-label="Show active or archived lessons">
+                <button type="button" role="tab" aria-selected={libraryArchiveTab === "active"} onClick={() => setLibraryArchiveTab("active")} className={`rounded px-3 py-1.5 text-xs ${libraryArchiveTab === "active" ? "bg-amber-500/20 text-amber-300" : "text-stone-400"}`}>Active</button>
+                <button type="button" role="tab" aria-selected={libraryArchiveTab === "archived"} onClick={() => setLibraryArchiveTab("archived")} className={`rounded px-3 py-1.5 text-xs ${libraryArchiveTab === "archived" ? "bg-amber-500/20 text-amber-300" : "text-stone-400"}`}>Archived ({createdLessons.filter((lesson) => lesson.is_archived).length})</button>
+              </div>
+            </div>
+            <form className="flex flex-col gap-2 sm:flex-row" onSubmit={(event) => { event.preventDefault(); void handleCreateTrack(); }}>
+              <input value={newTrackName} onChange={(event) => setNewTrackName(event.target.value)} maxLength={120} placeholder="New track name (e.g. Master Track: Learning to Learn)" aria-label="New track name" className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 text-xs text-stone-200 outline-none focus:border-amber-500/40" />
+              <button type="submit" disabled={!newTrackName.trim()} className="inline-flex items-center justify-center gap-1.5 rounded-md border border-amber-500/40 px-3 py-2 text-xs text-amber-300 disabled:opacity-50"><Plus className="h-3.5 w-3.5" />Create Track</button>
+            </form>
+            {lessonTracks.length > 0 && <div className="flex flex-wrap gap-2">
+              {lessonTracks.map((track) => (
+                <div key={track.id} className="flex min-w-0 items-center gap-2 rounded-md border border-border bg-background/70 px-2.5 py-2">
+                  {editingTrack?.id === track.id ? (
+                    <>
+                      <input value={editingTrack.name} onChange={(event) => setEditingTrack({ ...editingTrack, name: event.target.value })} maxLength={120} aria-label={`Rename ${track.name}`} className="w-40 min-w-0 rounded border border-border bg-background px-2 py-1 text-xs text-stone-200" />
+                      <button type="button" onClick={() => void handleTrackUpdate(track, { name: editingTrack.name })} className="text-[11px] text-emerald-300">Save</button>
+                      <button type="button" onClick={() => setEditingTrack(null)} className="text-[11px] text-stone-400">Cancel</button>
+                    </>
+                  ) : (
+                    <>
+                      <span className={`max-w-48 truncate text-xs ${track.is_archived ? "text-stone-500" : "text-stone-200"}`}>{track.name}{track.is_archived ? " (Archived)" : ""}</span>
+                      <button type="button" onClick={() => setEditingTrack({ id: track.id, name: track.name })} aria-label={`Rename ${track.name}`} className="text-stone-400 hover:text-amber-300"><Pencil className="h-3.5 w-3.5" /></button>
+                      <button type="button" onClick={() => void handleTrackUpdate(track, { is_archived: !track.is_archived })} aria-label={`${track.is_archived ? "Restore" : "Archive"} ${track.name}`} className="text-stone-400 hover:text-amber-300">{track.is_archived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}</button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>}
+            {trackError && <p role="alert" className="text-xs text-red-300">{trackError}</p>}
+          </section>
           {libraryView === "grid" ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {filteredLibraryLessons.map((lesson) => {
@@ -4213,6 +4307,11 @@ export default function InstructorWorkstationPage({
                     <div className="mt-4 flex items-center justify-between">
                       <span className="text-[11px] text-stone-500">Module {lesson.content?.moduleNumber || lesson.module_number || 1}</span>
                       <div className="flex items-center gap-2">
+                        <select value={lesson.track_id || ""} onChange={(event) => void handleLessonTrackChange(lesson, event.target.value)} aria-label={`Assign ${lesson.title} to a track`} className="max-w-36 rounded-md border border-border bg-background px-2 py-1.5 text-[10px] text-stone-300 [color-scheme:dark]">
+                          <option value="">No track</option>
+                          {lessonTracks.map((track) => <option key={track.id} value={track.id}>{track.name}{track.is_archived ? " (Archived)" : ""}</option>)}
+                        </select>
+                        <button type="button" onClick={() => void handleLessonArchiveChange(lesson)} aria-label={`${lesson.is_archived ? "Restore" : "Archive"} ${lesson.title}`} title={lesson.is_archived ? "Restore lesson" : "Archive lesson"} className="rounded-md border border-border p-1.5 text-stone-400 hover:text-amber-300">{lesson.is_archived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}</button>
                         <button type="button" onClick={() => handleEditLesson(lesson)} className="text-xs text-amber-400 hover:text-amber-300">Edit / Continue</button>
                         <Tooltip content="Delete lesson"><button type="button" onClick={() => setLessonPendingDelete(lesson)} aria-label={`Delete ${lesson.title}`} className="flex h-8 w-8 items-center justify-center rounded-md border border-red-500/30 text-red-300 transition hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button></Tooltip>
                       </div>
@@ -4254,6 +4353,11 @@ export default function InstructorWorkstationPage({
                         <td className="px-4 py-4 align-middle capitalize">{lesson.status}</td>
                         <td className="min-w-[160px] px-4 py-4 text-right align-middle">
                           <div className="flex items-center justify-end gap-3 whitespace-nowrap">
+                            <select value={lesson.track_id || ""} onChange={(event) => void handleLessonTrackChange(lesson, event.target.value)} aria-label={`Assign ${lesson.title} to a track`} className="max-w-36 rounded-md border border-border bg-background px-2 py-1.5 text-[10px] text-stone-300 [color-scheme:dark]">
+                              <option value="">No track</option>
+                              {lessonTracks.map((track) => <option key={track.id} value={track.id}>{track.name}{track.is_archived ? " (Archived)" : ""}</option>)}
+                            </select>
+                            <button type="button" onClick={() => void handleLessonArchiveChange(lesson)} aria-label={`${lesson.is_archived ? "Restore" : "Archive"} ${lesson.title}`} title={lesson.is_archived ? "Restore lesson" : "Archive lesson"} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border text-stone-400 hover:text-amber-300">{lesson.is_archived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}</button>
                             <button type="button" onClick={() => openQuickTagEditor(lesson)} className="whitespace-nowrap text-xs text-amber-400">Edit tags</button>
                             <button type="button" onClick={() => handleEditLesson(lesson)} className="whitespace-nowrap text-xs text-amber-400">Edit</button>
                             <Tooltip content="Delete lesson"><button type="button" onClick={() => setLessonPendingDelete(lesson)} aria-label={`Delete ${lesson.title}`} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-red-500/30 text-red-300 hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button></Tooltip>
@@ -4269,9 +4373,11 @@ export default function InstructorWorkstationPage({
           {filteredLibraryLessons.length === 0 && (
             <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-stone-500">
               {statusLibraryLessons.length === 0
-                ? libraryStatusTab === "draft"
-                  ? "No draft lessons found. Click 'Create New Lesson' to start one."
-                  : "No published lessons found."
+                ? libraryArchiveTab === "archived"
+                  ? `No archived ${libraryStatusTab} lessons found.`
+                  : libraryStatusTab === "draft"
+                    ? "No draft lessons found. Click 'Create New Lesson' to start one."
+                    : "No published lessons found."
                 : `No ${libraryStatusTab} lessons match these filters.`}
             </div>
           )}

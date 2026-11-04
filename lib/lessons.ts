@@ -18,6 +18,10 @@ export interface LessonRow {
   tags: Record<string, unknown>;
   assigned_all_students?: boolean;
   is_published?: boolean;
+  track_id?: string | null;
+  track_name?: string | null;
+  track_is_archived?: boolean;
+  is_archived?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -45,6 +49,8 @@ export interface CreateLessonInput {
   instructor_id?: string;
   instructor_note?: string;
   assigned_all_students?: boolean;
+  track_id?: string | null;
+  is_archived?: boolean;
   content: Record<string, any>;
   changes_summary?: string;
 }
@@ -67,6 +73,8 @@ export interface UpdateLessonInput {
   tags?: LessonTags;
   status?: "draft" | "published" | "evaluated";
   is_published?: boolean;
+  track_id?: string | null;
+  is_archived?: boolean;
   content?: Record<string, any>;
   changes_summary?: string;
 }
