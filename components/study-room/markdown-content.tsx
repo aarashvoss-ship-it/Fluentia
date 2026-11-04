@@ -6,6 +6,7 @@ import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { DynamicLucideIcon } from "@/components/shared/lucide-icon-picker";
+import { normalizeLegacyAmberMarkup } from "@/lib/brand-colors";
 
 function getTextContent(children: ReactNode): string {
   return React.Children.toArray(children).map((child) => typeof child === "string" ? child : "").join("").trim();
@@ -112,7 +113,7 @@ export function MarkdownContent({ value, className = "", plainCode = false, data
           },
         }}
       >
-        {renderLucideIconTokens(normalizeMarkdown(value))}
+        {renderLucideIconTokens(normalizeLegacyAmberMarkup(normalizeMarkdown(value)))}
       </ReactMarkdown>
     </div>
   );

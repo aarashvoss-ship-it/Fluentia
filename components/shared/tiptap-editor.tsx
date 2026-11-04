@@ -45,6 +45,7 @@ import {
   normalizeIconSearch,
 } from "@/components/shared/lucide-icon-picker";
 import { InlineLucideIcon } from "@/components/shared/inline-lucide-icon";
+import { normalizeLegacyAmberMarkup } from "@/lib/brand-colors";
 
 const MarkdownTextStyle = TextStyle.extend({
   renderMarkdown(node, helpers) {
@@ -122,7 +123,7 @@ function stripDarkPastedTextColors(html: string) {
     const color = element.getAttribute("color");
     if (color && isDarkPastedColor(color)) element.removeAttribute("color");
   });
-  return container.innerHTML;
+  return normalizeLegacyAmberMarkup(container.innerHTML);
 }
 
 type TiptapEditorProps = {
@@ -338,7 +339,7 @@ export function TiptapEditor({
   const [tableMenuPosition, setTableMenuPosition] = useState({ top: 0, left: 0 });
   const defaultBoldEditorRef = useRef<Editor | null>(null);
   const valueIsHtml = isHtmlContent(value);
-  const normalizedValue = valueIsHtml ? value : normalizeLegacyMarkdown(value);
+  const normalizedValue = valueIsHtml ? normalizeLegacyAmberMarkup(value) : normalizeLegacyMarkdown(value);
   const lastPropValueRef = useRef(normalizedValue);
   const lastEditorHtmlRef = useRef<string | null>(null);
 
