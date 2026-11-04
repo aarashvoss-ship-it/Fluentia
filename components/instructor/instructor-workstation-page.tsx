@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Archive, ArchiveRestore, Check, ChevronDown, ChevronRight, Eye, FileText, Folder, Grid3X3, Image, List, MoreVertical, Pencil, Plus, Search, Trash2, X, Lightbulb, UploadCloud } from "lucide-react";
+import { Archive, ArchiveRestore, Check, ChevronDown, ChevronRight, Eye, EyeOff, FileText, Folder, Grid3X3, Image, List, MoreVertical, Pencil, Plus, Search, Trash2, X, Lightbulb, UploadCloud } from "lucide-react";
 import { deleteAsset, uploadAsset } from "@/services/asset-service";
 import { LessonBuilderSidebar, LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
 import { InstructorBannerManager, type BannerPosition } from "@/components/instructor/banner-manager";
@@ -1083,6 +1083,7 @@ export default function InstructorWorkstationPage({
   const [reauthenticationOpen, setReauthenticationOpen] = useState(false);
   const [reauthenticationEmail, setReauthenticationEmail] = useState("");
   const [reauthenticationPassword, setReauthenticationPassword] = useState("");
+  const [showReauthenticationPassword, setShowReauthenticationPassword] = useState(false);
   const [reauthenticationError, setReauthenticationError] = useState<string | null>(null);
   const [reauthenticationLoading, setReauthenticationLoading] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
@@ -6531,7 +6532,7 @@ export default function InstructorWorkstationPage({
                 Email address
                 <input
                   type="email"
-                  name="username"
+                  name="email"
                   autoComplete="username"
                   autoCapitalize="none"
                   spellCheck={false}
@@ -6543,15 +6544,26 @@ export default function InstructorWorkstationPage({
               </label>
               <label className="block text-sm text-stone-300">
                 Password
-                <input
-                  type="password"
-                  name="current-password"
-                  autoComplete="current-password"
-                  required
-                  value={reauthenticationPassword}
-                  onChange={(event) => setReauthenticationPassword(event.target.value)}
-                  className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2.5 text-stone-100 outline-none focus:border-amber-500/40"
-                />
+                <span className="relative mt-1 block">
+                  <input
+                    type={showReauthenticationPassword ? "text" : "password"}
+                    name="password"
+                    autoComplete="current-password"
+                    required
+                    value={reauthenticationPassword}
+                    onChange={(event) => setReauthenticationPassword(event.target.value)}
+                    className="w-full rounded-md border border-border bg-background px-3 py-2.5 pr-11 text-stone-100 outline-none focus:border-amber-500/40"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowReauthenticationPassword((visible) => !visible)}
+                    aria-label={showReauthenticationPassword ? "Hide password" : "Show password"}
+                    aria-pressed={showReauthenticationPassword}
+                    className="absolute inset-y-0 right-0 inline-flex w-11 items-center justify-center rounded-r-md text-stone-400 transition hover:text-amber-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500"
+                  >
+                    {showReauthenticationPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+                  </button>
+                </span>
               </label>
               {reauthenticationError && <p role="alert" className="rounded-md border border-red-500/30 bg-red-950/30 px-3 py-2 text-sm text-red-200">{reauthenticationError}</p>}
               <div className="flex justify-end gap-3">

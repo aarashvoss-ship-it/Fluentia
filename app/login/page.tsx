@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Eye, EyeOff } from 'lucide-react';
 import { getAuthenticatedUser } from '@/lib/identity';
 
 type AuthMode = 'signin' | 'signup';
@@ -12,6 +13,7 @@ export default function LoginPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
@@ -123,6 +125,7 @@ export default function LoginPage() {
             Email address
             <input
               type="email"
+              name="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               autoComplete="email"
@@ -134,17 +137,29 @@ export default function LoginPage() {
           </label>
           <label className="block text-sm text-stone-300">
             Password
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-              required
-              minLength={mode === 'signup' ? 12 : undefined}
-              maxLength={72}
-              placeholder="Enter password"
-              className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2.5 text-stone-100 outline-none focus:border-amber-500/40"
-            />
+            <span className="relative mt-1 block">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                name="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                required
+                minLength={mode === 'signup' ? 12 : undefined}
+                maxLength={72}
+                placeholder="Enter password"
+                className="w-full rounded-md border border-border bg-background px-3 py-2.5 pr-11 text-stone-100 outline-none focus:border-amber-500/40"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((visible) => !visible)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-pressed={showPassword}
+                className="absolute inset-y-0 right-0 inline-flex w-11 items-center justify-center rounded-r-md text-stone-400 transition hover:text-amber-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+              </button>
+            </span>
             {mode === 'signup' && <span className="mt-1 block text-xs text-stone-500">Use at least 12 characters.</span>}
           </label>
           {message && <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-400" role="alert">{message}</p>}
