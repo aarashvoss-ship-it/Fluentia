@@ -15,7 +15,7 @@ import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import { WordCountedTextarea } from "@/components/shared/word-counted-textarea";
 import { parseInteractiveTranscript } from "@/lib/transcripts";
 import { deleteAsset } from "@/services/asset-service";
-import { ExternalLink, Eye, FileText, Layers, LoaderCircle, MoveDown, MoveUp, Plus, Rocket, Save, Trash2, UploadCloud, X, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Mic, Square } from "lucide-react";
+import { ExternalLink, Eye, FileText, GripVertical, Layers, LoaderCircle, MoveDown, MoveUp, Plus, Rocket, Save, Trash2, UploadCloud, X, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Mic, Square } from "lucide-react";
 import { Tooltip } from "@/components/shared/tooltip";
 import { DeleteConfirmationDialog, type DeleteConfirmationRequest } from "@/components/shared/delete-confirmation-dialog";
 
@@ -378,6 +378,8 @@ export function LessonTailorEditor({
   const [openTranscript, setOpenTranscript] = useState<Record<string, boolean>>({});
   const [openReflectionSettings, setOpenReflectionSettings] = useState<Record<string, boolean>>({});
   const [expandedBlocks, setExpandedBlocks] = useState<Record<string, boolean>>({});
+  const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
+  const draggedBlockIdRef = useRef<string | null>(null);
   const [fillBlankModes, setFillBlankModes] = useState<Record<string, "edit" | "preview">>({});
   const [fillBlankPreviewValues, setFillBlankPreviewValues] = useState<Record<string, string>>({});
   const [recordingByBlockId, setRecordingByBlockId] = useState<Record<string, { status: "recording" | "uploading" | "error"; error?: string; elapsed?: number; levels?: number[] }>>({});
@@ -724,11 +726,11 @@ export function LessonTailorEditor({
     const toggleBlockCollapse = (blockId: string) => {
       setExpandedBlocks((current) => ({ ...current, [blockId]: !(current[blockId] ?? false) }));
     };
-    const moveBlock = (index: number, direction: -1 | 1) => {
-      const nextIndex = index + direction;
-      if (nextIndex < 0 || nextIndex >= blocks.length) return;
+    const moveBlock = (index: number, nextIndex: number) => {
+      if (nextIndex < 0 || nextIndex >= blocks.length || index === nextIndex) return;
       const nextBlocks = [...blocks];
-      [nextBlocks[index], nextBlocks[nextIndex]] = [nextBlocks[nextIndex], nextBlocks[index]];
+      const [movedBlock] = nextBlocks.splice(index, 1);
+      nextBlocks.splice(nextIndex, 0, movedBlock);
       
       // Update local state
       updateBlocks(step, nextBlocks);
@@ -814,7 +816,23 @@ export function LessonTailorEditor({
           const isExpanded = expandedBlocks[block.id] ?? false;
           const isActive = block.is_active ?? block.enabled !== false;
           return (
-          <div key={block.id} id={`lesson-builder-block-${block.id}`} className={`scroll-mt-24 rounded-md border border-border bg-surface p-3 transition-opacity ${isActive ? "opacity-100" : "opacity-55"}`}>
+          <div
+            key={block.id}
+            id={`lesson-builder-block-${block.id}`}
+            onDragOver={(event) => {
+              if (!draggedBlockIdRef.current) return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "move";
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              const fromIndex = blocks.findIndex((item) => item.id === draggedBlockIdRef.current);
+              if (fromIndex !== -1) moveBlock(fromIndex, index);
+              draggedBlockIdRef.current = null;
+              setDraggedBlockId(null);
+            }}
+            className={`scroll-mt-24 rounded-md border border-border bg-surface p-3 transition-all duration-200 ${isActive ? "opacity-100" : "opacity-55"} ${draggedBlockId === block.id ? "scale-[0.99] opacity-50" : ""}`}
+          >
             <div className="mb-3 flex cursor-pointer items-center justify-between gap-2" onClick={() => toggleBlockCollapse(block.id)}>
               <button type="button" onClick={(event) => { event.stopPropagation(); toggleBlockCollapse(block.id); }} className="flex min-w-0 items-center gap-2 text-left text-[10px]  uppercase tracking-[0.12em] text-amber-400 hover:text-amber-400" aria-expanded={isExpanded} aria-controls={`block-content-${block.id}`}>
                 {isExpanded ? <ChevronUp className="h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
@@ -822,11 +840,30 @@ export function LessonTailorEditor({
                 <span className="truncate">{index + 1}. {block.type} block{!isActive ? " · Inactive" : ""} - {block.title || "Untitled"}</span>
               </button>
               <div className="flex items-center gap-1" onClick={(event) => event.stopPropagation()}>
+                <button
+                  type="button"
+                  draggable
+                  onDragStart={(event) => {
+                    draggedBlockIdRef.current = block.id;
+                    setDraggedBlockId(block.id);
+                    event.dataTransfer.effectAllowed = "move";
+                    event.dataTransfer.setData("text/plain", block.id);
+                  }}
+                  onDragEnd={() => {
+                    draggedBlockIdRef.current = null;
+                    setDraggedBlockId(null);
+                  }}
+                  className="flex h-7 w-7 cursor-grab items-center justify-center rounded text-stone-500 transition hover:bg-background hover:text-amber-400 active:cursor-grabbing"
+                  aria-label={`Drag to reorder ${block.title || `${block.type} block`}`}
+                  title="Drag to reorder"
+                >
+                  <GripVertical className="h-4 w-4" aria-hidden="true" />
+                </button>
                 <button type="button" onClick={() => updateDynamicBlock(step, index, { is_active: !isActive, enabled: !isActive })} role="switch" aria-checked={isActive} className={`mr-1 inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px]  transition ${isActive ? "border-emerald-500/50 text-emerald-300" : "border-border text-stone-500"}`}>
                   <span className={`h-2 w-2 rounded-full ${isActive ? "bg-emerald-400" : "bg-stone-600"}`} />{isActive ? "Active" : "Inactive"}
                 </button>
-                <button type="button" onClick={() => moveBlock(index, -1)} disabled={index === 0} className="rounded p-1 text-stone-400 hover:bg-background hover:text-amber-400 disabled:opacity-30" aria-label="Move block up"><MoveUp className="h-3.5 w-3.5" /></button>
-                <button type="button" onClick={() => moveBlock(index, 1)} disabled={index === blocks.length - 1} className="rounded p-1 text-stone-400 hover:bg-background hover:text-amber-400 disabled:opacity-30" aria-label="Move block down"><MoveDown className="h-3.5 w-3.5" /></button>
+                <button type="button" onClick={() => moveBlock(index, index - 1)} disabled={index === 0} className="rounded p-1 text-stone-400 hover:bg-background hover:text-amber-400 disabled:opacity-30" aria-label="Move block up"><MoveUp className="h-3.5 w-3.5" /></button>
+                <button type="button" onClick={() => moveBlock(index, index + 1)} disabled={index === blocks.length - 1} className="rounded p-1 text-stone-400 hover:bg-background hover:text-amber-400 disabled:opacity-30" aria-label="Move block down"><MoveDown className="h-3.5 w-3.5" /></button>
                 <button type="button" onClick={() => requestDelete(`Delete ${block.title || block.type} block?`, () => handleDeleteBlock(index, block.id))} className="rounded p-1 text-stone-400 hover:bg-background hover:text-red-300" aria-label="Delete block"><Trash2 className="h-3.5 w-3.5" /></button>
               </div>
             </div>

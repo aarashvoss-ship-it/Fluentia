@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Archive, ArchiveRestore, Check, ChevronDown, ChevronRight, Eye, EyeOff, FileText, Folder, Grid3X3, Image, List, MoreVertical, MoveDown, MoveUp, Pencil, Plus, Search, Trash2, X, Lightbulb, UploadCloud } from "lucide-react";
+import { Archive, ArchiveRestore, Check, ChevronDown, ChevronRight, Eye, EyeOff, FileText, Folder, Grid3X3, GripVertical, Image, List, MoreVertical, MoveDown, MoveUp, Pencil, Plus, Search, Trash2, X, Lightbulb, UploadCloud } from "lucide-react";
 import { deleteAsset, uploadAsset } from "@/services/asset-service";
 import { LessonBuilderSidebar, LessonTailorEditor } from "@/components/instructor/lesson-tailor-editor";
 import { InstructorBannerManager, type BannerPosition } from "@/components/instructor/banner-manager";
@@ -146,7 +146,7 @@ function LessonMetadataDisclosure({
   );
 }
 
-type SidebarBlock = { id: string; title: string; body: string; icon?: string; parentMainBlockId?: string; imageUrl?: string; altText?: string };
+type SidebarBlock = { id: string; title: string; body: string; icon?: string; parentMainBlockId?: string; imageUrl?: string; altText?: string; includeImage?: boolean };
 type SidebarBlocksByStep = Partial<Record<"warm_up" | "lesson" | "listening" | "reading" | "writing" | "speaking", SidebarBlock[]>>;
 
 const SIDEBAR_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
@@ -167,7 +167,26 @@ function StepSidebarEditorPanel({
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [imageUploadStatus, setImageUploadStatus] = useState<Record<string, string>>({});
   const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmationRequest | null>(null);
+  const [draggedSidebarBlockId, setDraggedSidebarBlockId] = useState<string | null>(null);
+  const draggedSidebarBlockIdRef = useRef<string | null>(null);
   const contentId = "step-sidebar-editor-content";
+  const moveSidebarBlock = (fromIndex: number, toIndex: number) => {
+    setSidebarBlocksByStep((current) => {
+      const blocks = [...(current[sidebarStep] || [])];
+      if (fromIndex < 0 || fromIndex >= blocks.length || toIndex < 0 || toIndex >= blocks.length) return current;
+      const [movedBlock] = blocks.splice(fromIndex, 1);
+      blocks.splice(toIndex, 0, movedBlock);
+      return { ...current, [sidebarStep]: blocks };
+    });
+  };
+  const dropSidebarBlock = (targetBlockId: string) => {
+    const blocks = sidebarBlocksByStep[sidebarStep] || [];
+    const fromIndex = blocks.findIndex((block) => block.id === draggedSidebarBlockIdRef.current);
+    const toIndex = blocks.findIndex((block) => block.id === targetBlockId);
+    if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) moveSidebarBlock(fromIndex, toIndex);
+    draggedSidebarBlockIdRef.current = null;
+    setDraggedSidebarBlockId(null);
+  };
   const updateSidebarBlock = (blockId: string, patch: Partial<SidebarBlock>) => {
     setSidebarBlocksByStep((current) => ({
       ...current,
@@ -210,7 +229,7 @@ function StepSidebarEditorPanel({
           type="button"
           onClick={() => setSidebarBlocksByStep((current) => ({
             ...current,
-            [sidebarStep]: [...(current[sidebarStep] || []), { id: `sidebar-${Date.now()}`, title: "Sidebar note", body: "" }],
+            [sidebarStep]: [...(current[sidebarStep] || []), { id: `sidebar-${Date.now()}`, title: "Sidebar note", body: "", includeImage: false }],
           }))}
           className="inline-flex min-h-9 items-center gap-1.5 rounded border border-amber-500/40 bg-background px-3 text-xs font-normal text-stone-200 transition hover:border-amber-500/40"
         >
@@ -238,8 +257,39 @@ function StepSidebarEditorPanel({
           </label>
           <div className="mt-4 space-y-3">
         {(sidebarBlocksByStep[sidebarStep] || []).map((block) => (
-          <div key={block.id} className="space-y-3 rounded-md border border-border bg-surface p-3">
+          <div
+            key={block.id}
+            onDragOver={(event) => {
+              if (!draggedSidebarBlockIdRef.current) return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "move";
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              dropSidebarBlock(block.id);
+            }}
+            className={`space-y-3 rounded-md border border-border bg-surface p-3 transition-all duration-200 ${draggedSidebarBlockId === block.id ? "scale-[0.99] opacity-50" : "opacity-100"}`}
+          >
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                draggable
+                onDragStart={(event) => {
+                  draggedSidebarBlockIdRef.current = block.id;
+                  setDraggedSidebarBlockId(block.id);
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData("text/plain", block.id);
+                }}
+                onDragEnd={() => {
+                  draggedSidebarBlockIdRef.current = null;
+                  setDraggedSidebarBlockId(null);
+                }}
+                className="flex h-9 w-7 shrink-0 cursor-grab items-center justify-center rounded text-stone-500 transition hover:bg-background hover:text-amber-400 active:cursor-grabbing"
+                aria-label={`Drag to reorder ${block.title || "sidebar block"}`}
+                title="Drag to reorder"
+              >
+                <GripVertical className="h-4 w-4" aria-hidden="true" />
+              </button>
               <input
                 value={block.title}
                 onChange={(event) => setSidebarBlocksByStep((current) => ({
@@ -249,6 +299,24 @@ function StepSidebarEditorPanel({
                 className="h-9 min-w-0 flex-1 rounded border border-border bg-background px-2.5 text-xs font-semibold text-stone-200 outline-none focus:border-amber-500/40"
                 aria-label="Sidebar block title"
               />
+              <button
+                type="button"
+                onClick={() => moveSidebarBlock((sidebarBlocksByStep[sidebarStep] || []).findIndex((item) => item.id === block.id), (sidebarBlocksByStep[sidebarStep] || []).findIndex((item) => item.id === block.id) - 1)}
+                disabled={(sidebarBlocksByStep[sidebarStep] || []).findIndex((item) => item.id === block.id) === 0}
+                className="flex h-9 w-8 shrink-0 items-center justify-center rounded border border-border text-stone-400 transition hover:border-amber-500/40 hover:text-amber-400 disabled:opacity-30"
+                aria-label={`Move ${block.title || "sidebar block"} up`}
+              >
+                <MoveUp className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={() => moveSidebarBlock((sidebarBlocksByStep[sidebarStep] || []).findIndex((item) => item.id === block.id), (sidebarBlocksByStep[sidebarStep] || []).findIndex((item) => item.id === block.id) + 1)}
+                disabled={(sidebarBlocksByStep[sidebarStep] || []).findIndex((item) => item.id === block.id) === (sidebarBlocksByStep[sidebarStep] || []).length - 1}
+                className="flex h-9 w-8 shrink-0 items-center justify-center rounded border border-border text-stone-400 transition hover:border-amber-500/40 hover:text-amber-400 disabled:opacity-30"
+                aria-label={`Move ${block.title || "sidebar block"} down`}
+              >
+                <MoveDown className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
               <Tooltip content="Delete sidebar block">
               <button
                 type="button"
@@ -279,7 +347,23 @@ function StepSidebarEditorPanel({
               />
             </div>
             <div className="space-y-3 rounded-md border border-border bg-background/40 p-3">
-              <p className="text-xs font-medium text-stone-300">Image (Optional)</p>
+              <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-stone-300">
+                <input
+                  type="checkbox"
+                  checked={block.includeImage ?? Boolean(block.imageUrl?.trim() || block.altText?.trim())}
+                  onChange={(event) => updateSidebarBlock(block.id, { includeImage: event.target.checked })}
+                  className="h-4 w-4 accent-amber-500"
+                  aria-label={`Include image in ${block.title || "sidebar block"}`}
+                />
+                Include Image
+              </label>
+              <div
+                aria-hidden={!(block.includeImage ?? Boolean(block.imageUrl?.trim() || block.altText?.trim()))}
+                inert={!(block.includeImage ?? Boolean(block.imageUrl?.trim() || block.altText?.trim()))}
+                className="grid transition-[grid-template-rows,opacity] duration-300 ease-in-out"
+                style={{ gridTemplateRows: (block.includeImage ?? Boolean(block.imageUrl?.trim() || block.altText?.trim())) ? "1fr" : "0fr", opacity: (block.includeImage ?? Boolean(block.imageUrl?.trim() || block.altText?.trim())) ? 1 : 0 }}
+              >
+              <div className="min-h-0 space-y-3 overflow-hidden">
               <label className="block text-[11px] text-stone-500">
                 Image URL
                 <input
@@ -331,6 +415,8 @@ function StepSidebarEditorPanel({
                   {block.altText?.trim() && <figcaption className="px-2.5 py-2 text-[11px] leading-relaxed text-stone-500">{block.altText}</figcaption>}
                 </figure>
               )}
+              </div>
+              </div>
             </div>
             <label className="block text-[11px] text-stone-500">
               Align Next To (Main Block)
@@ -474,6 +560,7 @@ function normalizeSidebarBlocksByStep(raw: unknown): SidebarBlocksByStep {
           body: typeof item.body === "string" ? item.body : typeof item.text === "string" ? item.text : "",
           imageUrl: typeof item.imageUrl === "string" ? item.imageUrl : undefined,
           altText: typeof item.altText === "string" ? item.altText : undefined,
+          includeImage: typeof item.includeImage === "boolean" ? item.includeImage : undefined,
           icon: typeof item.icon === "string" ? item.icon : undefined,
           parentMainBlockId: typeof item.parentMainBlockId === "string" && item.parentMainBlockId.trim() ? item.parentMainBlockId.trim() : undefined,
         }));
@@ -494,6 +581,7 @@ function normalizeSidebarBlocksByStep(raw: unknown): SidebarBlocksByStep {
           body: typeof item.body === "string" ? item.body : typeof item.text === "string" ? item.text : "",
           imageUrl: typeof item.imageUrl === "string" ? item.imageUrl : undefined,
           altText: typeof item.altText === "string" ? item.altText : undefined,
+          includeImage: typeof item.includeImage === "boolean" ? item.includeImage : undefined,
           icon: typeof item.icon === "string" ? item.icon : undefined,
           parentMainBlockId: typeof item.parentMainBlockId === "string" && item.parentMainBlockId.trim() ? item.parentMainBlockId.trim() : undefined,
         }));
