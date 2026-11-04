@@ -119,7 +119,7 @@ export function InteractiveVideoBlock({
             className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs  text-stone-300 transition hover:bg-amber-500/20 hover:text-amber-400"
           >
             <span>Show / Hide Transcript</span>
-            <ChevronDown className={`h-4 w-4 shrink-0 text-amber-400 transition-transform duration-200 ${isTranscriptExpanded ? "rotate-180" : ""}`} aria-hidden="true" />
+            <ChevronDown className={`h-4 w-4 shrink-0 text-amber-400 transition-transform duration-300 ease-in-out ${isTranscriptExpanded ? "rotate-180" : ""}`} aria-hidden="true" />
           </button>
           {isTranscriptExpanded && (
             <div id={transcriptId} className="max-h-[320px] overflow-y-auto overscroll-contain border-t border-border scroll-smooth pr-2">

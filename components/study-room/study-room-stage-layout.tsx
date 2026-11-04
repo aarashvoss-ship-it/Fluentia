@@ -37,7 +37,7 @@ export function StudyRoomStageLayout({ items }: StudyRoomStageLayoutProps) {
           <div className="min-w-0 space-y-6 overflow-visible md:col-span-8">
             {section.items.map((item) => <div key={item.id}>{item.main}</div>)}
           </div>
-          <aside className="flex h-auto min-h-fit min-w-0 flex-col items-stretch gap-4 overflow-visible md:col-span-4">
+          <aside className="flex h-auto min-h-fit min-w-0 flex-col items-stretch gap-4 overflow-visible md:sticky md:top-6 md:col-span-4 md:self-start">
             {section.items.flatMap((item) => item.sidebar ? (
               <div key={item.id} className="h-fit min-w-0 w-full">{item.sidebar}</div>
             ) : [])}

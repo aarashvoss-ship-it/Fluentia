@@ -50,7 +50,7 @@ export function MediaTranscriptAccordion({
       <button type="button" onClick={() => setIsOpen((open) => !open)} aria-expanded={isOpen} aria-controls={contentId} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-amber-400">
         <Unlock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         Transcript
-        <ChevronDown className={`ml-auto h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} aria-hidden="true" />
+        <ChevronDown className={`ml-auto h-4 w-4 transition-transform duration-300 ease-in-out ${isOpen ? "rotate-180" : ""}`} aria-hidden="true" />
       </button>
       <div className={`overflow-hidden transition-[max-height,opacity] duration-300 ease-out ${isOpen ? "max-h-[350px] opacity-100" : "max-h-0 opacity-0"}`}>
         <div id={contentId} className="max-h-[350px] overflow-y-auto border-t border-border px-3 py-3 pr-2">
