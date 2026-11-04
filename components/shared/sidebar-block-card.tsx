@@ -22,6 +22,14 @@ export function SidebarBlockCard({
 
   return (
     <article className="h-auto min-h-fit w-full shrink-0 rounded-xl border border-border bg-surface">
+      {title.trim() && title.trim() !== "Sidebar note" && (
+        <div className="min-w-0 p-4 pb-0">
+          <div className="flex min-w-0 items-start gap-2">
+            {icon && <DynamicLucideIcon name={icon} className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />}
+            <MarkdownContent value={title} className="min-w-0 text-xs font-semibold text-amber-400 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-xs [&_p]:m-0" />
+          </div>
+        </div>
+      )}
       {imageUrl && !imageFailed && (
         <div className="h-auto min-h-fit w-full bg-background">
           <img
@@ -34,12 +42,6 @@ export function SidebarBlockCard({
         </div>
       )}
       <div className="min-w-0 p-4">
-        {title.trim() && title.trim() !== "Sidebar note" && (
-          <div className="flex min-w-0 items-start gap-2">
-            {icon && <DynamicLucideIcon name={icon} className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />}
-            <MarkdownContent value={title} className="min-w-0 text-xs font-semibold text-amber-400 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-xs [&_p]:m-0" />
-          </div>
-        )}
         {imageFailed && <p className="text-xs text-stone-500">Image could not be loaded.</p>}
         {body && <MarkdownContent value={body} className="mt-2 text-sm leading-relaxed text-stone-300" />}
         {imageUrl && altText?.trim() && <p className="mt-2 text-xs leading-relaxed text-stone-500">{altText}</p>}
