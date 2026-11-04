@@ -59,7 +59,8 @@ export async function GET(request: Request) {
     if (submissionId) {
       const result = await getPostgresPool().query(
         `SELECT submissions.id, submissions.lesson_id, submissions.student_id,
-                submissions.answers, submissions.status, submissions.submitted_at
+                submissions.answers, submissions.status, submissions.submitted_at,
+                submissions.allow_resubmission
          FROM public.submissions
          JOIN public.lessons ON lessons.id = submissions.lesson_id
          WHERE submissions.id = $1::uuid
@@ -82,7 +83,7 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: "You do not have access to this lesson's submissions." }, { status: 403 });
       }
       const result = await getPostgresPool().query(
-        `SELECT id, lesson_id, student_id, answers, status, submitted_at
+        `SELECT id, lesson_id, student_id, answers, status, submitted_at, allow_resubmission
          FROM public.submissions
          WHERE lesson_id = $1::uuid AND student_id = $2::uuid
          ORDER BY submitted_at DESC LIMIT 1`,
@@ -102,7 +103,8 @@ export async function GET(request: Request) {
     }
     const result = await getPostgresPool().query(
       `SELECT submissions.id, submissions.lesson_id, submissions.student_id,
-              submissions.answers, submissions.status, submissions.submitted_at
+              submissions.answers, submissions.status, submissions.submitted_at,
+              submissions.allow_resubmission
        FROM public.submissions
        JOIN public.lessons ON lessons.id = submissions.lesson_id
        WHERE ($1::text IS NULL OR submissions.lesson_id::text = $1)
@@ -148,11 +150,28 @@ export async function POST(request: Request) {
        VALUES ($1::uuid, $2::uuid, $3::jsonb, $4, now())
        ON CONFLICT (lesson_id, student_id) DO UPDATE
        SET answers = EXCLUDED.answers,
-           status = EXCLUDED.status,
-           submitted_at = now()
-       RETURNING id, lesson_id, student_id, answers, status, submitted_at`,
+           status = CASE
+             WHEN public.submissions.status IN ('submitted', 'pending_evaluation', 'completed', 'reviewed', 'evaluated')
+               AND public.submissions.allow_resubmission = true
+               AND EXCLUDED.status IN ('draft', 'not_started', 'in_progress')
+             THEN public.submissions.status
+             ELSE EXCLUDED.status
+           END,
+           submitted_at = CASE
+             WHEN public.submissions.status IN ('submitted', 'pending_evaluation', 'completed', 'reviewed', 'evaluated')
+               AND public.submissions.allow_resubmission = true
+               AND EXCLUDED.status IN ('draft', 'not_started', 'in_progress')
+             THEN public.submissions.submitted_at
+             ELSE now()
+           END
+       WHERE public.submissions.status NOT IN ('submitted', 'pending_evaluation', 'completed', 'reviewed', 'evaluated')
+          OR public.submissions.allow_resubmission = true
+       RETURNING id, lesson_id, student_id, answers, status, submitted_at, allow_resubmission`,
       [lessonId, user.id, JSON.stringify(body.answers), status],
     );
+    if (!result.rows[0]) {
+      return NextResponse.json({ error: "This submission is locked. Ask your instructor to allow resubmission before editing." }, { status: 403 });
+    }
     return NextResponse.json({ submission: result.rows[0] });
   } catch (error) {
     return databaseError(error);
@@ -182,8 +201,19 @@ export async function PATCH(request: Request) {
 
   try {
     await initializeDatabase();
-    const submissionResult = await getPostgresPool().query<{ lesson_id: string; student_id: string }>(
-      "SELECT lesson_id::text, student_id::text FROM public.submissions WHERE id = $1::uuid",
+    if (body.allow_resubmission !== undefined && typeof body.allow_resubmission !== "boolean") {
+      return NextResponse.json({ error: "Allow resubmission must be a boolean." }, { status: 400 });
+    }
+    if (body.allow_resubmission !== undefined && user.role !== "instructor" && user.role !== "admin") {
+      return NextResponse.json({ error: "Only instructors can change resubmission access." }, { status: 403 });
+    }
+    const submissionResult = await getPostgresPool().query<{
+      lesson_id: string;
+      student_id: string;
+      status: string;
+      allow_resubmission: boolean;
+    }>(
+      "SELECT lesson_id::text, student_id::text, status, allow_resubmission FROM public.submissions WHERE id = $1::uuid",
       [id],
     );
     const submission = submissionResult.rows[0];
@@ -191,22 +221,43 @@ export async function PATCH(request: Request) {
     if (!(await canAccessLesson(user, submission.lesson_id, submission.student_id))) {
       return NextResponse.json({ error: "You do not have access to this submission." }, { status: 403 });
     }
+    const isFinalStatus = ["submitted", "pending_evaluation", "completed", "reviewed", "evaluated"].includes(submission.status);
+    if (user.role === "student" && isFinalStatus && !submission.allow_resubmission
+      && (body.answers !== undefined || body.status !== undefined)) {
+      return NextResponse.json({ error: "This submission is locked. Ask your instructor to allow resubmission before editing." }, { status: 403 });
+    }
     const updates: string[] = [];
-    const values: unknown[] = [id];
+    const values: unknown[] = [id, user.role];
     if (body.answers !== undefined) {
       values.push(JSON.stringify(body.answers));
       updates.push(`answers = $${values.length}::jsonb`);
     }
     if (body.status !== undefined) {
       values.push(body.status);
-      updates.push(`status = $${values.length}`);
+      updates.push(`status = CASE
+        WHEN $2::text = 'student'
+          AND status IN ('submitted', 'pending_evaluation', 'completed', 'reviewed', 'evaluated')
+          AND allow_resubmission = true
+          AND $${values.length} IN ('draft', 'not_started', 'in_progress')
+        THEN status
+        ELSE $${values.length}
+      END`);
+    }
+    if (body.allow_resubmission !== undefined) {
+      values.push(body.allow_resubmission);
+      updates.push(`allow_resubmission = $${values.length}`);
     }
     if (!updates.length) return NextResponse.json({ error: "Provide at least one submission field to update." }, { status: 400 });
     const result = await getPostgresPool().query(
       `UPDATE public.submissions SET ${updates.join(", ")} WHERE id = $1::uuid
-       RETURNING id, lesson_id, student_id, answers, status, submitted_at`,
+         AND ($2::text <> 'student' OR status NOT IN ('submitted', 'pending_evaluation', 'completed', 'reviewed', 'evaluated')
+              OR allow_resubmission = true)
+       RETURNING id, lesson_id, student_id, answers, status, submitted_at, allow_resubmission`,
       values,
     );
+    if (!result.rows[0]) {
+      return NextResponse.json({ error: "This submission is locked. Ask your instructor to allow resubmission before editing." }, { status: 403 });
+    }
     return NextResponse.json({ submission: result.rows[0] });
   } catch (error) {
     return databaseError(error);

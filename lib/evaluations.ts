@@ -16,6 +16,7 @@ export interface CreateSubmissionInput {
 export interface UpdateSubmissionInput {
   answers?: Record<string, any>;
   status?: "submitted" | "pending_evaluation" | "in_progress" | "reviewed" | "evaluated";
+  allow_resubmission?: boolean;
 }
 
 export interface CreateEvaluationInput {

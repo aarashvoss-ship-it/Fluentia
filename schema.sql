@@ -138,6 +138,7 @@ CREATE TABLE public.submissions (
   answers jsonb,
   submitted_at timestamp with time zone DEFAULT now(),
   answers_data jsonb,
+  allow_resubmission boolean NOT NULL DEFAULT false,
   CONSTRAINT submissions_pkey PRIMARY KEY (id),
   CONSTRAINT submissions_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.students(id),
   CONSTRAINT submissions_lesson_id_fkey FOREIGN KEY (lesson_id) REFERENCES public.lessons(id)

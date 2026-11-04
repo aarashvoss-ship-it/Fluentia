@@ -8,6 +8,7 @@ import { LessonBuilderSidebar, LessonTailorEditor } from "@/components/instructo
 import { InstructorBannerManager, type BannerPosition } from "@/components/instructor/banner-manager";
 import { normalizeBannerDimness } from "@/lib/banner-position";
 import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/submission-evaluator";
+import { updateSubmission } from "@/lib/evaluations";
 import type { UnifiedReportStage } from "@/components/shared/unified-report-card";
 import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission, StudyStepId, type LessonResource } from "@/types/lesson";
 import { assignLessonToAllActiveStudents, clearStudentLessonResources, createLesson, deleteLesson, getLessons, publishLessonAndAssign, removeStudentLessonCustomResource, saveLessonResource, setLessonAssignments, setStudentLessonResourceSelected, unassignLesson, updateLesson, type LessonAssignmentResourceOptions, type LessonTags, type LessonWithVersion } from "@/lib/lessons";
@@ -862,6 +863,8 @@ export default function InstructorWorkstationPage({
   const [pendingSubmissionCount, setPendingSubmissionCount] = useState(0);
   const [pendingSubmissions, setPendingSubmissions] = useState<PendingReviewSubmission[]>([]);
   const [pendingSubmissionError, setPendingSubmissionError] = useState<string | null>(null);
+  const [resubmissionSavingId, setResubmissionSavingId] = useState<string | null>(null);
+  const [resubmissionError, setResubmissionError] = useState<string | null>(null);
   const [isPendingSubmissionsExpanded, setIsPendingSubmissionsExpanded] = useState(false);
   const [isRecentActivitiesExpanded, setIsRecentActivitiesExpanded] = useState(false);
   const [publishedLessonCount, setPublishedLessonCount] = useState(0);
@@ -2892,6 +2895,7 @@ export default function InstructorWorkstationPage({
             status: string;
             submitted_at: string;
             answers: unknown;
+            allow_resubmission: boolean;
           }>;
           publishedLessonCount?: number;
           draftLessonCount?: number;
@@ -2902,7 +2906,6 @@ export default function InstructorWorkstationPage({
           const answers = row.answers && typeof row.answers === "object"
             ? row.answers as Partial<StudentSubmission>
             : {};
-          if (answers.status === "in_progress") continue;
           const submissionStatus = row.status === "completed" ? "pending_evaluation" : row.status;
           allAssignments.push({
             id: row.id,
@@ -2912,6 +2915,7 @@ export default function InstructorWorkstationPage({
             status: row.status,
             submission: {
               status: submissionStatus as StudentSubmission["status"],
+              allowResubmission: row.allow_resubmission === true,
               listeningAnswers: answers.listeningAnswers || {},
               readingAnswers: answers.readingAnswers || {},
               writingText: answers.writingText || "",
@@ -3873,6 +3877,24 @@ export default function InstructorWorkstationPage({
     && selectedStudent
     && (submission.studentId === selectedStudent.id || submission.studentId === selectedStudent.token),
   ) || null;
+
+  async function handleAllowResubmissionChange(allowResubmission: boolean) {
+    if (!selectedReviewSubmission) return;
+    setResubmissionSavingId(selectedReviewSubmission.id);
+    setResubmissionError(null);
+    try {
+      await updateSubmission(selectedReviewSubmission.id, { allow_resubmission: allowResubmission });
+      setSubmittedAssignments((current) => current.map((submission) =>
+        submission.id === selectedReviewSubmission.id
+          ? { ...submission, submission: { ...submission.submission, allowResubmission } }
+          : submission,
+      ));
+    } catch (error) {
+      setResubmissionError(error instanceof Error ? error.message : "Unable to update resubmission access.");
+    } finally {
+      setResubmissionSavingId(null);
+    }
+  }
 
   useEffect(() => {
     const blockId = pendingBuilderBlockRef.current;
@@ -6013,8 +6035,22 @@ export default function InstructorWorkstationPage({
                     <h2 className="mt-1 font-sans text-xl font-semibold text-stone-100">{selectedStudent.name}&apos;s answers</h2>
                     <p className="mt-1 text-xs text-stone-400">{createdLessons.find((lesson) => lesson.id === selectedReviewSubmission.lessonId)?.title || "Lesson"} · {selectedReviewSubmission.submittedAt ? new Date(selectedReviewSubmission.submittedAt).toLocaleString() : "Submission date unavailable"}</p>
                   </div>
-                  <span className={`w-fit rounded-sm border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${submissionStateClass}`}>{submissionState}</span>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="inline-flex items-center gap-2 text-xs text-stone-300">
+                      <input
+                        type="checkbox"
+                        checked={selectedReviewSubmission.submission.allowResubmission === true}
+                        disabled={resubmissionSavingId === selectedReviewSubmission.id}
+                        onChange={(event) => void handleAllowResubmissionChange(event.target.checked)}
+                        className="h-4 w-4 accent-amber-500"
+                        aria-label="Allow this student to edit and resubmit this lesson"
+                      />
+                      <span>{resubmissionSavingId === selectedReviewSubmission.id ? "Updating access..." : "Allow Resubmission"}</span>
+                    </label>
+                    <span className={`w-fit rounded-sm border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${submissionStateClass}`}>{submissionState}</span>
+                  </div>
                 </div>
+                {resubmissionError && <p role="alert" className="rounded-md border border-red-500/30 bg-red-950/30 px-3 py-2 text-sm text-red-200">{resubmissionError}</p>}
                 <SubmissionEvaluator
                   key={`${reviewSubmissionId}:${selectedStudent.id}`}
                   lessonId={selectedReviewSubmission.lessonId}

@@ -170,6 +170,7 @@ CREATE TABLE IF NOT EXISTS public.submissions (
       'draft', 'not_started', 'in_progress', 'submitted',
       'pending_evaluation', 'completed', 'reviewed', 'evaluated'
     )),
+  allow_resubmission boolean NOT NULL DEFAULT false,
   submitted_at timestamptz NOT NULL DEFAULT now()
 );
 

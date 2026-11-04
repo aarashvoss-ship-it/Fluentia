@@ -214,7 +214,8 @@ function mapSubmission(row: ApiRecord): StudentSubmission {
   const content = row.answers || row.content || {};
   return {
     ...content,
-    status: normalizeSubmissionStatus(content.status || row.status),
+    status: normalizeSubmissionStatus(row.status || content.status),
+    allowResubmission: row.allow_resubmission === true,
     listeningAnswers: content.listeningAnswers || {},
     readingAnswers: content.readingAnswers || {},
     writingText: content.writingText || "",
@@ -357,6 +358,7 @@ function getStateForMode(slug: string, studentToken: string | undefined, mode: L
     ...studentState,
     submission: {
       status: submission.status,
+      allowResubmission: submission.allowResubmission,
       evaluationViewedAt: submission.evaluationViewedAt,
       listeningAnswers: {},
       readingAnswers: {},

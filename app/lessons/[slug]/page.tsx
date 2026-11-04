@@ -552,10 +552,13 @@ export default function LessonPage() {
       let state = await fetchLessonState(lesson.id, activeToken, isReviewView ? "review" : "interactive", requestedSubmissionId);
       if (cancelled) return;
       const savedStatus = state?.submission?.status;
-      if (!isReviewView && (savedStatus === "submitted"
+      const savedStatusIsFinal = savedStatus === "submitted"
         || savedStatus === "pending_evaluation"
         || savedStatus === "reviewed"
-        || savedStatus === "evaluated")) {
+        || savedStatus === "evaluated";
+      if (savedStatusIsFinal && state?.submission?.allowResubmission === true) {
+        isReviewView = false;
+      } else if (!isReviewView && savedStatusIsFinal) {
         isReviewView = true;
         state = await fetchLessonState(lesson.id, activeToken, "review", requestedSubmissionId);
       }
@@ -569,7 +572,18 @@ export default function LessonPage() {
         : null;
       const persistedStep = progress.currentStep !== "results" || canShowResults ? progress.currentStep : "warm_up";
       setPublishedLesson(state?.status !== "draft" ? state : null);
-      const restoredSubmission: StudentSubmission = hydratedSubmission || {
+      const restoredSubmission: StudentSubmission = hydratedSubmission
+        ? {
+          ...hydratedSubmission,
+          status: hydratedSubmission.allowResubmission === true
+            && (hydratedSubmission.status === "submitted"
+              || hydratedSubmission.status === "pending_evaluation"
+              || hydratedSubmission.status === "reviewed"
+              || hydratedSubmission.status === "evaluated")
+            ? "in_progress"
+            : hydratedSubmission.status,
+        }
+        : {
         status: "in_progress",
         listeningAnswers: {},
         readingAnswers: {},
@@ -774,6 +788,8 @@ export default function LessonPage() {
           studentId: activeStudent?.id,
           error,
         });
+        setSubmissionSaveError(error instanceof Error ? error.message : String(error));
+      } else if (nextSubmission.allowResubmission === true) {
         setSubmissionSaveError(error instanceof Error ? error.message : String(error));
       } else if (process.env.NODE_ENV === "development") {
         console.warn("[Lesson Autosave] Draft save failed; the latest local answers are retained.", error);
@@ -1229,11 +1245,11 @@ export default function LessonPage() {
 
   const currentIndex = STUDY_STEPS.findIndex((s) => s.id === currentStep);
   const lockedSteps = getLockedSteps(completedSteps);
-  const isSubmittedReview = submission.status === "submitted"
+  const isSubmittedReview = submission.allowResubmission !== true && (submission.status === "submitted"
     || submission.status === "pending_evaluation"
     || submission.status === "reviewed"
-    || submission.status === "evaluated";
-  const stepperLockedSteps = isSubmittedReview
+    || submission.status === "evaluated");
+  const stepperLockedSteps = isSubmittedReview || submission.allowResubmission === true
     ? []
     : completedSteps.includes("results")
       ? lockedSteps
@@ -1463,6 +1479,16 @@ export default function LessonPage() {
         <p role="alert" className="mb-4 rounded-md border border-red-500/30 bg-red-950/30 px-4 py-3 text-sm text-red-200">
           Your submission could not be saved: {submissionSaveError}
         </p>
+      )}
+      {submission.allowResubmission === true && submission.status === "in_progress" && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-500/40 bg-amber-950/20 px-4 py-3 text-sm text-amber-100">
+          <p>Your instructor unlocked this lesson. You can edit your answers and submit them again.</p>
+          {currentStep === "results" && (
+            <button type="button" onClick={() => setCurrentStep("warm_up")} className="rounded border border-amber-500/50 px-3 py-1.5 text-xs font-medium text-amber-200 hover:bg-amber-500/10">
+              Edit answers
+            </button>
+          )}
+        </div>
       )}
       {pendingExitHref && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" role="presentation">

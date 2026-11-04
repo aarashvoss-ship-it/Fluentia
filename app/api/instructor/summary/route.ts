@@ -21,7 +21,8 @@ export async function GET() {
     const [submissionResult, lessonCountResult] = await Promise.all([
       pool.query(
         `SELECT submissions.id, submissions.lesson_id, submissions.student_id,
-                submissions.status, submissions.submitted_at, submissions.answers
+               submissions.status, submissions.submitted_at, submissions.answers,
+               submissions.allow_resubmission
          FROM public.submissions AS submissions
          JOIN public.lessons AS lessons ON lessons.id = submissions.lesson_id
          WHERE submissions.status IN ('submitted', 'pending_evaluation', 'completed', 'reviewed', 'evaluated')

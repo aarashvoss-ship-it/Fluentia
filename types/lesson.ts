@@ -408,6 +408,7 @@ export type StudentSubmissionStatus = "in_progress" | "submitted" | "pending_eva
 
 export interface StudentSubmission {
   status: StudentSubmissionStatus;
+  allowResubmission?: boolean;
   listeningAnswers: Record<string, string>;
   readingAnswers: Record<string, string>;
   writingText: string;

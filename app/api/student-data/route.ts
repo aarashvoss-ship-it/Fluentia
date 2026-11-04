@@ -114,7 +114,7 @@ async function lessonStateGet(request: Request, studentId: string) {
       return NextResponse.json({ error: "Provide a valid submission identifier." }, { status: 400 });
     }
     const submissionResult = await getPostgresPool().query<JsonRecord>(
-      `SELECT id::text, answers, status, submitted_at
+      `SELECT id::text, answers, status, submitted_at, allow_resubmission
        FROM public.submissions
        WHERE lesson_id = $1::uuid AND student_id = $2::uuid
          AND ($3::text IS NULL OR id::text = $3)
@@ -188,13 +188,28 @@ async function lessonStateWrite(request: Request, studentId: string) {
            VALUES ($1::uuid, $2::uuid, $3::jsonb, $4, now())
            ON CONFLICT (lesson_id, student_id) DO UPDATE
            SET answers = EXCLUDED.answers,
-               status = EXCLUDED.status,
-               submitted_at = now()
-           RETURNING id::text, answers, status, submitted_at`,
+               status = CASE
+                 WHEN public.submissions.status IN ('submitted', 'pending_evaluation', 'completed', 'reviewed', 'evaluated')
+                   AND public.submissions.allow_resubmission = true
+                   AND EXCLUDED.status IN ('draft', 'not_started', 'in_progress')
+                 THEN public.submissions.status
+                 ELSE EXCLUDED.status
+               END,
+               submitted_at = CASE
+                 WHEN public.submissions.status IN ('submitted', 'pending_evaluation', 'completed', 'reviewed', 'evaluated')
+                   AND public.submissions.allow_resubmission = true
+                   AND EXCLUDED.status IN ('draft', 'not_started', 'in_progress')
+                 THEN public.submissions.submitted_at
+                 ELSE now()
+               END
+           WHERE public.submissions.status NOT IN ('submitted', 'pending_evaluation', 'completed', 'reviewed', 'evaluated')
+              OR public.submissions.allow_resubmission = true
+           RETURNING id::text, answers, status, submitted_at, allow_resubmission`,
           [lesson.id, studentId, JSON.stringify(answers), databaseStatus],
         );
         saved = result.rows[0];
         if (saved) break;
+        return NextResponse.json({ error: "This submission is locked. Ask your instructor to allow resubmission before editing." }, { status: 403 });
       } catch (error) {
         const code = error !== null && typeof error === "object" && "code" in error
           ? (error as { code?: string }).code

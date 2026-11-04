@@ -52,6 +52,7 @@ export interface SubmissionRow {
   student_id: StudentId;
   answers: Record<string, any>;
   status: "draft" | "not_started" | "submitted" | "in_progress" | "pending_evaluation" | "completed" | "reviewed" | "evaluated";
+  allow_resubmission: boolean;
   submitted_at: string;
 }
 
