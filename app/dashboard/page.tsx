@@ -134,6 +134,33 @@ const BANNER_PRESETS = [
   },
 ] as const;
 
+const ACADEMIC_MEMBERSHIP_TIERS = [
+  "Fellowship",
+  "Associate",
+  "Mastery",
+  "Executive",
+  "Honorary Fellow",
+  "Honorary Guest",
+] as const;
+
+type AcademicMembershipTier = (typeof ACADEMIC_MEMBERSHIP_TIERS)[number];
+
+const PUBLIC_MEMBERSHIP_BADGES: Record<AcademicMembershipTier, string> = {
+  Fellowship: "FELLOWSHIP",
+  Associate: "ASSOCIATE",
+  Mastery: "MASTERY FELLOW",
+  Executive: "EXECUTIVE",
+  "Honorary Fellow": "HONORARY FELLOW",
+  "Honorary Guest": "HONORARY GUEST",
+};
+
+const SIDEBAR_WALLET_PREVIEW = {
+  creditBalance: 30,
+  monthlyCreditLimit: 100,
+  reminderThreshold: 35,
+  membershipTier: "Mastery" as AcademicMembershipTier,
+};
+
 type ProfilePreferences = {
   level?: string;
   targetGoal?: string;
@@ -853,6 +880,17 @@ function DashboardContent() {
     ? Math.round((completedLessons / displayLessons.length) * 100)
     : 0;
   const displayName = activeStudent.name;
+  const walletProgress = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        (SIDEBAR_WALLET_PREVIEW.creditBalance /
+          SIDEBAR_WALLET_PREVIEW.monthlyCreditLimit) *
+          100,
+      ),
+    ),
+  );
   const profileInstructorName =
     activeStudent.profile?.assignedInstructor?.trim();
   const lessonInstructorName =
@@ -1330,12 +1368,12 @@ function DashboardContent() {
                     </div>
                   </div>
                   <nav className="space-y-1 border-b border-border p-3" aria-label="Student navigation">
-                    <Link href="/dashboard" className="flex items-center gap-3 rounded-md px-3 py-2 text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300">
-                      <Home className="h-4 w-4 shrink-0" />Home
-                    </Link>
                     <button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-xs transition ${sidebarOpen ? "bg-amber-500/10 text-amber-300" : "text-stone-300 hover:bg-amber-500/10 hover:text-amber-300"}`}>
                       <PanelRight className="h-4 w-4 shrink-0" />Learning Hub
                     </button>
+                    <Link href="/dashboard" className="flex items-center gap-3 rounded-md px-3 py-2 text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300">
+                      <Home className="h-4 w-4 shrink-0" />Home
+                    </Link>
                     <button type="button" onClick={() => setDisplaySettingsOpen(true)} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300">
                       <SlidersHorizontal className="h-4 w-4 shrink-0" />Display &amp; Appearance
                     </button>
@@ -1344,6 +1382,36 @@ function DashboardContent() {
                     </button>
                     <p className="px-3 pt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-500">Your space</p>
                   </nav>
+                  <section aria-label="Membership and credits" className="mx-3 my-3 rounded-lg border border-border bg-background/70 p-3">
+                    <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-stone-500">Academic membership</p>
+                    <p className="mt-1 text-xs font-semibold tracking-wide text-amber-400">
+                      {PUBLIC_MEMBERSHIP_BADGES[SIDEBAR_WALLET_PREVIEW.membershipTier]}
+                    </p>
+                    <div className="mt-3 flex items-baseline justify-between gap-2">
+                      <p className="text-sm font-semibold tabular-nums text-stone-100">
+                        {SIDEBAR_WALLET_PREVIEW.creditBalance}
+                        <span className="px-1 text-stone-500">/</span>
+                        {SIDEBAR_WALLET_PREVIEW.monthlyCreditLimit}
+                        <span className="ml-1 text-[10px] font-normal text-stone-400">Credits</span>
+                      </p>
+                      <span className="text-[10px] tabular-nums text-stone-500">{walletProgress}%</span>
+                    </div>
+                    <div
+                      role="progressbar"
+                      aria-label="Monthly credits remaining"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={walletProgress}
+                      className="mt-2 h-1.5 overflow-hidden rounded-full bg-stone-800"
+                    >
+                      <div className="h-full rounded-full bg-amber-500 transition-[width] duration-300" style={{ width: `${walletProgress}%` }} />
+                    </div>
+                    {SIDEBAR_WALLET_PREVIEW.creditBalance < SIDEBAR_WALLET_PREVIEW.reminderThreshold && (
+                      <p className="mt-3 border-t border-border pt-3 text-[10px] leading-relaxed text-stone-400">
+                        Your monthly evaluation period is coming to an end. Top up your credits to maintain uninterrupted instructor feedback.
+                      </p>
+                    )}
+                  </section>
                   <div className="grid grid-cols-2 border-b border-border px-4 pt-3">
                     <Tooltip content="View your profile and learning preferences">
                     <button
@@ -1550,15 +1618,15 @@ function DashboardContent() {
                           <ChevronRight className="h-4 w-4" />
                         </button>
                       </Tooltip>
-                      <Tooltip content="Home">
-                        <Link href="/dashboard" aria-label="Home" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
-                          <Home className="h-4 w-4" />
-                        </Link>
-                      </Tooltip>
                       <Tooltip content="Learning Hub">
                         <button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-label="Learning Hub" aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex h-9 w-9 items-center justify-center rounded-md transition ${sidebarOpen ? "bg-amber-500/10 text-amber-300" : "text-stone-400 hover:bg-amber-500/10 hover:text-amber-300"}`}>
                           <PanelRight className="h-4 w-4" />
                         </button>
+                      </Tooltip>
+                      <Tooltip content="Home">
+                        <Link href="/dashboard" aria-label="Home" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
+                          <Home className="h-4 w-4" />
+                        </Link>
                       </Tooltip>
                       <div className="flex-1" />
                       <Tooltip content="Dictionary">
