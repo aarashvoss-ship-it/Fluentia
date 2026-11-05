@@ -6,12 +6,15 @@ import { useRouter } from "next/navigation";
 import {
   BookOpen,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   CheckCircle2,
   Clock3,
   Flame,
   Folder,
   GripVertical,
+  Home,
   Layers3,
   LayoutGrid,
   List,
@@ -1150,7 +1153,7 @@ function DashboardContent() {
   };
 
   return (
-    <main className="min-h-screen bg-background text-[#e8e7e4] font-sans">
+    <main className={`min-h-screen bg-background pl-16 text-[#e8e7e4] font-sans transition-[padding] duration-300 ${profileOpen ? "md:pl-64" : "md:pl-16"}`}>
       {profileSaveNotice && <div role="status" className="fixed bottom-5 right-5 z-[100] flex items-center gap-3 rounded-md border border-emerald-500/30 bg-surface px-4 py-3 text-xs text-emerald-300 shadow-xl"><span>{profileSaveNotice}</span><button type="button" onClick={() => setProfileSaveNotice(null)} aria-label="Dismiss profile save notification" className="text-emerald-200/70 hover:text-emerald-100"><X className="h-4 w-4" /></button></div>}
       {profileSaveError && <div role="alert" className="fixed bottom-5 right-5 z-[100] flex items-center gap-3 rounded-md border border-red-500/40 bg-[#241719] px-4 py-3 text-xs text-red-200 shadow-xl"><span>{profileSaveError}</span><button type="button" onClick={() => setProfileSaveError(null)} aria-label="Dismiss profile save error" className="text-red-200/70 hover:text-red-100"><X className="h-4 w-4" /></button></div>}
       {showUnreadFeedbackModal && <div
@@ -1208,7 +1211,7 @@ function DashboardContent() {
                 type="button"
                 aria-label="Close student profile"
                 onClick={() => setProfileOpen(false)}
-                className="fixed inset-0 z-0 cursor-default bg-black/55"
+                className="fixed inset-0 z-40 cursor-default bg-black/55 md:hidden"
               />
             )}
             <HeroBannerContent
@@ -1571,28 +1574,39 @@ function DashboardContent() {
               {profileOpen && (
                 <div
                   id="student-profile-flyout"
-                  className="absolute right-0 top-full z-50 mt-2 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border bg-surface text-left shadow-2xl"
+                  className={`fixed inset-y-0 left-0 z-50 flex h-dvh flex-col overflow-hidden border-r border-border bg-surface text-left shadow-2xl transition-[width] duration-300 ${profileOpen ? "w-64" : "w-16"}`}
                 >
+                  {profileOpen ? (
+                    <>
                   <div className="flex items-center justify-between gap-3 border-b border-border p-4">
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">
-                        Student profile
+                        Fluentia
                       </p>
                       <p className="mt-1 text-sm font-semibold text-stone-100">
-                        {displayName}
+                        Arash Vossoughi
                       </p>
                     </div>
                     <Tooltip content="Close your student profile">
                     <button
                       type="button"
                       onClick={() => setProfileOpen(false)}
-                      aria-label="Close profile"
+                      aria-label="Collapse sidebar"
                       className="text-stone-500 hover:text-stone-200"
                     >
-                      <X className="h-4 w-4" />
+                      <ChevronLeft className="h-4 w-4" />
                     </button>
                     </Tooltip>
                   </div>
+                  <nav className="space-y-1 border-b border-border p-3" aria-label="Student navigation">
+                    <Link href="/dashboard" className="flex items-center gap-3 rounded-md px-3 py-2 text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300">
+                      <Home className="h-4 w-4 shrink-0" />Home
+                    </Link>
+                    <button type="button" onClick={() => setSidebarOpen(true)} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300">
+                      <BookOpen className="h-4 w-4 shrink-0" />Study Room
+                    </button>
+                    <p className="px-3 pt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-500">Your space</p>
+                  </nav>
                   <div className="grid grid-cols-2 border-b border-border px-4 pt-3">
                     <Tooltip content="View your profile and learning preferences">
                     <button
@@ -1613,7 +1627,7 @@ function DashboardContent() {
                     </button>
                     </Tooltip>
                   </div>
-                  <div className="space-y-4 p-4 text-xs">
+                  <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 text-xs">
                     {profileTab === "profile" ? (
                       <>
                         <div className="grid grid-cols-2 gap-3">
@@ -1772,6 +1786,36 @@ function DashboardContent() {
                     </button>
                     </Tooltip>
                   </div>
+                    </>
+                  ) : (
+                    <nav className="flex flex-col items-center gap-3 py-4" aria-label="Quick navigation">
+                      <Tooltip content="Expand sidebar">
+                        <button type="button" onClick={() => setProfileOpen(true)} aria-label="Expand sidebar" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </Tooltip>
+                      <Tooltip content="Home">
+                        <Link href="/dashboard" aria-label="Home" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
+                          <Home className="h-4 w-4" />
+                        </Link>
+                      </Tooltip>
+                      <Tooltip content="Study Room">
+                        <button type="button" onClick={() => setSidebarOpen(true)} aria-label="Open Study Room" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
+                          <BookOpen className="h-4 w-4" />
+                        </button>
+                      </Tooltip>
+                      <Tooltip content={`${displayName} profile`}>
+                        <button type="button" onClick={() => { setProfileTab("profile"); setProfileOpen(true); }} aria-label="Open profile" style={!avatarImage ? { backgroundColor: badgeColor } : undefined} className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-full text-xs ${avatarImage ? "bg-surface" : selectedAvatar.className}`}>
+                          {avatarImage ? <img src={avatarImage} alt="" className="h-full w-full object-cover" /> : profileInitials}
+                        </button>
+                      </Tooltip>
+                      <Tooltip content="Customization settings">
+                        <button type="button" onClick={() => { setProfileTab("customization"); setProfileOpen(true); }} aria-label="Open customization settings" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
+                          <Settings2 className="h-4 w-4" />
+                        </button>
+                      </Tooltip>
+                    </nav>
+                  )}
                 </div>
               )}
             </div>
