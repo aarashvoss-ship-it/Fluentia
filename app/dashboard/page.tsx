@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import {
   BookOpen,
   ChevronDown,
-  ChevronLeft,
   ChevronRight,
   ChevronUp,
   CheckCircle2,
@@ -1153,9 +1152,17 @@ function DashboardContent() {
   };
 
   return (
-    <main className={`min-h-screen bg-background pl-16 text-[#e8e7e4] font-sans transition-[padding] duration-300 ${profileOpen ? "md:pl-64" : "md:pl-16"}`}>
+    <main className={`ml-16 min-h-screen bg-background text-[#e8e7e4] font-sans transition-[margin] duration-300 ease-in-out md:ml-16 ${profileOpen ? "md:ml-64" : ""}`}>
       {profileSaveNotice && <div role="status" className="fixed bottom-5 right-5 z-[100] flex items-center gap-3 rounded-md border border-emerald-500/30 bg-surface px-4 py-3 text-xs text-emerald-300 shadow-xl"><span>{profileSaveNotice}</span><button type="button" onClick={() => setProfileSaveNotice(null)} aria-label="Dismiss profile save notification" className="text-emerald-200/70 hover:text-emerald-100"><X className="h-4 w-4" /></button></div>}
       {profileSaveError && <div role="alert" className="fixed bottom-5 right-5 z-[100] flex items-center gap-3 rounded-md border border-red-500/40 bg-[#241719] px-4 py-3 text-xs text-red-200 shadow-xl"><span>{profileSaveError}</span><button type="button" onClick={() => setProfileSaveError(null)} aria-label="Dismiss profile save error" className="text-red-200/70 hover:text-red-100"><X className="h-4 w-4" /></button></div>}
+      {profileOpen && (
+        <button
+          type="button"
+          aria-label="Collapse student sidebar"
+          onClick={() => setProfileOpen(false)}
+          className="fixed inset-0 z-40 cursor-default bg-black/55 md:hidden"
+        />
+      )}
       {showUnreadFeedbackModal && <div
         className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-4"
         role="presentation"
@@ -1206,14 +1213,6 @@ function DashboardContent() {
           dimness={dashboardBannerDimness}
           onImageError={() => setBannerLoadFailed(true)}
         >
-            {profileOpen && (
-              <button
-                type="button"
-                aria-label="Close student profile"
-                onClick={() => setProfileOpen(false)}
-                className="fixed inset-0 z-40 cursor-default bg-black/55 md:hidden"
-              />
-            )}
             <HeroBannerContent
               logo={<HeroBannerLogo />}
               badge={
@@ -1234,247 +1233,6 @@ function DashboardContent() {
                 </p>
               }
             />
-            <div className="hidden" aria-label="Student profile">
-              <button
-                type="button"
-                onClick={() => setProfileOpen((open) => !open)}
-                aria-expanded={profileOpen}
-                aria-controls="student-profile-flyout"
-                style={
-                  !avatarImage
-                    ? { backgroundColor: badgeColor }
-                    : undefined
-                }
-                className={`flex h-8 w-8 items-center justify-center overflow-hidden rounded-full text-xs  transition hover:ring-2 hover:ring-amber-500/40 ${avatarImage ? "bg-surface" : selectedAvatar.className}`}
-              >
-                {avatarImage ? (
-                  <img
-                    src={avatarImage}
-                    alt={`${displayName} avatar`}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  profileInitials
-                )}
-              </button>
-              <div className="hidden text-left sm:block">
-                <p className="text-xs font-semibold text-stone-100">
-                  {displayName}
-                </p>
-                <p className="text-[10px] text-stone-500">
-                  {studentLevel}
-                </p>
-              </div>
-              <Tooltip content="Profile settings">
-              <button
-                type="button"
-                onClick={() => {
-                  setProfileOpen(true);
-                  setProfileTab("profile");
-                }}
-                aria-label="Profile settings"
-                className="text-stone-500 transition hover:text-amber-400"
-              >
-                <Settings2 className="h-4 w-4" />
-              </button>
-              </Tooltip>
-              {profileOpen && (
-                <div
-                  id="legacy-student-profile-flyout"
-                  className="absolute right-0 top-12 z-50 flex max-h-[min(80vh,620px)] w-[min(22rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-xl border border-border bg-surface text-left shadow-2xl"
-                >
-                  <div className="flex items-start justify-between gap-4 border-b border-border p-4">
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">
-                        Student profile
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-stone-100">
-                        {displayName}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setProfileOpen(false)}
-                      aria-label="Close profile"
-                      className="text-stone-500 hover:text-stone-200"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 border-b border-border px-4 pt-3">
-                    <button
-                      type="button"
-                      onClick={() => setProfileTab("profile")}
-                      className={`border-b-2 pb-2 text-[10px] font-medium uppercase tracking-[0.12em] focus:outline-none focus-visible:outline-none focus-visible:underline focus-visible:decoration-amber-400 focus-visible:underline-offset-4 ${profileTab === "profile" ? "border-amber-400 font-semibold text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
-                    >
-                      Profile &amp; Preferences
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setProfileTab("customization")}
-                      className={`border-b-2 pb-2 text-[10px] font-medium uppercase tracking-[0.12em] focus:outline-none focus-visible:outline-none focus-visible:underline focus-visible:decoration-amber-400 focus-visible:underline-offset-4 ${profileTab === "customization" ? "border-amber-400 font-semibold text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
-                    >
-                      Customization
-                    </button>
-                  </div>
-                  <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                    {profileTab === "profile" ? (
-                      <div className="space-y-4 text-xs">
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <p className="text-stone-500">Name</p>
-                            <p className="mt-1 text-stone-200">{displayName}</p>
-                          </div>
-                          <div>
-                            <p className="text-stone-500">Progress</p>
-                            <p className="mt-1 text-stone-200">
-                              {completedLessons} / {displayLessons.length}{" "}
-                              lessons
-                            </p>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <p className="text-stone-500">Level</p>
-                            <p className="mt-1 rounded-md border border-border bg-background p-2 text-stone-200">
-                              {studentLevel}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-stone-500">Learning goal</p>
-                            <p className="mt-1 rounded-md border border-border bg-background p-2 text-stone-200">
-                              {studentLearningGoal}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="border-t border-border pt-3">
-                          <p className="text-stone-500">Assigned instructor</p>
-                          <p className="mt-1 rounded-md border border-border bg-background p-2 text-stone-200">
-                            {assignedInstructorName}
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <div>
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">
-                            Student Avatar
-                          </p>
-                          <div className="mt-2 grid grid-cols-4 gap-2">
-                            {AVATAR_PRESETS.map((preset) => (
-                              <button
-                                key={preset.id}
-                                type="button"
-                                onClick={() => {
-                                  setAvatarPreset(preset.id);
-                                  setAvatarColor(preset.backgroundColor);
-                                  setCustomAvatarUrl("");
-                                }}
-                                aria-label={`Use ${preset.label} avatar`}
-                                className={`flex flex-col items-center gap-1 rounded-md border p-2 text-[11px] text-stone-400 transition ${avatarPreset === preset.id && !avatarImage                                 ? "border-amber-500/20 bg-amber-500/10 text-amber-400" : "border-border hover:border-amber-500/40"}`}
-                              >
-                                <span
-                                  style={{
-                                    backgroundColor: preset.backgroundColor,
-                                  }}
-                                  className={`flex h-8 w-8 items-center justify-center rounded-full text-[10px]  ${preset.className}`}
-                                >
-                                  {profileInitials}
-                                </span>
-                                {preset.label}
-                              </button>
-                            ))}
-                          </div>
-                          <div className="mt-3 flex items-center gap-2 rounded-md border border-border bg-background p-2">
-                            <span
-                              style={
-                                !avatarImage
-                                  ? {
-                                      backgroundColor: badgeColor,
-                                    }
-                                  : undefined
-                              }
-                              className={`flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-bold ${avatarImage ? "bg-surface" : selectedAvatar.className}`}
-                            >
-                              {avatarImage ? (
-                                <img
-                                  src={avatarImage}
-                                  alt="Custom avatar preview"
-                                  className="h-full w-full object-cover"
-                                />
-                              ) : (
-                                profileInitials
-                              )}
-                            </span>
-                            <span className="text-xs text-stone-400">
-                              Live avatar preview
-                            </span>
-                          </div>
-                          <label className="mt-2 block text-xs text-stone-400">
-                            Custom Avatar URL
-                            <input
-                              value={customAvatarUrl}
-                              onChange={(event) =>
-                                setCustomAvatarUrl(event.target.value)
-                              }
-                              placeholder="https://..."
-                              className="mt-1 w-full rounded-md border border-border bg-background p-2 text-xs text-stone-200"
-                            />
-                          </label>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">
-                            Dashboard Hero Banner
-                          </p>
-                          <div className="mt-2 grid grid-cols-3 gap-2">
-                            {BANNER_PRESETS.map((preset) => (
-                              <button
-                                key={preset.id}
-                                type="button"
-                                onClick={() => {
-                                  setBannerPreset(preset.id);
-                                  setCustomBannerUrl("");
-                                }}
-                                className={`overflow-hidden rounded-md border text-left transition ${bannerPreset === preset.id && !customBannerUrl ? "border-amber-500/40" : "border-border hover:border-amber-500/40"}`}
-                              >
-                                <img
-                                  src={preset.image}
-                                  alt=""
-                                  className="h-10 w-full object-cover opacity-75"
-                                />
-                                <span className="block truncate px-1.5 py-1 text-[9px] text-stone-400">
-                                  {preset.label}
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-                          <label className="mt-2 block text-xs text-stone-400">
-                            Custom Banner URL
-                            <input
-                              value={customBannerUrl}
-                              onChange={(event) =>
-                                setCustomBannerUrl(event.target.value)
-                              }
-                              placeholder="https://..."
-                              className="mt-1 w-full rounded-md border border-border bg-background p-2 text-xs text-stone-200"
-                            />
-                          </label>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="border-t border-border bg-surface p-4">
-                    <button
-                      type="button"
-                      onClick={() => void saveProfileCustomization()}
-                      className="w-full rounded-md bg-amber-500/20 px-3 py-2 text-xs  text-amber-400 hover:bg-amber-500/20"
-                    >
-                      Save settings
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
         </HeroBanner>
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between py-4">
           <p className="text-[12px] text-[#aeb2b9]">
@@ -1524,13 +1282,8 @@ function DashboardContent() {
               aria-label="Student profile"
             >
               <div className="flex items-center gap-3">
-                <Tooltip content="Open your student profile">
-                <button
-                  type="button"
+                <span
                   key={avatarRenderKey}
-                  onClick={() => setProfileOpen((open) => !open)}
-                  aria-expanded={profileOpen}
-                  aria-controls="student-profile-flyout"
                   style={
                     !avatarImage
                       ? { backgroundColor: badgeColor }
@@ -1547,8 +1300,7 @@ function DashboardContent() {
                   ) : (
                     profileInitials
                   )}
-                </button>
-                </Tooltip>
+                </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-semibold text-stone-100">
                     {displayName}
@@ -1557,23 +1309,10 @@ function DashboardContent() {
                     {studentLevel}
                   </p>
                 </div>
-                <Tooltip content="Edit profile and dashboard appearance">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setProfileOpen(true);
-                    setProfileTab("profile");
-                  }}
-                  aria-label="Profile settings"
-                  className="text-stone-500 transition hover:text-amber-400"
-                >
-                  <Settings2 className="h-4 w-4" />
-                </button>
-                </Tooltip>
               </div>
-              {profileOpen && (
-                <div
-                  id="student-profile-flyout"
+                <aside
+                  id="student-sidebar"
+                  aria-label="Student sidebar"
                   className={`fixed inset-y-0 left-0 z-50 flex h-dvh flex-col overflow-hidden border-r border-border bg-surface text-left shadow-2xl transition-[width] duration-300 ${profileOpen ? "w-64" : "w-16"}`}
                 >
                   {profileOpen ? (
@@ -1587,16 +1326,6 @@ function DashboardContent() {
                         Arash Vossoughi
                       </p>
                     </div>
-                    <Tooltip content="Close your student profile">
-                    <button
-                      type="button"
-                      onClick={() => setProfileOpen(false)}
-                      aria-label="Collapse sidebar"
-                      className="text-stone-500 hover:text-stone-200"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </button>
-                    </Tooltip>
                   </div>
                   <nav className="space-y-1 border-b border-border p-3" aria-label="Student navigation">
                     <Link href="/dashboard" className="flex items-center gap-3 rounded-md px-3 py-2 text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300">
@@ -1775,6 +1504,25 @@ function DashboardContent() {
                     )}
                   </div>
                   <div className="border-t border-border bg-surface p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <Tooltip content="Collapse sidebar">
+                        <button
+                          type="button"
+                          onClick={() => setProfileOpen(false)}
+                          aria-label="Collapse sidebar"
+                          className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs text-white ring-1 ring-border transition hover:ring-amber-500/50"
+                          style={!avatarImage ? { backgroundColor: badgeColor } : undefined}
+                        >
+                          {avatarImage ? <img src={avatarImage} alt="" className="h-full w-full object-cover" /> : profileInitials}
+                        </button>
+                      </Tooltip>
+                      <span className="min-w-0 flex-1 truncate text-xs text-stone-300">{displayName}</span>
+                      <Tooltip content="Collapse sidebar">
+                        <button type="button" onClick={() => setProfileOpen(false)} aria-label="Close sidebar" className="flex h-8 w-8 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </Tooltip>
+                    </div>
                     <Tooltip content="Save your profile and appearance settings">
                     <button
                       type="button"
@@ -1788,7 +1536,7 @@ function DashboardContent() {
                   </div>
                     </>
                   ) : (
-                    <nav className="flex flex-col items-center gap-3 py-4" aria-label="Quick navigation">
+                    <nav className="flex h-full flex-col items-center gap-3 py-4" aria-label="Quick navigation">
                       <Tooltip content="Expand sidebar">
                         <button type="button" onClick={() => setProfileOpen(true)} aria-label="Expand sidebar" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
                           <ChevronRight className="h-4 w-4" />
@@ -1804,20 +1552,20 @@ function DashboardContent() {
                           <BookOpen className="h-4 w-4" />
                         </button>
                       </Tooltip>
-                      <Tooltip content={`${displayName} profile`}>
-                        <button type="button" onClick={() => { setProfileTab("profile"); setProfileOpen(true); }} aria-label="Open profile" style={!avatarImage ? { backgroundColor: badgeColor } : undefined} className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-full text-xs ${avatarImage ? "bg-surface" : selectedAvatar.className}`}>
-                          {avatarImage ? <img src={avatarImage} alt="" className="h-full w-full object-cover" /> : profileInitials}
+                      <div className="flex-1" />
+                      <Tooltip content="Customization settings">
+                        <button type="button" onClick={() => { setProfileTab("customization"); setProfileOpen(true); }} aria-label="Open customization settings" aria-controls="student-sidebar" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
+                          <Settings2 className="h-4 w-4" />
                         </button>
                       </Tooltip>
-                      <Tooltip content="Customization settings">
-                        <button type="button" onClick={() => { setProfileTab("customization"); setProfileOpen(true); }} aria-label="Open customization settings" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
-                          <Settings2 className="h-4 w-4" />
+                      <Tooltip content="Expand profile drawer">
+                        <button type="button" onClick={() => { setProfileTab("profile"); setProfileOpen((open) => !open); }} aria-label="Expand profile drawer" aria-expanded={profileOpen} aria-controls="student-sidebar" style={!avatarImage ? { backgroundColor: badgeColor } : undefined} className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-full text-xs ring-1 ring-border transition hover:ring-amber-500/50 ${avatarImage ? "bg-surface" : selectedAvatar.className}`}>
+                          {avatarImage ? <img src={avatarImage} alt="" className="h-full w-full object-cover" /> : profileInitials}
                         </button>
                       </Tooltip>
                     </nav>
                   )}
-                </div>
-              )}
+                </aside>
             </div>
             <Tooltip content={`${completedLessons} of ${displayLessons.length} available lessons are complete`}>
             <div className="flex h-full min-h-[104px] w-full flex-col justify-center rounded-xl border border-border bg-surface p-4">
