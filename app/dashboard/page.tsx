@@ -58,6 +58,7 @@ import { uploadAsset } from "@/services/asset-service";
 import { DEFAULT_BANNER_IMAGE_URL, getBannerOverlayStyles, getBannerPositionStyles, getFirstNonEmptyBannerUrl, normalizeBannerDimness, normalizeBannerPosition, type BannerFocalPosition } from "@/lib/banner-position";
 import { HeroBanner, HeroBannerContent, HeroBannerLogo } from "@/components/shared/hero-banner";
 import { BannerPositionControls } from "@/components/shared/banner-position-controls";
+import { DEFAULT_MEMBERSHIP_TIER, MEMBERSHIP_BADGE_LABELS, isMembershipTier } from "@/types/membership";
 
 type LessonStatus =
   | "not-started"
@@ -134,32 +135,7 @@ const BANNER_PRESETS = [
   },
 ] as const;
 
-const ACADEMIC_MEMBERSHIP_TIERS = [
-  "Fellowship",
-  "Associate",
-  "Mastery",
-  "Executive",
-  "Honorary Fellow",
-  "Honorary Guest",
-] as const;
-
-type AcademicMembershipTier = (typeof ACADEMIC_MEMBERSHIP_TIERS)[number];
-
-const PUBLIC_MEMBERSHIP_BADGES: Record<AcademicMembershipTier, string> = {
-  Fellowship: "FELLOWSHIP",
-  Associate: "ASSOCIATE",
-  Mastery: "MASTERY FELLOW",
-  Executive: "EXECUTIVE",
-  "Honorary Fellow": "HONORARY FELLOW",
-  "Honorary Guest": "HONORARY GUEST",
-};
-
-const SIDEBAR_WALLET_PREVIEW = {
-  creditBalance: 30,
-  monthlyCreditLimit: 100,
-  reminderThreshold: 35,
-  membershipTier: "Mastery" as AcademicMembershipTier,
-};
+const WALLET_REMINDER_THRESHOLD = 35;
 
 type ProfilePreferences = {
   level?: string;
@@ -683,6 +659,9 @@ function DashboardContent() {
             fullName: fallbackName,
             level: studentProfile?.level || "",
             targetGoal: studentProfile?.targetGoal || "",
+            membershipTier: studentProfile?.membershipTier || DEFAULT_MEMBERSHIP_TIER,
+            creditBalance: studentProfile?.creditBalance ?? 100,
+            creditLimit: studentProfile?.creditLimit ?? 100,
             avatarBgColor: typeof roleProfile?.avatar_bg_color === "string"
               ? roleProfile.avatar_bg_color
               : typeof userMetadata.avatar_bg_color === "string" ? userMetadata.avatar_bg_color : undefined,
@@ -880,13 +859,17 @@ function DashboardContent() {
     ? Math.round((completedLessons / displayLessons.length) * 100)
     : 0;
   const displayName = activeStudent.name;
+  const membershipTier = isMembershipTier(activeStudent.profile.membershipTier)
+    ? activeStudent.profile.membershipTier
+    : DEFAULT_MEMBERSHIP_TIER;
+  const walletCreditLimit = Math.max(1, activeStudent.profile.creditLimit ?? 100);
+  const walletCreditBalance = Math.max(0, Math.min(walletCreditLimit, activeStudent.profile.creditBalance ?? 100));
   const walletProgress = Math.max(
     0,
     Math.min(
       100,
       Math.round(
-        (SIDEBAR_WALLET_PREVIEW.creditBalance /
-          SIDEBAR_WALLET_PREVIEW.monthlyCreditLimit) *
+        (walletCreditBalance / walletCreditLimit) *
           100,
       ),
     ),
@@ -1385,13 +1368,13 @@ function DashboardContent() {
                   <section aria-label="Membership and credits" className="mx-3 my-3 rounded-lg border border-border bg-background/70 p-3">
                     <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-stone-500">Academic membership</p>
                     <p className="mt-1 text-xs font-semibold tracking-wide text-amber-400">
-                      {PUBLIC_MEMBERSHIP_BADGES[SIDEBAR_WALLET_PREVIEW.membershipTier]}
+                      {MEMBERSHIP_BADGE_LABELS[membershipTier]}
                     </p>
                     <div className="mt-3 flex items-baseline justify-between gap-2">
                       <p className="text-sm font-semibold tabular-nums text-stone-100">
-                        {SIDEBAR_WALLET_PREVIEW.creditBalance}
+                        {walletCreditBalance}
                         <span className="px-1 text-stone-500">/</span>
-                        {SIDEBAR_WALLET_PREVIEW.monthlyCreditLimit}
+                        {walletCreditLimit}
                         <span className="ml-1 text-[10px] font-normal text-stone-400">Credits</span>
                       </p>
                       <span className="text-[10px] tabular-nums text-stone-500">{walletProgress}%</span>
@@ -1402,13 +1385,16 @@ function DashboardContent() {
                       aria-valuemin={0}
                       aria-valuemax={100}
                       aria-valuenow={walletProgress}
+                      aria-valuetext={`${walletCreditBalance} of ${walletCreditLimit} credits remaining`}
                       className="mt-2 h-1.5 overflow-hidden rounded-full bg-stone-800"
                     >
                       <div className="h-full rounded-full bg-amber-500 transition-[width] duration-300" style={{ width: `${walletProgress}%` }} />
                     </div>
-                    {SIDEBAR_WALLET_PREVIEW.creditBalance < SIDEBAR_WALLET_PREVIEW.reminderThreshold && (
+                    {walletCreditBalance < WALLET_REMINDER_THRESHOLD && (
                       <p className="mt-3 border-t border-border pt-3 text-[10px] leading-relaxed text-stone-400">
-                        Your monthly evaluation period is coming to an end. Top up your credits to maintain uninterrupted instructor feedback.
+                        {walletCreditBalance === 0
+                          ? "Your evaluation credits are depleted. Top up to resume instructor feedback. Completed modules remain available."
+                          : "Your monthly evaluation period is coming to an end. Top up your credits to maintain uninterrupted instructor feedback."}
                       </p>
                     )}
                   </section>

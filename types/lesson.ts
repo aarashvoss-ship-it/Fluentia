@@ -1,4 +1,5 @@
 import type { StudentId } from "@/types/database";
+import type { MembershipTier } from "@/types/membership";
 import type { CEFRLevel, MainCategory, SubCategory } from "@/types/resource-hub";
 
 export type StudyStepId =
@@ -341,6 +342,9 @@ export interface StudentProfile {
   bannerDimness?: number;
   avatarBgColor?: string;
   avatarInitials?: string;
+  membershipTier?: MembershipTier;
+  creditBalance?: number;
+  creditLimit?: number;
   email?: string;
   enrolledDate?: string;
   targetLevel?: string;

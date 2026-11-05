@@ -1,5 +1,6 @@
 import type { StudentId } from "@/types/database";
 import type { StudentProfile } from "@/types/lesson";
+import { DEFAULT_MEMBERSHIP_TIER, isMembershipTier } from "@/types/membership";
 import { STUDENT_USERS } from "@/lib/users";
 
 export interface StudentProfileRecord {
@@ -120,6 +121,9 @@ function normalizeStudentProfile(profile: Record<string, unknown> | null, studen
     bannerUrl: getProfileValue(profile, ["banner_url", "bannerUrl"]) || undefined,
     avatarBgColor: getProfileValue(profile, ["avatar_bg_color", "avatarBgColor", "badgeColor"]) || undefined,
     avatarInitials: getProfileValue(profile, ["avatar_initials", "avatarInitials", "badgeInitials"]) || undefined,
+    membershipTier: isMembershipTier(profile.membership_tier) ? profile.membership_tier : DEFAULT_MEMBERSHIP_TIER,
+    creditBalance: typeof profile.credit_balance === "number" ? profile.credit_balance : 100,
+    creditLimit: typeof profile.credit_limit === "number" ? profile.credit_limit : 100,
   };
 }
 

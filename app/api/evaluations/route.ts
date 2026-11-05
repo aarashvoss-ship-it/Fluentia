@@ -239,6 +239,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Evaluation score must be a valid number." }, { status: 400 });
     }
 
+    if (published) {
+      const wallet = await client.query<{ credit_balance: number }>(
+        "SELECT credit_balance FROM public.profiles WHERE id = $1::uuid FOR UPDATE",
+        [submission.student_id],
+      );
+      if (!wallet.rows[0]) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ error: "Student wallet not found." }, { status: 404 });
+      }
+      const existingFeedback = await client.query<{ is_published: boolean }>(
+        `SELECT is_published FROM public.instructor_feedback
+         WHERE lesson_id = $1::uuid AND student_id = $2::uuid FOR UPDATE`,
+        [submission.lesson_id, submission.student_id],
+      );
+      if (!existingFeedback.rows[0]?.is_published) {
+        if (wallet.rows[0].credit_balance <= 0) {
+          await client.query("ROLLBACK");
+          return NextResponse.json({
+            code: "CREDITS_DEPLETED",
+            error: "This student has no evaluation credits remaining. Top up credits to resume instructor feedback. Their lessons and completed modules remain available.",
+          }, { status: 402 });
+        }
+        await client.query(
+          "UPDATE public.profiles SET credit_balance = credit_balance - 1, updated_at = now() WHERE id = $1::uuid",
+          [submission.student_id],
+        );
+      }
+    }
+
     if (!published) {
       await client.query(
         `INSERT INTO public.instructor_evaluation_drafts

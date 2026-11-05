@@ -38,6 +38,7 @@ import { Tooltip } from "@/components/shared/tooltip";
 import { DeleteConfirmationDialog, type DeleteConfirmationRequest } from "@/components/shared/delete-confirmation-dialog";
 import { DisplaySettingsControl } from "@/components/shared/display-settings";
 import { TiptapEditor } from "@/components/shared/tiptap-editor";
+import { MembershipWalletPanel } from "@/components/instructor/membership-wallet-panel";
 import { DynamicLucideIcon, LucideIconPicker } from "@/components/shared/lucide-icon-picker";
 import { SidebarBlockCard } from "@/components/shared/sidebar-block-card";
 import { ImageBlockRenderer } from "@/components/shared/image-block-renderer";
@@ -57,7 +58,7 @@ interface InstructorWorkstationProps {
   lessonSlug: string;
 }
 
-type InstructorWorkspaceTab = "dashboard" | "library" | "builder" | "evaluation" | "directory" | "resources" | "resource-hub";
+type InstructorWorkspaceTab = "dashboard" | "library" | "builder" | "evaluation" | "directory" | "resources" | "resource-hub" | "membership";
 
 const INSTRUCTOR_WORKSPACE_TABS: InstructorWorkspaceTab[] = [
   "dashboard",
@@ -67,6 +68,7 @@ const INSTRUCTOR_WORKSPACE_TABS: InstructorWorkspaceTab[] = [
   "resource-hub",
   "directory",
   "resources",
+  "membership",
 ];
 
 function getWorkspaceTabFromUrl(): InstructorWorkspaceTab {
@@ -4699,11 +4701,13 @@ export default function InstructorWorkstationPage({
         <nav className="sticky top-0 z-20 mb-8 border-b border-border bg-background/95 backdrop-blur" aria-label="Instructor workstation views">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-0 flex-wrap gap-x-1">
-              {([["dashboard", "Dashboard"], ["library", "Lesson Library"], ["builder", "Lesson Builder"], ["resource-hub", "Resource Hub"], ["directory", "Directory"], ["evaluation", "Student Evaluation"]] as const).map(([tab, label]) => <Tooltip key={tab} content={`Open ${label}`}><button type="button" onClick={() => handleWorkspaceTabChange(tab)} className={`whitespace-nowrap border-b-2 px-3 py-3 text-xs  transition sm:px-4 ${activeTab === tab ? "border-amber-500/40 text-amber-400" : "border-transparent text-stone-500 hover:text-stone-200"}`}>{label}</button></Tooltip>)}
+              {([["dashboard", "Dashboard"], ["library", "Lesson Library"], ["builder", "Lesson Builder"], ["resource-hub", "Resource Hub"], ["directory", "Directory"], ["membership", "Membership & Wallet"], ["evaluation", "Student Evaluation"]] as const).map(([tab, label]) => <Tooltip key={tab} content={`Open ${label}`}><button type="button" onClick={() => handleWorkspaceTabChange(tab)} className={`whitespace-nowrap border-b-2 px-3 py-3 text-xs  transition sm:px-4 ${activeTab === tab ? "border-amber-500/40 text-amber-400" : "border-transparent text-stone-500 hover:text-stone-200"}`}>{label}</button></Tooltip>)}
             </div>
             <Tooltip content="Display and appearance"><DisplaySettingsControl /></Tooltip>
           </div>
         </nav>
+
+        {activeTab === "membership" && <MembershipWalletPanel />}
 
         {activeTab === "directory" && (
           <div className="mb-6 flex gap-2 border-b border-border" role="tablist" aria-label="Directory type">
