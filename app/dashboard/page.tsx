@@ -136,6 +136,7 @@ const BANNER_PRESETS = [
 ] as const;
 
 const WALLET_REMINDER_THRESHOLD = 35;
+const SHOW_STUDENT_MEMBERSHIP_WALLET = false;
 
 type ProfilePreferences = {
   level?: string;
@@ -1365,7 +1366,7 @@ function DashboardContent() {
                     </button>
                     <p className="px-3 pt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-500">Your space</p>
                   </nav>
-                  <section aria-label="Membership and credits" className="mx-3 my-3 rounded-lg border border-border bg-background/70 p-3">
+                  {SHOW_STUDENT_MEMBERSHIP_WALLET && <section aria-label="Membership and credits" className="mx-3 my-3 rounded-lg border border-border bg-background/70 p-3">
                     <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-stone-500">Academic membership</p>
                     <p className="mt-1 text-xs font-semibold tracking-wide text-amber-400">
                       {MEMBERSHIP_BADGE_LABELS[membershipTier]}
@@ -1397,7 +1398,7 @@ function DashboardContent() {
                           : "Your monthly evaluation period is coming to an end. Top up your credits to maintain uninterrupted instructor feedback."}
                       </p>
                     )}
-                  </section>
+                  </section>}
                   <div className="grid grid-cols-2 border-b border-border px-4 pt-3">
                     <Tooltip content="View your profile and learning preferences">
                     <button
