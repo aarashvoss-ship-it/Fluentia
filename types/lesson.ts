@@ -345,6 +345,7 @@ export interface StudentProfile {
   membershipTier?: MembershipTier;
   creditBalance?: number;
   creditLimit?: number;
+  showWalletWidget?: boolean;
   email?: string;
   enrolledDate?: string;
   targetLevel?: string;

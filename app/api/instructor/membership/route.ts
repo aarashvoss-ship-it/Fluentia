@@ -29,10 +29,12 @@ export async function GET() {
       membership_tier: string;
       credit_balance: number;
       credit_limit: number;
+      show_wallet_widget: boolean;
       is_scholarship: boolean;
     }>(
       `SELECT users.id::text, COALESCE(NULLIF(profiles.full_name, ''), users.email) AS full_name,
               users.email, profiles.membership_tier, profiles.credit_balance, profiles.credit_limit,
+              profiles.show_wallet_widget,
               COALESCE(private_membership.is_scholarship, false) AS is_scholarship
        FROM public.profiles AS profiles
        JOIN public.users AS users ON users.id = profiles.id
@@ -49,6 +51,7 @@ export async function GET() {
         membershipTier: student.membership_tier,
         creditBalance: student.credit_balance,
         creditLimit: student.credit_limit,
+        showWalletWidget: student.show_wallet_widget,
         isScholarship: student.is_scholarship,
       })),
     });
@@ -76,12 +79,13 @@ export async function PATCH(request: Request) {
   const creditMode = body.creditMode;
   const creditAmount = body.creditAmount;
   const isScholarship = body.isScholarship;
+  const showWalletWidget = body.showWalletWidget;
   if (!uuidPattern.test(studentId) || !isMembershipTier(membershipTier)
     || (creditMode !== "set" && creditMode !== "top_up")
     || typeof creditAmount !== "number" || !Number.isInteger(creditAmount)
     || creditAmount < (creditMode === "top_up" ? 1 : 0) || creditAmount > 100
-    || typeof isScholarship !== "boolean") {
-    return NextResponse.json({ error: "Provide a valid student, membership tier, credit amount, and internal scholarship status." }, { status: 400 });
+    || typeof isScholarship !== "boolean" || typeof showWalletWidget !== "boolean") {
+    return NextResponse.json({ error: "Provide a valid student, membership tier, credit amount, and wallet visibility setting." }, { status: 400 });
   }
 
   const client = await getPostgresPool().connect();
@@ -92,6 +96,7 @@ export async function PATCH(request: Request) {
       membership_tier: string;
       credit_balance: number;
       credit_limit: number;
+      show_wallet_widget: boolean;
     }>(
       `UPDATE public.profiles
        SET membership_tier = $2,
@@ -99,10 +104,11 @@ export async function PATCH(request: Request) {
              WHEN $3::text = 'set' THEN $4::integer
              ELSE LEAST(credit_limit, credit_balance + $4::integer)
            END,
+           show_wallet_widget = $5::boolean,
            updated_at = now()
        WHERE id = $1::uuid AND COALESCE(role, 'student') = 'student'
-       RETURNING membership_tier, credit_balance, credit_limit`,
-      [studentId, membershipTier, creditMode, creditAmount],
+       RETURNING membership_tier, credit_balance, credit_limit, show_wallet_widget`,
+      [studentId, membershipTier, creditMode, creditAmount, showWalletWidget],
     );
     if (!result.rows[0]) {
       await client.query("ROLLBACK");
@@ -122,6 +128,7 @@ export async function PATCH(request: Request) {
         membershipTier: result.rows[0].membership_tier,
         creditBalance: result.rows[0].credit_balance,
         creditLimit: result.rows[0].credit_limit,
+        showWalletWidget: result.rows[0].show_wallet_widget,
         isScholarship,
       },
     });

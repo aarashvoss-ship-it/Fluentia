@@ -10,6 +10,7 @@ type MembershipStudent = {
   membershipTier: MembershipTier;
   creditBalance: number;
   creditLimit: number;
+  showWalletWidget: boolean;
   isScholarship: boolean;
 };
 
@@ -22,6 +23,7 @@ export function MembershipWalletPanel() {
   const [creditMode, setCreditMode] = useState<CreditMode>("set");
   const [creditAmount, setCreditAmount] = useState("100");
   const [isScholarship, setIsScholarship] = useState(false);
+  const [showWalletWidget, setShowWalletWidget] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +57,7 @@ export function MembershipWalletPanel() {
     setMembershipTier(selectedStudent.membershipTier);
     setCreditAmount(String(selectedStudent.creditBalance));
     setIsScholarship(selectedStudent.isScholarship);
+    setShowWalletWidget(selectedStudent.showWalletWidget);
     setCreditMode("set");
   }, [selectedStudent]);
 
@@ -80,6 +83,7 @@ export function MembershipWalletPanel() {
           creditMode,
           creditAmount: amount,
           isScholarship,
+          showWalletWidget,
         }),
       });
       const result = await response.json() as { student?: Partial<MembershipStudent>; error?: string };
@@ -147,6 +151,11 @@ export function MembershipWalletPanel() {
           <label className="flex items-start gap-3 rounded-md border border-border bg-background p-3 text-xs text-stone-300">
             <input type="checkbox" checked={isScholarship} onChange={(event) => setIsScholarship(event.target.checked)} className="mt-0.5 accent-amber-500" />
             <span><span className="block font-medium text-stone-200">Internal scholarship status</span><span className="mt-1 block text-[10px] text-stone-500">Staff only. This flag is never shown on the student profile or public badge.</span></span>
+          </label>
+
+          <label className="flex items-start gap-3 rounded-md border border-border bg-background p-3 text-xs text-stone-300">
+            <input type="checkbox" checked={showWalletWidget} onChange={(event) => setShowWalletWidget(event.target.checked)} className="mt-0.5 accent-amber-500" />
+            <span><span className="block font-medium text-stone-200">Show wallet on student sidebar</span><span className="mt-1 block text-[10px] text-stone-500">Off by default. Enable only for student accounts selected for wallet testing.</span></span>
           </label>
 
           {error && <p role="alert" className="text-xs text-red-300">{error}</p>}

@@ -46,6 +46,7 @@ export async function GET(request: Request) {
                 profiles.assigned_instructor, profiles.dashboard_note, profiles.avatar_url,
                 profiles.banner_url, profiles.avatar_bg_color, profiles.avatar_initials,
                 profiles.membership_tier, profiles.credit_balance, profiles.credit_limit,
+                profiles.show_wallet_widget,
                 profiles.enrolled_date
          FROM public.users AS users
          LEFT JOIN public.profiles AS profiles ON profiles.id = users.id
@@ -71,6 +72,7 @@ export async function GET(request: Request) {
               profiles.assigned_instructor, profiles.dashboard_note, profiles.avatar_url,
               profiles.banner_url, profiles.avatar_bg_color, profiles.avatar_initials,
               profiles.membership_tier, profiles.credit_balance, profiles.credit_limit,
+              profiles.show_wallet_widget,
               profiles.enrolled_date
        FROM public.users AS users
        LEFT JOIN public.profiles AS profiles ON profiles.id = users.id

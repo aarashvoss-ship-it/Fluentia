@@ -124,6 +124,7 @@ function normalizeStudentProfile(profile: Record<string, unknown> | null, studen
     membershipTier: isMembershipTier(profile.membership_tier) ? profile.membership_tier : DEFAULT_MEMBERSHIP_TIER,
     creditBalance: typeof profile.credit_balance === "number" ? profile.credit_balance : 100,
     creditLimit: typeof profile.credit_limit === "number" ? profile.credit_limit : 100,
+    showWalletWidget: profile.show_wallet_widget === true,
   };
 }
 

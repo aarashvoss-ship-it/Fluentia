@@ -261,10 +261,6 @@ export async function POST(request: Request) {
             error: "This student has no evaluation credits remaining. Top up credits to resume instructor feedback. Their lessons and completed modules remain available.",
           }, { status: 402 });
         }
-        await client.query(
-          "UPDATE public.profiles SET credit_balance = credit_balance - 1, updated_at = now() WHERE id = $1::uuid",
-          [submission.student_id],
-        );
       }
     }
 
