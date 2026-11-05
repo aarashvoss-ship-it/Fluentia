@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  BookA,
   BookOpen,
   ChevronDown,
   ChevronRight,
@@ -1266,7 +1265,7 @@ function DashboardContent() {
                 aria-label="Open dictionary"
                 className={`group flex h-8 w-8 items-center justify-center rounded-lg border bg-slate-800/80 transition-all cursor-pointer ${dictionaryOpen ? "border-amber-500/40 text-amber-400" : "border-slate-700/60 text-slate-300 hover:border-amber-500/40 hover:text-amber-400 hover:bg-slate-800"}`}
               >
-                <BookA className={`h-4 w-4 shrink-0 ${dictionaryOpen ? "text-amber-400" : "text-slate-400 group-hover:text-amber-400"}`} />
+                <BookOpen className={`h-4 w-4 shrink-0 ${dictionaryOpen ? "text-amber-400" : "text-slate-400 group-hover:text-amber-400"}`} />
               </button>
             </Tooltip>
             <Tooltip content="Display and appearance">
@@ -1334,14 +1333,14 @@ function DashboardContent() {
                     <Link href="/dashboard" className="flex items-center gap-3 rounded-md px-3 py-2 text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300">
                       <Home className="h-4 w-4 shrink-0" />Home
                     </Link>
-                    <button type="button" onClick={() => setSidebarOpen(true)} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300">
-                      <BookOpen className="h-4 w-4 shrink-0" />Study Room
+                    <button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-xs transition ${sidebarOpen ? "bg-amber-500/10 text-amber-300" : "text-stone-300 hover:bg-amber-500/10 hover:text-amber-300"}`}>
+                      <PanelRight className="h-4 w-4 shrink-0" />Learning Hub
                     </button>
                     <button type="button" onClick={() => setDisplaySettingsOpen(true)} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300">
                       <SlidersHorizontal className="h-4 w-4 shrink-0" />Display &amp; Appearance
                     </button>
                     <button type="button" onClick={() => setDictionaryOpen(true)} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300">
-                      <BookA className="h-4 w-4 shrink-0" />Dictionary
+                      <BookOpen className="h-4 w-4 shrink-0" />Dictionary
                     </button>
                     <p className="px-3 pt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-500">Your space</p>
                   </nav>
@@ -1556,15 +1555,15 @@ function DashboardContent() {
                           <Home className="h-4 w-4" />
                         </Link>
                       </Tooltip>
-                      <Tooltip content="Study Room">
-                        <button type="button" onClick={() => setSidebarOpen(true)} aria-label="Open Study Room" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
-                          <BookOpen className="h-4 w-4" />
+                      <Tooltip content="Learning Hub">
+                        <button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-label="Learning Hub" aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex h-9 w-9 items-center justify-center rounded-md transition ${sidebarOpen ? "bg-amber-500/10 text-amber-300" : "text-stone-400 hover:bg-amber-500/10 hover:text-amber-300"}`}>
+                          <PanelRight className="h-4 w-4" />
                         </button>
                       </Tooltip>
                       <div className="flex-1" />
                       <Tooltip content="Dictionary">
                         <button type="button" onClick={() => setDictionaryOpen(true)} aria-label="Open Dictionary" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
-                          <BookA className="h-4 w-4" />
+                          <BookOpen className="h-4 w-4" />
                         </button>
                       </Tooltip>
                       <Tooltip content="Display & Appearance">
