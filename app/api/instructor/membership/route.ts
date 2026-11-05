@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { PoolClient } from "pg";
 import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
 import { getServerSessionUser } from "@/lib/server/session";
 import { isMembershipTier } from "@/types/membership";
@@ -88,8 +89,9 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Provide a valid student, membership tier, credit amount, and wallet visibility setting." }, { status: 400 });
   }
 
-  const client = await getPostgresPool().connect();
+  let client: PoolClient | undefined;
   try {
+    client = await getPostgresPool().connect();
     await initializeDatabase();
     await client.query("BEGIN");
     const result = await client.query<{
@@ -133,10 +135,10 @@ export async function PATCH(request: Request) {
       },
     });
   } catch (error) {
-    await client.query("ROLLBACK").catch(() => undefined);
+    if (client) await client.query("ROLLBACK").catch(() => undefined);
     logDatabaseError("Student membership update failed:", error);
     return NextResponse.json({ error: "Unable to save membership and wallet updates." }, { status: 500 });
   } finally {
-    client.release();
+    client?.release();
   }
 }
