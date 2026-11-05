@@ -71,10 +71,23 @@ export function useDisplaySettings() {
   return context;
 }
 
-export function DisplaySettingsControl() {
+type DisplaySettingsControlProps = {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+};
+
+export function DisplaySettingsControl({
+  open: controlledOpen,
+  onOpenChange,
+}: DisplaySettingsControlProps) {
   const { settings, setSettings } = useDisplaySettings();
-  const [open, setOpen] = useState(false);
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = controlledOpen ?? localOpen;
   const customizerRef = useRef<HTMLDivElement>(null);
+  const setOpen = (nextOpen: boolean) => {
+    if (controlledOpen === undefined) setLocalOpen(nextOpen);
+    onOpenChange?.(nextOpen);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -227,7 +240,7 @@ export function DisplaySettingsControl() {
         className={`display-customizer-trigger${open ? " is-open" : ""}`}
         aria-label={open ? "Close display settings" : "Open display settings"}
         aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => setOpen(!open)}
       >
         <SlidersHorizontal size={16} />
       </button>

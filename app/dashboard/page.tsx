@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  BookA,
   BookOpen,
   ChevronDown,
   ChevronRight,
@@ -20,6 +21,7 @@ import {
   MessageSquareText,
   PanelRight,
   Settings2,
+  SlidersHorizontal,
   Upload,
   UserRound,
   X,
@@ -229,6 +231,7 @@ function DashboardContent() {
   const [showDefinition, setShowDefinition] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dictionaryOpen, setDictionaryOpen] = useState(false);
+  const [displaySettingsOpen, setDisplaySettingsOpen] = useState(false);
   const [notes, setNotes] = useState<StudentNote[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -1152,7 +1155,7 @@ function DashboardContent() {
   };
 
   return (
-    <main className={`ml-16 min-h-screen bg-background text-[#e8e7e4] font-sans transition-[margin] duration-300 ease-in-out md:ml-16 ${profileOpen ? "md:ml-64" : ""}`}>
+    <main className={`ml-16 min-h-screen bg-background text-[#e8e7e4] font-sans transition-[margin] duration-300 ease-in-out md:ml-16 ${profileOpen ? "md:ml-80" : ""}`}>
       {profileSaveNotice && <div role="status" className="fixed bottom-5 right-5 z-[100] flex items-center gap-3 rounded-md border border-emerald-500/30 bg-surface px-4 py-3 text-xs text-emerald-300 shadow-xl"><span>{profileSaveNotice}</span><button type="button" onClick={() => setProfileSaveNotice(null)} aria-label="Dismiss profile save notification" className="text-emerald-200/70 hover:text-emerald-100"><X className="h-4 w-4" /></button></div>}
       {profileSaveError && <div role="alert" className="fixed bottom-5 right-5 z-[100] flex items-center gap-3 rounded-md border border-red-500/40 bg-[#241719] px-4 py-3 text-xs text-red-200 shadow-xl"><span>{profileSaveError}</span><button type="button" onClick={() => setProfileSaveError(null)} aria-label="Dismiss profile save error" className="text-red-200/70 hover:text-red-100"><X className="h-4 w-4" /></button></div>}
       {profileOpen && (
@@ -1239,7 +1242,7 @@ function DashboardContent() {
             Welcome back, <span className="text-[#e6e4e0]">{displayName}</span>.
           </p>
           <div className="ml-auto flex items-center gap-2">
-            <Tooltip content="Open your Learning Hub, notes, and study resources">
+            <Tooltip content="Learning Hub">
             <button
               type="button"
               onClick={() => setSidebarOpen((open) => !open)}
@@ -1253,7 +1256,7 @@ function DashboardContent() {
               Learning Hub
             </button>
             </Tooltip>
-            <Tooltip content="Look up a word in the dictionary">
+            <Tooltip content="Dictionary">
               <button
                 type="button"
                 onClick={() => {
@@ -1263,11 +1266,11 @@ function DashboardContent() {
                 aria-label="Open dictionary"
                 className={`group flex h-8 w-8 items-center justify-center rounded-lg border bg-slate-800/80 transition-all cursor-pointer ${dictionaryOpen ? "border-amber-500/40 text-amber-400" : "border-slate-700/60 text-slate-300 hover:border-amber-500/40 hover:text-amber-400 hover:bg-slate-800"}`}
               >
-                <BookOpen className={`h-4 w-4 shrink-0 ${dictionaryOpen ? "text-amber-400" : "text-slate-400 group-hover:text-amber-400"}`} />
+                <BookA className={`h-4 w-4 shrink-0 ${dictionaryOpen ? "text-amber-400" : "text-slate-400 group-hover:text-amber-400"}`} />
               </button>
             </Tooltip>
             <Tooltip content="Display and appearance">
-              <DisplaySettingsControl />
+              <DisplaySettingsControl open={displaySettingsOpen} onOpenChange={setDisplaySettingsOpen} />
             </Tooltip>
           </div>
         </div>
@@ -1313,7 +1316,7 @@ function DashboardContent() {
                 <aside
                   id="student-sidebar"
                   aria-label="Student sidebar"
-                  className={`fixed inset-y-0 left-0 z-50 flex h-dvh flex-col overflow-hidden border-r border-border bg-surface text-left shadow-2xl transition-[width] duration-300 ${profileOpen ? "w-64" : "w-16"}`}
+                  className={`fixed inset-y-0 left-0 z-50 flex h-dvh flex-col overflow-hidden border-r border-border bg-surface text-left shadow-2xl transition-[width] duration-300 ${profileOpen ? "w-80" : "w-16"}`}
                 >
                   {profileOpen ? (
                     <>
@@ -1333,6 +1336,12 @@ function DashboardContent() {
                     </Link>
                     <button type="button" onClick={() => setSidebarOpen(true)} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300">
                       <BookOpen className="h-4 w-4 shrink-0" />Study Room
+                    </button>
+                    <button type="button" onClick={() => setDisplaySettingsOpen(true)} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300">
+                      <SlidersHorizontal className="h-4 w-4 shrink-0" />Display &amp; Appearance
+                    </button>
+                    <button type="button" onClick={() => setDictionaryOpen(true)} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300">
+                      <BookA className="h-4 w-4 shrink-0" />Dictionary
                     </button>
                     <p className="px-3 pt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-500">Your space</p>
                   </nav>
@@ -1553,6 +1562,16 @@ function DashboardContent() {
                         </button>
                       </Tooltip>
                       <div className="flex-1" />
+                      <Tooltip content="Dictionary">
+                        <button type="button" onClick={() => setDictionaryOpen(true)} aria-label="Open Dictionary" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
+                          <BookA className="h-4 w-4" />
+                        </button>
+                      </Tooltip>
+                      <Tooltip content="Display & Appearance">
+                        <button type="button" onClick={() => setDisplaySettingsOpen(true)} aria-label="Open Display & Appearance" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
+                          <SlidersHorizontal className="h-4 w-4" />
+                        </button>
+                      </Tooltip>
                       <Tooltip content="Customization settings">
                         <button type="button" onClick={() => { setProfileTab("customization"); setProfileOpen(true); }} aria-label="Open customization settings" aria-controls="student-sidebar" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
                           <Settings2 className="h-4 w-4" />
