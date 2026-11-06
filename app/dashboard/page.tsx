@@ -1347,64 +1347,72 @@ function DashboardContent() {
                         Fluentia
                       </p>
                       <p className="mt-1 text-sm font-semibold text-stone-100">
-                        Arash Vossoughi
+                        {displayName}
                       </p>
                     </div>
                   </div>
-                  <nav className="space-y-1 border-b border-border p-3" aria-label="Student navigation">
-                    <button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-xs transition ${sidebarOpen ? "bg-amber-500/10 text-amber-300" : "text-stone-300 hover:bg-amber-500/10 hover:text-amber-300"}`}>
+                  <nav className="space-y-1 px-3 pt-3 pb-4" aria-label="Student navigation">
+                    <button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex w-full items-center gap-3 whitespace-nowrap rounded-md px-3 py-2 text-left text-xs transition ${sidebarOpen ? "bg-amber-500/10 text-amber-300" : "text-stone-300 hover:bg-amber-500/10 hover:text-amber-300"}`}>
                       <PanelRight className="h-4 w-4 shrink-0" />Learning Hub
                     </button>
-                    <Link href="/dashboard" className="flex items-center gap-3 rounded-md px-3 py-2 text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300">
+                    <Link href="/dashboard" className="flex items-center gap-3 whitespace-nowrap rounded-md px-3 py-2 text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300">
                       <Home className="h-4 w-4 shrink-0" />Home
                     </Link>
-                    <button type="button" onClick={() => setDisplaySettingsOpen(true)} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300">
+                    <button type="button" onClick={() => setDisplaySettingsOpen(true)} className="flex w-full items-center gap-3 whitespace-nowrap rounded-md px-3 py-2 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300">
                       <SlidersHorizontal className="h-4 w-4 shrink-0" />Display &amp; Appearance
                     </button>
-                    <button type="button" onClick={() => setDictionaryOpen(true)} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300">
+                    <button type="button" onClick={() => setDictionaryOpen(true)} className="flex w-full items-center gap-3 whitespace-nowrap rounded-md px-3 py-2 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300">
                       <BookOpen className="h-4 w-4 shrink-0" />Dictionary
                     </button>
-                    <p className="px-3 pt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-500">Your space</p>
                   </nav>
-                  {activeStudent.profile.showWalletWidget === true && <section aria-label="Membership and credits" className="mx-3 my-3 rounded-lg border border-border bg-background/70 p-3">
-                    <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-stone-500">Academic membership</p>
-                    <p className="mt-1 text-xs font-semibold tracking-wide text-amber-400">
-                      {MEMBERSHIP_BADGE_LABELS[membershipTier]}
+                  <section aria-label="Your space" className="mx-3 border-t border-border/70 pt-4">
+                    <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-500">
+                      Your space
                     </p>
-                    <div className="mt-3 flex items-baseline justify-between gap-2">
-                      <p className="text-sm font-semibold tabular-nums text-stone-100">
-                        {walletCreditBalance}
-                        <span className="px-1 text-stone-500">/</span>
-                        {walletCreditLimit}
-                        <span className="ml-1 text-[10px] font-normal text-stone-400">Credits</span>
-                      </p>
-                      <span className="text-[10px] tabular-nums text-stone-500">{walletProgress}%</span>
-                    </div>
-                    <div
-                      role="progressbar"
-                      aria-label="Monthly credits remaining"
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuenow={walletProgress}
-                      aria-valuetext={`${walletCreditBalance} of ${walletCreditLimit} credits remaining`}
-                      className="mt-2 h-1.5 overflow-hidden rounded-full bg-stone-800"
-                    >
-                      <div className="h-full rounded-full bg-amber-500 transition-[width] duration-300" style={{ width: `${walletProgress}%` }} />
-                    </div>
-                    {walletCreditBalance < WALLET_REMINDER_THRESHOLD && (
-                      <p className="mt-3 border-t border-border pt-3 text-[10px] leading-relaxed text-stone-400">
-                        {walletCreditBalance === 0
-                          ? "Your evaluation credits are depleted. Top up to resume instructor feedback. Completed modules remain available."
-                          : "Your monthly evaluation period is coming to an end. Top up your credits to maintain uninterrupted instructor feedback."}
-                      </p>
+                    {activeStudent.profile.showWalletWidget === true && (
+                      <section aria-label="Membership and credits" className="mt-3 rounded-xl border border-stone-700/60 bg-stone-950/40 p-3.5 shadow-inner shadow-black/20">
+                        <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-stone-500">
+                          Academic membership
+                        </p>
+                        <p className="mt-1.5 inline-flex max-w-full whitespace-nowrap rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold tracking-[0.12em] text-amber-300">
+                          {MEMBERSHIP_BADGE_LABELS[membershipTier]}
+                        </p>
+                        <div className="mt-3 flex items-baseline justify-between gap-2">
+                          <p className="whitespace-nowrap text-sm font-semibold tabular-nums text-stone-100">
+                            {walletCreditBalance}
+                            <span className="px-1 text-stone-500">/</span>
+                            {walletCreditLimit}
+                            <span className="ml-1 text-[10px] font-normal text-stone-400">Credits</span>
+                          </p>
+                          <span className="shrink-0 text-[10px] tabular-nums text-stone-500">{walletProgress}%</span>
+                        </div>
+                        <div
+                          role="progressbar"
+                          aria-label="Monthly credits remaining"
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-valuenow={walletProgress}
+                          aria-valuetext={`${walletCreditBalance} of ${walletCreditLimit} credits remaining`}
+                          className="mt-2 h-1.5 overflow-hidden rounded-full bg-stone-800 ring-1 ring-inset ring-white/5"
+                        >
+                          <div className="h-full rounded-full bg-[#F59E0B] shadow-[0_0_8px_rgba(245,158,11,0.35)] transition-[width] duration-300" style={{ width: `${walletProgress}%` }} />
+                        </div>
+                        {walletCreditBalance < WALLET_REMINDER_THRESHOLD && (
+                          <p className="mt-3 border-t border-border/70 pt-3 text-[10px] leading-relaxed text-stone-400">
+                            {walletCreditBalance === 0
+                              ? "Your evaluation credits are depleted. Top up to resume instructor feedback. Completed modules remain available."
+                              : "Your monthly evaluation period is coming to an end. Top up your credits to maintain uninterrupted instructor feedback."}
+                          </p>
+                        )}
+                      </section>
                     )}
-                  </section>}
+                  </section>
                   <div className="grid grid-cols-2 border-b border-border px-4 pt-3">
                     <Tooltip content="View your profile and learning preferences">
                     <button
                       type="button"
                       onClick={() => setProfileTab("profile")}
-                      className={`border-b-2 pb-2 text-[10px] font-medium uppercase tracking-[0.12em] focus:outline-none focus-visible:outline-none focus-visible:underline focus-visible:decoration-amber-400 focus-visible:underline-offset-4 ${profileTab === "profile" ? "border-amber-400 font-semibold text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
+                      className={`whitespace-nowrap border-b-2 pb-2 text-[10px] font-medium uppercase tracking-[0.12em] focus:outline-none focus-visible:outline-none focus-visible:underline focus-visible:decoration-amber-400 focus-visible:underline-offset-4 ${profileTab === "profile" ? "border-amber-400 font-semibold text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
                     >
                       Profile &amp; Preferences
                     </button>
@@ -1413,7 +1421,7 @@ function DashboardContent() {
                     <button
                       type="button"
                       onClick={() => setProfileTab("customization")}
-                      className={`border-b-2 pb-2 text-[10px] font-medium uppercase tracking-[0.12em] focus:outline-none focus-visible:outline-none focus-visible:underline focus-visible:decoration-amber-400 focus-visible:underline-offset-4 ${profileTab === "customization" ? "border-amber-400 font-semibold text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
+                      className={`whitespace-nowrap border-b-2 pb-2 text-[10px] font-medium uppercase tracking-[0.12em] focus:outline-none focus-visible:outline-none focus-visible:underline focus-visible:decoration-amber-400 focus-visible:underline-offset-4 ${profileTab === "customization" ? "border-amber-400 font-semibold text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
                     >
                       Customization
                     </button>
