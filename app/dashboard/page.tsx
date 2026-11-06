@@ -1522,77 +1522,6 @@ function DashboardContent() {
                       </p>
                     </div>
                   </div>
-                  <nav className="space-y-1 px-3 pt-3 pb-4" aria-label="Student navigation">
-                    <button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex w-full items-center gap-3 whitespace-nowrap rounded-md px-3 py-2 text-left text-xs transition ${sidebarOpen ? "bg-amber-500/10 text-amber-300" : "text-stone-300 hover:bg-amber-500/10 hover:text-amber-300"}`}>
-                      <PanelRight className="h-4 w-4 shrink-0" />Learning Hub
-                    </button>
-                    <Link href="/dashboard" className="flex items-center gap-3 whitespace-nowrap rounded-md px-3 py-2 text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300">
-                      <Home className="h-4 w-4 shrink-0" />Home
-                    </Link>
-                    <button type="button" onClick={() => setDictionaryOpen(true)} className="flex w-full items-center gap-3 whitespace-nowrap rounded-md px-3 py-2 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300">
-                      <BookOpen className="h-4 w-4 shrink-0" />Dictionary
-                    </button>
-                  </nav>
-                  <section aria-label="Your space" className="mx-3 border-t border-border/70 pt-4">
-                    <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-500">
-                      Your space
-                    </p>
-                    <div className="mt-2 space-y-1">
-                      <button
-                        type="button"
-                        onClick={() => { setWalletModalOpen(false); setMembershipModalOpen(true); }}
-                        className="flex w-full items-center gap-3 whitespace-nowrap rounded-md px-2.5 py-2 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300"
-                      >
-                        <Award className="h-4 w-4 shrink-0" />
-                        Membership
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setMembershipModalOpen(false); setWalletModalOpen(true); }}
-                        className="flex w-full items-center gap-3 whitespace-nowrap rounded-md px-2.5 py-2 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300"
-                      >
-                        <WalletCards className="h-4 w-4 shrink-0" />
-                        Wallet &amp; Credits
-                      </button>
-                    </div>
-                    {activeStudent.profile.showWalletWidget === true && (
-                      <section aria-label="Membership and credits" className="mt-3 rounded-xl border border-stone-700/60 bg-stone-950/40 p-3.5 shadow-inner shadow-black/20">
-                        <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-stone-500">
-                          Academic membership
-                        </p>
-                        <p className="mt-1.5 inline-flex max-w-full whitespace-nowrap rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold tracking-[0.12em] text-amber-300">
-                          {MEMBERSHIP_BADGE_LABELS[membershipTier]}
-                        </p>
-                        <div className="mt-3 flex items-baseline justify-between gap-2">
-                          <p className="whitespace-nowrap text-sm font-semibold tabular-nums text-stone-100">
-                            {walletCreditBalance}
-                            <span className="px-1 text-stone-500">/</span>
-                            {walletCreditLimit}
-                            <span className="ml-1 text-[10px] font-normal text-stone-400">Credits</span>
-                          </p>
-                          <span className="shrink-0 text-[10px] tabular-nums text-stone-500">{walletProgress}%</span>
-                        </div>
-                        <div
-                          role="progressbar"
-                          aria-label="Monthly credits remaining"
-                          aria-valuemin={0}
-                          aria-valuemax={100}
-                          aria-valuenow={walletProgress}
-                          aria-valuetext={`${walletCreditBalance} of ${walletCreditLimit} credits remaining`}
-                          className="mt-2 h-1.5 overflow-hidden rounded-full bg-stone-800 ring-1 ring-inset ring-white/5"
-                        >
-                          <div className="h-full rounded-full bg-[#F59E0B] shadow-[0_0_8px_rgba(245,158,11,0.35)] transition-[width] duration-300" style={{ width: `${walletProgress}%` }} />
-                        </div>
-                        {walletCreditBalance < WALLET_REMINDER_THRESHOLD && (
-                          <p className="mt-3 border-t border-border/70 pt-3 text-[10px] leading-relaxed text-stone-400">
-                            {walletCreditBalance === 0
-                              ? "Your evaluation credits are depleted. Top up to resume instructor feedback. Completed modules remain available."
-                              : "Your monthly evaluation period is coming to an end. Top up your credits to maintain uninterrupted instructor feedback."}
-                          </p>
-                        )}
-                      </section>
-                    )}
-                  </section>
                   <div className="grid grid-cols-3 border-b border-border px-3 pt-3">
                     <Tooltip content="View your profile and learning preferences">
                     <button
@@ -1619,9 +1548,9 @@ function DashboardContent() {
                       type="button"
                       onClick={() => setProfileTab("display")}
                       aria-label="Display and appearance"
-                      className={`w-full whitespace-nowrap border-b-2 pb-2 text-[9px] font-medium uppercase tracking-[0.08em] focus:outline-none focus-visible:underline focus-visible:decoration-amber-400 focus-visible:underline-offset-4 ${profileTab === "display" ? "border-amber-400 font-semibold text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
+                      className={`flex min-h-11 w-full items-center justify-center whitespace-normal border-b-2 px-1 pb-2 text-center text-[9px] font-medium uppercase leading-tight tracking-[0.08em] focus:outline-none focus-visible:underline focus-visible:decoration-amber-400 focus-visible:underline-offset-4 ${profileTab === "display" ? "border-amber-400 font-semibold text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
                     >
-                      Display
+                      Display &amp; Appearance
                     </button>
                     </Tooltip>
                   </div>
@@ -1790,8 +1719,9 @@ function DashboardContent() {
                     <Tooltip content="Profile and preferences">
                       <button
                         type="button"
-                        onClick={() => { setProfileTab("profile"); setProfileOpen(false); }}
-                        aria-label="Close profile sidebar"
+                        onClick={() => { setProfileTab("profile"); setProfileOpen(true); }}
+                        aria-label="Open profile and preferences"
+                        aria-expanded={profileOpen && profileTab === "profile"}
                         style={!avatarImage ? { backgroundColor: badgeColor } : undefined}
                         className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-full text-xs text-white ring-1 ring-border transition hover:ring-amber-500/50 ${avatarImage ? "bg-surface" : selectedAvatar.className}`}
                       >
@@ -1802,16 +1732,16 @@ function DashboardContent() {
                       <button
                         type="button"
                         onClick={() => {
-                      if (profileOpen && profileTab === "display") {
+                          if (profileOpen && profileTab === "display") {
                             setProfileOpen(false);
                           } else {
-                        setProfileTab("display");
+                            setProfileTab("display");
                             setProfileOpen(true);
                           }
                         }}
-                    aria-label="Toggle settings"
-                    aria-expanded={profileOpen}
-                    className={`flex h-9 w-9 items-center justify-center rounded-md transition ${profileTab === "display" && profileOpen ? "bg-amber-500/10 text-amber-300" : "text-stone-400 hover:bg-amber-500/10 hover:text-amber-300"}`}
+                        aria-label="Toggle settings"
+                        aria-expanded={profileOpen}
+                        className={`flex h-9 w-9 items-center justify-center rounded-md transition ${profileOpen ? "bg-amber-500/10 text-amber-300" : "text-stone-400 hover:bg-amber-500/10 hover:text-amber-300"}`}
                       >
                         <Settings2 className="h-4 w-4" />
                       </button>
@@ -1883,7 +1813,7 @@ function DashboardContent() {
                             aria-label="Open settings"
                             aria-expanded={profileOpen}
                             aria-controls="student-sidebar"
-                            className={`flex h-9 w-9 items-center justify-center rounded-md transition ${profileTab === "display" && profileOpen ? "bg-amber-500/10 text-amber-300" : "text-stone-400 hover:bg-amber-500/10 hover:text-amber-300"}`}
+                            className={`flex h-9 w-9 items-center justify-center rounded-md transition ${profileOpen ? "bg-amber-500/10 text-amber-300" : "text-stone-400 hover:bg-amber-500/10 hover:text-amber-300"}`}
                           >
                             <Settings2 className="h-4 w-4" />
                           </button>
