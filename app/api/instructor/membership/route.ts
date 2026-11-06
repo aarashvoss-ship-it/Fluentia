@@ -79,12 +79,14 @@ export async function PATCH(request: Request) {
   const membershipTier = body.membershipTier;
   const creditMode = body.creditMode;
   const creditAmount = body.creditAmount;
+  const creditNote = typeof body.creditNote === "string" ? body.creditNote.trim() : "";
   const isScholarship = body.isScholarship;
   const showWalletWidget = body.showWalletWidget;
   if (!uuidPattern.test(studentId) || !isMembershipTier(membershipTier)
     || (creditMode !== "set" && creditMode !== "top_up")
     || typeof creditAmount !== "number" || !Number.isInteger(creditAmount)
     || creditAmount < (creditMode === "top_up" ? 1 : 0) || creditAmount > 100
+    || creditNote.length > 500
     || typeof isScholarship !== "boolean" || typeof showWalletWidget !== "boolean") {
     return NextResponse.json({ error: "Provide a valid student, membership tier, credit amount, and wallet visibility setting." }, { status: 400 });
   }
@@ -94,6 +96,29 @@ export async function PATCH(request: Request) {
     client = await getPostgresPool().connect();
     await initializeDatabase();
     await client.query("BEGIN");
+    const currentProfile = await client.query<{ credit_balance: number }>(
+      `SELECT credit_balance
+       FROM public.profiles
+       WHERE id = $1::uuid AND COALESCE(role, 'student') = 'student'
+       FOR UPDATE`,
+      [studentId],
+    );
+    if (!currentProfile.rows[0]) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "Student profile not found." }, { status: 404 });
+    }
+
+    if (currentProfile.rows[0].credit_balance > 0) {
+      await client.query(
+        `INSERT INTO public.student_credit_ledger
+           (student_id, transaction_type, amount, balance_after, description, instructor_note)
+         SELECT $1::uuid, 'credit', $2::integer, $2::integer, 'Opening balance', ''
+         WHERE NOT EXISTS (
+           SELECT 1 FROM public.student_credit_ledger WHERE student_id = $1::uuid
+         )`,
+        [studentId, currentProfile.rows[0].credit_balance],
+      );
+    }
     const result = await client.query<{
       membership_tier: string;
       credit_balance: number;
@@ -115,6 +140,23 @@ export async function PATCH(request: Request) {
     if (!result.rows[0]) {
       await client.query("ROLLBACK");
       return NextResponse.json({ error: "Student profile not found." }, { status: 404 });
+    }
+    const balanceDelta = result.rows[0].credit_balance - currentProfile.rows[0].credit_balance;
+    if (balanceDelta !== 0) {
+      await client.query(
+        `INSERT INTO public.student_credit_ledger
+           (student_id, transaction_type, amount, balance_after, description, instructor_note, created_by)
+         VALUES ($1::uuid, $2, $3::integer, $4::integer, $5, $6, $7::uuid)`,
+        [
+          studentId,
+          balanceDelta > 0 ? "credit" : "debit",
+          Math.abs(balanceDelta),
+          result.rows[0].credit_balance,
+          creditMode === "top_up" ? "Instructor credit top-up" : "Instructor balance adjustment",
+          creditNote,
+          access.user.id,
+        ],
+      );
     }
     await client.query(
       `INSERT INTO public.student_membership_private (student_id, is_scholarship, updated_at)
