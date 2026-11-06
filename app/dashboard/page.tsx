@@ -1359,7 +1359,7 @@ function DashboardContent() {
                   return (
                     <li
                       key={tier}
-                      className={`rounded-lg border p-3 transition-colors ${isCurrentTier ? "border-amber-500/30 bg-amber-500/[0.06]" : "border-border bg-background/50"}`}
+                      className={`cursor-pointer rounded-lg border p-3 transition-all duration-300 ease-in-out hover:border-[#F59E0B]/50 hover:bg-amber-950/20 ${isCurrentTier ? "border-amber-500/30 bg-amber-500/[0.06]" : "border-border bg-background/50"}`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-2.5">
