@@ -21,7 +21,6 @@ import {
   PanelRight,
   Award,
   Settings2,
-  SlidersHorizontal,
   Upload,
   UserRound,
   WalletCards,
@@ -48,7 +47,7 @@ import { DictionaryModal } from "@/components/study-room/dictionary-modal";
 import { Tooltip } from "@/components/shared/tooltip";
 import { LearningSidebar } from "@/components/study-room/learning-sidebar";
 import { ChatWidget } from "@/components/study-room/chat-widget";
-import { DisplaySettingsControl } from "@/components/shared/display-settings";
+import { DisplaySettingsPanel } from "@/components/shared/display-settings";
 import { AccessCard } from "@/components/access/access-card";
 import {
   getStudentProfile,
@@ -235,14 +234,13 @@ function DashboardContent() {
   const [showDefinition, setShowDefinition] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dictionaryOpen, setDictionaryOpen] = useState(false);
-  const [displaySettingsOpen, setDisplaySettingsOpen] = useState(false);
   const [membershipModalOpen, setMembershipModalOpen] = useState(false);
   const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [notes, setNotes] = useState<StudentNote[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [profileOpen, setProfileOpen] = useState(false);
   const [showUnreadFeedbackModal, setShowUnreadFeedbackModal] = useState(false);
-  const [profileTab, setProfileTab] = useState<"profile" | "customization">(
+  const [profileTab, setProfileTab] = useState<"profile" | "customization" | "display">(
     "profile",
   );
   useEffect(() => {
@@ -1459,9 +1457,6 @@ function DashboardContent() {
                 <BookOpen className={`h-4 w-4 shrink-0 ${dictionaryOpen ? "text-amber-400" : "text-slate-400 group-hover:text-amber-400"}`} />
               </button>
             </Tooltip>
-            <Tooltip content="Display and appearance">
-              <DisplaySettingsControl open={displaySettingsOpen} onOpenChange={setDisplaySettingsOpen} />
-            </Tooltip>
           </div>
         </div>
 
@@ -1534,9 +1529,6 @@ function DashboardContent() {
                     <Link href="/dashboard" className="flex items-center gap-3 whitespace-nowrap rounded-md px-3 py-2 text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300">
                       <Home className="h-4 w-4 shrink-0" />Home
                     </Link>
-                    <button type="button" onClick={() => setDisplaySettingsOpen(true)} className="flex w-full items-center gap-3 whitespace-nowrap rounded-md px-3 py-2 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300">
-                      <SlidersHorizontal className="h-4 w-4 shrink-0" />Display &amp; Appearance
-                    </button>
                     <button type="button" onClick={() => setDictionaryOpen(true)} className="flex w-full items-center gap-3 whitespace-nowrap rounded-md px-3 py-2 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300">
                       <BookOpen className="h-4 w-4 shrink-0" />Dictionary
                     </button>
@@ -1601,23 +1593,35 @@ function DashboardContent() {
                       </section>
                     )}
                   </section>
-                  <div className="grid grid-cols-2 border-b border-border px-4 pt-3">
+                  <div className="grid grid-cols-3 border-b border-border px-3 pt-3">
                     <Tooltip content="View your profile and learning preferences">
                     <button
                       type="button"
                       onClick={() => setProfileTab("profile")}
-                      className={`whitespace-nowrap border-b-2 pb-2 text-[10px] font-medium uppercase tracking-[0.12em] focus:outline-none focus-visible:outline-none focus-visible:underline focus-visible:decoration-amber-400 focus-visible:underline-offset-4 ${profileTab === "profile" ? "border-amber-400 font-semibold text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
+                      aria-label="Profile and preferences"
+                      className={`w-full whitespace-nowrap border-b-2 pb-2 text-[9px] font-medium uppercase tracking-[0.08em] focus:outline-none focus-visible:underline focus-visible:decoration-amber-400 focus-visible:underline-offset-4 ${profileTab === "profile" ? "border-amber-400 font-semibold text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
                     >
-                      Profile &amp; Preferences
+                      Profile
                     </button>
                     </Tooltip>
                     <Tooltip content="Choose your dashboard appearance">
                     <button
                       type="button"
                       onClick={() => setProfileTab("customization")}
-                      className={`whitespace-nowrap border-b-2 pb-2 text-[10px] font-medium uppercase tracking-[0.12em] focus:outline-none focus-visible:outline-none focus-visible:underline focus-visible:decoration-amber-400 focus-visible:underline-offset-4 ${profileTab === "customization" ? "border-amber-400 font-semibold text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
+                      aria-label="Customization"
+                      className={`w-full whitespace-nowrap border-b-2 pb-2 text-[9px] font-medium uppercase tracking-[0.08em] focus:outline-none focus-visible:underline focus-visible:decoration-amber-400 focus-visible:underline-offset-4 ${profileTab === "customization" ? "border-amber-400 font-semibold text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
                     >
                       Customization
+                    </button>
+                    </Tooltip>
+                    <Tooltip content="Choose your theme, contrast, brightness, and reading text size">
+                    <button
+                      type="button"
+                      onClick={() => setProfileTab("display")}
+                      aria-label="Display and appearance"
+                      className={`w-full whitespace-nowrap border-b-2 pb-2 text-[9px] font-medium uppercase tracking-[0.08em] focus:outline-none focus-visible:underline focus-visible:decoration-amber-400 focus-visible:underline-offset-4 ${profileTab === "display" ? "border-amber-400 font-semibold text-amber-400" : "border-transparent text-stone-500 hover:text-stone-300"}`}
+                    >
+                      Display
                     </button>
                     </Tooltip>
                   </div>
@@ -1658,7 +1662,7 @@ function DashboardContent() {
                           </p>
                         </div>
                       </>
-                    ) : (
+                    ) : profileTab === "customization" ? (
                       <>
                         <div>
                           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">
@@ -1766,6 +1770,8 @@ function DashboardContent() {
                         </div>
                         {profileImageStatus && <p role="status" className="rounded-md border border-amber-400/20 bg-amber-950/30 p-2 text-[10px] text-amber-400">{profileImageStatus}</p>}
                       </>
+                    ) : (
+                      <DisplaySettingsPanel embedded />
                     )}
                     {profileTab === "customization" && (
                       <Tooltip content="Save your profile and appearance settings">
@@ -1792,20 +1798,20 @@ function DashboardContent() {
                         {avatarImage ? <img src={avatarImage} alt="" className="h-full w-full object-cover" /> : profileInitials}
                       </button>
                     </Tooltip>
-                    <Tooltip content="Customization settings">
+                    <Tooltip content="Settings">
                       <button
                         type="button"
                         onClick={() => {
-                          if (profileOpen && profileTab === "customization") {
+                      if (profileOpen && profileTab === "display") {
                             setProfileOpen(false);
                           } else {
-                            setProfileTab("customization");
+                        setProfileTab("display");
                             setProfileOpen(true);
                           }
                         }}
-                        aria-label="Toggle customization settings"
-                        aria-expanded={profileOpen && profileTab === "customization"}
-                        className={`flex h-9 w-9 items-center justify-center rounded-md transition ${profileTab === "customization" && profileOpen ? "bg-amber-500/10 text-amber-300" : "text-stone-400 hover:bg-amber-500/10 hover:text-amber-300"}`}
+                    aria-label="Toggle settings"
+                    aria-expanded={profileOpen}
+                    className={`flex h-9 w-9 items-center justify-center rounded-md transition ${profileTab === "display" && profileOpen ? "bg-amber-500/10 text-amber-300" : "text-stone-400 hover:bg-amber-500/10 hover:text-amber-300"}`}
                       >
                         <Settings2 className="h-4 w-4" />
                       </button>
@@ -1850,11 +1856,6 @@ function DashboardContent() {
                             <WalletCards className="h-4 w-4" />
                           </button>
                         </Tooltip>
-                        <Tooltip content="Display & Appearance" placement="right">
-                          <button type="button" onClick={() => setDisplaySettingsOpen(true)} aria-label="Open Display & Appearance" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
-                            <SlidersHorizontal className="h-4 w-4" />
-                          </button>
-                        </Tooltip>
                         <Tooltip content="Dictionary" placement="right">
                           <button type="button" onClick={() => setDictionaryOpen(true)} aria-label="Open Dictionary" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
                             <BookOpen className="h-4 w-4" />
@@ -1875,14 +1876,14 @@ function DashboardContent() {
                           {avatarImage ? <img src={avatarImage} alt="" className="h-full w-full object-cover" /> : profileInitials}
                           </button>
                         </Tooltip>
-                        <Tooltip content="Customization settings" placement="right">
+                        <Tooltip content="Settings" placement="right">
                           <button
                             type="button"
-                            onClick={() => { setProfileTab("customization"); setProfileOpen(true); }}
-                            aria-label="Open customization settings"
-                            aria-expanded={profileOpen && profileTab === "customization"}
+                            onClick={() => { setProfileTab("display"); setProfileOpen(true); }}
+                            aria-label="Open settings"
+                            aria-expanded={profileOpen}
                             aria-controls="student-sidebar"
-                            className={`flex h-9 w-9 items-center justify-center rounded-md transition ${profileTab === "customization" && profileOpen ? "bg-amber-500/10 text-amber-300" : "text-stone-400 hover:bg-amber-500/10 hover:text-amber-300"}`}
+                            className={`flex h-9 w-9 items-center justify-center rounded-md transition ${profileTab === "display" && profileOpen ? "bg-amber-500/10 text-amber-300" : "text-stone-400 hover:bg-amber-500/10 hover:text-amber-300"}`}
                           >
                             <Settings2 className="h-4 w-4" />
                           </button>

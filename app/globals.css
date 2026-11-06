@@ -431,6 +431,19 @@ body {
   animation: display-panel-enter 180ms ease-out both;
 }
 
+.display-customizer-panel-embedded {
+  position: static;
+  width: 100%;
+  max-height: none;
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  animation: none;
+}
+
 .display-customizer-header,
 .display-range-group label,
 .display-font-label {
@@ -638,6 +651,10 @@ body {
     width: min(21rem, calc(100vw - 1.5rem));
     max-height: calc(100vh - 5rem);
     max-height: calc(100dvh - 5rem);
+  }
+
+  .display-customizer-panel.display-customizer-panel-embedded {
+    width: 100%;
   }
 }
 

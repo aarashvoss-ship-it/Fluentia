@@ -71,48 +71,19 @@ export function useDisplaySettings() {
   return context;
 }
 
-type DisplaySettingsControlProps = {
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
-};
-
-export function DisplaySettingsControl({
-  open: controlledOpen,
-  onOpenChange,
-}: DisplaySettingsControlProps) {
+export function DisplaySettingsPanel({
+  embedded = false,
+  onClose,
+}: {
+  embedded?: boolean;
+  onClose?: () => void;
+}) {
   const { settings, setSettings } = useDisplaySettings();
-  const [localOpen, setLocalOpen] = useState(false);
-  const open = controlledOpen ?? localOpen;
-  const customizerRef = useRef<HTMLDivElement>(null);
-  const setOpen = (nextOpen: boolean) => {
-    if (controlledOpen === undefined) setLocalOpen(nextOpen);
-    onOpenChange?.(nextOpen);
-  };
-
-  useEffect(() => {
-    if (!open) return;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && !customizerRef.current?.contains(event.target)) {
-        setOpen(false);
-      }
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
-
   return (
-    <div ref={customizerRef} className="display-customizer">
-      {open && (
-        <section className="display-customizer-panel" aria-label="Display and appearance settings">
+    <section
+      className={`display-customizer-panel${embedded ? " display-customizer-panel-embedded" : ""}`}
+      aria-label="Display and appearance settings"
+    >
           <header className="display-customizer-header">
             <div>
               <p className="display-customizer-eyebrow">FLUENTIA</p>
@@ -128,14 +99,16 @@ export function DisplaySettingsControl({
                 <RotateCw size={14} />
                 <span>Reset</span>
               </button>
-              <button
-                className="display-customizer-close"
-                type="button"
-                onClick={() => setOpen(false)}
-                aria-label="Close display settings"
-              >
-                <SlidersHorizontal size={17} />
-              </button>
+              {onClose && (
+                <button
+                  className="display-customizer-close"
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Close display settings"
+                >
+                  <SlidersHorizontal size={17} />
+                </button>
+              )}
             </div>
           </header>
 
@@ -232,9 +205,51 @@ export function DisplaySettingsControl({
               </button>
             </div>
           </div>
-        </section>
-      )}
 
+    </section>
+  );
+}
+
+type DisplaySettingsControlProps = {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+};
+
+export function DisplaySettingsControl({
+  open: controlledOpen,
+  onOpenChange,
+}: DisplaySettingsControlProps) {
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = controlledOpen ?? localOpen;
+  const customizerRef = useRef<HTMLDivElement>(null);
+  const setOpen = (nextOpen: boolean) => {
+    if (controlledOpen === undefined) setLocalOpen(nextOpen);
+    onOpenChange?.(nextOpen);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !customizerRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={customizerRef} className="display-customizer">
+      {open && <DisplaySettingsPanel onClose={() => setOpen(false)} />}
       <button
         type="button"
         className={`display-customizer-trigger${open ? " is-open" : ""}`}
