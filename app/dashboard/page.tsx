@@ -1767,103 +1767,128 @@ function DashboardContent() {
                         {profileImageStatus && <p role="status" className="rounded-md border border-amber-400/20 bg-amber-950/30 p-2 text-[10px] text-amber-400">{profileImageStatus}</p>}
                       </>
                     )}
-                  </div>
-                  <div className="border-t border-border bg-surface p-4">
-                    <div className="mb-3 flex items-center gap-2">
-                      <Tooltip content="Collapse sidebar">
+                    {profileTab === "customization" && (
+                      <Tooltip content="Save your profile and appearance settings">
                         <button
                           type="button"
-                          onClick={() => setProfileOpen(false)}
-                          aria-label="Collapse sidebar"
-                          className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs text-white ring-1 ring-border transition hover:ring-amber-500/50"
-                          style={!avatarImage ? { backgroundColor: badgeColor } : undefined}
+                          onClick={() => void saveProfileCustomization()}
+                          disabled={isSavingProfileCustomization || isUploadingAvatar || isUploadingBanner}
+                          className="w-full rounded-md bg-amber-500/20 px-3 py-2 text-xs text-amber-400 transition hover:bg-amber-500/25 disabled:cursor-wait disabled:opacity-60"
                         >
-                          {avatarImage ? <img src={avatarImage} alt="" className="h-full w-full object-cover" /> : profileInitials}
+                          {isSavingProfileCustomization ? "Saving..." : "Save settings"}
                         </button>
                       </Tooltip>
-                      <span className="min-w-0 flex-1 truncate text-xs text-stone-300">{displayName}</span>
-                      <Tooltip content="Collapse sidebar">
-                        <button type="button" onClick={() => setProfileOpen(false)} aria-label="Close sidebar" className="flex h-8 w-8 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
-                          <X className="h-4 w-4" />
-                        </button>
-                      </Tooltip>
-                    </div>
-                    <Tooltip content="Save your profile and appearance settings">
-                    <button
-                      type="button"
-                      onClick={() => void saveProfileCustomization()}
-                      disabled={isSavingProfileCustomization || isUploadingAvatar || isUploadingBanner}
-                      className="w-full rounded-md bg-amber-500/20 px-3 py-2 text-xs  text-amber-400 hover:bg-amber-500/20 disabled:cursor-wait disabled:opacity-60"
-                    >
-                      {isSavingProfileCustomization ? "Saving..." : "Save settings"}
-                    </button>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-center gap-2 border-t border-border bg-surface px-3 py-3">
+                    <Tooltip content="Profile and preferences">
+                      <button
+                        type="button"
+                        onClick={() => { setProfileTab("profile"); setProfileOpen(false); }}
+                        aria-label="Close profile sidebar"
+                        style={!avatarImage ? { backgroundColor: badgeColor } : undefined}
+                        className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-full text-xs text-white ring-1 ring-border transition hover:ring-amber-500/50 ${avatarImage ? "bg-surface" : selectedAvatar.className}`}
+                      >
+                        {avatarImage ? <img src={avatarImage} alt="" className="h-full w-full object-cover" /> : profileInitials}
+                      </button>
+                    </Tooltip>
+                    <Tooltip content="Customization settings">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (profileOpen && profileTab === "customization") {
+                            setProfileOpen(false);
+                          } else {
+                            setProfileTab("customization");
+                            setProfileOpen(true);
+                          }
+                        }}
+                        aria-label="Toggle customization settings"
+                        aria-expanded={profileOpen && profileTab === "customization"}
+                        className={`flex h-9 w-9 items-center justify-center rounded-md transition ${profileTab === "customization" && profileOpen ? "bg-amber-500/10 text-amber-300" : "text-stone-400 hover:bg-amber-500/10 hover:text-amber-300"}`}
+                      >
+                        <Settings2 className="h-4 w-4" />
+                      </button>
                     </Tooltip>
                   </div>
                     </>
                   ) : (
-                    <nav className="flex h-full flex-col items-center gap-3 py-4" aria-label="Quick navigation">
-                      <Tooltip content="Fluentia home">
+                    <div className="flex h-full flex-col items-center py-4" aria-label="Student sidebar">
+                      <Tooltip content="Fluentia home" placement="right">
                         <Link href="/dashboard" aria-label="Fluentia home" className="flex h-9 w-9 items-center justify-center rounded-lg border border-amber-500/20 bg-amber-500/10 p-1.5 transition-colors hover:border-amber-500/40 hover:bg-amber-500/15">
                           <img src="/logo.png" alt="" className="h-full w-full object-contain" />
                         </Link>
                       </Tooltip>
-                      <Tooltip content="Expand sidebar">
-                        <button type="button" onClick={() => setProfileOpen(true)} aria-label="Expand sidebar" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
-                          <ChevronRight className="h-4 w-4" />
-                        </button>
-                      </Tooltip>
-                      <Tooltip content="Learning Hub">
-                        <button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-label="Learning Hub" aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex h-9 w-9 items-center justify-center rounded-md transition ${sidebarOpen ? "bg-amber-500/10 text-amber-300" : "text-stone-400 hover:bg-amber-500/10 hover:text-amber-300"}`}>
-                          <PanelRight className="h-4 w-4" />
-                        </button>
-                      </Tooltip>
-                      <Tooltip content="Home">
-                        <Link href="/dashboard" aria-label="Home" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
-                          <Home className="h-4 w-4" />
-                        </Link>
-                      </Tooltip>
-                      <Tooltip content="Membership">
-                        <button
-                          type="button"
-                          onClick={() => { setWalletModalOpen(false); setMembershipModalOpen(true); }}
-                          aria-label="Open membership details"
-                          className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300"
-                        >
-                          <Award className="h-4 w-4" />
-                        </button>
-                      </Tooltip>
-                      <Tooltip content="Wallet and credits">
-                        <button
-                          type="button"
-                          onClick={() => { setMembershipModalOpen(false); setWalletModalOpen(true); }}
-                          aria-label="Open credit wallet"
-                          className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300"
-                        >
-                          <WalletCards className="h-4 w-4" />
-                        </button>
-                      </Tooltip>
-                      <div className="flex-1" />
-                      <Tooltip content="Dictionary">
-                        <button type="button" onClick={() => setDictionaryOpen(true)} aria-label="Open Dictionary" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
-                          <BookOpen className="h-4 w-4" />
-                        </button>
-                      </Tooltip>
-                      <Tooltip content="Display & Appearance">
-                        <button type="button" onClick={() => setDisplaySettingsOpen(true)} aria-label="Open Display & Appearance" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
-                          <SlidersHorizontal className="h-4 w-4" />
-                        </button>
-                      </Tooltip>
-                      <Tooltip content="Customization settings">
-                        <button type="button" onClick={() => { setProfileTab("customization"); setProfileOpen(true); }} aria-label="Open customization settings" aria-controls="student-sidebar" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
-                          <Settings2 className="h-4 w-4" />
-                        </button>
-                      </Tooltip>
-                      <Tooltip content="Expand profile drawer">
-                        <button type="button" onClick={() => { setProfileTab("profile"); setProfileOpen((open) => !open); }} aria-label="Expand profile drawer" aria-expanded={profileOpen} aria-controls="student-sidebar" style={!avatarImage ? { backgroundColor: badgeColor } : undefined} className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-full text-xs ring-1 ring-border transition hover:ring-amber-500/50 ${avatarImage ? "bg-surface" : selectedAvatar.className}`}>
+                      <nav className="mt-4 flex min-h-0 flex-1 flex-col items-center gap-2" aria-label="Quick navigation">
+                        <Tooltip content="Learning Hub" placement="right">
+                          <button type="button" onClick={() => setSidebarOpen((open) => !open)} aria-label="Learning Hub" aria-expanded={sidebarOpen} aria-controls="learning-sidebar" className={`flex h-9 w-9 items-center justify-center rounded-md transition ${sidebarOpen ? "bg-amber-500/10 text-amber-300" : "text-stone-400 hover:bg-amber-500/10 hover:text-amber-300"}`}>
+                            <PanelRight className="h-4 w-4" />
+                          </button>
+                        </Tooltip>
+                        <Tooltip content="Home" placement="right">
+                          <Link href="/dashboard" aria-label="Home" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
+                            <Home className="h-4 w-4" />
+                          </Link>
+                        </Tooltip>
+                        <Tooltip content="Membership" placement="right">
+                          <button
+                            type="button"
+                            onClick={() => { setWalletModalOpen(false); setMembershipModalOpen(true); }}
+                            aria-label="Open membership details"
+                            className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300"
+                          >
+                            <Award className="h-4 w-4" />
+                          </button>
+                        </Tooltip>
+                        <Tooltip content="Wallet and credits" placement="right">
+                          <button
+                            type="button"
+                            onClick={() => { setMembershipModalOpen(false); setWalletModalOpen(true); }}
+                            aria-label="Open credit wallet"
+                            className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300"
+                          >
+                            <WalletCards className="h-4 w-4" />
+                          </button>
+                        </Tooltip>
+                        <Tooltip content="Display & Appearance" placement="right">
+                          <button type="button" onClick={() => setDisplaySettingsOpen(true)} aria-label="Open Display & Appearance" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
+                            <SlidersHorizontal className="h-4 w-4" />
+                          </button>
+                        </Tooltip>
+                        <Tooltip content="Dictionary" placement="right">
+                          <button type="button" onClick={() => setDictionaryOpen(true)} aria-label="Open Dictionary" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
+                            <BookOpen className="h-4 w-4" />
+                          </button>
+                        </Tooltip>
+                      </nav>
+                      <div className="mt-3 flex flex-col items-center gap-2 border-t border-border pt-3">
+                        <Tooltip content="Profile and preferences" placement="right">
+                          <button
+                            type="button"
+                            onClick={() => { setProfileTab("profile"); setProfileOpen(true); }}
+                            aria-label="Open profile and preferences"
+                            aria-expanded={profileOpen && profileTab === "profile"}
+                            aria-controls="student-sidebar"
+                            style={!avatarImage ? { backgroundColor: badgeColor } : undefined}
+                            className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-full text-xs ring-1 ring-border transition hover:ring-amber-500/50 ${avatarImage ? "bg-surface" : selectedAvatar.className}`}
+                          >
                           {avatarImage ? <img src={avatarImage} alt="" className="h-full w-full object-cover" /> : profileInitials}
-                        </button>
-                      </Tooltip>
-                    </nav>
+                          </button>
+                        </Tooltip>
+                        <Tooltip content="Customization settings" placement="right">
+                          <button
+                            type="button"
+                            onClick={() => { setProfileTab("customization"); setProfileOpen(true); }}
+                            aria-label="Open customization settings"
+                            aria-expanded={profileOpen && profileTab === "customization"}
+                            aria-controls="student-sidebar"
+                            className={`flex h-9 w-9 items-center justify-center rounded-md transition ${profileTab === "customization" && profileOpen ? "bg-amber-500/10 text-amber-300" : "text-stone-400 hover:bg-amber-500/10 hover:text-amber-300"}`}
+                          >
+                            <Settings2 className="h-4 w-4" />
+                          </button>
+                        </Tooltip>
+                      </div>
+                    </div>
                   )}
                 </aside>
             </div>

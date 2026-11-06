@@ -10,10 +10,11 @@ type TooltipTriggerProps = {
 
 interface TooltipProps {
   content: string;
+  placement?: "auto" | "right";
   children: ReactElement<TooltipTriggerProps>;
 }
 
-export function Tooltip({ content, children }: TooltipProps) {
+export function Tooltip({ content, placement = "auto", children }: TooltipProps) {
   const tooltipId = useId();
   const triggerRef = useRef<HTMLSpanElement | null>(null);
   const tooltipRef = useRef<HTMLSpanElement | null>(null);
@@ -31,6 +32,21 @@ export function Tooltip({ content, children }: TooltipProps) {
       const bounds = trigger.getBoundingClientRect();
       const viewportPadding = 8;
       const { width, height } = tooltip.getBoundingClientRect();
+      if (placement === "right") {
+        const spaceRight = window.innerWidth - bounds.right - viewportPadding;
+        const left = spaceRight >= width + viewportPadding
+          ? bounds.right + viewportPadding
+          : bounds.left - width - viewportPadding;
+        const top = Math.max(
+          viewportPadding,
+          Math.min(bounds.top + bounds.height / 2 - height / 2, window.innerHeight - height - viewportPadding),
+        );
+        setPosition({
+          top,
+          left: Math.max(viewportPadding, Math.min(left, window.innerWidth - width - viewportPadding)),
+        });
+        return;
+      }
       const spaceAbove = bounds.top - viewportPadding;
       const spaceBelow = window.innerHeight - bounds.bottom - viewportPadding;
       const side = spaceAbove >= height || spaceAbove >= spaceBelow ? "top" : "bottom";
@@ -48,7 +64,7 @@ export function Tooltip({ content, children }: TooltipProps) {
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
-  }, [isOpen]);
+  }, [isOpen, placement]);
 
   useEffect(() => {
     if (!isOpen) return;
