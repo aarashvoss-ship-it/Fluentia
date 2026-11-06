@@ -20,7 +20,7 @@ import {
   MessageSquareText,
   PanelRight,
   Award,
-  Settings2,
+  Settings,
   Upload,
   UserRound,
   WalletCards,
@@ -239,6 +239,7 @@ function DashboardContent() {
   const [notes, setNotes] = useState<StudentNote[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [profileOpen, setProfileOpen] = useState(false);
+  const profileSidebarRef = useRef<HTMLElement | null>(null);
   const [showUnreadFeedbackModal, setShowUnreadFeedbackModal] = useState(false);
   const [profileTab, setProfileTab] = useState<"profile" | "customization" | "display">(
     "profile",
@@ -254,6 +255,23 @@ function DashboardContent() {
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [membershipModalOpen, walletModalOpen]);
+  useEffect(() => {
+    if (!profileOpen) return;
+    const closeSidebarOnOutsidePointer = (event: PointerEvent) => {
+      if (event.target instanceof Node && !profileSidebarRef.current?.contains(event.target)) {
+        setProfileOpen(false);
+      }
+    };
+    const closeSidebarOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setProfileOpen(false);
+    };
+    document.addEventListener("pointerdown", closeSidebarOnOutsidePointer);
+    document.addEventListener("keydown", closeSidebarOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeSidebarOnOutsidePointer);
+      document.removeEventListener("keydown", closeSidebarOnEscape);
+    };
+  }, [profileOpen]);
   const [avatarPreset, setAvatarPreset] =
     useState<ProfilePreferences["avatarPreset"]>("amber");
   const [avatarColor, setAvatarColor] = useState<string>(AVATAR_PRESETS[0].backgroundColor);
@@ -1499,6 +1517,7 @@ function DashboardContent() {
                 </div>
               </div>
                 <aside
+                  ref={profileSidebarRef}
                   id="student-sidebar"
                   aria-label="Student sidebar"
                   className={`fixed inset-y-0 left-0 z-50 flex h-dvh flex-col overflow-hidden border-r border-border bg-surface text-left shadow-2xl transition-[width] duration-300 ${profileOpen ? "w-80" : "w-16"}`}
@@ -1743,7 +1762,7 @@ function DashboardContent() {
                         aria-expanded={profileOpen}
                         className={`flex h-9 w-9 items-center justify-center rounded-md transition ${profileOpen ? "bg-amber-500/10 text-amber-300" : "text-stone-400 hover:bg-amber-500/10 hover:text-amber-300"}`}
                       >
-                        <Settings2 className="h-4 w-4" />
+                        <Settings className="h-4 w-4" />
                       </button>
                     </Tooltip>
                   </div>
@@ -1815,7 +1834,7 @@ function DashboardContent() {
                             aria-controls="student-sidebar"
                             className={`flex h-9 w-9 items-center justify-center rounded-md transition ${profileOpen ? "bg-amber-500/10 text-amber-300" : "text-stone-400 hover:bg-amber-500/10 hover:text-amber-300"}`}
                           >
-                            <Settings2 className="h-4 w-4" />
+                            <Settings className="h-4 w-4" />
                           </button>
                         </Tooltip>
                       </div>
