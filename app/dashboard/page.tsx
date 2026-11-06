@@ -19,10 +19,12 @@ import {
   List,
   MessageSquareText,
   PanelRight,
+  Award,
   Settings2,
   SlidersHorizontal,
   Upload,
   UserRound,
+  WalletCards,
   X,
 } from "lucide-react";
 import { type StudentUser } from "@/lib/users";
@@ -58,7 +60,7 @@ import { uploadAsset } from "@/services/asset-service";
 import { DEFAULT_BANNER_IMAGE_URL, getBannerOverlayStyles, getBannerPositionStyles, getFirstNonEmptyBannerUrl, normalizeBannerDimness, normalizeBannerPosition, type BannerFocalPosition } from "@/lib/banner-position";
 import { HeroBanner, HeroBannerContent, HeroBannerLogo } from "@/components/shared/hero-banner";
 import { BannerPositionControls } from "@/components/shared/banner-position-controls";
-import { DEFAULT_MEMBERSHIP_TIER, MEMBERSHIP_BADGE_LABELS, isMembershipTier } from "@/types/membership";
+import { DEFAULT_MEMBERSHIP_TIER, MEMBERSHIP_BADGE_LABELS, MEMBERSHIP_TIERS, isMembershipTier } from "@/types/membership";
 
 type LessonStatus =
   | "not-started"
@@ -234,6 +236,8 @@ function DashboardContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dictionaryOpen, setDictionaryOpen] = useState(false);
   const [displaySettingsOpen, setDisplaySettingsOpen] = useState(false);
+  const [membershipModalOpen, setMembershipModalOpen] = useState(false);
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [notes, setNotes] = useState<StudentNote[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -241,6 +245,17 @@ function DashboardContent() {
   const [profileTab, setProfileTab] = useState<"profile" | "customization">(
     "profile",
   );
+  useEffect(() => {
+    if (!membershipModalOpen && !walletModalOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMembershipModalOpen(false);
+        setWalletModalOpen(false);
+      }
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [membershipModalOpen, walletModalOpen]);
   const [avatarPreset, setAvatarPreset] =
     useState<ProfilePreferences["avatarPreset"]>("amber");
   const [avatarColor, setAvatarColor] = useState<string>(AVATAR_PRESETS[0].backgroundColor);
@@ -1230,6 +1245,160 @@ function DashboardContent() {
           </ul>
         </section>
       </div>}
+      {membershipModalOpen && (
+        <div
+          className="fixed inset-0 z-[110] flex items-center justify-center overflow-y-auto bg-black/75 p-4 backdrop-blur-sm"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setMembershipModalOpen(false);
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="membership-modal-title"
+            className="my-auto max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-amber-500/20 bg-surface p-5 shadow-2xl shadow-black/50"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Fluentia membership</p>
+                <h2 id="membership-modal-title" className="mt-1 text-lg font-semibold text-stone-100">Academic standing</h2>
+                <p className="mt-1 text-sm text-stone-400">Your current membership and learning progress.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMembershipModalOpen(false)}
+                aria-label="Close membership details"
+                className="rounded-md p-1.5 text-stone-400 transition hover:bg-border hover:text-stone-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.06] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-500">Current academic tier</p>
+                <p className="mt-2 inline-flex max-w-full rounded-md border border-amber-500/25 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold tracking-[0.12em] text-amber-300">
+                  {MEMBERSHIP_BADGE_LABELS[membershipTier]}
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-background/70 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-500">Learning progress</p>
+                  <span className="text-xs font-semibold tabular-nums text-stone-200">{progressPercent}%</span>
+                </div>
+                <p className="mt-1 text-xs text-stone-400">{completedLessons} of {displayLessons.length} lessons completed</p>
+                <div
+                  role="progressbar"
+                  aria-label="Learning progress"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={progressPercent}
+                  aria-valuetext={`${completedLessons} of ${displayLessons.length} lessons completed`}
+                  className="mt-3 h-1.5 overflow-hidden rounded-full bg-stone-800 ring-1 ring-inset ring-white/5"
+                >
+                  <div className="h-full rounded-full bg-[#F59E0B] transition-[width] duration-300" style={{ width: `${progressPercent}%` }} />
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5">
+              <h3 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-500">Academic tiers</h3>
+              <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+                {MEMBERSHIP_TIERS.map((tier) => {
+                  const isCurrentTier = tier === membershipTier;
+                  return (
+                    <li
+                      key={tier}
+                      className={`rounded-lg border p-3 transition-colors ${isCurrentTier ? "border-amber-500/30 bg-amber-500/[0.06]" : "border-border bg-background/50"}`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className={`text-xs font-semibold tracking-wide ${isCurrentTier ? "text-amber-300" : "text-stone-200"}`}>
+                          {MEMBERSHIP_BADGE_LABELS[tier]}
+                        </p>
+                        {isCurrentTier && <span className="shrink-0 rounded-full bg-amber-500/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300">Current</span>}
+                      </div>
+                      <p className="mt-1.5 text-[11px] leading-relaxed text-stone-500">Tier details and eligibility information coming soon.</p>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </section>
+        </div>
+      )}
+      {walletModalOpen && (
+        <div
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setWalletModalOpen(false);
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="wallet-modal-title"
+            className="w-full max-w-md rounded-xl border border-amber-500/20 bg-surface p-5 shadow-2xl shadow-black/50"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Fluentia credits</p>
+                <h2 id="wallet-modal-title" className="mt-1 text-lg font-semibold text-stone-100">Credit wallet</h2>
+                <p className="mt-1 text-sm text-stone-400">Your available evaluation credits.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWalletModalOpen(false)}
+                aria-label="Close credit wallet"
+                className="rounded-md p-1.5 text-stone-400 transition hover:bg-border hover:text-stone-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="mt-5 rounded-lg border border-border bg-background/70 p-4">
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-500">Available balance</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums text-stone-100">
+                    {walletCreditBalance}
+                    <span className="ml-1.5 text-xs font-medium text-stone-400">credits</span>
+                  </p>
+                </div>
+                <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${walletCreditBalance === 0 ? "border-rose-500/20 bg-rose-500/10 text-rose-300" : walletCreditBalance < WALLET_REMINDER_THRESHOLD ? "border-amber-500/20 bg-amber-500/10 text-amber-300" : "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"}`}>
+                  {walletCreditBalance === 0 ? "Depleted" : walletCreditBalance < WALLET_REMINDER_THRESHOLD ? "Low balance" : "Available"}
+                </span>
+              </div>
+              <div
+                role="progressbar"
+                aria-label="Credit balance"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={walletProgress}
+                aria-valuetext={`${walletCreditBalance} of ${walletCreditLimit} credits available`}
+                className="mt-4 h-2 overflow-hidden rounded-full bg-stone-800 ring-1 ring-inset ring-white/5"
+              >
+                <div className="h-full rounded-full bg-[#F59E0B] shadow-[0_0_8px_rgba(245,158,11,0.3)] transition-[width] duration-300" style={{ width: `${walletProgress}%` }} />
+              </div>
+              <dl className="mt-4 divide-y divide-border/70 border-t border-border/70 text-xs">
+                <div className="flex justify-between gap-4 py-2.5">
+                  <dt className="text-stone-400">Credit limit</dt>
+                  <dd className="font-medium tabular-nums text-stone-200">{walletCreditLimit} credits</dd>
+                </div>
+                <div className="flex justify-between gap-4 py-2.5">
+                  <dt className="text-stone-400">Credits used</dt>
+                  <dd className="font-medium tabular-nums text-stone-200">{walletCreditLimit - walletCreditBalance} credits</dd>
+                </div>
+                <div className="flex justify-between gap-4 py-2.5">
+                  <dt className="text-stone-400">Academic tier</dt>
+                  <dd className="text-right font-medium text-amber-300">{MEMBERSHIP_BADGE_LABELS[membershipTier]}</dd>
+                </div>
+              </dl>
+            </div>
+            <p className="mt-3 text-[11px] leading-relaxed text-stone-500">Credits are used for instructor evaluations. Contact your instructor about balance updates.</p>
+          </section>
+        </div>
+      )}
       <div className="mx-auto max-w-7xl px-4 pt-6 md:px-6">
         <HeroBanner
           imageUrl={dashboardHeaderBanner}
@@ -1376,6 +1545,24 @@ function DashboardContent() {
                     <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-500">
                       Your space
                     </p>
+                    <div className="mt-2 space-y-1">
+                      <button
+                        type="button"
+                        onClick={() => { setWalletModalOpen(false); setMembershipModalOpen(true); }}
+                        className="flex w-full items-center gap-3 whitespace-nowrap rounded-md px-2.5 py-2 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300"
+                      >
+                        <Award className="h-4 w-4 shrink-0" />
+                        Membership
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setMembershipModalOpen(false); setWalletModalOpen(true); }}
+                        className="flex w-full items-center gap-3 whitespace-nowrap rounded-md px-2.5 py-2 text-left text-xs text-stone-300 transition hover:bg-amber-500/10 hover:text-amber-300"
+                      >
+                        <WalletCards className="h-4 w-4 shrink-0" />
+                        Wallet &amp; Credits
+                      </button>
+                    </div>
                     {activeStudent.profile.showWalletWidget === true && (
                       <section aria-label="Membership and credits" className="mt-3 rounded-xl border border-stone-700/60 bg-stone-950/40 p-3.5 shadow-inner shadow-black/20">
                         <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-stone-500">
@@ -1634,6 +1821,26 @@ function DashboardContent() {
                         <Link href="/dashboard" aria-label="Home" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
                           <Home className="h-4 w-4" />
                         </Link>
+                      </Tooltip>
+                      <Tooltip content="Membership">
+                        <button
+                          type="button"
+                          onClick={() => { setWalletModalOpen(false); setMembershipModalOpen(true); }}
+                          aria-label="Open membership details"
+                          className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300"
+                        >
+                          <Award className="h-4 w-4" />
+                        </button>
+                      </Tooltip>
+                      <Tooltip content="Wallet and credits">
+                        <button
+                          type="button"
+                          onClick={() => { setMembershipModalOpen(false); setWalletModalOpen(true); }}
+                          aria-label="Open credit wallet"
+                          className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300"
+                        >
+                          <WalletCards className="h-4 w-4" />
+                        </button>
                       </Tooltip>
                       <div className="flex-1" />
                       <Tooltip content="Dictionary">
