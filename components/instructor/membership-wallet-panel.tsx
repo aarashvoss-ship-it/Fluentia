@@ -25,16 +25,20 @@ type LedgerTransaction = {
   createdAt: string;
 };
 type CreditRuleSettings = {
-  automationMode: "manual" | "automated";
   dailyDeductionEnabled: boolean;
-  dailyDeductionRate: 2 | 3;
+  dailyDeductionRate: number;
 };
 
 const DEFAULT_CREDIT_RULES: CreditRuleSettings = {
-  automationMode: "manual",
   dailyDeductionEnabled: false,
-  dailyDeductionRate: 2,
+  dailyDeductionRate: 3,
 };
+
+const numberInputClassName = "[-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
+
+function formatCredits(amount: number) {
+  return Number.isInteger(amount) ? String(amount) : amount.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+}
 
 export function MembershipWalletPanel() {
   const [students, setStudents] = useState<MembershipStudent[]>([]);
@@ -52,7 +56,6 @@ export function MembershipWalletPanel() {
   const [transactionType, setTransactionType] = useState<"credit" | "debit">("credit");
   const [transactionAmount, setTransactionAmount] = useState("10");
   const [transactionDescription, setTransactionDescription] = useState("");
-  const [transactionNote, setTransactionNote] = useState("");
   const [creditRules, setCreditRules] = useState<CreditRuleSettings>(DEFAULT_CREDIT_RULES);
   const [isSavingRules, setIsSavingRules] = useState(false);
   const [ledgerRefresh, setLedgerRefresh] = useState(0);
@@ -108,14 +111,19 @@ export function MembershipWalletPanel() {
         const result = await response.json() as {
           transactions?: LedgerTransaction[];
           rules?: CreditRuleSettings;
+          creditBalance?: number;
           error?: string;
         };
-        if (!response.ok || !result.transactions || !result.rules) {
+        if (!response.ok || !result.transactions || !result.rules || typeof result.creditBalance !== "number") {
           throw new Error(result.error || "Unable to load the student credit ledger.");
         }
         if (!cancelled) {
+          const creditBalance = result.creditBalance;
           setTransactions(result.transactions);
           setCreditRules(result.rules);
+          setStudents((current) => current.map((student) => student.id === selectedStudentId
+            ? { ...student, creditBalance }
+            : student));
         }
       })
       .catch((loadError: unknown) => {
@@ -169,8 +177,9 @@ export function MembershipWalletPanel() {
   const saveTransaction = async () => {
     if (!selectedStudent) return;
     const amount = Number(transactionAmount);
-    if (!Number.isInteger(amount) || amount < 1 || !transactionDescription.trim()) {
-      setLedgerError("Enter a whole-number amount and transaction description.");
+    if (!Number.isFinite(amount) || Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-8
+      || amount < 0.01 || !transactionDescription.trim()) {
+      setLedgerError("Enter a valid credit amount (up to two decimal places) and transaction description.");
       return;
     }
 
@@ -186,7 +195,7 @@ export function MembershipWalletPanel() {
           type: transactionType,
           amount,
           description: transactionDescription.trim(),
-          instructorNote: transactionNote.trim(),
+          instructorNote: transactionDescription.trim(),
         }),
       });
       const result = await response.json() as {
@@ -205,7 +214,6 @@ export function MembershipWalletPanel() {
         : student));
       setTransactionAmount("10");
       setTransactionDescription("");
-      setTransactionNote("");
       setLedgerNotice("Transaction recorded.");
     } catch (saveError: unknown) {
       setLedgerError(saveError instanceof Error ? saveError.message : "Unable to save the credit transaction.");
@@ -225,10 +233,17 @@ export function MembershipWalletPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ studentId: selectedStudent.id, ...creditRules }),
       });
-      const result = await response.json() as { rules?: CreditRuleSettings; error?: string };
+      const result = await response.json() as { rules?: CreditRuleSettings; creditBalance?: number; error?: string };
       if (!response.ok || !result.rules) throw new Error(result.error || "Unable to save credit rule settings.");
       setCreditRules(result.rules);
-      setLedgerNotice("Credit rule settings saved. Automated deductions remain inactive.");
+      setLedgerRefresh((current) => current + 1);
+      if (typeof result.creditBalance === "number") {
+        const creditBalance = result.creditBalance;
+        setStudents((current) => current.map((student) => student.id === selectedStudent.id
+          ? { ...student, creditBalance }
+          : student));
+      }
+      setLedgerNotice("Daily credit rule saved. Charges are processed once per UTC day.");
     } catch (saveError: unknown) {
       setLedgerError(saveError instanceof Error ? saveError.message : "Unable to save credit rule settings.");
     } finally {
@@ -237,7 +252,7 @@ export function MembershipWalletPanel() {
   };
 
   return (
-    <section className="max-w-3xl space-y-6" aria-labelledby="membership-wallet-title">
+    <section className="w-full min-w-0 space-y-6" aria-labelledby="membership-wallet-title">
       <header>
         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Instructor administration</p>
         <h2 id="membership-wallet-title" className="mt-1 text-xl font-semibold text-stone-100">Membership &amp; Wallet</h2>
@@ -280,7 +295,7 @@ export function MembershipWalletPanel() {
                 </div>
                 <label className="block space-y-1.5 text-xs text-stone-400">
                   {creditMode === "set" ? "New balance" : "Credits to add"}
-                  <input type="number" min={creditMode === "set" ? 0 : 1} max={creditMode === "set" ? selectedStudent.creditLimit : selectedStudent.creditLimit - selectedStudent.creditBalance} step={1} value={creditAmount} onChange={(event) => setCreditAmount(event.target.value)} className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-stone-100" />
+                  <input type="number" min={creditMode === "set" ? 0 : 1} max={creditMode === "set" ? selectedStudent.creditLimit : selectedStudent.creditLimit - selectedStudent.creditBalance} step={1} value={creditAmount} onChange={(event) => setCreditAmount(event.target.value)} className={`h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-stone-100 ${numberInputClassName}`} />
                 </label>
               </fieldset>
             </div>
@@ -310,7 +325,7 @@ export function MembershipWalletPanel() {
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Account history</p>
                 <h3 id="student-credit-ledger-title" className="mt-1 text-base font-semibold text-stone-100">Credit ledger</h3>
-                <p className="mt-1 text-xs text-stone-500">Transactions adjust the selected student’s available balance immediately.</p>
+                <p className="mt-1 text-xs text-stone-500">Instructor-only transaction history. Changes update the student’s live wallet balance.</p>
               </div>
 
               <div className="grid gap-3 rounded-md border border-border bg-background p-3 sm:grid-cols-2">
@@ -323,18 +338,14 @@ export function MembershipWalletPanel() {
                 </label>
                 <label className="space-y-1 text-xs text-stone-400">
                   Amount
-                  <input type="number" min={1} max={1000} step={1} value={transactionAmount} onChange={(event) => setTransactionAmount(event.target.value)} className="h-9 w-full rounded-md border border-border bg-surface px-2 text-sm text-stone-100" />
+                  <input type="number" min={0.01} max={1000} step={0.01} value={transactionAmount} onChange={(event) => setTransactionAmount(event.target.value)} className={`h-9 w-full rounded-md border border-border bg-surface px-2 text-sm text-stone-100 ${numberInputClassName}`} />
                 </label>
                 <label className="space-y-1 text-xs text-stone-400 sm:col-span-2">
-                  Description
-                  <input maxLength={200} value={transactionDescription} onChange={(event) => setTransactionDescription(event.target.value)} placeholder="e.g. Evaluation credit top-up" className="h-9 w-full rounded-md border border-border bg-surface px-2 text-sm text-stone-100 placeholder:text-stone-600" />
-                </label>
-                <label className="space-y-1 text-xs text-stone-400 sm:col-span-2">
-                  Instructor note
-                  <textarea maxLength={500} rows={2} value={transactionNote} onChange={(event) => setTransactionNote(event.target.value)} placeholder="Internal note for this transaction" className="w-full rounded-md border border-border bg-surface px-2 py-2 text-sm text-stone-100 placeholder:text-stone-600" />
+                  Instructor description / note · private
+                  <input maxLength={200} value={transactionDescription} onChange={(event) => setTransactionDescription(event.target.value)} placeholder="e.g. 50-minute online session" className="h-9 w-full rounded-md border border-border bg-surface px-2 text-sm text-stone-100 placeholder:text-stone-600" />
                 </label>
                 <div className="flex items-center justify-between gap-3 sm:col-span-2">
-                  <span className="text-[10px] text-stone-500">Balance: {selectedStudent.creditBalance} / {selectedStudent.creditLimit}</span>
+                  <span className="text-[10px] text-stone-500">Balance: {formatCredits(selectedStudent.creditBalance)} / {selectedStudent.creditLimit}</span>
                   <button type="button" onClick={() => void saveTransaction()} disabled={isSavingTransaction || isLedgerLoading} className="rounded-md bg-amber-500/15 px-3 py-2 text-xs font-medium text-amber-300 transition hover:bg-amber-500/25 disabled:cursor-not-allowed disabled:opacity-50">
                     {isSavingTransaction ? "Recording..." : "Record transaction"}
                   </button>
@@ -348,12 +359,12 @@ export function MembershipWalletPanel() {
                 <table className="w-full min-w-[760px] text-left text-xs">
                   <thead className="bg-background text-[10px] uppercase tracking-wider text-stone-500">
                     <tr>
+                      <th className="px-3 py-2.5 font-medium">Row (#)</th>
                       <th className="px-3 py-2.5 font-medium">Date / Time</th>
-                      <th className="px-3 py-2.5 font-medium">Type</th>
-                      <th className="px-3 py-2.5 text-right font-medium">Amount</th>
-                      <th className="px-3 py-2.5 text-right font-medium">Running balance</th>
-                      <th className="px-3 py-2.5 font-medium">Description</th>
-                      <th className="px-3 py-2.5 font-medium">Instructor note</th>
+                      <th className="px-3 py-2.5 font-medium">Description · private</th>
+                      <th className="px-3 py-2.5 text-right font-medium">Credit (+)</th>
+                      <th className="px-3 py-2.5 text-right font-medium">Debit (−)</th>
+                      <th className="px-3 py-2.5 text-right font-medium">Balance</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -361,18 +372,14 @@ export function MembershipWalletPanel() {
                       <tr><td colSpan={6} className="px-3 py-5 text-center text-stone-500">Loading ledger...</td></tr>
                     ) : transactions.length === 0 ? (
                       <tr><td colSpan={6} className="px-3 py-5 text-center text-stone-500">No transactions recorded yet.</td></tr>
-                    ) : transactions.map((transaction) => (
+                    ) : transactions.map((transaction, index) => (
                       <tr key={transaction.id} className="text-stone-300">
+                        <td className="px-3 py-2.5 text-stone-400">{index + 1}</td>
                         <td className="whitespace-nowrap px-3 py-2.5 text-stone-400">{new Date(transaction.createdAt).toLocaleString()}</td>
-                        <td className="px-3 py-2.5">
-                          <span className={transaction.type === "credit" ? "text-emerald-300" : "text-amber-300"}>
-                            {transaction.type === "credit" ? "Credit" : "Debit"}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2.5 text-right tabular-nums">{transaction.type === "credit" ? "+" : "−"}{transaction.amount}</td>
-                        <td className="px-3 py-2.5 text-right tabular-nums text-stone-100">{transaction.balanceAfter}</td>
-                        <td className="px-3 py-2.5">{transaction.description}</td>
-                        <td className="max-w-48 px-3 py-2.5 text-stone-400">{transaction.instructorNote || "—"}</td>
+                        <td className="max-w-64 px-3 py-2.5 text-stone-300">{transaction.instructorNote || transaction.description}</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-emerald-300">{transaction.type === "credit" ? `+${formatCredits(transaction.amount)}` : "—"}</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-amber-300">{transaction.type === "debit" ? `−${formatCredits(transaction.amount)}` : "—"}</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-stone-100">{formatCredits(transaction.balanceAfter)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -384,28 +391,18 @@ export function MembershipWalletPanel() {
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Configuration</p>
                 <h3 id="credit-rules-title" className="mt-1 text-base font-semibold text-stone-100">Flexible credit rules</h3>
-                <p className="mt-1 text-xs text-stone-500">These settings are saved for this student. Automated deductions are not active.</p>
+                <p className="mt-1 text-xs text-stone-500">Set the student’s daily charge from their monthly subscription plan.</p>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="space-y-1 text-xs text-stone-400">
-                  Automation mode
-                  <select value={creditRules.automationMode} onChange={(event) => setCreditRules((current) => ({ ...current, automationMode: event.target.value as CreditRuleSettings["automationMode"] }))} className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-stone-100 [color-scheme:dark]">
-                    <option value="manual">Manual</option>
-                    <option value="automated">Automated (inactive)</option>
-                  </select>
-                </label>
-                <label className="space-y-1 text-xs text-stone-400">
-                  Daily deduction rate
-                  <select value={creditRules.dailyDeductionRate} onChange={(event) => setCreditRules((current) => ({ ...current, dailyDeductionRate: Number(event.target.value) as 2 | 3 }))} className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-stone-100 [color-scheme:dark]">
-                    <option value={2}>2 credits per day</option>
-                    <option value={3}>3 credits per day</option>
-                  </select>
+                  Daily subscription rate · credits per day
+                  <input type="number" min={0.01} max={1000} step={0.01} value={creditRules.dailyDeductionRate} onChange={(event) => setCreditRules((current) => ({ ...current, dailyDeductionRate: Number(event.target.value) }))} className={`h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-stone-100 ${numberInputClassName}`} />
                 </label>
               </div>
               <label className="flex items-start gap-3 rounded-md border border-border bg-background p-3 text-xs text-stone-300">
                 <input type="checkbox" checked={creditRules.dailyDeductionEnabled} onChange={(event) => setCreditRules((current) => ({ ...current, dailyDeductionEnabled: event.target.checked }))} className="mt-0.5 accent-amber-500" />
-                <span><span className="block font-medium text-stone-200">Enable daily deduction rule</span><span className="mt-1 block text-[10px] text-stone-500">Configuration only. No credits will be deducted automatically.</span></span>
+                <span><span className="block font-medium text-stone-200">Enable automatic daily deduction</span><span className="mt-1 block text-[10px] text-stone-500">Applied once per UTC calendar day. Missed dates are caught up when the student’s wallet is accessed.</span></span>
               </label>
               <div className="flex justify-end border-t border-border pt-3">
                 <button type="button" onClick={() => void saveCreditRules()} disabled={isSavingRules || isLedgerLoading} className="rounded-md bg-amber-500/15 px-4 py-2 text-xs font-medium text-amber-300 transition hover:bg-amber-500/25 disabled:cursor-not-allowed disabled:opacity-50">

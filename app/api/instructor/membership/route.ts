@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { PoolClient } from "pg";
 import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
 import { getServerSessionUser } from "@/lib/server/session";
+import { reconcileDailyCreditRule } from "@/lib/student-credit-ledger";
 import { isMembershipTier } from "@/types/membership";
 
 export const runtime = "nodejs";
@@ -28,7 +29,7 @@ export async function GET() {
       full_name: string;
       email: string;
       membership_tier: string;
-      credit_balance: number;
+      credit_balance: string;
       credit_limit: number;
       show_wallet_widget: boolean;
       is_scholarship: boolean;
@@ -50,7 +51,7 @@ export async function GET() {
         fullName: student.full_name,
         email: student.email,
         membershipTier: student.membership_tier,
-        creditBalance: student.credit_balance,
+        creditBalance: Number(student.credit_balance),
         creditLimit: student.credit_limit,
         showWalletWidget: student.show_wallet_widget,
         isScholarship: student.is_scholarship,
@@ -96,29 +97,18 @@ export async function PATCH(request: Request) {
     client = await getPostgresPool().connect();
     await initializeDatabase();
     await client.query("BEGIN");
-    const currentProfile = await client.query<{ credit_balance: number }>(
-      `SELECT credit_balance
-       FROM public.profiles
-       WHERE id = $1::uuid AND COALESCE(role, 'student') = 'student'
-       FOR UPDATE`,
-      [studentId],
-    );
-    if (!currentProfile.rows[0]) {
+    const reconciled = await reconcileDailyCreditRule(client, studentId);
+    if (!reconciled) {
       await client.query("ROLLBACK");
       return NextResponse.json({ error: "Student profile not found." }, { status: 404 });
     }
+    const currentProfile = await client.query<{ credit_balance: string }>(
+      `SELECT credit_balance::text AS credit_balance
+       FROM public.profiles WHERE id = $1::uuid`,
+      [studentId],
+    );
+    const currentBalance = Number(currentProfile.rows[0].credit_balance);
 
-    if (currentProfile.rows[0].credit_balance > 0) {
-      await client.query(
-        `INSERT INTO public.student_credit_ledger
-           (student_id, transaction_type, amount, balance_after, description, instructor_note)
-         SELECT $1::uuid, 'credit', $2::integer, $2::integer, 'Opening balance', ''
-         WHERE NOT EXISTS (
-           SELECT 1 FROM public.student_credit_ledger WHERE student_id = $1::uuid
-         )`,
-        [studentId, currentProfile.rows[0].credit_balance],
-      );
-    }
     const result = await client.query<{
       membership_tier: string;
       credit_balance: number;
@@ -134,19 +124,20 @@ export async function PATCH(request: Request) {
            show_wallet_widget = $5::boolean,
            updated_at = now()
        WHERE id = $1::uuid AND COALESCE(role, 'student') = 'student'
-       RETURNING membership_tier, credit_balance, credit_limit, show_wallet_widget`,
+       RETURNING membership_tier, credit_balance::float8 AS credit_balance,
+                 credit_limit::float8 AS credit_limit, show_wallet_widget`,
       [studentId, membershipTier, creditMode, creditAmount, showWalletWidget],
     );
     if (!result.rows[0]) {
       await client.query("ROLLBACK");
       return NextResponse.json({ error: "Student profile not found." }, { status: 404 });
     }
-    const balanceDelta = result.rows[0].credit_balance - currentProfile.rows[0].credit_balance;
+    const balanceDelta = result.rows[0].credit_balance - currentBalance;
     if (balanceDelta !== 0) {
       await client.query(
         `INSERT INTO public.student_credit_ledger
            (student_id, transaction_type, amount, balance_after, description, instructor_note, created_by)
-         VALUES ($1::uuid, $2, $3::integer, $4::integer, $5, $6, $7::uuid)`,
+         VALUES ($1::uuid, $2, $3::numeric, $4::numeric, $5, $6, $7::uuid)`,
         [
           studentId,
           balanceDelta > 0 ? "credit" : "debit",
@@ -170,14 +161,20 @@ export async function PATCH(request: Request) {
       student: {
         id: studentId,
         membershipTier: result.rows[0].membership_tier,
-        creditBalance: result.rows[0].credit_balance,
-        creditLimit: result.rows[0].credit_limit,
+        creditBalance: Number(result.rows[0].credit_balance),
+        creditLimit: Number(result.rows[0].credit_limit),
         showWalletWidget: result.rows[0].show_wallet_widget,
         isScholarship,
       },
     });
   } catch (error) {
-    if (client) await client.query("ROLLBACK").catch(() => undefined);
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        logDatabaseError("Student membership update rollback failed:", rollbackError);
+      }
+    }
     logDatabaseError("Student membership update failed:", error);
     return NextResponse.json({ error: "Unable to save membership and wallet updates." }, { status: 500 });
   } finally {

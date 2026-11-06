@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
 import { getServerSessionUser } from "@/lib/server/session";
+import { reconcileDailyCreditRule } from "@/lib/student-credit-ledger";
 
 export const runtime = "nodejs";
 
@@ -39,30 +40,54 @@ export async function GET(request: Request) {
   try {
     await initializeDatabase();
     if (identifier) {
-      const result = await getPostgresPool().query(
-        `SELECT users.id, users.email, users.created_at,
-                profiles.token, profiles.full_name, profiles.level, profiles.target_level,
-                profiles.target_goal, profiles.core_goal, profiles.focus_weaknesses,
-                profiles.assigned_instructor, profiles.dashboard_note, profiles.avatar_url,
-                profiles.banner_url, profiles.avatar_bg_color, profiles.avatar_initials,
-                profiles.membership_tier, profiles.credit_balance, profiles.credit_limit,
-                profiles.show_wallet_widget,
-                profiles.enrolled_date
-         FROM public.users AS users
-         LEFT JOIN public.profiles AS profiles ON profiles.id = users.id
-         WHERE ${uuidPattern.test(identifier) ? "users.id::text = $1" : "profiles.token = $1"}
-           AND COALESCE(profiles.role, 'student') = 'student'
-         LIMIT 1`,
-        [identifier],
-      );
-      if (result.rowCount === 0) return NextResponse.json({ error: "Student profile not found." }, { status: 404 });
-      if (user.role === "student" && result.rows[0].id !== user.id) {
-        return NextResponse.json({ error: "You can only load your own student profile." }, { status: 403 });
+      const client = await getPostgresPool().connect();
+      try {
+        await client.query("BEGIN");
+        const query = `SELECT users.id, users.email, users.created_at,
+                              profiles.token, profiles.full_name, profiles.level, profiles.target_level,
+                              profiles.target_goal, profiles.core_goal, profiles.focus_weaknesses,
+                              profiles.assigned_instructor, profiles.dashboard_note, profiles.avatar_url,
+                              profiles.banner_url, profiles.avatar_bg_color, profiles.avatar_initials,
+                              profiles.membership_tier, profiles.credit_balance, profiles.credit_limit,
+                              profiles.show_wallet_widget, profiles.enrolled_date
+                       FROM public.users AS users
+                       LEFT JOIN public.profiles AS profiles ON profiles.id = users.id
+                       WHERE ${uuidPattern.test(identifier) ? "users.id::text = $1" : "profiles.token = $1"}
+                         AND COALESCE(profiles.role, 'student') = 'student'
+                       LIMIT 1`;
+        const result = await client.query(query, [identifier]);
+        if (result.rowCount === 0) {
+          await client.query("ROLLBACK");
+          return NextResponse.json({ error: "Student profile not found." }, { status: 404 });
+        }
+        if (user.role === "student" && result.rows[0].id !== user.id) {
+          await client.query("ROLLBACK");
+          return NextResponse.json({ error: "You can only load your own student profile." }, { status: 403 });
+        }
+        if (user.role !== "student" && user.role !== "instructor" && user.role !== "admin") {
+          await client.query("ROLLBACK");
+          return NextResponse.json({ error: "Only students and instructors can load student profiles." }, { status: 403 });
+        }
+        await reconcileDailyCreditRule(client, String(result.rows[0].id));
+        const updatedProfile = await client.query(query, [identifier]);
+        await client.query("COMMIT");
+        return NextResponse.json({
+          student: {
+            ...updatedProfile.rows[0],
+            credit_balance: Number(updatedProfile.rows[0].credit_balance),
+            credit_limit: Number(updatedProfile.rows[0].credit_limit),
+          },
+        });
+      } catch (error) {
+        try {
+          await client.query("ROLLBACK");
+        } catch (rollbackError) {
+          logDatabaseError("Student profile load rollback failed:", rollbackError);
+        }
+        throw error;
+      } finally {
+        client.release();
       }
-      if (user.role !== "student" && user.role !== "instructor" && user.role !== "admin") {
-        return NextResponse.json({ error: "Only students and instructors can load student profiles." }, { status: 403 });
-      }
-      return NextResponse.json({ student: result.rows[0] });
     }
 
     const result = await getPostgresPool().query(
@@ -79,7 +104,13 @@ export async function GET(request: Request) {
        WHERE COALESCE(profiles.role, 'student') = 'student'
        ORDER BY COALESCE(NULLIF(profiles.full_name, ''), users.email)`,
     );
-    return NextResponse.json({ students: result.rows });
+    return NextResponse.json({
+      students: result.rows.map((student) => ({
+        ...student,
+        credit_balance: student.credit_balance == null ? 100 : Number(student.credit_balance),
+        credit_limit: student.credit_limit == null ? 100 : Number(student.credit_limit),
+      })),
+    });
   } catch (error) {
     logDatabaseError("PostgreSQL student directory query failed:", error);
     return NextResponse.json({ error: "Unable to load the student directory." }, { status: 500 });

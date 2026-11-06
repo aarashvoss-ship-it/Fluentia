@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { PoolClient } from "pg";
 import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
 import { getServerSessionUser } from "@/lib/server/session";
+import { getUtcDate, reconcileDailyCreditRule } from "@/lib/student-credit-ledger";
 
 export const runtime = "nodejs";
 
@@ -47,35 +48,11 @@ export async function GET(request: Request) {
     await initializeDatabase();
     client = await getPostgresPool().connect();
     await client.query("BEGIN");
-    const profile = await client.query<{ credit_balance: number }>(
-      `SELECT credit_balance
-       FROM public.profiles
-       WHERE id = $1::uuid AND COALESCE(role, 'student') = 'student'
-       FOR UPDATE`,
-      [studentId],
-    );
-    if (!profile.rows[0]) {
+    const reconciled = await reconcileDailyCreditRule(client, studentId);
+    if (!reconciled) {
       await rollback(client);
       return NextResponse.json({ error: "Student profile not found." }, { status: 404 });
     }
-
-    if (profile.rows[0].credit_balance > 0) {
-      await client.query(
-        `INSERT INTO public.student_credit_ledger
-           (student_id, transaction_type, amount, balance_after, description, instructor_note)
-         SELECT $1::uuid, 'credit', $2::integer, $2::integer, 'Opening balance', ''
-         WHERE NOT EXISTS (
-           SELECT 1 FROM public.student_credit_ledger WHERE student_id = $1::uuid
-         )`,
-        [studentId, profile.rows[0].credit_balance],
-      );
-    }
-    await client.query(
-      `INSERT INTO public.student_credit_rules (student_id)
-       VALUES ($1::uuid)
-       ON CONFLICT (student_id) DO NOTHING`,
-      [studentId],
-    );
 
     const ledger = await client.query<{
       id: string;
@@ -86,18 +63,18 @@ export async function GET(request: Request) {
       instructor_note: string;
       created_at: Date;
     }>(
-      `SELECT id, transaction_type, amount, balance_after, description, instructor_note, created_at
+      `SELECT id, transaction_type, amount::float8 AS amount, balance_after::float8 AS balance_after,
+              description, instructor_note, created_at
        FROM public.student_credit_ledger
        WHERE student_id = $1::uuid
        ORDER BY created_at DESC, id DESC`,
       [studentId],
     );
     const rules = await client.query<{
-      automation_mode: "manual" | "automated";
       daily_deduction_enabled: boolean;
-      daily_deduction_rate: number;
+      daily_deduction_rate: string;
     }>(
-      `SELECT automation_mode, daily_deduction_enabled, daily_deduction_rate
+      `SELECT daily_deduction_enabled, daily_deduction_rate::text AS daily_deduction_rate
        FROM public.student_credit_rules
        WHERE student_id = $1::uuid`,
       [studentId],
@@ -115,10 +92,10 @@ export async function GET(request: Request) {
         createdAt: row.created_at,
       })),
       rules: {
-        automationMode: rules.rows[0].automation_mode,
         dailyDeductionEnabled: rules.rows[0].daily_deduction_enabled,
-        dailyDeductionRate: rules.rows[0].daily_deduction_rate,
+        dailyDeductionRate: Number(rules.rows[0].daily_deduction_rate),
       },
+      creditBalance: reconciled.balance,
     });
   } catch (error) {
     if (client) await rollback(client);
@@ -139,7 +116,8 @@ export async function POST(request: Request) {
   const description = typeof body?.description === "string" ? body.description.trim() : "";
   const instructorNote = typeof body?.instructorNote === "string" ? body.instructorNote.trim() : "";
   if (!uuidPattern.test(studentId) || (type !== "credit" && type !== "debit")
-    || typeof amount !== "number" || !Number.isInteger(amount) || amount < 1 || amount > 1000
+    || typeof amount !== "number" || !Number.isFinite(amount)
+    || Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-8 || amount < 0.01 || amount > 1000
     || description.length < 1 || description.length > 200 || instructorNote.length > 500) {
     return NextResponse.json({ error: "Provide a valid transaction type, amount, description, and instructor note." }, { status: 400 });
   }
@@ -149,32 +127,21 @@ export async function POST(request: Request) {
     await initializeDatabase();
     client = await getPostgresPool().connect();
     await client.query("BEGIN");
-    const profile = await client.query<{ credit_balance: number; credit_limit: number }>(
-      `SELECT credit_balance, credit_limit
-       FROM public.profiles
-       WHERE id = $1::uuid AND COALESCE(role, 'student') = 'student'
-       FOR UPDATE`,
-      [studentId],
-    );
-    if (!profile.rows[0]) {
+    const reconciled = await reconcileDailyCreditRule(client, studentId);
+    if (!reconciled) {
       await rollback(client);
       return NextResponse.json({ error: "Student profile not found." }, { status: 404 });
     }
 
-    const currentBalance = profile.rows[0].credit_balance;
-    if (currentBalance > 0) {
-      await client.query(
-        `INSERT INTO public.student_credit_ledger
-           (student_id, transaction_type, amount, balance_after, description, instructor_note)
-         SELECT $1::uuid, 'credit', $2::integer, $2::integer, 'Opening balance', ''
-         WHERE NOT EXISTS (
-           SELECT 1 FROM public.student_credit_ledger WHERE student_id = $1::uuid
-         )`,
-        [studentId, currentBalance],
-      );
-    }
-    const nextBalance = type === "credit" ? currentBalance + amount : currentBalance - amount;
-    if (nextBalance < 0 || nextBalance > profile.rows[0].credit_limit) {
+    const profile = await client.query<{ credit_balance: string; credit_limit: string }>(
+      `SELECT credit_balance::text AS credit_balance, credit_limit::text AS credit_limit
+       FROM public.profiles WHERE id = $1::uuid`,
+      [studentId],
+    );
+    const currentBalance = Number(profile.rows[0].credit_balance);
+    const creditLimit = Number(profile.rows[0].credit_limit);
+    const nextBalance = Number((type === "credit" ? currentBalance + amount : currentBalance - amount).toFixed(2));
+    if (nextBalance < 0 || nextBalance > creditLimit) {
       await rollback(client);
       return NextResponse.json({
         error: type === "credit" ? "This transaction exceeds the student's credit limit." : "This transaction exceeds the student's available balance.",
@@ -182,7 +149,7 @@ export async function POST(request: Request) {
     }
 
     await client.query(
-      `UPDATE public.profiles SET credit_balance = $2::integer, updated_at = now() WHERE id = $1::uuid`,
+      `UPDATE public.profiles SET credit_balance = $2::numeric, updated_at = now() WHERE id = $1::uuid`,
       [studentId, nextBalance],
     );
     const result = await client.query<{
@@ -196,8 +163,8 @@ export async function POST(request: Request) {
     }>(
       `INSERT INTO public.student_credit_ledger
          (student_id, transaction_type, amount, balance_after, description, instructor_note, created_by)
-       VALUES ($1::uuid, $2, $3::integer, $4::integer, $5, $6, $7::uuid)
-       RETURNING id, transaction_type, amount, balance_after, description, instructor_note, created_at`,
+       VALUES ($1::uuid, $2, $3::numeric, $4::numeric, $5, $6, $7::uuid)
+       RETURNING id, transaction_type, amount::float8 AS amount, balance_after::float8 AS balance_after, description, instructor_note, created_at`,
       [studentId, type, amount, nextBalance, description, instructorNote, access.user.id],
     );
     await client.query("COMMIT");
@@ -212,7 +179,7 @@ export async function POST(request: Request) {
         instructorNote: transaction.instructor_note,
         createdAt: transaction.created_at,
       },
-      creditBalance: nextBalance,
+      creditBalance: Number(nextBalance.toFixed(2)),
     });
   } catch (error) {
     if (client) await rollback(client);
@@ -228,47 +195,52 @@ export async function PUT(request: Request) {
   if ("response" in access) return access.response;
   const body = await readJson(request);
   const studentId = typeof body?.studentId === "string" ? body.studentId.trim() : "";
-  const automationMode = body?.automationMode;
   const dailyDeductionEnabled = body?.dailyDeductionEnabled;
   const dailyDeductionRate = body?.dailyDeductionRate;
-  if (!uuidPattern.test(studentId) || (automationMode !== "manual" && automationMode !== "automated")
-    || typeof dailyDeductionEnabled !== "boolean"
-    || (dailyDeductionRate !== 2 && dailyDeductionRate !== 3)) {
+  if (!uuidPattern.test(studentId) || typeof dailyDeductionEnabled !== "boolean"
+    || typeof dailyDeductionRate !== "number" || !Number.isFinite(dailyDeductionRate)
+    || Math.abs(dailyDeductionRate * 100 - Math.round(dailyDeductionRate * 100)) > 1e-8
+    || dailyDeductionRate < 0.01 || dailyDeductionRate > 1000) {
     return NextResponse.json({ error: "Provide valid credit rule settings." }, { status: 400 });
   }
 
+  let client: PoolClient | undefined;
   try {
     await initializeDatabase();
-    const result = await getPostgresPool().query<{
-      automation_mode: "manual" | "automated";
-      daily_deduction_enabled: boolean;
-      daily_deduction_rate: number;
-    }>(
+    client = await getPostgresPool().connect();
+    await client.query("BEGIN");
+    const reconciled = await reconcileDailyCreditRule(client, studentId);
+    if (!reconciled) {
+      await rollback(client);
+      return NextResponse.json({ error: "Student profile not found." }, { status: 404 });
+    }
+    const today = await getUtcDate(client);
+    await client.query(
       `INSERT INTO public.student_credit_rules
-         (student_id, automation_mode, daily_deduction_enabled, daily_deduction_rate, updated_at)
-       SELECT id, $2, $3::boolean, $4::integer, now()
+         (student_id, daily_deduction_enabled, daily_deduction_rate, daily_deduction_last_date, updated_at)
+       SELECT id, $2::boolean, $3::numeric, $4::date, now()
        FROM public.profiles
        WHERE id = $1::uuid AND COALESCE(role, 'student') = 'student'
        ON CONFLICT (student_id) DO UPDATE
-       SET automation_mode = EXCLUDED.automation_mode,
-           daily_deduction_enabled = EXCLUDED.daily_deduction_enabled,
+       SET daily_deduction_enabled = EXCLUDED.daily_deduction_enabled,
            daily_deduction_rate = EXCLUDED.daily_deduction_rate,
-           updated_at = now()
-       RETURNING automation_mode, daily_deduction_enabled, daily_deduction_rate`,
-      [studentId, automationMode, dailyDeductionEnabled, dailyDeductionRate],
+           daily_deduction_last_date = EXCLUDED.daily_deduction_last_date,
+           updated_at = now()`,
+      [studentId, dailyDeductionEnabled, dailyDeductionRate, today],
     );
-    if (!result.rows[0]) {
-      return NextResponse.json({ error: "Student profile not found." }, { status: 404 });
-    }
+    await client.query("COMMIT");
     return NextResponse.json({
       rules: {
-        automationMode: result.rows[0].automation_mode,
-        dailyDeductionEnabled: result.rows[0].daily_deduction_enabled,
-        dailyDeductionRate: result.rows[0].daily_deduction_rate,
+        dailyDeductionEnabled,
+        dailyDeductionRate,
       },
+      creditBalance: reconciled.balance,
     });
   } catch (error) {
+    if (client) await rollback(client);
     logDatabaseError("Student credit rule update failed:", error);
     return NextResponse.json({ error: "Unable to save student credit rules." }, { status: 500 });
+  } finally {
+    client?.release();
   }
 }
