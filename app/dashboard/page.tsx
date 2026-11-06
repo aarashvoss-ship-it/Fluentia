@@ -10,6 +10,7 @@ import {
   ChevronUp,
   CheckCircle2,
   Clock3,
+  Crown,
   Flame,
   Folder,
   GripVertical,
@@ -20,11 +21,15 @@ import {
   MessageSquareText,
   PanelRight,
   Award,
+  Shield,
+  Sparkles,
+  Star,
   Settings,
   Upload,
   UserRound,
   WalletCards,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { type StudentUser } from "@/lib/users";
 import {
@@ -59,7 +64,34 @@ import { uploadAsset } from "@/services/asset-service";
 import { DEFAULT_BANNER_IMAGE_URL, getBannerOverlayStyles, getBannerPositionStyles, getFirstNonEmptyBannerUrl, normalizeBannerDimness, normalizeBannerPosition, type BannerFocalPosition } from "@/lib/banner-position";
 import { HeroBanner, HeroBannerContent, HeroBannerLogo } from "@/components/shared/hero-banner";
 import { BannerPositionControls } from "@/components/shared/banner-position-controls";
-import { DEFAULT_MEMBERSHIP_TIER, MEMBERSHIP_BADGE_LABELS, MEMBERSHIP_TIERS, isMembershipTier } from "@/types/membership";
+import { DEFAULT_MEMBERSHIP_TIER, MEMBERSHIP_BADGE_LABELS, MEMBERSHIP_TIERS, isMembershipTier, type MembershipTier } from "@/types/membership";
+
+const MEMBERSHIP_TIER_DETAILS: Record<MembershipTier, { description: string; Icon: LucideIcon }> = {
+  Associate: {
+    description: "Foundational academic tier focused on core language mastery and guided evaluations.",
+    Icon: Shield,
+  },
+  Fellowship: {
+    description: "Advanced scholarly tier dedicated to rigorous discourse, complex syntax, and independent fluency.",
+    Icon: BookOpen,
+  },
+  Mastery: {
+    description: "Elite professional standing representing near-native fluency, polished articulation, and academic excellence.",
+    Icon: Crown,
+  },
+  Executive: {
+    description: "Specialized tier tailored for high-level professional communication, business negotiation, and rhetoric.",
+    Icon: Sparkles,
+  },
+  "Honorary Fellow": {
+    description: "Distinguished academic status conferred for exceptional dedication, contribution, and scholarly milestones.",
+    Icon: Award,
+  },
+  "Honorary Guest": {
+    description: "Privileged visiting status designed for special scholars, collaborative partners, and guest researchers.",
+    Icon: Star,
+  },
+};
 
 type LessonStatus =
   | "not-started"
@@ -1323,18 +1355,24 @@ function DashboardContent() {
               <ul className="mt-2 grid gap-2 sm:grid-cols-2">
                 {MEMBERSHIP_TIERS.map((tier) => {
                   const isCurrentTier = tier === membershipTier;
+                  const TierIcon = MEMBERSHIP_TIER_DETAILS[tier].Icon;
                   return (
                     <li
                       key={tier}
                       className={`rounded-lg border p-3 transition-colors ${isCurrentTier ? "border-amber-500/30 bg-amber-500/[0.06]" : "border-border bg-background/50"}`}
                     >
-                      <div className="flex items-center justify-between gap-3">
-                        <p className={`text-xs font-semibold tracking-wide ${isCurrentTier ? "text-amber-300" : "text-stone-200"}`}>
-                          {MEMBERSHIP_BADGE_LABELS[tier]}
-                        </p>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-amber-500/25 bg-amber-500/[0.08]">
+                            <TierIcon className="h-4 w-4 text-[#F59E0B]" aria-hidden="true" />
+                          </span>
+                          <p className={`text-xs font-semibold tracking-wide ${isCurrentTier ? "text-amber-300" : "text-stone-200"}`}>
+                            {MEMBERSHIP_BADGE_LABELS[tier]}
+                          </p>
+                        </div>
                         {isCurrentTier && <span className="shrink-0 rounded-full bg-amber-500/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300">Current</span>}
                       </div>
-                      <p className="mt-1.5 text-[11px] leading-relaxed text-stone-500">Tier details and eligibility information coming soon.</p>
+                      <p className="mt-2 text-[11px] leading-relaxed text-stone-400">{MEMBERSHIP_TIER_DETAILS[tier].description}</p>
                     </li>
                   );
                 })}
