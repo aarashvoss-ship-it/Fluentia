@@ -1449,7 +1449,7 @@ function DashboardContent() {
                 </div>
               </dl>
             </div>
-            <p className="mt-3 text-[11px] leading-relaxed text-stone-500">Credits are used for instructor evaluations. Contact your instructor about balance updates.</p>
+            <p className="mt-3 text-[11px] leading-relaxed text-stone-500">We never restrict your access. However, to ensure your studies remain completely seamless and steady, we kindly suggest keeping your credit balance above 50.</p>
           </section>
         </div>
       )}
