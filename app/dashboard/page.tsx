@@ -1341,8 +1341,15 @@ function DashboardContent() {
                 >
                   {profileOpen ? (
                     <>
-                  <div className="flex items-center justify-between gap-3 border-b border-border p-4">
-                    <div>
+                  <div className="flex items-center gap-3 border-b border-border p-4">
+                    <Link
+                      href="/dashboard"
+                      aria-label="Fluentia home"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-amber-500/20 bg-amber-500/10 p-1.5 transition-colors hover:border-amber-500/40 hover:bg-amber-500/15"
+                    >
+                      <img src="/logo.png" alt="" className="h-full w-full object-contain" />
+                    </Link>
+                    <div className="min-w-0">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">
                         Fluentia
                       </p>
@@ -1608,6 +1615,11 @@ function DashboardContent() {
                     </>
                   ) : (
                     <nav className="flex h-full flex-col items-center gap-3 py-4" aria-label="Quick navigation">
+                      <Tooltip content="Fluentia home">
+                        <Link href="/dashboard" aria-label="Fluentia home" className="flex h-9 w-9 items-center justify-center rounded-lg border border-amber-500/20 bg-amber-500/10 p-1.5 transition-colors hover:border-amber-500/40 hover:bg-amber-500/15">
+                          <img src="/logo.png" alt="" className="h-full w-full object-contain" />
+                        </Link>
+                      </Tooltip>
                       <Tooltip content="Expand sidebar">
                         <button type="button" onClick={() => setProfileOpen(true)} aria-label="Expand sidebar" className="flex h-9 w-9 items-center justify-center rounded-md text-stone-400 transition hover:bg-amber-500/10 hover:text-amber-300">
                           <ChevronRight className="h-4 w-4" />
