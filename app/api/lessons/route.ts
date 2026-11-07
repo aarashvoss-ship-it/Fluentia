@@ -803,13 +803,25 @@ export async function PATCH(request: Request) {
         ? [...new Set(body.studentIds.filter((value): value is string => typeof value === "string" && uuidPattern.test(value)))]
         : [];
       const assignAll = body.assignAll === true;
+      if (studentIds.length) {
+        await client.query(
+          `INSERT INTO public.students (id, name, email, token)
+           SELECT profile.id, COALESCE(NULLIF(profile.full_name, ''), users.email), users.email, profile.token
+           FROM public.profiles AS profile
+           JOIN public.users AS users ON users.id = profile.id
+           WHERE profile.id = ANY($1::uuid[]) AND profile.role = 'student'
+           ON CONFLICT (id) DO NOTHING`,
+          [studentIds],
+        );
+      }
       await client.query("DELETE FROM public.lesson_assignments WHERE lesson_id = $1", [id]);
       if (studentIds.length) {
         await client.query(
           `INSERT INTO public.lesson_assignments (lesson_id, student_id, status)
            SELECT $1, student.id, 'assigned'
-           FROM public.profiles AS student
-           WHERE student.id = ANY($2::uuid[]) AND student.role = 'student'
+           FROM public.students AS student
+           JOIN public.profiles AS profile ON profile.id = student.id
+           WHERE student.id = ANY($2::uuid[]) AND profile.role = 'student'
            ON CONFLICT (lesson_id, student_id) DO UPDATE SET status = 'assigned', assigned_at = now()`,
           [id, studentIds],
         );
