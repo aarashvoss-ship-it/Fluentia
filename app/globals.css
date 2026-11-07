@@ -249,7 +249,7 @@ b {
 
 .fluentia-tooltip-content {
   position: fixed;
-  z-index: 9999;
+  z-index: 10010;
   width: max-content;
   max-width: min(16rem, calc(100vw - 2rem));
   padding: 0.375rem 0.5rem;
