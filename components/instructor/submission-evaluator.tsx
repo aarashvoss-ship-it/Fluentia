@@ -63,6 +63,7 @@ const RUBRIC_CRITERIA = [
   { id: "grammar", label: "Grammatical Accuracy", max: 5 },
 ];
 const STAGE_RUBRIC_CRITERIA = RUBRIC_CRITERIA;
+const MAX_INSTRUCTOR_PROMPT_LENGTH = 2500;
 const ACADEMIS_PROMPTS = [
   {
     id: "balanced",
@@ -80,6 +81,24 @@ const ACADEMIS_PROMPTS = [
     prompt: "Write an encouraging, student-friendly summary of demonstrated strengths and the next learning goal. Be specific, supportive, and concise.",
   },
 ] as const;
+interface AcademisPromptPreset {
+  id: string;
+  label: string;
+  prompt: string;
+}
+
+interface AcademisInsight {
+  score: number;
+  score_evaluation: string;
+  instructor_feedback: string;
+  key_error_patterns: Array<{
+    pattern: string;
+    example: string;
+    lesson_adjustment: string;
+  }>;
+  progress_summary: string;
+}
+
 const DEFAULT_REPORT_STAGES: UnifiedReportStage[] = [
   { id: "warm_up", title: "Warm-up", tasks: [] },
   { id: "lesson", title: "Lesson", tasks: [] },
@@ -158,11 +177,18 @@ export function SubmissionEvaluator({
   const stageVoiceFeedback = evaluation?.stageVoiceFeedback || {};
   const stages = reportCardStages.length ? reportCardStages : DEFAULT_REPORT_STAGES;
   const [activeStageId, setActiveStageId] = useState(stages[0]?.id || "report-card");
+  const [activeTaskId, setActiveTaskId] = useState(stages[0]?.tasks[0]?.id || "");
   const [expandedTaskFeedback, setExpandedTaskFeedback] = useState<Record<string, boolean>>({});
   const [isEvaluationSidebarCollapsed, setIsEvaluationSidebarCollapsed] = useState(false);
   const [isAcademisSidebarCollapsed, setIsAcademisSidebarCollapsed] = useState(false);
   const [academisPrompt, setAcademisPrompt] = useState<string>(ACADEMIS_PROMPTS[0].prompt);
-  const [academisOutput, setAcademisOutput] = useState<{ title: string; content: string } | null>(null);
+  const [academisPresets, setAcademisPresets] = useState<AcademisPromptPreset[]>(
+    ACADEMIS_PROMPTS.map((preset) => ({ ...preset })),
+  );
+  const [activeAcademisPresetId, setActiveAcademisPresetId] = useState<string>(ACADEMIS_PROMPTS[0].id);
+  const [academisInsight, setAcademisInsight] = useState<{ stageId: string; result: AcademisInsight } | null>(null);
+  const [isAcademisLoading, setIsAcademisLoading] = useState(false);
+  const [academisError, setAcademisError] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isSavingDraft, setIsSavingDraft] = useState<boolean>(false);
@@ -302,6 +328,7 @@ export function SubmissionEvaluator({
     : Math.max(0, stages.findIndex((stage) => stage.id === activeStageId));
   const activeStage = stages[activeStageIndex];
   const activeStageTitle = activeStage ? activeStage.title : "Report Card";
+  const activeTask = activeStage?.tasks.find((task) => task.id === activeTaskId) || activeStage?.tasks[0];
   const evaluationStatus = (stageId: string) => {
     if (evaluation?.published) return "Evaluated";
     const stage = stages.find((item) => item.id === stageId);
@@ -417,6 +444,9 @@ export function SubmissionEvaluator({
 
   const changeActiveStage = (stageId: string) => {
     setActiveStageId(stageId);
+    setActiveTaskId(stages.find((stage) => stage.id === stageId)?.tasks[0]?.id || "");
+    setAcademisInsight(null);
+    setAcademisError(null);
     setVoiceUploadError(null);
   };
   const stageStatusClass = (status: string) => status === "Evaluated"
@@ -453,44 +483,55 @@ export function SubmissionEvaluator({
     </div>
     {activeStageId !== reportStageId && activeStage && <span className={`rounded-full border px-2.5 py-1 text-[10px] ${stageStatusClass(evaluationStatus(activeStage.id))}`}>{evaluationStatus(activeStage.id)}</span>}
   </header>;
-  const generateAcademisSummary = () => {
-    const criterionSummary = RUBRIC_CRITERIA.map(({ id, label }) => {
-      const score = displayScores[id];
-      return `${label}: ${score === undefined ? "Not scored" : `${formatRubricScore(score)}/${overallScale.max}`}`;
-    });
-    const feedbackSummary = RUBRIC_CRITERIA
-      .map(({ id, label }) => criterionFeedback[id]?.trim() ? `${label}: ${criterionFeedback[id].trim()}` : null)
-      .filter((feedback): feedback is string => feedback !== null);
-    const currentStageFeedback = activeStageId !== reportStageId ? stageFeedback[activeStageId]?.trim() : "";
-
-    const summary = [
-      `Student: ${studentName}`,
-      `Review focus: ${activeStageTitle}`,
-      `Automatic overall score: ${formatOverallRubricTotal(totalScore, overallScaleId, overallAggregation.totalDenominator)}`,
-      "Rubric scores:",
-      ...criterionSummary.map((line) => `- ${line}`),
-      "Instructor feedback:",
-      ...(feedbackSummary.length ? feedbackSummary.map((line) => `- ${line}`) : ["- No criterion feedback entered yet."]),
-      ...(comments.trim() ? [`Overall note: ${comments.trim()}`] : []),
-      ...(currentStageFeedback ? [`Stage note: ${currentStageFeedback}`] : []),
-    ].join("\n");
-    setAcademisOutput({ title: "Structured feedback summary", content: summary });
+  const generateAcademisInsight = async () => {
+    if (!activeStage || !activeTask || !submissionId) return;
+    setIsAcademisLoading(true);
+    setAcademisError(null);
+    setAcademisInsight(null);
+    try {
+      const response = await fetch("/api/instructor/academis", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          submissionId,
+          stageId: activeStage.id,
+          stageTitle: activeStage.title,
+          taskId: activeTask.id,
+          taskTitle: activeTask.title || activeTask.prompt || "Student response",
+          taskPrompt: activeTask.prompt || activeTask.title || activeStage.prompt || activeStage.title,
+          studentResponse: activeTask.studentAnswer || (activeTask.audioUrls?.length
+            ? "Audio response submitted; transcript unavailable for grading."
+            : "No written response submitted."),
+          instructorPrompt: academisPrompt,
+          rubricScores: Object.fromEntries(
+            RUBRIC_CRITERIA.map(({ id }) => [id, stageScores[activeStage.id]?.[id] ?? null]),
+          ),
+        }),
+      });
+      let payload: { error?: string; insight?: AcademisInsight };
+      try {
+        payload = await response.json() as { error?: string; insight?: AcademisInsight };
+      } catch {
+        throw new Error("Academis returned an invalid response.");
+      }
+      if (!response.ok) throw new Error(payload.error || "Academis could not complete the grading request.");
+      if (!payload.insight
+        || typeof payload.insight.score !== "number"
+        || typeof payload.insight.instructor_feedback !== "string"
+        || !Array.isArray(payload.insight.key_error_patterns)) {
+        throw new Error("Academis returned an incomplete grading result.");
+      }
+      setAcademisInsight({ stageId: activeStage.id, result: payload.insight });
+    } catch (error) {
+      setAcademisError(error instanceof Error ? error.message : "Academis could not complete the grading request.");
+    } finally {
+      setIsAcademisLoading(false);
+    }
   };
-  const prepareAcademisBrief = () => {
-    const brief = [
-      `Student: ${studentName}`,
-      `Review focus: ${activeStageTitle}`,
-      `Scoring scale: ${overallScale.label}`,
-      `Automatic overall score: ${formatOverallRubricTotal(totalScore, overallScaleId, overallAggregation.totalDenominator)}`,
-      "Current rubric ratings:",
-      ...RUBRIC_CRITERIA.map(({ id, label }) => `- ${label}: ${displayScores[id] === undefined ? "Not scored" : `${formatRubricScore(displayScores[id])}/${overallScale.max}`}`),
-      "",
-      "Instructor prompt:",
-      academisPrompt.trim() || "Evaluate the submission fairly against the rubric.",
-      "",
-      "Requested response: return a concise structured summary with evidence-based strengths, priority improvements, and actionable next steps. Do not invent evidence.",
-    ].join("\n");
-    setAcademisOutput({ title: "AI grading brief", content: brief });
+  const updateAcademisPreset = (presetId: string, changes: Partial<Pick<AcademisPromptPreset, "label" | "prompt">>) => {
+    setAcademisPresets((presets) => presets.map((preset) => preset.id === presetId ? { ...preset, ...changes } : preset));
+    if (presetId === activeAcademisPresetId && changes.prompt !== undefined) setAcademisPrompt(changes.prompt);
   };
 
   return <div className="space-y-5">
@@ -709,7 +750,24 @@ export function SubmissionEvaluator({
               const modelBoxClass = "border-emerald-500/30 bg-emerald-500/5";
               const modelLabelClass = "text-emerald-300";
               const modelTextClass = "text-emerald-100";
-              return <article key={task.id} className="space-y-3 rounded-xl border border-border bg-surface p-4">
+              return <article
+                key={task.id}
+                onClick={() => {
+                  if (activeTask?.id !== task.id) {
+                    setActiveTaskId(task.id);
+                    setAcademisInsight(null);
+                    setAcademisError(null);
+                  }
+                }}
+                onFocusCapture={() => {
+                  if (activeTask?.id !== task.id) {
+                    setActiveTaskId(task.id);
+                    setAcademisInsight(null);
+                    setAcademisError(null);
+                  }
+                }}
+                className={`space-y-3 rounded-xl border bg-surface p-4 ${activeTask?.id === task.id ? "border-amber-500/30" : "border-border"}`}
+              >
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Task Prompt {task.taskNumber ?? index + 1}</p>
                   <h3 className="mt-1 whitespace-pre-wrap break-words text-sm font-medium leading-relaxed text-stone-100">{stripMarkdown(task.prompt || task.title || "Task prompt not available.")}</h3>
@@ -905,57 +963,120 @@ export function SubmissionEvaluator({
             {isAcademisSidebarCollapsed ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           </button>
         </div>
-        <div id="academis-sidebar-content" hidden={isAcademisSidebarCollapsed} className={`mt-4 min-h-0 flex-1 flex-col gap-4 overflow-y-auto ${isAcademisSidebarCollapsed ? "hidden" : "flex"}`}>
-          <section className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3" aria-label="Automated scoring">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">Automated scoring</p>
-              <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[9px] text-emerald-300">Active</span>
-            </div>
-            <p className="mt-2 text-xs leading-relaxed text-stone-400">Overall ratings are synthesized from stage scores and your selected rubric scale.</p>
-            <p className="mt-2 text-sm font-semibold text-amber-200">{formatOverallRubricTotal(totalScore, overallScaleId, overallAggregation.totalDenominator)}</p>
-          </section>
-
-          <section className="space-y-2" aria-label="Evaluation prompt presets">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400">Evaluation presets</p>
-            <div className="flex flex-wrap gap-1.5">
-              {ACADEMIS_PROMPTS.map((preset) => <button
-                key={preset.id}
-                type="button"
-                aria-pressed={academisPrompt === preset.prompt}
-                onClick={() => setAcademisPrompt(preset.prompt)}
-                className={`rounded-md border px-2 py-1.5 text-[10px] transition ${academisPrompt === preset.prompt ? "border-amber-500/40 bg-amber-500/10 text-amber-200" : "border-border text-stone-400 hover:border-amber-500/30 hover:text-stone-200"}`}
-              >
-                {preset.label}
-              </button>)}
-            </div>
-          </section>
-
-          <label className="block text-xs text-stone-400">
-            Custom grading prompt
-            <textarea
-              value={academisPrompt}
-              onChange={(event) => setAcademisPrompt(event.target.value)}
-              rows={5}
-              placeholder="Describe the grading focus or feedback style..."
-              className="mt-1.5 w-full resize-y rounded-md border border-border bg-background p-2.5 text-xs leading-relaxed text-stone-200 outline-none focus:border-amber-500/40"
-            />
-          </label>
-
-          <div className="grid gap-2">
-            <button type="button" onClick={prepareAcademisBrief} className="flex w-full items-center justify-center gap-2 rounded-md bg-amber-500/20 px-3 py-2.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/30">
-              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />Prepare grading brief
-            </button>
-            <button type="button" onClick={generateAcademisSummary} className="w-full rounded-md border border-border px-3 py-2 text-xs text-stone-300 transition hover:border-amber-500/40 hover:text-amber-200">
-              Generate structured summary
-            </button>
+        <div id="academis-sidebar-content" hidden={isAcademisSidebarCollapsed} className={`mt-4 min-h-0 flex-1 flex-col gap-3 overflow-y-auto ${isAcademisSidebarCollapsed ? "hidden" : "flex"}`}>
+          <div className="rounded-md border border-border bg-background/60 px-2.5 py-2">
+            <p className="truncate text-[10px] font-medium text-stone-300">{activeStage?.title || "Choose a stage"}{activeTask ? ` · ${activeTask.title || activeTask.prompt || "Task"}` : ""}</p>
+            <p className="mt-0.5 text-[9px] text-stone-500">{activeTask ? "Task context follows your focus" : "No task in this stage"}</p>
           </div>
 
-          {academisOutput && <section className="space-y-2 border-t border-border pt-3" aria-label={`Academis ${academisOutput.title.toLowerCase()}`}>
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-300">{academisOutput.title}</h3>
-              <button type="button" onClick={() => setAcademisOutput(null)} className="text-[10px] text-stone-500 hover:text-stone-300">Clear</button>
+          <div className="flex flex-wrap gap-1.5" aria-label="Evaluation prompt presets">
+            {academisPresets.map((preset) => <button
+              key={preset.id}
+              type="button"
+              aria-pressed={activeAcademisPresetId === preset.id}
+              onClick={() => {
+                setActiveAcademisPresetId(preset.id);
+                setAcademisPrompt(preset.prompt);
+              }}
+              className={`rounded-full border px-2.5 py-1 text-[10px] transition ${activeAcademisPresetId === preset.id ? "border-amber-500/40 bg-amber-500/10 text-amber-200" : "border-border text-stone-400 hover:border-amber-500/30 hover:text-stone-200"}`}
+            >
+              {preset.label}
+            </button>)}
+          </div>
+
+          <details className="group rounded-md border border-border bg-background/40">
+            <summary className="cursor-pointer list-none px-2.5 py-2 text-[10px] text-stone-400 transition hover:text-amber-200">Manage prompts</summary>
+            <div className="space-y-3 border-t border-border p-2.5">
+              {academisPresets.map((preset) => <fieldset key={preset.id} className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <input
+                    value={preset.label}
+                    maxLength={32}
+                    onChange={(event) => updateAcademisPreset(preset.id, { label: event.target.value })}
+                    aria-label={`${preset.label} preset name`}
+                    className="min-w-0 flex-1 rounded border border-border bg-background px-2 py-1 text-[10px] text-stone-200 outline-none focus:border-amber-500/40"
+                  />
+                  {academisPresets.length > 1 && <button
+                    type="button"
+                    onClick={() => {
+                      const remaining = academisPresets.filter((item) => item.id !== preset.id);
+                      setAcademisPresets(remaining);
+                      if (activeAcademisPresetId === preset.id) {
+                        setActiveAcademisPresetId(remaining[0].id);
+                        setAcademisPrompt(remaining[0].prompt);
+                      }
+                    }}
+                    aria-label={`Remove ${preset.label} preset`}
+                    className="px-1 text-[10px] text-stone-500 hover:text-red-300"
+                  >
+                    Remove
+                  </button>}
+                </div>
+                <textarea
+                  value={preset.prompt}
+                  rows={2}
+                  maxLength={MAX_INSTRUCTOR_PROMPT_LENGTH}
+                  onChange={(event) => updateAcademisPreset(preset.id, { prompt: event.target.value })}
+                  aria-label={`${preset.label} grading prompt`}
+                  className="w-full resize-y rounded border border-border bg-background p-2 text-[10px] leading-relaxed text-stone-300 outline-none focus:border-amber-500/40"
+                />
+              </fieldset>)}
+              <button
+                type="button"
+                onClick={() => {
+                  const preset = { id: crypto.randomUUID(), label: "New preset", prompt: "" };
+                  setAcademisPresets((presets) => [...presets, preset]);
+                  setActiveAcademisPresetId(preset.id);
+                  setAcademisPrompt(preset.prompt);
+                }}
+                className="text-[10px] text-amber-300 hover:text-amber-200"
+              >
+                + Add preset
+              </button>
             </div>
-            <pre className="whitespace-pre-wrap break-words rounded-md border border-border bg-background p-2.5 text-[10px] leading-relaxed text-stone-300">{academisOutput.content}</pre>
+          </details>
+
+          <button
+            type="button"
+            onClick={() => void generateAcademisInsight()}
+            disabled={isAcademisLoading || !submissionId || !activeTask}
+            className="flex w-full items-center justify-center gap-2 rounded-md bg-amber-500/20 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+            {isAcademisLoading ? "Evaluating…" : "Evaluate with Academis"}
+          </button>
+          {academisError && <p role="alert" className="text-[10px] leading-relaxed text-red-300">{academisError}</p>}
+
+          {academisInsight && <section className="space-y-2 border-t border-border pt-3" aria-label="Academis evaluation result">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-amber-400">Holistic score</p>
+                <p className="text-lg font-semibold text-amber-200">{academisInsight.result.score}<span className="text-xs text-stone-500"> / 9</span></p>
+              </div>
+              <p className="max-w-[13rem] text-right text-[10px] leading-relaxed text-stone-400">{academisInsight.result.score_evaluation}</p>
+            </div>
+            <p className="text-xs leading-relaxed text-stone-200">{academisInsight.result.instructor_feedback}</p>
+            {academisInsight.result.key_error_patterns.length > 0 && <details className="rounded-md border border-border px-2.5 py-2">
+              <summary className="cursor-pointer text-[10px] text-stone-400">Patterns ({academisInsight.result.key_error_patterns.length})</summary>
+              <ul className="mt-2 space-y-2">
+                {academisInsight.result.key_error_patterns.map((pattern, index) => <li key={`${pattern.pattern}-${index}`} className="text-[10px] leading-relaxed">
+                  <p className="text-stone-200">{pattern.pattern}</p>
+                  <p className="text-stone-500">{pattern.example}</p>
+                  <p className="text-amber-300/80">Lesson note: {pattern.lesson_adjustment}</p>
+                </li>)}
+              </ul>
+            </details>}
+            <p className="text-[10px] leading-relaxed text-stone-500">{academisInsight.result.progress_summary}</p>
+            <button
+              type="button"
+              onClick={() => {
+                changeActiveStage(academisInsight.stageId);
+                updateEvaluation({ stageFeedback: { ...stageFeedback, [academisInsight.stageId]: academisInsight.result.instructor_feedback } });
+              }}
+              className="w-full rounded-md border border-amber-500/30 px-2.5 py-2 text-[10px] font-medium text-amber-200 transition hover:bg-amber-500/10"
+            >
+              Apply to Stage Feedback
+            </button>
           </section>}
         </div>
       </aside>
