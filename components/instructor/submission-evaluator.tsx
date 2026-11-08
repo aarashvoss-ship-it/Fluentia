@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Mic, Save } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Mic, Save, Sparkles } from "lucide-react";
 import { LessonEvaluation } from "@/types/lesson";
 import { getInstructorSubmissionData, saveInstructorEvaluation } from "@/lib/evaluations";
 import { uploadVoiceFeedback } from "@/services/storage-service";
@@ -63,6 +63,23 @@ const RUBRIC_CRITERIA = [
   { id: "grammar", label: "Grammatical Accuracy", max: 5 },
 ];
 const STAGE_RUBRIC_CRITERIA = RUBRIC_CRITERIA;
+const ACADEMIS_PROMPTS = [
+  {
+    id: "balanced",
+    label: "Balanced review",
+    prompt: "Assess the submission against the rubric. Highlight evidence for each score, note the strongest area and one practical next step, and keep the tone constructive.",
+  },
+  {
+    id: "language",
+    label: "Language focus",
+    prompt: "Focus on grammatical accuracy, lexical precision, and natural phrasing. Explain recurring patterns with brief examples and prioritize the most useful corrections.",
+  },
+  {
+    id: "encouraging",
+    label: "Encouraging summary",
+    prompt: "Write an encouraging, student-friendly summary of demonstrated strengths and the next learning goal. Be specific, supportive, and concise.",
+  },
+] as const;
 const DEFAULT_REPORT_STAGES: UnifiedReportStage[] = [
   { id: "warm_up", title: "Warm-up", tasks: [] },
   { id: "lesson", title: "Lesson", tasks: [] },
@@ -143,6 +160,9 @@ export function SubmissionEvaluator({
   const [activeStageId, setActiveStageId] = useState(stages[0]?.id || "report-card");
   const [expandedTaskFeedback, setExpandedTaskFeedback] = useState<Record<string, boolean>>({});
   const [isEvaluationSidebarCollapsed, setIsEvaluationSidebarCollapsed] = useState(false);
+  const [isAcademisSidebarCollapsed, setIsAcademisSidebarCollapsed] = useState(false);
+  const [academisPrompt, setAcademisPrompt] = useState<string>(ACADEMIS_PROMPTS[0].prompt);
+  const [academisOutput, setAcademisOutput] = useState<{ title: string; content: string } | null>(null);
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isSavingDraft, setIsSavingDraft] = useState<boolean>(false);
@@ -433,6 +453,45 @@ export function SubmissionEvaluator({
     </div>
     {activeStageId !== reportStageId && activeStage && <span className={`rounded-full border px-2.5 py-1 text-[10px] ${stageStatusClass(evaluationStatus(activeStage.id))}`}>{evaluationStatus(activeStage.id)}</span>}
   </header>;
+  const generateAcademisSummary = () => {
+    const criterionSummary = RUBRIC_CRITERIA.map(({ id, label }) => {
+      const score = displayScores[id];
+      return `${label}: ${score === undefined ? "Not scored" : `${formatRubricScore(score)}/${overallScale.max}`}`;
+    });
+    const feedbackSummary = RUBRIC_CRITERIA
+      .map(({ id, label }) => criterionFeedback[id]?.trim() ? `${label}: ${criterionFeedback[id].trim()}` : null)
+      .filter((feedback): feedback is string => feedback !== null);
+    const currentStageFeedback = activeStageId !== reportStageId ? stageFeedback[activeStageId]?.trim() : "";
+
+    const summary = [
+      `Student: ${studentName}`,
+      `Review focus: ${activeStageTitle}`,
+      `Automatic overall score: ${formatOverallRubricTotal(totalScore, overallScaleId, overallAggregation.totalDenominator)}`,
+      "Rubric scores:",
+      ...criterionSummary.map((line) => `- ${line}`),
+      "Instructor feedback:",
+      ...(feedbackSummary.length ? feedbackSummary.map((line) => `- ${line}`) : ["- No criterion feedback entered yet."]),
+      ...(comments.trim() ? [`Overall note: ${comments.trim()}`] : []),
+      ...(currentStageFeedback ? [`Stage note: ${currentStageFeedback}`] : []),
+    ].join("\n");
+    setAcademisOutput({ title: "Structured feedback summary", content: summary });
+  };
+  const prepareAcademisBrief = () => {
+    const brief = [
+      `Student: ${studentName}`,
+      `Review focus: ${activeStageTitle}`,
+      `Scoring scale: ${overallScale.label}`,
+      `Automatic overall score: ${formatOverallRubricTotal(totalScore, overallScaleId, overallAggregation.totalDenominator)}`,
+      "Current rubric ratings:",
+      ...RUBRIC_CRITERIA.map(({ id, label }) => `- ${label}: ${displayScores[id] === undefined ? "Not scored" : `${formatRubricScore(displayScores[id])}/${overallScale.max}`}`),
+      "",
+      "Instructor prompt:",
+      academisPrompt.trim() || "Evaluate the submission fairly against the rubric.",
+      "",
+      "Requested response: return a concise structured summary with evidence-based strengths, priority improvements, and actionable next steps. Do not invent evidence.",
+    ].join("\n");
+    setAcademisOutput({ title: "AI grading brief", content: brief });
+  };
 
   return <div className="space-y-5">
     {publishNotice && <div
@@ -447,7 +506,15 @@ export function SubmissionEvaluator({
       <span className="flex-1">{publishNotice.message}</span>
       <button type="button" onClick={() => setPublishNotice(null)} className="shrink-0 text-xs opacity-75 hover:opacity-100" aria-label="Dismiss notification">Dismiss</button>
     </div>}
-    <div className={`grid min-w-0 items-start gap-5 transition-[grid-template-columns] duration-300 ease-in-out ${isEvaluationSidebarCollapsed ? "lg:grid-cols-[3.5rem_minmax(0,1fr)]" : "lg:grid-cols-[250px_minmax(0,1fr)]"}`}>
+    <div className={`grid min-w-0 items-start gap-5 transition-[grid-template-columns] duration-300 ease-in-out ${
+      isEvaluationSidebarCollapsed
+        ? isAcademisSidebarCollapsed
+          ? "lg:grid-cols-[3.5rem_minmax(0,1fr)] xl:grid-cols-[3.5rem_minmax(0,1fr)_3.5rem]"
+          : "lg:grid-cols-[3.5rem_minmax(0,1fr)] xl:grid-cols-[3.5rem_minmax(0,1fr)_320px]"
+        : isAcademisSidebarCollapsed
+          ? "lg:grid-cols-[250px_minmax(0,1fr)] xl:grid-cols-[250px_minmax(0,1fr)_3.5rem]"
+          : "lg:grid-cols-[250px_minmax(0,1fr)] xl:grid-cols-[250px_minmax(0,1fr)_320px]"
+    }`}>
       <aside className={`flex min-w-0 flex-col rounded-xl border border-border bg-surface transition-[padding] duration-300 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] ${isEvaluationSidebarCollapsed ? "p-2" : "p-4"}`} aria-label="Evaluation tools">
         <div className={`flex shrink-0 items-center ${isEvaluationSidebarCollapsed ? "justify-center" : "justify-between gap-2"}`}>
           {!isEvaluationSidebarCollapsed && <div className="min-w-0">
@@ -817,6 +884,81 @@ export function SubmissionEvaluator({
           {isSubmitting ? "Publishing..." : isSubmitted ? "Evaluation Published" : "Publish Evaluation & Send to Student"}
         </button>}
       </section>
+
+      <aside className={`flex min-w-0 flex-col rounded-xl border border-amber-500/20 bg-surface transition-[padding] duration-300 xl:sticky xl:top-6 xl:max-h-[calc(100vh-3rem)] ${isAcademisSidebarCollapsed ? "p-2" : "p-4"}`} aria-label="Academis AI grading assistant">
+        <div className={`flex shrink-0 items-center ${isAcademisSidebarCollapsed ? "justify-center" : "justify-between gap-2"}`}>
+          {!isAcademisSidebarCollapsed && <div className="flex min-w-0 items-center gap-2">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-amber-500/40 bg-amber-500/10 text-amber-300"><Sparkles className="h-4 w-4" aria-hidden="true" /></span>
+            <div className="min-w-0">
+              <p className="truncate text-[10px] font-semibold uppercase tracking-[0.15em] text-amber-400">Academis</p>
+              <h2 className="truncate text-sm font-semibold text-stone-100">AI Grading Assistant</h2>
+            </div>
+          </div>}
+          <button
+            type="button"
+            onClick={() => setIsAcademisSidebarCollapsed((collapsed) => !collapsed)}
+            aria-label={isAcademisSidebarCollapsed ? "Expand Academis assistant" : "Collapse Academis assistant"}
+            aria-expanded={!isAcademisSidebarCollapsed}
+            aria-controls="academis-sidebar-content"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-border text-stone-300 transition hover:border-amber-500/40 hover:text-amber-400"
+          >
+            {isAcademisSidebarCollapsed ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          </button>
+        </div>
+        <div id="academis-sidebar-content" hidden={isAcademisSidebarCollapsed} className={`mt-4 min-h-0 flex-1 flex-col gap-4 overflow-y-auto ${isAcademisSidebarCollapsed ? "hidden" : "flex"}`}>
+          <section className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3" aria-label="Automated scoring">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">Automated scoring</p>
+              <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[9px] text-emerald-300">Active</span>
+            </div>
+            <p className="mt-2 text-xs leading-relaxed text-stone-400">Overall ratings are synthesized from stage scores and your selected rubric scale.</p>
+            <p className="mt-2 text-sm font-semibold text-amber-200">{formatOverallRubricTotal(totalScore, overallScaleId, overallAggregation.totalDenominator)}</p>
+          </section>
+
+          <section className="space-y-2" aria-label="Evaluation prompt presets">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400">Evaluation presets</p>
+            <div className="flex flex-wrap gap-1.5">
+              {ACADEMIS_PROMPTS.map((preset) => <button
+                key={preset.id}
+                type="button"
+                aria-pressed={academisPrompt === preset.prompt}
+                onClick={() => setAcademisPrompt(preset.prompt)}
+                className={`rounded-md border px-2 py-1.5 text-[10px] transition ${academisPrompt === preset.prompt ? "border-amber-500/40 bg-amber-500/10 text-amber-200" : "border-border text-stone-400 hover:border-amber-500/30 hover:text-stone-200"}`}
+              >
+                {preset.label}
+              </button>)}
+            </div>
+          </section>
+
+          <label className="block text-xs text-stone-400">
+            Custom grading prompt
+            <textarea
+              value={academisPrompt}
+              onChange={(event) => setAcademisPrompt(event.target.value)}
+              rows={5}
+              placeholder="Describe the grading focus or feedback style..."
+              className="mt-1.5 w-full resize-y rounded-md border border-border bg-background p-2.5 text-xs leading-relaxed text-stone-200 outline-none focus:border-amber-500/40"
+            />
+          </label>
+
+          <div className="grid gap-2">
+            <button type="button" onClick={prepareAcademisBrief} className="flex w-full items-center justify-center gap-2 rounded-md bg-amber-500/20 px-3 py-2.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/30">
+              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />Prepare grading brief
+            </button>
+            <button type="button" onClick={generateAcademisSummary} className="w-full rounded-md border border-border px-3 py-2 text-xs text-stone-300 transition hover:border-amber-500/40 hover:text-amber-200">
+              Generate structured summary
+            </button>
+          </div>
+
+          {academisOutput && <section className="space-y-2 border-t border-border pt-3" aria-label={`Academis ${academisOutput.title.toLowerCase()}`}>
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-300">{academisOutput.title}</h3>
+              <button type="button" onClick={() => setAcademisOutput(null)} className="text-[10px] text-stone-500 hover:text-stone-300">Clear</button>
+            </div>
+            <pre className="whitespace-pre-wrap break-words rounded-md border border-border bg-background p-2.5 text-[10px] leading-relaxed text-stone-300">{academisOutput.content}</pre>
+          </section>}
+        </div>
+      </aside>
     </div>
   </div>;
 }

@@ -4666,7 +4666,7 @@ export default function InstructorWorkstationPage({
           </div>
         </aside>
       )}
-      <div className={`mx-auto w-full ${activeTab === "builder" ? "max-w-none px-4 md:px-8" : "max-w-7xl px-4 sm:px-6 lg:px-8"} py-6 md:py-8 ${activeTab === "builder" ? "pb-28" : ""}`}>
+      <div className={`mx-auto w-full ${activeTab === "builder" || activeTab === "evaluation" ? "max-w-none px-4 md:px-8" : "max-w-7xl px-4 sm:px-6 lg:px-8"} py-6 md:py-8 ${activeTab === "builder" ? "pb-28" : ""}`}>
         <div className="mb-6 flex items-center">
           <img src="/logo.png" alt="Fluentia" className="h-10 w-auto object-contain" />
         </div>
