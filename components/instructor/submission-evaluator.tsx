@@ -297,6 +297,22 @@ export function SubmissionEvaluator({
   >(usePostgres ? "idle" : "loaded");
 
   useEffect(() => {
+    if (activeStageId === "report-card") return;
+    const stage = stages.find((item) => item.id === activeStageId);
+    if (!stage) {
+      const primaryStage = stages[0];
+      if (primaryStage) {
+        setActiveStageId(primaryStage.id);
+        setActiveTaskId(primaryStage.tasks[0]?.id || "");
+      }
+      return;
+    }
+    if (!stage.tasks.some((task) => task.id === activeTaskId)) {
+      setActiveTaskId(stage.tasks[0]?.id || "");
+    }
+  }, [stages, activeStageId, activeTaskId]);
+
+  useEffect(() => {
     try {
       const savedPresets = window.localStorage.getItem(`fluentia:academis-presets:${instructorId || "default"}`);
       if (!savedPresets) return;
@@ -531,7 +547,11 @@ export function SubmissionEvaluator({
     : Math.max(0, stages.findIndex((stage) => stage.id === activeStageId));
   const activeStage = stages[activeStageIndex];
   const activeStageTitle = activeStage ? activeStage.title : "Report Card";
-  const activeTask = activeStage?.tasks.find((task) => task.id === activeTaskId);
+  const activeTask = activeStage?.tasks.find((task) => task.id === activeTaskId) || activeStage?.tasks[0];
+  const activeTaskPrompt = activeTask?.prompt?.trim()
+    || activeTask?.title?.trim()
+    || activeStage?.prompt?.trim()
+    || "";
   const activeAcademisPreset = academisPresets.find((preset) => preset.id === activeAcademisPresetId);
   const evaluationStatus = (stageId: string) => {
     if (evaluation?.published) return "Evaluated";
@@ -689,7 +709,8 @@ export function SubmissionEvaluator({
   </header>;
   const generateAcademisInsight = async () => {
     const selectedStage = stages.find((stage) => stage.id === activeStageId);
-    const selectedTask = selectedStage?.tasks.find((task) => task.id === activeTaskId);
+    const selectedTask = selectedStage?.tasks.find((task) => task.id === activeTaskId)
+      || selectedStage?.tasks[0];
     const taskPrompt = selectedTask?.prompt?.trim()
       || selectedTask?.title?.trim()
       || selectedStage?.prompt?.trim()
@@ -1334,11 +1355,15 @@ export function SubmissionEvaluator({
             >
               {!activeStage?.tasks.length && <option value="">No tasks in this stage</option>}
               {activeStage?.tasks.map((task, index) => {
-                const title = stripMarkdown(task.prompt || task.title || `Task ${index + 1}`)
+                const title = stripMarkdown(task.title || task.prompt || `Task ${index + 1}`)
                   .replace(/\s+/g, " ")
                   .trim();
+                const prompt = task.prompt?.trim()
+                  ? stripMarkdown(task.prompt).replace(/\s+/g, " ").trim()
+                  : "";
+                const optionLabel = prompt && prompt !== title ? `${title} — ${prompt}` : title;
                 return <option key={task.id} value={task.id}>
-                  {`${String(index + 1).padStart(2, "0")} · ${title.slice(0, 100)}${title.length > 100 ? "…" : ""}`}
+                  {`${String(index + 1).padStart(2, "0")} · ${optionLabel.slice(0, 140)}${optionLabel.length > 140 ? "…" : ""}`}
                 </option>;
               })}
             </select>
@@ -1357,7 +1382,7 @@ export function SubmissionEvaluator({
                 <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
               </summary>
               <p className="max-h-20 overflow-y-auto whitespace-pre-wrap break-words px-2.5 pb-2.5 text-[10px] leading-relaxed text-stone-300">
-                {stripMarkdown(activeTask.prompt || activeTask.title || activeStage?.prompt || "No task prompt is available.")}
+                {stripMarkdown(activeTaskPrompt || "No task prompt is available.")}
               </p>
             </details>
             <details className="group rounded-md border border-border bg-background/60">
