@@ -277,18 +277,12 @@ export function SubmissionEvaluator({
     result: AcademisInsight;
     stored: boolean;
   }>>({});
+  const [academisLoadedStages, setAcademisLoadedStages] = useState<Record<string, boolean>>({});
   const [academisRequestContext, setAcademisRequestContext] = useState<AcademisEvaluationContext | null>(null);
   const [isAcademisResultOpen, setIsAcademisResultOpen] = useState(false);
   const [academisResultTab, setAcademisResultTab] = useState<AcademisResultTab>("student-summary");
   const [academisStudentSummary, setAcademisStudentSummary] = useState("");
   const [academisApplyNotice, setAcademisApplyNotice] = useState<string | null>(null);
-  const [savedAcademisDiagnostic, setSavedAcademisDiagnostic] = useState<{
-    stageId: string;
-    taskId: string;
-    taskTitle: string;
-    insight: AcademisInsight;
-    stored: boolean;
-  } | null>(null);
   const [isAcademisLoading, setIsAcademisLoading] = useState(false);
   const [academisError, setAcademisError] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
@@ -399,79 +393,6 @@ export function SubmissionEvaluator({
     const timeoutId = window.setTimeout(() => setAcademisApplyNotice(null), 3200);
     return () => window.clearTimeout(timeoutId);
   }, [academisApplyNotice]);
-
-  useEffect(() => {
-    const selectedStage = stages.find((stage) => stage.id === activeStageId);
-    const selectedTask = selectedStage?.tasks.find((task) => task.id === activeTaskId)
-      || selectedStage?.tasks[0];
-    if (!submissionId || !selectedStage || !selectedTask) {
-      setSavedAcademisDiagnostic(null);
-      return;
-    }
-    const cacheKey = JSON.stringify([submissionId, selectedStage.id, selectedTask.id]);
-    const cachedResult = academisResultsByTask[cacheKey];
-    if (cachedResult) {
-      setSavedAcademisDiagnostic({
-        stageId: selectedStage.id,
-        taskId: selectedTask.id,
-        taskTitle: cachedResult.context.taskTitle,
-        insight: cachedResult.result,
-        stored: cachedResult.stored,
-      });
-      return;
-    }
-    setSavedAcademisDiagnostic(null);
-    const controller = new AbortController();
-    const loadDiagnostic = async () => {
-      try {
-        const params = new URLSearchParams({ submissionId, stageId: selectedStage.id, taskId: selectedTask.id });
-        const response = await fetch(`/api/instructor/academis?${params}`, {
-          credentials: "same-origin",
-          signal: controller.signal,
-        });
-        if (!response.ok) throw new Error("Unable to load saved Academis diagnostics.");
-        const payload: { insight?: unknown } = await response.json();
-        if (isAcademisInsight(payload.insight)) {
-          const taskPrompt = selectedTask.prompt?.trim()
-            || selectedTask.title?.trim()
-            || selectedStage.prompt?.trim()
-            || "";
-          const context: AcademisEvaluationContext = {
-            taskId: selectedTask.id,
-            stageId: selectedStage.id,
-            stageTitle: selectedStage.title,
-            taskTitle: (selectedTask.title?.trim() || taskPrompt).slice(0, MAX_ACADEMIS_TASK_TITLE_LENGTH),
-            taskPrompt: taskPrompt.slice(0, MAX_ACADEMIS_TASK_PROMPT_LENGTH),
-            studentResponse: (selectedTask.studentAnswer?.trim()
-              || (selectedTask.audioUrls?.length
-                ? "Audio response submitted; transcript unavailable for grading."
-                : "No written response submitted.")).slice(0, MAX_ACADEMIS_RESPONSE_LENGTH),
-            instructorPrompt: "",
-          };
-          const savedResult = { context, result: payload.insight, stored: true };
-          setAcademisResultsByTask((results) => ({ ...results, [cacheKey]: savedResult }));
-          setAcademisInsight(savedResult);
-          setAcademisRequestContext(context);
-          setAcademisStudentSummary(payload.insight.student_summary);
-          setSavedAcademisDiagnostic({
-            stageId: selectedStage.id,
-            taskId: selectedTask.id,
-            taskTitle: context.taskTitle,
-            insight: payload.insight,
-            stored: true,
-          });
-        } else {
-          setSavedAcademisDiagnostic(null);
-        }
-      } catch (error) {
-        if (controller.signal.aborted) return;
-        console.warn("Academis stage diagnostic could not be loaded:", error);
-        setSavedAcademisDiagnostic(null);
-      }
-    };
-    void loadDiagnostic();
-    return () => controller.abort();
-  }, [submissionId, activeStageId, activeTaskId, academisResultsByTask]);
 
   // Load the instructor's submission and saved evaluation through the authenticated API.
   useEffect(() => {
@@ -600,6 +521,7 @@ export function SubmissionEvaluator({
   const activeStage = stages[activeStageIndex];
   const activeStageTitle = activeStage ? activeStage.title : "Report Card";
   const activeTask = activeStage?.tasks.find((task) => task.id === activeTaskId) || activeStage?.tasks[0];
+  const activeStageTaskSignature = activeStage?.tasks.map((task) => task.id).join("|") || "";
   const activeAcademisCacheKey = submissionId && activeStage && activeTask
     ? JSON.stringify([submissionId, activeStage.id, activeTask.id])
     : null;
@@ -610,6 +532,66 @@ export function SubmissionEvaluator({
     || activeTask?.title?.trim()
     || activeStage?.prompt?.trim()
     || "";
+
+  useEffect(() => {
+    if (!submissionId || !activeStage || !activeStage.tasks.length) return;
+    const stageCacheKey = JSON.stringify([submissionId, activeStage.id]);
+    if (academisLoadedStages[stageCacheKey]) return;
+    const controller = new AbortController();
+    const loadStageReports = async () => {
+      try {
+        const params = new URLSearchParams({ submissionId, stageId: activeStage.id });
+        const response = await fetch(`/api/instructor/academis?${params}`, {
+          credentials: "same-origin",
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error("Unable to load saved Academis reports.");
+        const payload: { insights?: unknown } = await response.json();
+        const restoredResults: Record<string, { context: AcademisEvaluationContext; result: AcademisInsight; stored: boolean }> = {};
+        if (Array.isArray(payload.insights)) {
+          for (const savedReport of payload.insights) {
+            if (!isRecord(savedReport)
+              || typeof savedReport.taskId !== "string"
+              || !isAcademisInsight(savedReport.insight)) continue;
+            const task = activeStage.tasks.find((candidate) => candidate.id === savedReport.taskId);
+            if (!task) continue;
+            const taskPrompt = task.prompt?.trim() || task.title?.trim() || activeStage.prompt?.trim() || "";
+            const context: AcademisEvaluationContext = {
+              taskId: task.id,
+              stageId: activeStage.id,
+              stageTitle: activeStage.title,
+              taskTitle: (task.title?.trim() || taskPrompt).slice(0, MAX_ACADEMIS_TASK_TITLE_LENGTH),
+              taskPrompt: taskPrompt.slice(0, MAX_ACADEMIS_TASK_PROMPT_LENGTH),
+              studentResponse: (task.studentAnswer?.trim()
+                || (task.audioUrls?.length
+                  ? "Audio response submitted; transcript unavailable for grading."
+                  : "No written response submitted.")).slice(0, MAX_ACADEMIS_RESPONSE_LENGTH),
+              instructorPrompt: "",
+            };
+            const cacheKey = JSON.stringify([submissionId, activeStage.id, task.id]);
+            restoredResults[cacheKey] = { context, result: savedReport.insight, stored: true };
+          }
+        }
+        setAcademisResultsByTask((current) => {
+          const next = { ...current };
+          for (const [cacheKey, result] of Object.entries(restoredResults)) {
+            if (!next[cacheKey]) next[cacheKey] = result;
+          }
+          return next;
+        });
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          console.warn("Saved Academis reports are unavailable; session results remain available:", error);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setAcademisLoadedStages((loaded) => ({ ...loaded, [stageCacheKey]: true }));
+        }
+      }
+    };
+    void loadStageReports();
+    return () => controller.abort();
+  }, [submissionId, activeStageId, activeStageTaskSignature, academisLoadedStages]);
   const activeAcademisPreset = academisPresets.find((preset) => preset.id === activeAcademisPresetId);
   const evaluationStatus = (stageId: string) => {
     if (evaluation?.published) return "Evaluated";
@@ -860,13 +842,6 @@ export function SubmissionEvaluator({
       setAcademisInsight(completedResult);
       setAcademisResultsByTask((results) => ({ ...results, [cacheKey]: completedResult }));
       setAcademisStudentSummary(payload.insight.student_summary);
-      setSavedAcademisDiagnostic({
-        stageId: evaluationContext.stageId,
-        taskId: selectedTask.id,
-        taskTitle: evaluationContext.taskTitle,
-        insight: payload.insight,
-        stored: payload.insightSaved === true,
-      });
     } catch (error) {
       setAcademisError(error instanceof Error ? error.message : "Academis could not complete the grading request.");
     } finally {
@@ -1170,6 +1145,10 @@ export function SubmissionEvaluator({
               const modelBoxClass = "border-emerald-500/30 bg-emerald-500/5";
               const modelLabelClass = "text-emerald-300";
               const modelTextClass = "text-emerald-100";
+              const taskReportCacheKey = submissionId
+                ? JSON.stringify([submissionId, activeStage.id, task.id])
+                : "";
+              const taskReport = academisResultsByTask[taskReportCacheKey];
               return <article
                 key={task.id}
                 onClick={() => {
@@ -1238,6 +1217,34 @@ export function SubmissionEvaluator({
                     </div>
                   </div>
                 </div>
+                {taskReport && <details className="rounded-md border border-amber-500/20 bg-amber-500/5 p-3">
+                  <summary className="cursor-pointer text-[10px] font-semibold text-amber-200">Academis diagnostic · {taskReport.context.taskTitle}</summary>
+                  <div className="mt-3 space-y-3 border-t border-amber-500/10 pt-3">
+                    <p className="whitespace-pre-wrap text-[11px] leading-relaxed text-stone-300">{taskReport.result.instructor_diagnostic.teaching_notes}</p>
+                    {taskReport.result.instructor_diagnostic.key_error_patterns.length > 0 && <div>
+                      <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-stone-500">Error patterns</p>
+                      <ul className="space-y-2">
+                        {taskReport.result.instructor_diagnostic.key_error_patterns.map((pattern, patternIndex) => <li key={`${pattern.pattern}-${patternIndex}`} className="rounded-md border border-border bg-background/70 p-2 text-[10px]">
+                          <p className="font-medium text-stone-200">{pattern.pattern}</p>
+                          <p className="mt-0.5 text-stone-500">{pattern.example}</p>
+                          <p className="mt-1 text-amber-300/80">Lesson adjustment: {pattern.lesson_adjustment}</p>
+                        </li>)}
+                      </ul>
+                    </div>}
+                    {taskReport.result.instructor_diagnostic.targeted_resources.length > 0 && <div>
+                      <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-stone-500">Resource recommendations</p>
+                      <ul className="space-y-1.5">
+                        {taskReport.result.instructor_diagnostic.targeted_resources.map((resource, resourceIndex) => <li key={`${resource.topic}-${resourceIndex}`} className="text-[10px]">
+                          <span className="font-medium text-stone-200">{resource.title}</span>
+                          <span className="text-stone-500"> · {resource.topic} — {resource.reason}</span>
+                        </li>)}
+                      </ul>
+                    </div>}
+                    <p className={`text-[10px] ${taskReport.stored ? "text-emerald-400/80" : "text-amber-300/80"}`}>
+                      {taskReport.stored ? "Report saved for this submission." : "Report is available for this session; database storage was unavailable."}
+                    </p>
+                  </div>
+                </details>}
               </article>;
             }) : <div className="rounded-lg border border-dashed border-border bg-surface p-5 text-center">
               <p className="text-sm font-medium text-stone-300">No interactive response in this stage</p>
@@ -1331,36 +1338,6 @@ export function SubmissionEvaluator({
             <label className="block border-t border-border pt-3 text-xs font-medium text-stone-300">Stage feedback
               <textarea value={stageFeedback[activeStage.id] || ""} onChange={(event) => updateEvaluation({ stageFeedback: { ...stageFeedback, [activeStage.id]: event.target.value } })} rows={3} placeholder={`Comments on ${activeStage.title.toLowerCase()}...`} className="mt-1 w-full resize-y rounded-md border border-border bg-background p-3 text-xs font-normal leading-relaxed text-stone-200 outline-none focus:border-amber-500/40" />
             </label>
-            {savedAcademisDiagnostic?.stageId === activeStage.id && savedAcademisDiagnostic.taskId === activeTask?.id && <details className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
-              <summary className="cursor-pointer text-xs font-medium text-amber-200">Academis instructor diagnostic · {savedAcademisDiagnostic.taskTitle}</summary>
-              <div className="mt-3 space-y-3 border-t border-amber-500/10 pt-3">
-                <p className="text-[11px] leading-relaxed text-stone-300">{savedAcademisDiagnostic.insight.instructor_diagnostic.teaching_notes}</p>
-                {savedAcademisDiagnostic.insight.instructor_diagnostic.key_error_patterns.length > 0 && <div>
-                  <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-stone-500">Error patterns</p>
-                  <ul className="space-y-2">
-                    {savedAcademisDiagnostic.insight.instructor_diagnostic.key_error_patterns.map((pattern, index) => <li key={`${pattern.pattern}-${index}`} className="rounded-md border border-border bg-background/70 p-2 text-[10px]">
-                      <p className="font-medium text-stone-200">{pattern.pattern}</p>
-                      <p className="mt-0.5 text-stone-500">{pattern.example}</p>
-                      <p className="mt-1 text-amber-300/80">Lesson adjustment: {pattern.lesson_adjustment}</p>
-                    </li>)}
-                  </ul>
-                </div>}
-                {savedAcademisDiagnostic.insight.instructor_diagnostic.targeted_resources.length > 0 && <div>
-                  <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-stone-500">Resource recommendations</p>
-                  <ul className="space-y-1.5">
-                    {savedAcademisDiagnostic.insight.instructor_diagnostic.targeted_resources.map((resource, index) => <li key={`${resource.topic}-${index}`} className="text-[10px]">
-                      <span className="font-medium text-stone-200">{resource.title}</span>
-                      <span className="text-stone-500"> · {resource.topic} — {resource.reason}</span>
-                    </li>)}
-                  </ul>
-                </div>}
-                <p className={`text-[10px] ${savedAcademisDiagnostic.stored ? "text-emerald-400/80" : "text-amber-300/80"}`}>
-                  {savedAcademisDiagnostic.stored
-                    ? "Diagnostic saved for this submission."
-                    : "Diagnostic is available for this session, but could not be saved to the database."}
-                </p>
-              </div>
-            </details>}
             {(activeStage.id === "listening" || activeStage.id === "speaking") && <div className="space-y-2 border-t border-border pt-3">
               <div className="flex items-center gap-2 text-xs font-semibold text-stone-200"><Mic className="h-3.5 w-3.5 text-amber-300" aria-hidden="true" />Audio feedback note</div>
               <AudioRecorder onBlob={(blob) => { void uploadStageVoiceNote(activeStage.id, blob); }} onError={setVoiceUploadError} disabled={voiceUploadStage === activeStage.id || isSubmitting} label={`Record ${activeStage.title.toLowerCase()} feedback`} />
@@ -1857,18 +1834,28 @@ export function SubmissionEvaluator({
                   onClick={() => {
                     const { stageId, taskId } = academisInsight.context;
                     const stageScale = stageRubricScales[stageId] || globalRubricScale;
-                    const nextStageScores = {
-                      ...stageScores[stageId],
-                      task: convertRubricScore(academisInsight.result.criteria_scores.task, "ielts", stageScale),
-                      coherence: convertRubricScore(academisInsight.result.criteria_scores.coherence, "ielts", stageScale),
-                      lexical: convertRubricScore(academisInsight.result.criteria_scores.lexical, "ielts", stageScale),
-                      grammar: convertRubricScore(academisInsight.result.criteria_scores.grammar, "ielts", stageScale),
-                    };
+                    const stageTaskIds = new Set(activeStage?.id === stageId
+                      ? activeStage.tasks.map((task) => task.id)
+                      : [taskId]);
+                    const reportsByTask = new Map(Object.values(academisResultsByTask)
+                      .filter((report) => report.context.stageId === stageId && stageTaskIds.has(report.context.taskId))
+                      .map((report) => [report.context.taskId, report]));
+                    reportsByTask.set(taskId, academisInsight);
+                    const stageReports = [...reportsByTask.values()];
+                    const averagedScores = Object.fromEntries(RUBRIC_CRITERIA.map(({ id }) => {
+                      const average = stageReports.reduce((sum, report) => (
+                        sum + report.result.criteria_scores[id as keyof AcademisInsight["criteria_scores"]]
+                      ), 0) / stageReports.length;
+                      return [id, convertRubricScore(average, "ielts", stageScale)];
+                    }));
+                    const averagedOverallBand = stageReports.reduce((sum, report) => (
+                      sum + report.result.overall_band_score
+                    ), 0) / stageReports.length;
                     updateEvaluation({
                       taskFeedback: { ...taskFeedback, [taskId]: academisStudentSummary },
-                      stageScores: { ...stageScores, [stageId]: nextStageScores },
+                      stageScores: { ...stageScores, [stageId]: { ...stageScores[stageId], ...averagedScores } },
                     });
-                    setAcademisApplyNotice(`Summary and ${academisInsight.result.overall_band_score.toFixed(2)} overall band applied to ${academisInsight.context.taskTitle}.`);
+                    setAcademisApplyNotice(`Summary applied to ${academisInsight.context.taskTitle}; stage rubric averages ${averagedOverallBand.toFixed(2)} across ${stageReports.length} evaluated task${stageReports.length === 1 ? "" : "s"}.`);
                   }}
                   className="rounded-md bg-amber-500/20 px-4 py-2.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/30"
                 >

@@ -174,17 +174,33 @@ export async function GET(request: Request) {
     await initializeDatabase();
     const context = await getAuthorizedSubmission(submissionId, user.id, user.role);
     if ("response" in context) return context.response;
-    const result = await getPostgresPool().query<{ insights: AcademisInsight }>(
-      `SELECT insights
+    if (taskId !== null) {
+      const result = await getPostgresPool().query<{ insights: AcademisInsight }>(
+        `SELECT insights
+         FROM public.academis_evaluation_insights
+         WHERE submission_id = $1::uuid AND stage_id = $2 AND task_id = $3
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [submissionId, stageId, taskId],
+      );
+      return NextResponse.json({ insight: result.rows[0]?.insights || null });
+    }
+
+    const result = await getPostgresPool().query<{
+      task_id: string;
+      insights: AcademisInsight;
+      created_at: Date | string;
+    }>(
+      `SELECT DISTINCT ON (task_id) task_id, insights, created_at
        FROM public.academis_evaluation_insights
-       WHERE submission_id = $1::uuid
-         AND stage_id = $2
-         AND ($3::text IS NULL OR task_id = $3)
-       ORDER BY created_at DESC
-       LIMIT 1`,
-      [submissionId, stageId, taskId],
+       WHERE submission_id = $1::uuid AND stage_id = $2 AND task_id IS NOT NULL
+       ORDER BY task_id, created_at DESC`,
+      [submissionId, stageId],
     );
-    return NextResponse.json({ insight: result.rows[0]?.insights || null });
+    const insights = result.rows
+      .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+      .map(({ task_id, insights: insight }) => ({ taskId: task_id, insight }));
+    return NextResponse.json({ insight: insights[0]?.insight || null, insights });
   } catch (error) {
     console.warn("Unable to load saved Academis diagnostic:", {
       message: error instanceof Error ? error.message : String(error),
