@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Mic, Save, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Mic, Save, Settings2, Sparkles, X } from "lucide-react";
 import { LessonEvaluation } from "@/types/lesson";
 import { getInstructorSubmissionData, saveInstructorEvaluation } from "@/lib/evaluations";
 import { uploadVoiceFeedback } from "@/services/storage-service";
@@ -138,6 +138,7 @@ export function SubmissionEvaluator({
   pendingSubmissionId,
   studentName = "Student",
   studentId,
+  instructorId,
   onSubmitFeedback,
   onSaveDraft,
   evaluation,
@@ -185,6 +186,9 @@ export function SubmissionEvaluator({
   const [academisPresets, setAcademisPresets] = useState<AcademisPromptPreset[]>(
     ACADEMIS_PROMPTS.map((preset) => ({ ...preset })),
   );
+  const [academisPresetDrafts, setAcademisPresetDrafts] = useState<AcademisPromptPreset[]>([]);
+  const [isAcademisLibraryOpen, setIsAcademisLibraryOpen] = useState(false);
+  const [academisLibraryError, setAcademisLibraryError] = useState<string | null>(null);
   const [activeAcademisPresetId, setActiveAcademisPresetId] = useState<string>(ACADEMIS_PROMPTS[0].id);
   const [academisInsight, setAcademisInsight] = useState<{ stageId: string; result: AcademisInsight } | null>(null);
   const [isAcademisLoading, setIsAcademisLoading] = useState(false);
@@ -201,6 +205,41 @@ export function SubmissionEvaluator({
   const [submissionLoadState, setSubmissionLoadState] = useState<
     "idle" | "loading" | "loaded" | "missing"
   >(usePostgres ? "idle" : "loaded");
+
+  useEffect(() => {
+    try {
+      const savedPresets = window.localStorage.getItem(`fluentia:academis-presets:${instructorId || "default"}`);
+      if (!savedPresets) return;
+      const parsed: unknown = JSON.parse(savedPresets);
+      if (!Array.isArray(parsed)
+        || !parsed.every((preset) => preset
+          && typeof preset === "object"
+          && typeof preset.id === "string"
+          && typeof preset.label === "string"
+          && typeof preset.prompt === "string")) {
+        throw new Error("Saved Academis prompts have an invalid format.");
+      }
+      const validPresets = parsed.filter((preset: AcademisPromptPreset) => preset.label.trim() && preset.prompt.trim());
+      if (validPresets.length) {
+        setAcademisPresets(validPresets);
+        setActiveAcademisPresetId(validPresets[0].id);
+        setAcademisPrompt(validPresets[0].prompt);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to load saved Academis prompts.";
+      setAcademisError(message);
+      console.error("Academis prompt library could not be loaded:", error);
+    }
+  }, [instructorId]);
+
+  useEffect(() => {
+    if (!isAcademisLibraryOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsAcademisLibraryOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isAcademisLibraryOpen]);
 
   // Load the instructor's submission and saved evaluation through the authenticated API.
   useEffect(() => {
@@ -529,9 +568,41 @@ export function SubmissionEvaluator({
       setIsAcademisLoading(false);
     }
   };
-  const updateAcademisPreset = (presetId: string, changes: Partial<Pick<AcademisPromptPreset, "label" | "prompt">>) => {
-    setAcademisPresets((presets) => presets.map((preset) => preset.id === presetId ? { ...preset, ...changes } : preset));
-    if (presetId === activeAcademisPresetId && changes.prompt !== undefined) setAcademisPrompt(changes.prompt);
+  const openAcademisLibrary = () => {
+    setAcademisPresetDrafts(academisPresets.map((preset) => ({ ...preset })));
+    setAcademisLibraryError(null);
+    setIsAcademisLibraryOpen(true);
+  };
+  const saveAcademisLibrary = () => {
+    const presets = academisPresetDrafts.map((preset) => ({
+      ...preset,
+      label: preset.label.trim(),
+      prompt: preset.prompt.trim(),
+    }));
+    if (!presets.length || presets.some((preset) => !preset.label || !preset.prompt)) {
+      setAcademisLibraryError("Add a title and prompt to each preset before saving.");
+      return;
+    }
+    try {
+      window.localStorage.setItem(
+        `fluentia:academis-presets:${instructorId || "default"}`,
+        JSON.stringify(presets),
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to save the Academis prompt library.";
+      setAcademisLibraryError(`Could not save your prompts: ${message}`);
+      console.error("Academis prompt library could not be saved:", error);
+      return;
+    }
+    setAcademisPresets(presets);
+    const selectedPreset = presets.find((preset) => preset.id === activeAcademisPresetId);
+    if (selectedPreset) {
+      setAcademisPrompt(selectedPreset.prompt);
+    } else {
+      setActiveAcademisPresetId(presets[0].id);
+      setAcademisPrompt(presets[0].prompt);
+    }
+    setIsAcademisLibraryOpen(false);
   };
 
   return <div className="space-y-5">
@@ -969,6 +1040,19 @@ export function SubmissionEvaluator({
             <p className="mt-0.5 text-[9px] text-stone-500">{activeTask ? "Task context follows your focus" : "No task in this stage"}</p>
           </div>
 
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400">Presets</p>
+            <button
+              type="button"
+              onClick={openAcademisLibrary}
+              aria-label="Manage Academis preset library"
+              title="Manage Library"
+              className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] text-stone-400 transition hover:border-amber-500/40 hover:text-amber-300"
+            >
+              <Settings2 className="h-3 w-3" aria-hidden="true" />
+              Manage Library
+            </button>
+          </div>
           <div className="flex flex-wrap gap-1.5" aria-label="Evaluation prompt presets">
             {academisPresets.map((preset) => <button
               key={preset.id}
@@ -983,58 +1067,6 @@ export function SubmissionEvaluator({
               {preset.label}
             </button>)}
           </div>
-
-          <details className="group rounded-md border border-border bg-background/40">
-            <summary className="cursor-pointer list-none px-2.5 py-2 text-[10px] text-stone-400 transition hover:text-amber-200">Manage prompts</summary>
-            <div className="space-y-3 border-t border-border p-2.5">
-              {academisPresets.map((preset) => <fieldset key={preset.id} className="space-y-1.5">
-                <div className="flex items-center gap-1.5">
-                  <input
-                    value={preset.label}
-                    maxLength={32}
-                    onChange={(event) => updateAcademisPreset(preset.id, { label: event.target.value })}
-                    aria-label={`${preset.label} preset name`}
-                    className="min-w-0 flex-1 rounded border border-border bg-background px-2 py-1 text-[10px] text-stone-200 outline-none focus:border-amber-500/40"
-                  />
-                  {academisPresets.length > 1 && <button
-                    type="button"
-                    onClick={() => {
-                      const remaining = academisPresets.filter((item) => item.id !== preset.id);
-                      setAcademisPresets(remaining);
-                      if (activeAcademisPresetId === preset.id) {
-                        setActiveAcademisPresetId(remaining[0].id);
-                        setAcademisPrompt(remaining[0].prompt);
-                      }
-                    }}
-                    aria-label={`Remove ${preset.label} preset`}
-                    className="px-1 text-[10px] text-stone-500 hover:text-red-300"
-                  >
-                    Remove
-                  </button>}
-                </div>
-                <textarea
-                  value={preset.prompt}
-                  rows={2}
-                  maxLength={MAX_INSTRUCTOR_PROMPT_LENGTH}
-                  onChange={(event) => updateAcademisPreset(preset.id, { prompt: event.target.value })}
-                  aria-label={`${preset.label} grading prompt`}
-                  className="w-full resize-y rounded border border-border bg-background p-2 text-[10px] leading-relaxed text-stone-300 outline-none focus:border-amber-500/40"
-                />
-              </fieldset>)}
-              <button
-                type="button"
-                onClick={() => {
-                  const preset = { id: crypto.randomUUID(), label: "New preset", prompt: "" };
-                  setAcademisPresets((presets) => [...presets, preset]);
-                  setActiveAcademisPresetId(preset.id);
-                  setAcademisPrompt(preset.prompt);
-                }}
-                className="text-[10px] text-amber-300 hover:text-amber-200"
-              >
-                + Add preset
-              </button>
-            </div>
-          </details>
 
           <button
             type="button"
@@ -1081,6 +1113,105 @@ export function SubmissionEvaluator({
         </div>
       </aside>
     </div>
+    {isAcademisLibraryOpen && <div
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) setIsAcademisLibraryOpen(false);
+      }}
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="academis-library-title"
+        className="flex max-h-[min(90vh,860px)] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-amber-500/30 bg-[#11151b] text-stone-200 shadow-2xl shadow-black/50"
+      >
+        <header className="flex items-center justify-between gap-4 border-b border-border px-5 py-4 sm:px-7">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Academis</p>
+            <h2 id="academis-library-title" className="mt-1 text-lg font-semibold text-stone-100">Prompt Library</h2>
+            <p className="mt-1 text-xs text-stone-500">Shape the grading guidance used for each evaluation.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsAcademisLibraryOpen(false)}
+            aria-label="Close prompt library"
+            className="rounded-md border border-border p-2 text-stone-400 transition hover:border-amber-500/40 hover:text-amber-300"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5 sm:p-7">
+          {academisPresetDrafts.map((preset, index) => <article
+            key={preset.id}
+            className="rounded-lg border border-border bg-background/70 p-4 sm:p-5"
+          >
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Preset {String(index + 1).padStart(2, "0")}</p>
+              <button
+                type="button"
+                onClick={() => setAcademisPresetDrafts((drafts) => drafts.filter((item) => item.id !== preset.id))}
+                disabled={academisPresetDrafts.length <= 1}
+                className="rounded px-2 py-1 text-[10px] text-stone-500 transition hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Delete
+              </button>
+            </div>
+            <label className="block text-xs text-stone-400">
+              Title
+              <input
+                value={preset.label}
+                maxLength={32}
+                onChange={(event) => setAcademisPresetDrafts((drafts) => drafts.map((item) => item.id === preset.id ? { ...item, label: event.target.value } : item))}
+                placeholder="Preset title"
+                className="mt-1.5 w-full rounded-md border border-border bg-[#0b0e13] px-3 py-2.5 text-sm text-stone-100 outline-none transition focus:border-amber-500/50"
+              />
+            </label>
+            <label className="mt-3 block text-xs text-stone-400">
+              Prompt
+              <textarea
+                value={preset.prompt}
+                maxLength={MAX_INSTRUCTOR_PROMPT_LENGTH}
+                rows={4}
+                onChange={(event) => setAcademisPresetDrafts((drafts) => drafts.map((item) => item.id === preset.id ? { ...item, prompt: event.target.value } : item))}
+                placeholder="Describe the focus and style for this grading run..."
+                className="mt-1.5 w-full resize-y rounded-md border border-border bg-[#0b0e13] px-3 py-2.5 text-sm leading-relaxed text-stone-200 outline-none transition focus:border-amber-500/50"
+              />
+            </label>
+          </article>)}
+          <button
+            type="button"
+            onClick={() => setAcademisPresetDrafts((drafts) => [...drafts, {
+              id: crypto.randomUUID(),
+              label: "",
+              prompt: "",
+            }])}
+            className="rounded-md border border-dashed border-amber-500/30 px-3 py-2 text-xs text-amber-300 transition hover:border-amber-500/60 hover:bg-amber-500/5"
+          >
+            + Add preset
+          </button>
+          {academisLibraryError && <p role="alert" className="text-xs text-red-300">{academisLibraryError}</p>}
+        </div>
+
+        <footer className="flex items-center justify-between gap-3 border-t border-border px-5 py-4 sm:px-7">
+          <button
+            type="button"
+            onClick={() => setIsAcademisLibraryOpen(false)}
+            className="rounded-md px-3 py-2 text-xs text-stone-400 transition hover:text-stone-200"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={saveAcademisLibrary}
+            className="rounded-md bg-amber-500/20 px-4 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/30"
+          >
+            Save changes
+          </button>
+        </footer>
+      </section>
+    </div>}
   </div>;
 }
 
