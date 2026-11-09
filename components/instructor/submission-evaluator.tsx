@@ -1834,28 +1834,18 @@ export function SubmissionEvaluator({
                   onClick={() => {
                     const { stageId, taskId } = academisInsight.context;
                     const stageScale = stageRubricScales[stageId] || globalRubricScale;
-                    const stageTaskIds = new Set(activeStage?.id === stageId
-                      ? activeStage.tasks.map((task) => task.id)
-                      : [taskId]);
-                    const reportsByTask = new Map(Object.values(academisResultsByTask)
-                      .filter((report) => report.context.stageId === stageId && stageTaskIds.has(report.context.taskId))
-                      .map((report) => [report.context.taskId, report]));
-                    reportsByTask.set(taskId, academisInsight);
-                    const stageReports = [...reportsByTask.values()];
-                    const averagedScores = Object.fromEntries(RUBRIC_CRITERIA.map(({ id }) => {
-                      const average = stageReports.reduce((sum, report) => (
-                        sum + report.result.criteria_scores[id as keyof AcademisInsight["criteria_scores"]]
-                      ), 0) / stageReports.length;
-                      return [id, convertRubricScore(average, "ielts", stageScale)];
-                    }));
-                    const averagedOverallBand = stageReports.reduce((sum, report) => (
-                      sum + report.result.overall_band_score
-                    ), 0) / stageReports.length;
+                    const taskScores = {
+                      ...stageScores[stageId],
+                      task: convertRubricScore(academisInsight.result.criteria_scores.task, "ielts", stageScale),
+                      coherence: convertRubricScore(academisInsight.result.criteria_scores.coherence, "ielts", stageScale),
+                      lexical: convertRubricScore(academisInsight.result.criteria_scores.lexical, "ielts", stageScale),
+                      grammar: convertRubricScore(academisInsight.result.criteria_scores.grammar, "ielts", stageScale),
+                    };
                     updateEvaluation({
                       taskFeedback: { ...taskFeedback, [taskId]: academisStudentSummary },
-                      stageScores: { ...stageScores, [stageId]: { ...stageScores[stageId], ...averagedScores } },
+                      stageScores: { ...stageScores, [stageId]: taskScores },
                     });
-                    setAcademisApplyNotice(`Summary applied to ${academisInsight.context.taskTitle}; stage rubric averages ${averagedOverallBand.toFixed(2)} across ${stageReports.length} evaluated task${stageReports.length === 1 ? "" : "s"}.`);
+                    setAcademisApplyNotice(`Summary and ${academisInsight.result.overall_band_score.toFixed(2)} overall band applied to ${academisInsight.context.taskTitle}.`);
                   }}
                   className="rounded-md bg-amber-500/20 px-4 py-2.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/30"
                 >
