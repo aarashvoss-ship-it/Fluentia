@@ -163,8 +163,11 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const submissionId = params.get("submissionId")?.trim() || "";
   const stageId = params.get("stageId")?.trim() || "";
-  if (!UUID_PATTERN.test(submissionId) || !/^[a-z0-9_-]{1,80}$/i.test(stageId)) {
-    return NextResponse.json({ error: "Provide a valid submission and stage." }, { status: 400 });
+  const taskId = params.has("taskId") ? params.get("taskId")?.trim() || "" : null;
+  if (!UUID_PATTERN.test(submissionId)
+    || !/^[a-z0-9_-]{1,80}$/i.test(stageId)
+    || (taskId !== null && (!taskId || taskId.length > 200))) {
+    return NextResponse.json({ error: "Provide a valid submission, stage, and task." }, { status: 400 });
   }
 
   try {
@@ -174,10 +177,12 @@ export async function GET(request: Request) {
     const result = await getPostgresPool().query<{ insights: AcademisInsight }>(
       `SELECT insights
        FROM public.academis_evaluation_insights
-       WHERE submission_id = $1::uuid AND stage_id = $2
+       WHERE submission_id = $1::uuid
+         AND stage_id = $2
+         AND ($3::text IS NULL OR task_id = $3)
        ORDER BY created_at DESC
        LIMIT 1`,
-      [submissionId, stageId],
+      [submissionId, stageId, taskId],
     );
     return NextResponse.json({ insight: result.rows[0]?.insights || null });
   } catch (error) {

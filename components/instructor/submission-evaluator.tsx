@@ -125,6 +125,7 @@ interface AcademisInsight {
 type AcademisResultTab = "student-summary" | "instructor-diagnostic";
 
 interface AcademisEvaluationContext {
+  taskId: string;
   stageId: string;
   stageTitle: string;
   taskTitle: string;
@@ -269,10 +270,12 @@ export function SubmissionEvaluator({
   const [academisInsight, setAcademisInsight] = useState<{
     context: AcademisEvaluationContext;
     result: AcademisInsight;
+    stored: boolean;
   } | null>(null);
   const [academisResultsByTask, setAcademisResultsByTask] = useState<Record<string, {
     context: AcademisEvaluationContext;
     result: AcademisInsight;
+    stored: boolean;
   }>>({});
   const [academisRequestContext, setAcademisRequestContext] = useState<AcademisEvaluationContext | null>(null);
   const [isAcademisResultOpen, setIsAcademisResultOpen] = useState(false);
@@ -281,6 +284,7 @@ export function SubmissionEvaluator({
   const [academisApplyNotice, setAcademisApplyNotice] = useState<string | null>(null);
   const [savedAcademisDiagnostic, setSavedAcademisDiagnostic] = useState<{
     stageId: string;
+    taskId: string;
     taskTitle: string;
     insight: AcademisInsight;
     stored: boolean;
@@ -397,14 +401,30 @@ export function SubmissionEvaluator({
   }, [academisApplyNotice]);
 
   useEffect(() => {
-    if (!submissionId || activeStageId === "report-card") {
+    const selectedStage = stages.find((stage) => stage.id === activeStageId);
+    const selectedTask = selectedStage?.tasks.find((task) => task.id === activeTaskId)
+      || selectedStage?.tasks[0];
+    if (!submissionId || !selectedStage || !selectedTask) {
       setSavedAcademisDiagnostic(null);
       return;
     }
+    const cacheKey = JSON.stringify([submissionId, selectedStage.id, selectedTask.id]);
+    const cachedResult = academisResultsByTask[cacheKey];
+    if (cachedResult) {
+      setSavedAcademisDiagnostic({
+        stageId: selectedStage.id,
+        taskId: selectedTask.id,
+        taskTitle: cachedResult.context.taskTitle,
+        insight: cachedResult.result,
+        stored: cachedResult.stored,
+      });
+      return;
+    }
+    setSavedAcademisDiagnostic(null);
     const controller = new AbortController();
     const loadDiagnostic = async () => {
       try {
-        const params = new URLSearchParams({ submissionId, stageId: activeStageId });
+        const params = new URLSearchParams({ submissionId, stageId: selectedStage.id, taskId: selectedTask.id });
         const response = await fetch(`/api/instructor/academis?${params}`, {
           credentials: "same-origin",
           signal: controller.signal,
@@ -412,9 +432,31 @@ export function SubmissionEvaluator({
         if (!response.ok) throw new Error("Unable to load saved Academis diagnostics.");
         const payload: { insight?: unknown } = await response.json();
         if (isAcademisInsight(payload.insight)) {
+          const taskPrompt = selectedTask.prompt?.trim()
+            || selectedTask.title?.trim()
+            || selectedStage.prompt?.trim()
+            || "";
+          const context: AcademisEvaluationContext = {
+            taskId: selectedTask.id,
+            stageId: selectedStage.id,
+            stageTitle: selectedStage.title,
+            taskTitle: (selectedTask.title?.trim() || taskPrompt).slice(0, MAX_ACADEMIS_TASK_TITLE_LENGTH),
+            taskPrompt: taskPrompt.slice(0, MAX_ACADEMIS_TASK_PROMPT_LENGTH),
+            studentResponse: (selectedTask.studentAnswer?.trim()
+              || (selectedTask.audioUrls?.length
+                ? "Audio response submitted; transcript unavailable for grading."
+                : "No written response submitted.")).slice(0, MAX_ACADEMIS_RESPONSE_LENGTH),
+            instructorPrompt: "",
+          };
+          const savedResult = { context, result: payload.insight, stored: true };
+          setAcademisResultsByTask((results) => ({ ...results, [cacheKey]: savedResult }));
+          setAcademisInsight(savedResult);
+          setAcademisRequestContext(context);
+          setAcademisStudentSummary(payload.insight.student_summary);
           setSavedAcademisDiagnostic({
-            stageId: activeStageId,
-            taskTitle: "Saved stage diagnostic",
+            stageId: selectedStage.id,
+            taskId: selectedTask.id,
+            taskTitle: context.taskTitle,
             insight: payload.insight,
             stored: true,
           });
@@ -429,7 +471,7 @@ export function SubmissionEvaluator({
     };
     void loadDiagnostic();
     return () => controller.abort();
-  }, [submissionId, activeStageId]);
+  }, [submissionId, activeStageId, activeTaskId, academisResultsByTask]);
 
   // Load the instructor's submission and saved evaluation through the authenticated API.
   useEffect(() => {
@@ -756,6 +798,7 @@ export function SubmissionEvaluator({
     const requestTaskPrompt = taskPrompt.slice(0, MAX_ACADEMIS_TASK_PROMPT_LENGTH);
     const requestStudentResponse = studentResponse.slice(0, MAX_ACADEMIS_RESPONSE_LENGTH);
     const evaluationContext: AcademisEvaluationContext = {
+      taskId: selectedTask.id,
       stageId: selectedStage.id,
       stageTitle: selectedStage.title.slice(0, 120),
       taskTitle: requestTaskTitle,
@@ -813,12 +856,13 @@ export function SubmissionEvaluator({
       if (!isAcademisInsight(payload.insight)) {
         throw new Error("Academis returned an incomplete grading result.");
       }
-      const completedResult = { context: evaluationContext, result: payload.insight };
+      const completedResult = { context: evaluationContext, result: payload.insight, stored: payload.insightSaved === true };
       setAcademisInsight(completedResult);
       setAcademisResultsByTask((results) => ({ ...results, [cacheKey]: completedResult }));
       setAcademisStudentSummary(payload.insight.student_summary);
       setSavedAcademisDiagnostic({
         stageId: evaluationContext.stageId,
+        taskId: selectedTask.id,
         taskTitle: evaluationContext.taskTitle,
         insight: payload.insight,
         stored: payload.insightSaved === true,
@@ -1287,8 +1331,8 @@ export function SubmissionEvaluator({
             <label className="block border-t border-border pt-3 text-xs font-medium text-stone-300">Stage feedback
               <textarea value={stageFeedback[activeStage.id] || ""} onChange={(event) => updateEvaluation({ stageFeedback: { ...stageFeedback, [activeStage.id]: event.target.value } })} rows={3} placeholder={`Comments on ${activeStage.title.toLowerCase()}...`} className="mt-1 w-full resize-y rounded-md border border-border bg-background p-3 text-xs font-normal leading-relaxed text-stone-200 outline-none focus:border-amber-500/40" />
             </label>
-            {savedAcademisDiagnostic?.stageId === activeStage.id && <details className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
-              <summary className="cursor-pointer text-xs font-medium text-amber-200">Academis instructor diagnostic</summary>
+            {savedAcademisDiagnostic?.stageId === activeStage.id && savedAcademisDiagnostic.taskId === activeTask?.id && <details className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+              <summary className="cursor-pointer text-xs font-medium text-amber-200">Academis instructor diagnostic · {savedAcademisDiagnostic.taskTitle}</summary>
               <div className="mt-3 space-y-3 border-t border-amber-500/10 pt-3">
                 <p className="text-[11px] leading-relaxed text-stone-300">{savedAcademisDiagnostic.insight.instructor_diagnostic.teaching_notes}</p>
                 {savedAcademisDiagnostic.insight.instructor_diagnostic.key_error_patterns.length > 0 && <div>
@@ -1482,7 +1526,7 @@ export function SubmissionEvaluator({
                 ? submissionLoadState === "loading" ? "Loading submission…" : "Submission unavailable"
                 : !activeTask
                   ? "Select a task to evaluate"
-                  : hasCachedAcademisResult ? "View saved report"
+                  : hasCachedAcademisResult ? "View Last Evaluation Report"
                     : academisInsight ? "Run again with Academis" : "Evaluate with Academis"}
           </button>
         </div>
@@ -1811,12 +1855,24 @@ export function SubmissionEvaluator({
                 <button
                   type="button"
                   onClick={() => {
-                    updateEvaluation({ comments: academisStudentSummary });
-                    setAcademisApplyNotice("Student summary applied to Final Student Feedback. Review and save or publish the evaluation to send it.");
+                    const { stageId, taskId } = academisInsight.context;
+                    const stageScale = stageRubricScales[stageId] || globalRubricScale;
+                    const nextStageScores = {
+                      ...stageScores[stageId],
+                      task: convertRubricScore(academisInsight.result.criteria_scores.task, "ielts", stageScale),
+                      coherence: convertRubricScore(academisInsight.result.criteria_scores.coherence, "ielts", stageScale),
+                      lexical: convertRubricScore(academisInsight.result.criteria_scores.lexical, "ielts", stageScale),
+                      grammar: convertRubricScore(academisInsight.result.criteria_scores.grammar, "ielts", stageScale),
+                    };
+                    updateEvaluation({
+                      taskFeedback: { ...taskFeedback, [taskId]: academisStudentSummary },
+                      stageScores: { ...stageScores, [stageId]: nextStageScores },
+                    });
+                    setAcademisApplyNotice(`Summary and ${academisInsight.result.overall_band_score.toFixed(2)} overall band applied to ${academisInsight.context.taskTitle}.`);
                   }}
                   className="rounded-md bg-amber-500/20 px-4 py-2.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/30"
                 >
-                  Apply to Student Feedback
+                  Apply to Student Feedback &amp; Rubric
                 </button>
                 <button
                   type="button"
@@ -1861,7 +1917,7 @@ export function SubmissionEvaluator({
                     : <p className="rounded-lg border border-border bg-[#0b0e13] p-4 text-xs text-stone-500">No additional resources were recommended.</p>}
                 </section>
                 <p className="text-[10px] text-stone-500">
-                  Instructor diagnostic is {savedAcademisDiagnostic?.stored ? "saved to this submission" : "available for this session"} and shown in the stage notes panel.
+                  Instructor diagnostic and resource recommendations are {academisInsight.stored ? "saved to this submission" : "available for this session"} and shown in the selected task&apos;s stage notes.
                 </p>
               </div>}
             </section>
