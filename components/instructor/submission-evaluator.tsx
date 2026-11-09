@@ -1328,37 +1328,48 @@ export function SubmissionEvaluator({
               })}
             </select>
           </label>
-          {activeTask && <section className="space-y-2 rounded-md border border-border bg-background/60 p-2.5" aria-label="Selected task details">
-            <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-amber-400">Selected task</p>
-            <p className="break-words text-xs font-medium text-stone-200">{activeTask.title?.trim() || "Untitled task"}</p>
-            <div>
-              <p className="mb-0.5 text-[9px] text-stone-500">Task prompt</p>
-              <p className="max-h-20 overflow-y-auto whitespace-pre-wrap break-words text-[10px] leading-relaxed text-stone-300">
+          {activeTask && <>
+            <details className="group rounded-md border border-border bg-background/60">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 p-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/60">
+                Selected Task
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
+              </summary>
+              <p className="px-2.5 pb-2.5 break-words text-xs font-medium text-stone-200">{activeTask.title?.trim() || "Untitled task"}</p>
+            </details>
+            <details className="group rounded-md border border-border bg-background/60">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 p-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/60">
+                Task prompt
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
+              </summary>
+              <p className="max-h-20 overflow-y-auto whitespace-pre-wrap break-words px-2.5 pb-2.5 text-[10px] leading-relaxed text-stone-300">
                 {stripMarkdown(activeTask.prompt || activeTask.title || activeStage?.prompt || "No task prompt is available.")}
               </p>
-            </div>
-            <div>
-              <p className="mb-0.5 text-[9px] text-stone-500">Student response</p>
-              <p className="max-h-20 overflow-y-auto whitespace-pre-wrap break-words text-[10px] leading-relaxed text-stone-300">
+            </details>
+            <details className="group rounded-md border border-border bg-background/60">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 p-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/60">
+                Student Response
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
+              </summary>
+              <p className="max-h-20 overflow-y-auto whitespace-pre-wrap break-words px-2.5 pb-2.5 text-[10px] leading-relaxed text-stone-300">
                 {activeTask.studentAnswer?.trim()
                   ? stripMarkdown(activeTask.studentAnswer)
                   : activeTask.audioUrls?.length ? "Audio response submitted; transcript unavailable."
                     : "No written response submitted."}
               </p>
-            </div>
-          </section>}
+            </details>
+          </>}
 
           <div className="flex items-center justify-between gap-2">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400">Pinned presets</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400">Pinned Prompt</p>
             <button
               type="button"
               onClick={openAcademisLibrary}
-              aria-label="Manage Academis preset library"
-              title="Manage Library"
+              aria-label="Open Academis prompt library"
+              title="Prompt Library"
               className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] text-stone-400 transition hover:border-amber-500/40 hover:text-amber-300"
             >
               <Settings2 className="h-3 w-3" aria-hidden="true" />
-              Manage Library
+              Prompt Library
             </button>
           </div>
           <div className="flex flex-wrap gap-1.5" aria-label="Pinned evaluation prompt presets">
@@ -1375,7 +1386,7 @@ export function SubmissionEvaluator({
               <Star className="h-2.5 w-2.5 fill-current text-amber-400" aria-hidden="true" />
               {preset.label}
             </button>)}
-            {!pinnedAcademisPresets.length && <p className="text-[10px] text-stone-500">Pin prompts in Manage Library to add quick picks.</p>}
+            {!pinnedAcademisPresets.length && <p className="text-[10px] text-stone-500">Pin prompts in Prompt Library to add quick picks.</p>}
           </div>
           <section className="rounded-md border border-amber-500/25 bg-amber-500/5 p-2.5" aria-label="Active Academis prompt">
             <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-amber-400">Active evaluation prompt</p>
@@ -1395,7 +1406,13 @@ export function SubmissionEvaluator({
             className="flex w-full items-center justify-center gap-2 rounded-md bg-amber-500/20 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/30 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-            {isAcademisLoading ? "Evaluating…" : "Evaluate with Academis"}
+            {isAcademisLoading
+              ? "Evaluating…"
+              : !submissionId
+                ? submissionLoadState === "loading" ? "Loading submission…" : "Submission unavailable"
+                : !activeTask
+                  ? "Select a task to evaluate"
+                  : academisInsight ? "Run again with Academis" : "Evaluate with Academis"}
           </button>
         </div>
       </aside>
