@@ -785,6 +785,21 @@ export function SubmissionEvaluator({
     setAcademisLibraryError(null);
     setIsAcademisLibraryOpen(true);
   };
+  const deleteAcademisCategory = (categoryId: string) => {
+    if (DEFAULT_ACADEMIS_CATEGORIES.some((category) => category.id === categoryId)) return;
+    const categories = academisCategoryDrafts.filter((category) => category.id !== categoryId);
+    const fallbackCategoryId = categories.find((category) => DEFAULT_ACADEMIS_CATEGORIES.some((defaultCategory) => defaultCategory.id === category.id))?.id
+      || categories[0]?.id;
+    if (!fallbackCategoryId) return;
+    const defaultPresetIds = new Set<string>(ACADEMIS_PROMPTS.map((preset) => preset.id));
+    setAcademisCategoryDrafts(categories);
+    setAcademisPresetDrafts((presets) => presets.flatMap((preset) => {
+      if (preset.categoryId !== categoryId) return [preset];
+      return defaultPresetIds.has(preset.id) ? [{ ...preset, categoryId: fallbackCategoryId }] : [];
+    }));
+    setActiveAcademisCategoryId((activeCategoryId) => activeCategoryId === categoryId ? fallbackCategoryId : activeCategoryId);
+    setAcademisLibraryError(null);
+  };
   const saveAcademisLibrary = () => {
     const presets = academisPresetDrafts.map((preset) => ({
       ...preset,
@@ -1448,20 +1463,30 @@ export function SubmissionEvaluator({
 
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 sm:p-7">
           <div className="flex items-center gap-2 overflow-x-auto border-b border-border" role="tablist" aria-label="Prompt categories">
-            {academisCategoryDrafts.map((category) => <button
-              key={category.id}
-              type="button"
-              role="tab"
-              aria-selected={activeAcademisCategoryId === category.id}
-              aria-controls={`academis-category-panel-${category.id}`}
-              onClick={() => {
-                setActiveAcademisCategoryId(category.id);
-                setAcademisLibraryError(null);
-              }}
-              className={`shrink-0 border-b-2 px-3 py-2.5 text-xs transition ${activeAcademisCategoryId === category.id ? "border-amber-400 text-amber-200" : "border-transparent text-stone-500 hover:text-stone-200"}`}
-            >
-              {category.label}
-            </button>)}
+            {academisCategoryDrafts.map((category) => <div key={category.id} role="presentation" className="flex shrink-0 items-center">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeAcademisCategoryId === category.id}
+                aria-controls={`academis-category-panel-${category.id}`}
+                onClick={() => {
+                  setActiveAcademisCategoryId(category.id);
+                  setAcademisLibraryError(null);
+                }}
+                className={`shrink-0 border-b-2 px-3 py-2.5 text-xs transition ${activeAcademisCategoryId === category.id ? "border-amber-400 text-amber-200" : "border-transparent text-stone-500 hover:text-stone-200"}`}
+              >
+                {category.label}
+              </button>
+              {!DEFAULT_ACADEMIS_CATEGORIES.some((defaultCategory) => defaultCategory.id === category.id) && <button
+                type="button"
+                onClick={() => deleteAcademisCategory(category.id)}
+                aria-label={`Delete ${category.label} category`}
+                title={`Delete ${category.label}`}
+                className="rounded p-1 text-stone-600 transition hover:bg-amber-500/10 hover:text-amber-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/60"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>}
+            </div>)}
             <button
               type="button"
               onClick={() => {

@@ -4049,8 +4049,14 @@ export default function InstructorWorkstationPage({
       : "border-border bg-surface text-stone-400";
   const submittedAnswers = workstationState.submission;
   const reviewContent = workstationState.content as Record<string, any>;
+  const warmUpPrompt = getReviewPrompt(
+    reviewContent.warm_up?.prompt?.text,
+    ...(reviewContent.warm_up?.quick_prompts || []).map((item: { text?: string }) => item.text),
+    reviewContent.warm_up?.intro_narrative?.text,
+    reviewContent.warm_up?.quote?.text,
+  );
   const reviewStages: InstructorReviewStage[] = [
-    { id: "warm_up", title: "Warm-up", prompt: reviewContent.warm_up?.intro_narrative?.text || reviewContent.warm_up?.quote?.text, tasks: [] },
+    { id: "warm_up", title: "Warm-up", prompt: warmUpPrompt, tasks: [] },
     { id: "lesson", title: "Lesson", prompt: reviewContent.lesson?.core_concept?.text, tasks: [] },
     {
       id: "listening",
@@ -4072,12 +4078,6 @@ export default function InstructorWorkstationPage({
     { id: "speaking", title: "Speaking", prompt: reviewContent.speaking?.scenario?.text, tasks: [] },
   ];
   const reviewQuestionText: Record<string, string> = {};
-  const warmUpPrompt = getReviewPrompt(
-    reviewContent.warm_up?.prompt?.text,
-    ...(reviewContent.warm_up?.quick_prompts || []).map((item: { text?: string }) => item.text),
-    reviewContent.warm_up?.intro_narrative?.text,
-    reviewContent.warm_up?.quote?.text,
-  );
   const writingPrompt = getReviewPrompt(reviewContent.writing?.prompt?.text);
   const speakingPrompt = getReviewPrompt(
     reviewContent.speaking?.scenario?.text,
@@ -4205,7 +4205,10 @@ export default function InstructorWorkstationPage({
     if (reviewQuestionText[key]) return stripReviewMarkdown(reviewQuestionText[key]);
     const blankMatch = key.match(/-blank-(\d+)$/i);
     if (blankMatch) return `Fill in the blank #${Number(blankMatch[1]) + 1}`;
-    return stripReviewMarkdown(/^[0-9a-f-]{32,}$/i.test(key) ? `${reviewStages.find((stage) => stage.id === fallbackStage)?.title || "Lesson"} prompt not provided` : key.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()));
+    const stage = reviewStages.find((candidate) => candidate.id === fallbackStage);
+    return stripReviewMarkdown(/^[0-9a-f-]{32,}$/i.test(key)
+      ? stage?.prompt || `${stage?.title || "Lesson"} prompt not provided`
+      : key.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()));
   };
   const addReviewAnswer = (stageId: InstructorReviewStageId, key: string, answer: string, audioUrl?: string, markedIsCorrect?: boolean) => {
     const stage = reviewStages.find((item) => item.id === stageId);
