@@ -99,15 +99,38 @@ interface AcademisPromptCategory {
 }
 
 interface AcademisInsight {
-  score: number;
-  score_evaluation: string;
-  instructor_feedback: string;
-  key_error_patterns: Array<{
-    pattern: string;
-    example: string;
-    lesson_adjustment: string;
-  }>;
-  progress_summary: string;
+  criteria_scores: {
+    task: number;
+    coherence: number;
+    lexical: number;
+    grammar: number;
+  };
+  overall_band_score: number;
+  student_summary: string;
+  instructor_diagnostic: {
+    key_error_patterns: Array<{
+      pattern: string;
+      example: string;
+      lesson_adjustment: string;
+    }>;
+    targeted_resources: Array<{
+      topic: string;
+      title: string;
+      reason: string;
+    }>;
+    teaching_notes: string;
+  };
+}
+
+type AcademisResultTab = "student-summary" | "instructor-diagnostic";
+
+interface AcademisEvaluationContext {
+  stageId: string;
+  stageTitle: string;
+  taskTitle: string;
+  taskPrompt: string;
+  studentResponse: string;
+  instructorPrompt: string;
 }
 
 const DEFAULT_REPORT_STAGES: UnifiedReportStage[] = [
@@ -138,6 +161,41 @@ function stripMarkdown(value: string) {
     .replace(/(^|[^_])_([^_\n]+)_(?!_)/g, "$1$2")
     .replace(/[*_~`]/g, "")
     .trim();
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isAcademisInsight(value: unknown): value is AcademisInsight {
+  if (!isRecord(value)
+    || !isRecord(value.criteria_scores)
+    || !isRecord(value.instructor_diagnostic)
+    || typeof value.overall_band_score !== "number"
+    || !Number.isFinite(value.overall_band_score)
+    || value.overall_band_score < 1
+    || value.overall_band_score > 9
+    || typeof value.student_summary !== "string"
+    || !Array.isArray(value.instructor_diagnostic.key_error_patterns)
+    || !Array.isArray(value.instructor_diagnostic.targeted_resources)
+    || typeof value.instructor_diagnostic.teaching_notes !== "string") {
+    return false;
+  }
+  const criteriaScores = value.criteria_scores;
+  if (!["task", "coherence", "lexical", "grammar"].every((criterion) => {
+    const score = criteriaScores[criterion];
+    return typeof score === "number" && Number.isInteger(score) && score >= 1 && score <= 9;
+  })) return false;
+  return value.instructor_diagnostic.key_error_patterns.every((pattern) =>
+    isRecord(pattern)
+      && typeof pattern.pattern === "string"
+      && typeof pattern.example === "string"
+      && typeof pattern.lesson_adjustment === "string")
+    && value.instructor_diagnostic.targeted_resources.every((resource) =>
+      isRecord(resource)
+        && typeof resource.topic === "string"
+        && typeof resource.title === "string"
+        && typeof resource.reason === "string");
 }
 
 function normalizeAnswer(value: string) {
@@ -208,7 +266,21 @@ export function SubmissionEvaluator({
   const [isAcademisLibraryOpen, setIsAcademisLibraryOpen] = useState(false);
   const [academisLibraryError, setAcademisLibraryError] = useState<string | null>(null);
   const [activeAcademisPresetId, setActiveAcademisPresetId] = useState<string>(ACADEMIS_PROMPTS[0].id);
-  const [academisInsight, setAcademisInsight] = useState<{ stageId: string; result: AcademisInsight } | null>(null);
+  const [academisInsight, setAcademisInsight] = useState<{
+    context: AcademisEvaluationContext;
+    result: AcademisInsight;
+  } | null>(null);
+  const [academisRequestContext, setAcademisRequestContext] = useState<AcademisEvaluationContext | null>(null);
+  const [isAcademisResultOpen, setIsAcademisResultOpen] = useState(false);
+  const [academisResultTab, setAcademisResultTab] = useState<AcademisResultTab>("student-summary");
+  const [academisStudentSummary, setAcademisStudentSummary] = useState("");
+  const [academisApplyNotice, setAcademisApplyNotice] = useState<string | null>(null);
+  const [savedAcademisDiagnostic, setSavedAcademisDiagnostic] = useState<{
+    stageId: string;
+    taskTitle: string;
+    insight: AcademisInsight;
+    stored: boolean;
+  } | null>(null);
   const [isAcademisLoading, setIsAcademisLoading] = useState(false);
   const [academisError, setAcademisError] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
@@ -287,13 +359,51 @@ export function SubmissionEvaluator({
   }, [instructorId]);
 
   useEffect(() => {
-    if (!isAcademisLibraryOpen) return;
+    if (!isAcademisLibraryOpen && !isAcademisResultOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setIsAcademisLibraryOpen(false);
+      if (event.key === "Escape") {
+        setIsAcademisLibraryOpen(false);
+        setIsAcademisResultOpen(false);
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isAcademisLibraryOpen]);
+  }, [isAcademisLibraryOpen, isAcademisResultOpen]);
+
+  useEffect(() => {
+    if (!submissionId || activeStageId === "report-card") {
+      setSavedAcademisDiagnostic(null);
+      return;
+    }
+    const controller = new AbortController();
+    const loadDiagnostic = async () => {
+      try {
+        const params = new URLSearchParams({ submissionId, stageId: activeStageId });
+        const response = await fetch(`/api/instructor/academis?${params}`, {
+          credentials: "same-origin",
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error("Unable to load saved Academis diagnostics.");
+        const payload: { insight?: unknown } = await response.json();
+        if (isAcademisInsight(payload.insight)) {
+          setSavedAcademisDiagnostic({
+            stageId: activeStageId,
+            taskTitle: "Saved stage diagnostic",
+            insight: payload.insight,
+            stored: true,
+          });
+        } else {
+          setSavedAcademisDiagnostic(null);
+        }
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        console.warn("Academis stage diagnostic could not be loaded:", error);
+        setSavedAcademisDiagnostic(null);
+      }
+    };
+    void loadDiagnostic();
+    return () => controller.abort();
+  }, [submissionId, activeStageId]);
 
   // Load the instructor's submission and saved evaluation through the authenticated API.
   useEffect(() => {
@@ -608,10 +718,23 @@ export function SubmissionEvaluator({
       .slice(0, MAX_ACADEMIS_TASK_TITLE_LENGTH);
     const requestTaskPrompt = taskPrompt.slice(0, MAX_ACADEMIS_TASK_PROMPT_LENGTH);
     const requestStudentResponse = studentResponse.slice(0, MAX_ACADEMIS_RESPONSE_LENGTH);
+    const evaluationContext: AcademisEvaluationContext = {
+      stageId: selectedStage.id,
+      stageTitle: selectedStage.title.slice(0, 120),
+      taskTitle: requestTaskTitle,
+      taskPrompt: requestTaskPrompt,
+      studentResponse: requestStudentResponse,
+      instructorPrompt: academisPrompt.slice(0, MAX_INSTRUCTOR_PROMPT_LENGTH),
+    };
 
     setIsAcademisLoading(true);
     setAcademisError(null);
     setAcademisInsight(null);
+    setAcademisRequestContext(evaluationContext);
+    setAcademisStudentSummary("");
+    setAcademisApplyNotice(null);
+    setAcademisResultTab("student-summary");
+    setIsAcademisResultOpen(true);
     try {
       const response = await fetch("/api/instructor/academis", {
         method: "POST",
@@ -619,32 +742,36 @@ export function SubmissionEvaluator({
         credentials: "same-origin",
         body: JSON.stringify({
           submissionId,
-          stageId: selectedStage.id,
-          stageTitle: selectedStage.title.slice(0, 120),
+          stageId: evaluationContext.stageId,
+          stageTitle: evaluationContext.stageTitle,
           taskId: selectedTask.id,
-          taskTitle: requestTaskTitle,
-          taskPrompt: requestTaskPrompt,
-          studentResponse: requestStudentResponse,
-          instructorPrompt: academisPrompt.slice(0, MAX_INSTRUCTOR_PROMPT_LENGTH),
+          taskTitle: evaluationContext.taskTitle,
+          taskPrompt: evaluationContext.taskPrompt,
+          studentResponse: evaluationContext.studentResponse,
+          instructorPrompt: evaluationContext.instructorPrompt,
           rubricScores: Object.fromEntries(
             RUBRIC_CRITERIA.map(({ id }) => [id, stageScores[selectedStage.id]?.[id] ?? null]),
           ),
         }),
       });
-      let payload: { error?: string; insight?: AcademisInsight };
+      let payload: { error?: string; insight?: unknown; insightSaved?: boolean };
       try {
-        payload = await response.json() as { error?: string; insight?: AcademisInsight };
+        payload = await response.json() as { error?: string; insight?: unknown; insightSaved?: boolean };
       } catch {
         throw new Error("Academis returned an invalid response.");
       }
       if (!response.ok) throw new Error(payload.error || "Academis could not complete the grading request.");
-      if (!payload.insight
-        || typeof payload.insight.score !== "number"
-        || typeof payload.insight.instructor_feedback !== "string"
-        || !Array.isArray(payload.insight.key_error_patterns)) {
+      if (!isAcademisInsight(payload.insight)) {
         throw new Error("Academis returned an incomplete grading result.");
       }
-      setAcademisInsight({ stageId: selectedStage.id, result: payload.insight });
+      setAcademisInsight({ context: evaluationContext, result: payload.insight });
+      setAcademisStudentSummary(payload.insight.student_summary);
+      setSavedAcademisDiagnostic({
+        stageId: evaluationContext.stageId,
+        taskTitle: evaluationContext.taskTitle,
+        insight: payload.insight,
+        stored: payload.insightSaved === true,
+      });
     } catch (error) {
       setAcademisError(error instanceof Error ? error.message : "Academis could not complete the grading request.");
     } finally {
@@ -1094,6 +1221,36 @@ export function SubmissionEvaluator({
             <label className="block border-t border-border pt-3 text-xs font-medium text-stone-300">Stage feedback
               <textarea value={stageFeedback[activeStage.id] || ""} onChange={(event) => updateEvaluation({ stageFeedback: { ...stageFeedback, [activeStage.id]: event.target.value } })} rows={3} placeholder={`Comments on ${activeStage.title.toLowerCase()}...`} className="mt-1 w-full resize-y rounded-md border border-border bg-background p-3 text-xs font-normal leading-relaxed text-stone-200 outline-none focus:border-amber-500/40" />
             </label>
+            {savedAcademisDiagnostic?.stageId === activeStage.id && <details className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+              <summary className="cursor-pointer text-xs font-medium text-amber-200">Academis instructor diagnostic</summary>
+              <div className="mt-3 space-y-3 border-t border-amber-500/10 pt-3">
+                <p className="text-[11px] leading-relaxed text-stone-300">{savedAcademisDiagnostic.insight.instructor_diagnostic.teaching_notes}</p>
+                {savedAcademisDiagnostic.insight.instructor_diagnostic.key_error_patterns.length > 0 && <div>
+                  <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-stone-500">Error patterns</p>
+                  <ul className="space-y-2">
+                    {savedAcademisDiagnostic.insight.instructor_diagnostic.key_error_patterns.map((pattern, index) => <li key={`${pattern.pattern}-${index}`} className="rounded-md border border-border bg-background/70 p-2 text-[10px]">
+                      <p className="font-medium text-stone-200">{pattern.pattern}</p>
+                      <p className="mt-0.5 text-stone-500">{pattern.example}</p>
+                      <p className="mt-1 text-amber-300/80">Lesson adjustment: {pattern.lesson_adjustment}</p>
+                    </li>)}
+                  </ul>
+                </div>}
+                {savedAcademisDiagnostic.insight.instructor_diagnostic.targeted_resources.length > 0 && <div>
+                  <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-stone-500">Resource recommendations</p>
+                  <ul className="space-y-1.5">
+                    {savedAcademisDiagnostic.insight.instructor_diagnostic.targeted_resources.map((resource, index) => <li key={`${resource.topic}-${index}`} className="text-[10px]">
+                      <span className="font-medium text-stone-200">{resource.title}</span>
+                      <span className="text-stone-500"> · {resource.topic} — {resource.reason}</span>
+                    </li>)}
+                  </ul>
+                </div>}
+                <p className={`text-[10px] ${savedAcademisDiagnostic.stored ? "text-emerald-400/80" : "text-amber-300/80"}`}>
+                  {savedAcademisDiagnostic.stored
+                    ? "Diagnostic saved for this submission."
+                    : "Diagnostic is available for this session, but could not be saved to the database."}
+                </p>
+              </div>
+            </details>}
             {(activeStage.id === "listening" || activeStage.id === "speaking") && <div className="space-y-2 border-t border-border pt-3">
               <div className="flex items-center gap-2 text-xs font-semibold text-stone-200"><Mic className="h-3.5 w-3.5 text-amber-300" aria-hidden="true" />Audio feedback note</div>
               <AudioRecorder onBlob={(blob) => { void uploadStageVoiceNote(activeStage.id, blob); }} onError={setVoiceUploadError} disabled={voiceUploadStage === activeStage.id || isSubmitting} label={`Record ${activeStage.title.toLowerCase()} feedback`} />
@@ -1240,39 +1397,6 @@ export function SubmissionEvaluator({
             <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
             {isAcademisLoading ? "Evaluating…" : "Evaluate with Academis"}
           </button>
-          {academisError && <p role="alert" className="text-[10px] leading-relaxed text-red-300">{academisError}</p>}
-
-          {academisInsight && <section className="space-y-2 border-t border-border pt-3" aria-label="Academis evaluation result">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-amber-400">Holistic score</p>
-                <p className="text-lg font-semibold text-amber-200">{academisInsight.result.score}<span className="text-xs text-stone-500"> / 9</span></p>
-              </div>
-              <p className="max-w-[13rem] text-right text-[10px] leading-relaxed text-stone-400">{academisInsight.result.score_evaluation}</p>
-            </div>
-            <p className="text-xs leading-relaxed text-stone-200">{academisInsight.result.instructor_feedback}</p>
-            {academisInsight.result.key_error_patterns.length > 0 && <details className="rounded-md border border-border px-2.5 py-2">
-              <summary className="cursor-pointer text-[10px] text-stone-400">Patterns ({academisInsight.result.key_error_patterns.length})</summary>
-              <ul className="mt-2 space-y-2">
-                {academisInsight.result.key_error_patterns.map((pattern, index) => <li key={`${pattern.pattern}-${index}`} className="text-[10px] leading-relaxed">
-                  <p className="text-stone-200">{pattern.pattern}</p>
-                  <p className="text-stone-500">{pattern.example}</p>
-                  <p className="text-amber-300/80">Lesson note: {pattern.lesson_adjustment}</p>
-                </li>)}
-              </ul>
-            </details>}
-            <p className="text-[10px] leading-relaxed text-stone-500">{academisInsight.result.progress_summary}</p>
-            <button
-              type="button"
-              onClick={() => {
-                changeActiveStage(academisInsight.stageId);
-                updateEvaluation({ stageFeedback: { ...stageFeedback, [academisInsight.stageId]: academisInsight.result.instructor_feedback } });
-              }}
-              className="w-full rounded-md border border-amber-500/30 px-2.5 py-2 text-[10px] font-medium text-amber-200 transition hover:bg-amber-500/10"
-            >
-              Apply to Stage Feedback
-            </button>
-          </section>}
         </div>
       </aside>
     </div>
@@ -1441,6 +1565,204 @@ export function SubmissionEvaluator({
             Save changes
           </button>
         </footer>
+      </section>
+    </div>}
+    {isAcademisResultOpen && <div
+      className="fixed inset-0 z-[130] flex items-center justify-center bg-black/80 p-3 backdrop-blur-md sm:p-6"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !isAcademisLoading) setIsAcademisResultOpen(false);
+      }}
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="academis-result-title"
+        className="flex max-h-[96vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-amber-500/30 bg-[#10141b] text-stone-200 shadow-2xl shadow-black/60"
+      >
+        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border px-5 py-4 sm:px-8 sm:py-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-amber-500/40 bg-amber-500/10 text-amber-300">
+              <Sparkles className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Academis Evaluation</p>
+              <h2 id="academis-result-title" className="mt-1 truncate text-lg font-semibold text-stone-100">
+                {academisRequestContext?.taskTitle || "Preparing evaluation"}
+              </h2>
+              <p className="mt-0.5 truncate text-xs text-stone-500">
+                {academisRequestContext?.stageTitle || activeStageTitle}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsAcademisResultOpen(false)}
+            disabled={isAcademisLoading}
+            aria-label="Close Academis evaluation"
+            className="rounded-md border border-border p-2 text-stone-400 transition hover:border-amber-500/40 hover:text-amber-300 disabled:cursor-wait disabled:opacity-50"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-5 sm:p-8">
+          {academisRequestContext && <div className="grid gap-4 lg:grid-cols-2">
+            <section className="rounded-xl border border-border bg-[#0b0e13] p-4 sm:p-5" aria-label="Task prompt being evaluated">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-400">Task prompt</p>
+              <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-200">{stripMarkdown(academisRequestContext.taskPrompt)}</p>
+            </section>
+            <section className="rounded-xl border border-border bg-[#0b0e13] p-4 sm:p-5" aria-label="Student response being evaluated">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-500">Student response</p>
+              <p className="max-h-52 overflow-y-auto whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-300">{stripMarkdown(academisRequestContext.studentResponse)}</p>
+            </section>
+          </div>}
+
+          {academisRequestContext && <section className="rounded-lg border border-border bg-background/50 px-4 py-3">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-stone-500">Evaluation instruction used</p>
+            <p className="mt-1 text-[11px] font-medium text-stone-300">
+              {academisPresets.find((preset) => preset.prompt === academisRequestContext.instructorPrompt)?.label || "Custom prompt"}
+            </p>
+            <p className="mt-1 max-h-24 overflow-y-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-stone-400">{academisRequestContext.instructorPrompt || "Use concise, evidence-based language-learning feedback."}</p>
+          </section>}
+
+          {isAcademisLoading && <div className="flex min-h-48 flex-col items-center justify-center gap-3 text-center" role="status" aria-live="polite">
+            <span className="h-8 w-8 animate-spin rounded-full border-2 border-amber-500/20 border-t-amber-400" aria-hidden="true" />
+            <p className="text-sm font-medium text-stone-200">Academis is evaluating this response</p>
+            <p className="text-xs text-stone-500">Scoring each rubric criterion and preparing instructor diagnostics…</p>
+          </div>}
+
+          {!isAcademisLoading && academisError && <div role="alert" className="rounded-lg border border-red-500/30 bg-red-950/30 p-4 text-sm text-red-200">
+            {academisError}
+          </div>}
+
+          {!isAcademisLoading && academisInsight && <>
+            <section aria-label="Granular rubric scores">
+              <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-500">Granular rubric breakdown</p>
+                  <h3 className="mt-1 text-sm font-semibold text-stone-100">Criterion scores</h3>
+                </div>
+                <p className="text-xs text-stone-500">Four criterion scores averaged</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {RUBRIC_CRITERIA.map((criterion) => {
+                  const score = academisInsight.result.criteria_scores[criterion.id as keyof AcademisInsight["criteria_scores"]];
+                  return <article key={criterion.id} className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-xs leading-relaxed text-stone-300">{criterion.label}</p>
+                      <p className="shrink-0 text-xl font-semibold text-amber-300">{score}<span className="text-[10px] text-stone-500"> / 9</span></p>
+                    </div>
+                    <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-stone-800">
+                      <div className="h-full rounded-full bg-amber-500" style={{ width: `${(score / 9) * 100}%` }} />
+                    </div>
+                  </article>;
+                })}
+              </div>
+              <div className="mt-3 flex items-center justify-between rounded-lg border border-amber-500/35 bg-amber-500/10 px-4 py-3">
+                <span className="text-xs font-medium text-amber-100">Overall Band Score · arithmetic mean</span>
+                <span className="text-xl font-semibold text-amber-300">{academisInsight.result.overall_band_score.toFixed(2)}<span className="text-xs text-amber-200/60"> / 9</span></span>
+              </div>
+            </section>
+
+            <section>
+              <div className="flex items-center gap-1 border-b border-border" role="tablist" aria-label="Academis evaluation results">
+                <button
+                  type="button"
+                  role="tab"
+                  id="academis-student-summary-tab"
+                  aria-selected={academisResultTab === "student-summary"}
+                  aria-controls="academis-student-summary-panel"
+                  onClick={() => setAcademisResultTab("student-summary")}
+                  className={`border-b-2 px-4 py-3 text-xs font-medium transition ${academisResultTab === "student-summary" ? "border-amber-400 text-amber-200" : "border-transparent text-stone-500 hover:text-stone-200"}`}
+                >
+                  Student Summary
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  id="academis-instructor-diagnostic-tab"
+                  aria-selected={academisResultTab === "instructor-diagnostic"}
+                  aria-controls="academis-instructor-diagnostic-panel"
+                  onClick={() => setAcademisResultTab("instructor-diagnostic")}
+                  className={`border-b-2 px-4 py-3 text-xs font-medium transition ${academisResultTab === "instructor-diagnostic" ? "border-amber-400 text-amber-200" : "border-transparent text-stone-500 hover:text-stone-200"}`}
+                >
+                  Instructor Diagnostic
+                </button>
+              </div>
+
+              {academisResultTab === "student-summary" && <div id="academis-student-summary-panel" role="tabpanel" aria-labelledby="academis-student-summary-tab" className="space-y-4 pt-5">
+                <label className="block text-xs font-medium text-stone-300">
+                  Student-facing feedback
+                  <textarea
+                    value={academisStudentSummary}
+                    onChange={(event) => setAcademisStudentSummary(event.target.value)}
+                    rows={5}
+                    className="mt-2 w-full resize-y rounded-xl border border-border bg-[#0b0e13] p-4 text-sm leading-relaxed text-stone-100 outline-none transition focus:border-amber-500/40"
+                    aria-label="Edit Academis student summary"
+                  />
+                </label>
+                <p className="text-[11px] leading-relaxed text-stone-500">This is kept separate from instructor-only diagnostics. Edit it here before applying it to the student feedback field.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateEvaluation({ comments: academisStudentSummary });
+                    setAcademisApplyNotice("Student summary applied to Final Student Feedback. Review and save or publish the evaluation to send it.");
+                  }}
+                  className="rounded-md bg-amber-500/20 px-4 py-2.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/30"
+                >
+                  Apply to Student Feedback
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const stageId = academisInsight.context.stageId;
+                    updateEvaluation({ stageFeedback: { ...stageFeedback, [stageId]: academisStudentSummary } });
+                    setAcademisApplyNotice(`Student summary applied to ${academisInsight.context.stageTitle} Stage Feedback.`);
+                  }}
+                  className="ml-2 rounded-md border border-amber-500/30 px-4 py-2.5 text-xs font-medium text-amber-200 transition hover:bg-amber-500/10"
+                >
+                  Apply to Stage Feedback
+                </button>
+                {academisApplyNotice && <p role="status" className="text-xs text-emerald-300">{academisApplyNotice}</p>}
+              </div>}
+
+              {academisResultTab === "instructor-diagnostic" && <div id="academis-instructor-diagnostic-panel" role="tabpanel" aria-labelledby="academis-instructor-diagnostic-tab" className="space-y-5 pt-5">
+                <section className="rounded-xl border border-border bg-[#0b0e13] p-4 sm:p-5">
+                  <h3 className="text-sm font-semibold text-stone-100">Teaching notes</h3>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-stone-300">{academisInsight.result.instructor_diagnostic.teaching_notes || "No additional teaching notes."}</p>
+                </section>
+                <section>
+                  <h3 className="mb-3 text-sm font-semibold text-stone-100">Observed error patterns</h3>
+                  {academisInsight.result.instructor_diagnostic.key_error_patterns.length
+                    ? <div className="grid gap-3 md:grid-cols-2">
+                      {academisInsight.result.instructor_diagnostic.key_error_patterns.map((pattern, index) => <article key={`${pattern.pattern}-${index}`} className="rounded-xl border border-border bg-[#0b0e13] p-4">
+                        <p className="text-sm font-medium text-stone-200">{pattern.pattern}</p>
+                        <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-stone-400">{pattern.example}</p>
+                        <p className="mt-3 border-t border-border pt-2 text-xs leading-relaxed text-amber-200/80">Lesson adjustment: {pattern.lesson_adjustment}</p>
+                      </article>)}
+                    </div>
+                    : <p className="rounded-lg border border-border bg-[#0b0e13] p-4 text-xs text-stone-500">No recurring error patterns were identified for this response.</p>}
+                </section>
+                <section>
+                  <h3 className="mb-3 text-sm font-semibold text-stone-100">Targeted resource recommendations</h3>
+                  {academisInsight.result.instructor_diagnostic.targeted_resources.length
+                    ? <div className="grid gap-3 md:grid-cols-2">
+                      {academisInsight.result.instructor_diagnostic.targeted_resources.map((resource, index) => <article key={`${resource.topic}-${index}`} className="rounded-xl border border-amber-500/15 bg-amber-500/[0.03] p-4">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400">{resource.topic}</p>
+                        <p className="mt-1 text-sm font-medium text-stone-100">{resource.title}</p>
+                        <p className="mt-2 text-xs leading-relaxed text-stone-400">{resource.reason}</p>
+                      </article>)}
+                    </div>
+                    : <p className="rounded-lg border border-border bg-[#0b0e13] p-4 text-xs text-stone-500">No additional resources were recommended.</p>}
+                </section>
+                <p className="text-[10px] text-stone-500">
+                  Instructor diagnostic is {savedAcademisDiagnostic?.stored ? "saved to this submission" : "available for this session"} and shown in the stage notes panel.
+                </p>
+              </div>}
+            </section>
+          </>}
+        </div>
       </section>
     </div>}
   </div>;
