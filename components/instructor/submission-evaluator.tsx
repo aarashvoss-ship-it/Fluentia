@@ -64,6 +64,9 @@ const RUBRIC_CRITERIA = [
 ];
 const STAGE_RUBRIC_CRITERIA = RUBRIC_CRITERIA;
 const MAX_INSTRUCTOR_PROMPT_LENGTH = 2500;
+const MAX_ACADEMIS_TASK_PROMPT_LENGTH = 6000;
+const MAX_ACADEMIS_TASK_TITLE_LENGTH = 300;
+const MAX_ACADEMIS_RESPONSE_LENGTH = 12000;
 const ACADEMIS_PROMPTS = [
   {
     id: "balanced",
@@ -418,7 +421,8 @@ export function SubmissionEvaluator({
     : Math.max(0, stages.findIndex((stage) => stage.id === activeStageId));
   const activeStage = stages[activeStageIndex];
   const activeStageTitle = activeStage ? activeStage.title : "Report Card";
-  const activeTask = activeStage?.tasks.find((task) => task.id === activeTaskId) || activeStage?.tasks[0];
+  const activeTask = activeStage?.tasks.find((task) => task.id === activeTaskId);
+  const activeAcademisPreset = academisPresets.find((preset) => preset.id === activeAcademisPresetId);
   const evaluationStatus = (stageId: string) => {
     if (evaluation?.published) return "Evaluated";
     const stage = stages.find((item) => item.id === stageId);
@@ -574,7 +578,37 @@ export function SubmissionEvaluator({
     {activeStageId !== reportStageId && activeStage && <span className={`rounded-full border px-2.5 py-1 text-[10px] ${stageStatusClass(evaluationStatus(activeStage.id))}`}>{evaluationStatus(activeStage.id)}</span>}
   </header>;
   const generateAcademisInsight = async () => {
-    if (!activeStage || !activeTask || !submissionId) return;
+    const selectedStage = stages.find((stage) => stage.id === activeStageId);
+    const selectedTask = selectedStage?.tasks.find((task) => task.id === activeTaskId);
+    const taskPrompt = selectedTask?.prompt?.trim()
+      || selectedTask?.title?.trim()
+      || selectedStage?.prompt?.trim()
+      || "";
+    if (!submissionId || !UUID_PATTERN.test(submissionId)) {
+      setAcademisError("Wait for the student submission to finish loading, then try again.");
+      return;
+    }
+    if (!selectedStage || !/^[a-z0-9_-]{1,80}$/i.test(selectedStage.id)) {
+      setAcademisError("Select a valid evaluation stage before running Academis.");
+      return;
+    }
+    if (!selectedTask || !selectedTask.id || selectedTask.id.length > 200) {
+      setAcademisError("Select a task from the current stage before running Academis.");
+      return;
+    }
+    if (!taskPrompt) {
+      setAcademisError("The selected task has no prompt for Academis to evaluate.");
+      return;
+    }
+    const studentResponse = selectedTask.studentAnswer?.trim()
+      || (selectedTask.audioUrls?.length
+        ? "Audio response submitted; transcript unavailable for grading."
+        : "No written response submitted.");
+    const requestTaskTitle = (selectedTask.title?.trim() || taskPrompt)
+      .slice(0, MAX_ACADEMIS_TASK_TITLE_LENGTH);
+    const requestTaskPrompt = taskPrompt.slice(0, MAX_ACADEMIS_TASK_PROMPT_LENGTH);
+    const requestStudentResponse = studentResponse.slice(0, MAX_ACADEMIS_RESPONSE_LENGTH);
+
     setIsAcademisLoading(true);
     setAcademisError(null);
     setAcademisInsight(null);
@@ -585,17 +619,15 @@ export function SubmissionEvaluator({
         credentials: "same-origin",
         body: JSON.stringify({
           submissionId,
-          stageId: activeStage.id,
-          stageTitle: activeStage.title,
-          taskId: activeTask.id,
-          taskTitle: activeTask.title || activeTask.prompt || "Student response",
-          taskPrompt: activeTask.prompt || activeTask.title || activeStage.prompt || activeStage.title,
-          studentResponse: activeTask.studentAnswer || (activeTask.audioUrls?.length
-            ? "Audio response submitted; transcript unavailable for grading."
-            : "No written response submitted."),
-          instructorPrompt: academisPrompt,
+          stageId: selectedStage.id,
+          stageTitle: selectedStage.title.slice(0, 120),
+          taskId: selectedTask.id,
+          taskTitle: requestTaskTitle,
+          taskPrompt: requestTaskPrompt,
+          studentResponse: requestStudentResponse,
+          instructorPrompt: academisPrompt.slice(0, MAX_INSTRUCTOR_PROMPT_LENGTH),
           rubricScores: Object.fromEntries(
-            RUBRIC_CRITERIA.map(({ id }) => [id, stageScores[activeStage.id]?.[id] ?? null]),
+            RUBRIC_CRITERIA.map(({ id }) => [id, stageScores[selectedStage.id]?.[id] ?? null]),
           ),
         }),
       });
@@ -612,7 +644,7 @@ export function SubmissionEvaluator({
         || !Array.isArray(payload.insight.key_error_patterns)) {
         throw new Error("Academis returned an incomplete grading result.");
       }
-      setAcademisInsight({ stageId: activeStage.id, result: payload.insight });
+      setAcademisInsight({ stageId: selectedStage.id, result: payload.insight });
     } catch (error) {
       setAcademisError(error instanceof Error ? error.message : "Academis could not complete the grading request.");
     } finally {
@@ -1138,13 +1170,26 @@ export function SubmissionEvaluator({
                 </option>;
               })}
             </select>
-            {activeTask && <span className="mt-1.5 block truncate text-[9px] text-stone-500">
-              {activeTask.studentAnswer?.trim()
-                ? `Response: ${stripMarkdown(activeTask.studentAnswer).replace(/\s+/g, " ").trim().slice(0, 130)}${activeTask.studentAnswer.length > 130 ? "…" : ""}`
-                : activeTask.audioUrls?.length ? "Audio response submitted"
-                  : "No written response submitted"}
-            </span>}
           </label>
+          {activeTask && <section className="space-y-2 rounded-md border border-border bg-background/60 p-2.5" aria-label="Selected task details">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-amber-400">Selected task</p>
+            <p className="break-words text-xs font-medium text-stone-200">{activeTask.title?.trim() || "Untitled task"}</p>
+            <div>
+              <p className="mb-0.5 text-[9px] text-stone-500">Task prompt</p>
+              <p className="max-h-20 overflow-y-auto whitespace-pre-wrap break-words text-[10px] leading-relaxed text-stone-300">
+                {stripMarkdown(activeTask.prompt || activeTask.title || activeStage?.prompt || "No task prompt is available.")}
+              </p>
+            </div>
+            <div>
+              <p className="mb-0.5 text-[9px] text-stone-500">Student response</p>
+              <p className="max-h-20 overflow-y-auto whitespace-pre-wrap break-words text-[10px] leading-relaxed text-stone-300">
+                {activeTask.studentAnswer?.trim()
+                  ? stripMarkdown(activeTask.studentAnswer)
+                  : activeTask.audioUrls?.length ? "Audio response submitted; transcript unavailable."
+                    : "No written response submitted."}
+              </p>
+            </div>
+          </section>}
 
           <div className="flex items-center justify-between gap-2">
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400">Pinned presets</p>
@@ -1175,6 +1220,16 @@ export function SubmissionEvaluator({
             </button>)}
             {!pinnedAcademisPresets.length && <p className="text-[10px] text-stone-500">Pin prompts in Manage Library to add quick picks.</p>}
           </div>
+          <section className="rounded-md border border-amber-500/25 bg-amber-500/5 p-2.5" aria-label="Active Academis prompt">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-amber-400">Active evaluation prompt</p>
+            <p className="mt-1 text-[10px] font-medium text-stone-200">
+              {activeAcademisPreset?.label || "Custom prompt"}
+              {activeAcademisPresetId && !activeAcademisPreset ? " · custom" : ""}
+            </p>
+            <p className="mt-1 max-h-20 overflow-y-auto whitespace-pre-wrap break-words text-[10px] leading-relaxed text-stone-400">
+              {academisPrompt.trim() || "No evaluation prompt selected."}
+            </p>
+          </section>
 
           <button
             type="button"
