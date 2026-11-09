@@ -17,20 +17,25 @@ CREATE INDEX IF NOT EXISTS idx_academis_insights_student_created
 CREATE INDEX IF NOT EXISTS idx_academis_insights_task_created
   ON public.academis_evaluation_insights (lesson_id, stage_id, task_id, created_at DESC);
 
-ALTER TABLE public.academis_evaluation_insights ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Instructors can read their Academis insights"
-  ON public.academis_evaluation_insights;
-CREATE POLICY "Instructors can read their Academis insights"
-  ON public.academis_evaluation_insights
-  FOR SELECT
-  TO authenticated
-  USING (
-    auth.uid() = instructor_id
-    AND EXISTS (
-      SELECT 1
-      FROM public.lessons
-      WHERE lessons.id = academis_evaluation_insights.lesson_id
-        AND lessons.instructor_id = auth.uid()
-    )
-  );
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    EXECUTE 'ALTER TABLE public.academis_evaluation_insights ENABLE ROW LEVEL SECURITY';
+    EXECUTE 'DROP POLICY IF EXISTS "Instructors can read their Academis insights" ON public.academis_evaluation_insights';
+    EXECUTE '
+      CREATE POLICY "Instructors can read their Academis insights"
+      ON public.academis_evaluation_insights
+      FOR SELECT
+      TO authenticated
+      USING (
+        auth.uid() = instructor_id
+        AND EXISTS (
+          SELECT 1
+          FROM public.lessons
+          WHERE lessons.id = academis_evaluation_insights.lesson_id
+            AND lessons.instructor_id = auth.uid()
+        )
+      )';
+  END IF;
+END
+$$;

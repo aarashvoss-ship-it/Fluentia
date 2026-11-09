@@ -1115,10 +1115,36 @@ export function SubmissionEvaluator({
           </button>
         </div>
         <div id="academis-sidebar-content" hidden={isAcademisSidebarCollapsed} className={`mt-4 min-h-0 flex-1 flex-col gap-3 overflow-y-auto ${isAcademisSidebarCollapsed ? "hidden" : "flex"}`}>
-          <div className="rounded-md border border-border bg-background/60 px-2.5 py-2">
-            <p className="truncate text-[10px] font-medium text-stone-300">{activeStage?.title || "Choose a stage"}{activeTask ? ` · ${activeTask.title || activeTask.prompt || "Task"}` : ""}</p>
-            <p className="mt-0.5 text-[9px] text-stone-500">{activeTask ? "Task context follows your focus" : "No task in this stage"}</p>
-          </div>
+          <label className="block rounded-md border border-border bg-background/60 p-2.5 text-[10px] text-stone-400">
+            Task to evaluate · {activeStage?.title || "Choose a stage"}
+            <select
+              value={activeTask?.id || ""}
+              onChange={(event) => {
+                setActiveTaskId(event.target.value);
+                setAcademisInsight(null);
+                setAcademisError(null);
+              }}
+              disabled={!activeStage?.tasks.length || isAcademisLoading}
+              aria-label={`Task to evaluate in ${activeStage?.title || "current stage"}`}
+              className="mt-1.5 w-full rounded-md border border-border bg-[#0b0e13] px-2.5 py-2 text-xs text-stone-200 outline-none transition focus:border-amber-500/40 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {!activeStage?.tasks.length && <option value="">No tasks in this stage</option>}
+              {activeStage?.tasks.map((task, index) => {
+                const title = stripMarkdown(task.prompt || task.title || `Task ${index + 1}`)
+                  .replace(/\s+/g, " ")
+                  .trim();
+                return <option key={task.id} value={task.id}>
+                  {`${String(index + 1).padStart(2, "0")} · ${title.slice(0, 100)}${title.length > 100 ? "…" : ""}`}
+                </option>;
+              })}
+            </select>
+            {activeTask && <span className="mt-1.5 block truncate text-[9px] text-stone-500">
+              {activeTask.studentAnswer?.trim()
+                ? `Response: ${stripMarkdown(activeTask.studentAnswer).replace(/\s+/g, " ").trim().slice(0, 130)}${activeTask.studentAnswer.length > 130 ? "…" : ""}`
+                : activeTask.audioUrls?.length ? "Audio response submitted"
+                  : "No written response submitted"}
+            </span>}
+          </label>
 
           <div className="flex items-center justify-between gap-2">
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400">Pinned presets</p>

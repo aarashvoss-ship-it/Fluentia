@@ -235,8 +235,12 @@ export async function POST(request: Request) {
         ],
       );
     } catch (error) {
-      logDatabaseError("Unable to save Academis evaluation insights:", error);
-      return NextResponse.json({ error: "Academis generated feedback, but its learning insights could not be saved. Apply the insights migration and try again." }, { status: 503 });
+      console.warn("Academis evaluation succeeded, but its insights could not be saved:", {
+        message: error instanceof Error ? error.message : String(error),
+        code: error !== null && typeof error === "object" && "code" in error && typeof error.code === "string"
+          ? error.code
+          : undefined,
+      });
     }
 
     return NextResponse.json({ insight });
