@@ -4098,6 +4098,51 @@ export default function InstructorWorkstationPage({
     speaking: 0,
   };
   const reviewStageForKey: Record<string, InstructorReviewStageId> = { warm_up: "warm_up", writingText: "writing", speaking: "speaking" };
+  const normalizeReviewStageId = (value: string): InstructorReviewStageId | undefined => {
+    const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+    const stage = reviewStages.find((candidate) => (
+      candidate.id === normalized
+      || candidate.title.toLowerCase().replace(/[\s-]+/g, "_") === normalized
+      || (candidate.id === "warm_up" && normalized === "warmup")
+    ));
+    return stage?.id;
+  };
+  const reviewStageFromIndex = (index: number) => reviewStages[index]?.id;
+  const resolveReviewStage = (key: string, metadata?: Record<string, unknown>) => {
+    const explicitStageId = metadata?.stage_id ?? metadata?.stageId;
+    if (typeof explicitStageId === "string") {
+      const stageId = normalizeReviewStageId(explicitStageId);
+      if (stageId) return stageId;
+      if (/^\d+$/.test(explicitStageId)) {
+        const index = Number(explicitStageId);
+        const stage = index === 0 ? reviewStageFromIndex(0) : reviewStageFromIndex(index - 1);
+        if (stage) return stage;
+      }
+    } else if (typeof explicitStageId === "number" && Number.isInteger(explicitStageId)) {
+      const stage = reviewStageFromIndex(explicitStageId === 0 ? 0 : explicitStageId - 1);
+      if (stage) return stage;
+    }
+    const stepIndex = metadata?.step_index ?? metadata?.stepIndex ?? metadata?.stageIndex;
+    if (typeof stepIndex === "number" && Number.isInteger(stepIndex)) {
+      const stage = reviewStageFromIndex(stepIndex);
+      if (stage) return stage;
+    }
+    const exactStage = reviewStageForKey[key];
+    if (exactStage) return exactStage;
+    for (const part of key.split(/[:|/]/)) {
+      const stageId = normalizeReviewStageId(part);
+      if (stageId) return stageId;
+      const stepMatch = part.match(/^(step|stage)_?(\d+)$/i);
+      if (stepMatch) {
+        const index = Number(stepMatch[2]);
+        const stage = stepMatch[1].toLowerCase() === "stage" && index > 0
+          ? reviewStageFromIndex(index - 1)
+          : reviewStageFromIndex(index);
+        if (stage) return stage;
+      }
+    }
+    return undefined;
+  };
   const nextReviewTaskNumber = (stage: InstructorReviewStageId) => ++reviewTaskCounters[stage];
   const addReviewReference = (
     stage: InstructorReviewStageId,
@@ -4236,10 +4281,18 @@ export default function InstructorWorkstationPage({
     });
   };
   if (submittedAnswers?.writingText?.trim()) addReviewAnswer("writing", "writingText", submittedAnswers.writingText);
-  const appendAnswers = (answers: Record<string, string> | undefined, fallbackStage?: InstructorReviewStageId) => {
-    Object.entries(answers || {}).forEach(([key, answer]) => {
+  const appendAnswers = (answers: Record<string, unknown> | undefined, fallbackStage?: InstructorReviewStageId) => {
+    Object.entries(answers || {}).forEach(([key, response]) => {
+      const answer = typeof response === "string"
+        ? response
+        : response && typeof response === "object" && !Array.isArray(response)
+          ? ["answer", "response", "value"].map((field) => (response as Record<string, unknown>)[field]).find((value): value is string => typeof value === "string")
+          : undefined;
       if (!answer?.trim()) return;
-      const stage = reviewStageForKey[key] || fallbackStage;
+      const metadata = response && typeof response === "object" && !Array.isArray(response)
+        ? response as Record<string, unknown>
+        : undefined;
+      const stage = resolveReviewStage(key, metadata) || fallbackStage;
       if (!stage) return;
       addReviewAnswer(stage, key, answer);
     });
