@@ -19,6 +19,7 @@ export interface UnifiedReportTask {
   title?: string;
   prompt?: string;
   studentAnswer: string;
+  studentTranscript?: string;
   taskNumber?: number;
   modelAnswer?: string;
   isCorrect?: boolean;

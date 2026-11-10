@@ -306,6 +306,8 @@ export async function POST(request: Request) {
       && (typeof body.instructorPrompt !== "string" || body.instructorPrompt.length > MAX_INSTRUCTOR_PROMPT_LENGTH))
     || (body.model_answer !== undefined
       && (typeof body.model_answer !== "string" || body.model_answer.length > MAX_MODEL_ANSWER_LENGTH))
+    || (body.student_transcript !== undefined
+      && (typeof body.student_transcript !== "string" || body.student_transcript.length > MAX_STUDENT_RESPONSE_LENGTH))
     || (body.rubricScores !== undefined && !isRecord(body.rubricScores))
     || (body.stageTaskContexts !== undefined && !Array.isArray(body.stageTaskContexts))) {
     return NextResponse.json({ error: "Provide a valid task prompt, response, stage, and submission." }, { status: 400 });
@@ -331,6 +333,8 @@ export async function POST(request: Request) {
         .filter((entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1])))
       : {};
     const modelAnswer = typeof body.model_answer === "string" ? body.model_answer.trim() : "";
+    const studentTranscript = typeof body.student_transcript === "string" ? body.student_transcript.trim() : "";
+    const isSpeakingEvaluation = body.stageId === "speaking" || Boolean(studentTranscript);
     const model = process.env.PAASTA_AI_MODEL || "google/gemini-2.5-flash-lite";
     let paastaResponse: Response;
     try {
@@ -356,6 +360,9 @@ export async function POST(request: Request) {
                 ...(modelAnswer
                   ? ["A model_answer is provided and is the answer key for this task. First compare the student_response strictly for semantic key-match against the model_answer. If the response captures the core meaning or key words—even in a short answer—set criteria_scores.task to exactly 9. Do not penalize brevity, missing explanation, or background details not requested by the task; only a meaningful omission, contradiction, or inaccuracy that changes the key answer can lower Task Achievement. When the core answer matches, student_summary must be exactly one brief confirmation sentence, such as: \"Correct. Your response accurately captures the model answer.\" This answer-key rule overrides general advice to identify gaps or weaknesses."]
                   : []),
+                ...(isSpeakingEvaluation
+                  ? ["The student_response is a speech-to-text transcript of the student's spoken response. Evaluate it as spoken language, focusing on spoken fluency, natural phrasing, coherence, and pacing as evidenced by the transcript (such as repetitions, fragments, or discourse flow). Do not assess pronunciation or other audio-only traits from text, and do not assume transcription artifacts are student errors."]
+                  : []),
                 "student_summary must be student-ready, concise, actionable, and no more than 2-3 sentences. Do not use generic praise to soften a low score; mention the most important gap and a practical fix.",
                 "instructor_diagnostic must contain stage_summary_diagnostic (a concise, evidence-based synthesis across the provided stage_task_contexts, contrasting strengths and gaps across tasks and noting a shared pattern or progression where supported; if only one task is available, state the key finding without inventing comparisons), key_error_patterns (array of {pattern, example, lesson_adjustment}), targeted_resources (array of {topic, title, reason}), and teaching_notes (concise instructor-only note).",
                 "Use evidence from the current task and supplied stage task contexts; do not invent errors or claim an unprovided task was evaluated. For low Task Achievement, name the omitted prompt requirement and a specific repair. Return empty arrays when none are evident. Suggest specific language-learning resources/rules only when supported by the response.",
@@ -369,7 +376,8 @@ export async function POST(request: Request) {
                 task: body.taskTitle,
                 task_prompt: body.taskPrompt,
                 ...(modelAnswer ? { model_answer: modelAnswer } : {}),
-                student_response: body.studentResponse,
+                student_response: studentTranscript || body.studentResponse,
+                ...(studentTranscript ? { student_transcript: studentTranscript } : {}),
                 current_rubric_scores: rubricScores,
                 stage_task_contexts: stageTaskContexts,
                 instructor_focus: typeof body.instructorPrompt === "string" ? body.instructorPrompt : "",

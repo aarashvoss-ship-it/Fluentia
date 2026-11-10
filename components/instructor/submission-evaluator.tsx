@@ -135,6 +135,7 @@ interface AcademisEvaluationContext {
   taskTitle: string;
   taskPrompt: string;
   studentResponse: string;
+  studentTranscript?: string;
   instructorPrompt: string;
 }
 
@@ -597,10 +598,12 @@ export function SubmissionEvaluator({
               stageTitle: activeStage.title,
               taskTitle: (task.title?.trim() || taskPrompt).slice(0, MAX_ACADEMIS_TASK_TITLE_LENGTH),
               taskPrompt: taskPrompt.slice(0, MAX_ACADEMIS_TASK_PROMPT_LENGTH),
-              studentResponse: (task.studentAnswer?.trim()
+              studentResponse: (task.studentTranscript?.trim()
+                || task.studentAnswer?.trim()
                 || (task.audioUrls?.length
                   ? "Audio response submitted; transcript unavailable for grading."
                   : "No written response submitted.")).slice(0, MAX_ACADEMIS_RESPONSE_LENGTH),
+              studentTranscript: task.studentTranscript?.trim() || undefined,
               instructorPrompt: "",
             };
             const cacheKey = JSON.stringify([submissionId, activeStage.id, task.id]);
@@ -810,7 +813,9 @@ export function SubmissionEvaluator({
       setAcademisError("The selected task has no prompt for Academis to evaluate.");
       return;
     }
-    const studentResponse = selectedTask.studentAnswer?.trim()
+    const studentTranscript = selectedTask.studentTranscript?.trim() || "";
+    const studentResponse = studentTranscript
+      || selectedTask.studentAnswer?.trim()
       || (selectedTask.audioUrls?.length
         ? "Audio response submitted; transcript unavailable for grading."
         : "No written response submitted.");
@@ -824,7 +829,8 @@ export function SubmissionEvaluator({
         task_id: task.id,
         task_title: (task.title?.trim() || task.prompt?.trim() || "Untitled task").slice(0, MAX_ACADEMIS_TASK_TITLE_LENGTH),
         task_prompt: (task.prompt?.trim() || task.title?.trim() || "No task prompt provided.").slice(0, 1200),
-        student_response: (task.studentAnswer?.trim()
+        student_response: (task.studentTranscript?.trim()
+          || task.studentAnswer?.trim()
           || (task.audioUrls?.length ? "Audio response submitted; transcript unavailable for grading." : "No written response submitted."))
           .slice(0, 2000),
         evaluated_scores: academisResultsByTask[peerKey]?.result.criteria_scores,
@@ -837,6 +843,7 @@ export function SubmissionEvaluator({
       taskTitle: requestTaskTitle,
       taskPrompt: requestTaskPrompt,
       studentResponse: requestStudentResponse,
+      studentTranscript: studentTranscript.slice(0, MAX_ACADEMIS_RESPONSE_LENGTH) || undefined,
       instructorPrompt: academisPrompt.slice(0, MAX_INSTRUCTOR_PROMPT_LENGTH),
     };
     const cacheKey = JSON.stringify([submissionId, selectedStage.id, selectedTask.id]);
@@ -874,6 +881,7 @@ export function SubmissionEvaluator({
           taskPrompt: evaluationContext.taskPrompt,
           ...(selectedTask.modelAnswer?.trim() ? { model_answer: selectedTask.modelAnswer.trim() } : {}),
           studentResponse: evaluationContext.studentResponse,
+          ...(evaluationContext.studentTranscript ? { student_transcript: evaluationContext.studentTranscript } : {}),
           instructorPrompt: evaluationContext.instructorPrompt,
           rubricScores: Object.fromEntries(
             RUBRIC_CRITERIA.map(({ id }) => [id, stageScores[selectedStage.id]?.[id] ?? null]),
@@ -1252,8 +1260,9 @@ export function SubmissionEvaluator({
                   <h3 className="mt-1 whitespace-pre-wrap break-words text-sm font-medium leading-relaxed text-stone-100">{stripMarkdown(task.prompt || task.title || "Task prompt not available.")}</h3>
                 </div>
                 <div className={`rounded-lg border p-4 ${responseBoxClass}`}>
-                  <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${responseLabelClass}`}>Student response</p>
-                  <p className={`mt-2 whitespace-pre-wrap break-words rounded-sm px-2 py-3 text-sm leading-relaxed ${isCorrect ? "bg-emerald-300/10" : isObjectiveAnswer ? "bg-rose-300/10" : "bg-surface"} ${responseTextClass}`}>{stripMarkdown(task.studentAnswer) || <span className="italic text-stone-500">No response submitted.</span>}</p>
+                  <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${responseLabelClass}`}>{task.studentTranscript?.trim() ? "Student transcript" : "Student response"}</p>
+                  {task.studentTranscript?.trim() && <p className="mt-2 whitespace-pre-wrap break-words rounded-sm bg-surface px-2 py-3 text-sm leading-relaxed text-stone-200">{stripMarkdown(task.studentTranscript)}</p>}
+                  {!task.studentTranscript?.trim() && <p className={`mt-2 whitespace-pre-wrap break-words rounded-sm px-2 py-3 text-sm leading-relaxed ${isCorrect ? "bg-emerald-300/10" : isObjectiveAnswer ? "bg-rose-300/10" : "bg-surface"} ${responseTextClass}`}>{stripMarkdown(task.studentAnswer) || <span className="italic text-stone-500">No response submitted.</span>}</p>}
                   {task.audioUrls?.map((url, audioIndex) => <div key={`${url}-${audioIndex}`} className="mt-2"><CustomAudioPlayer src={url} label={`${task.prompt || task.title || "Task"} student recording`} /></div>)}
                 </div>
                 {task.modelAnswer && <div className={`rounded-md border p-4 ${modelBoxClass}`}>

@@ -3432,6 +3432,13 @@ export default function InstructorWorkstationPage({
               writingText: answers.writingText || "",
               writing_responses: answers.writing_responses || {},
               speakingAudioUrl: answers.speakingAudioUrl,
+              student_transcript: answers.student_transcript,
+              studentTranscript: answers.studentTranscript,
+              transcription: answers.transcription,
+              transcript: answers.transcript,
+              audioTranscripts: answers.audioTranscripts || {},
+              studentTranscripts: answers.studentTranscripts || {},
+              transcripts: answers.transcripts || {},
               blockResponses: answers.blockResponses || {},
               quizSelections: answers.quizSelections || {},
               audioUploads: answers.audioUploads || {},
@@ -4098,6 +4105,30 @@ export default function InstructorWorkstationPage({
     speaking: 0,
   };
   const reviewStageForKey: Record<string, InstructorReviewStageId> = { warm_up: "warm_up", writingText: "writing", speaking: "speaking" };
+  const reviewTranscripts: Record<string, string> = {};
+  const getReviewTranscript = (value: unknown) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+    const record = value as Record<string, unknown>;
+    const transcript = [record.student_transcript, record.studentTranscript, record.transcription, record.transcript, record.transcribed_text, record.transcribedText]
+      .find((candidate): candidate is string => typeof candidate === "string" && candidate.trim().length > 0);
+    return transcript?.trim();
+  };
+  for (const transcriptMap of [
+    submittedAnswers?.audioTranscripts,
+    submittedAnswers?.studentTranscripts,
+    submittedAnswers?.transcripts,
+  ]) {
+    Object.entries(transcriptMap || {}).forEach(([key, transcript]) => {
+      if (typeof transcript === "string" && transcript.trim()) reviewTranscripts[key] = transcript.trim();
+    });
+  }
+  const defaultSpeakingTranscript = [
+    submittedAnswers?.student_transcript,
+    submittedAnswers?.studentTranscript,
+    submittedAnswers?.transcription,
+    submittedAnswers?.transcript,
+  ].find((candidate) => typeof candidate === "string" && candidate.trim());
+  if (typeof defaultSpeakingTranscript === "string") reviewTranscripts.speaking = defaultSpeakingTranscript.trim();
   const normalizeReviewStageId = (value: string): InstructorReviewStageId | undefined => {
     const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
     const stage = reviewStages.find((candidate) => (
@@ -4255,10 +4286,11 @@ export default function InstructorWorkstationPage({
       ? stage?.prompt || `${stage?.title || "Lesson"} prompt not provided`
       : key.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()));
   };
-  const addReviewAnswer = (stageId: InstructorReviewStageId, key: string, answer: string, audioUrl?: string, markedIsCorrect?: boolean) => {
+  const addReviewAnswer = (stageId: InstructorReviewStageId, key: string, answer: string, audioUrl?: string, markedIsCorrect?: boolean, transcript?: string) => {
     const stage = reviewStages.find((item) => item.id === stageId);
     if (!stage) return;
     const isUrl = /^(?:https?:|blob:|data:audio\/)/i.test(answer.trim());
+    const studentTranscript = transcript?.trim() || reviewTranscripts[key];
     const modelAnswer = reviewModelAnswers[key];
     const normalizedStudentAnswer = normalizeReviewAnswer(answer);
     const isCorrect = answer.trim()
@@ -4268,33 +4300,49 @@ export default function InstructorWorkstationPage({
           ? modelAnswer.split(/[\/|]/).some((candidate) => normalizeReviewAnswer(candidate) === normalizedStudentAnswer)
           : undefined
       : undefined;
-    stage.tasks.push({
+    const task = {
       id: key,
       title: getDisplayQuestion(key, stageId),
       prompt: getDisplayQuestion(key, stageId),
-      studentAnswer: audioUrl || isUrl ? "Audio response submitted" : answer,
+      studentAnswer: audioUrl || isUrl ? studentTranscript || "Audio response submitted" : answer,
+      studentTranscript,
       taskNumber: reviewTaskNumbers[key],
       modelAnswer,
       isCorrect,
       autoCheck: reviewAutoCheckKeys.has(key),
       audioUrls: audioUrl || isUrl ? [audioUrl || answer] : undefined,
-    });
+    };
+    const existingTaskIndex = stage.tasks.findIndex((existingTask) => existingTask.id === key);
+    if (existingTaskIndex >= 0) {
+      const existingTask = stage.tasks[existingTaskIndex];
+      stage.tasks[existingTaskIndex] = {
+        ...existingTask,
+        ...task,
+        studentAnswer: studentTranscript || (audioUrl || isUrl ? existingTask.studentAnswer.trim() || "Audio response submitted" : answer),
+        studentTranscript: studentTranscript || existingTask.studentTranscript,
+        audioUrls: [...new Set([...(existingTask.audioUrls || []), ...(task.audioUrls || [])])],
+      };
+      return;
+    }
+    stage.tasks.push(task);
   };
   if (submittedAnswers?.writingText?.trim()) addReviewAnswer("writing", "writingText", submittedAnswers.writingText);
   const appendAnswers = (answers: Record<string, unknown> | undefined, fallbackStage?: InstructorReviewStageId) => {
     Object.entries(answers || {}).forEach(([key, response]) => {
+      const transcript = getReviewTranscript(response);
+      if (transcript) reviewTranscripts[key] = transcript;
       const answer = typeof response === "string"
         ? response
         : response && typeof response === "object" && !Array.isArray(response)
-          ? ["answer", "response", "value"].map((field) => (response as Record<string, unknown>)[field]).find((value): value is string => typeof value === "string")
-          : undefined;
+          ? ["answer", "response", "value"].map((field) => (response as Record<string, unknown>)[field]).find((value): value is string => typeof value === "string") || transcript
+          : transcript;
       if (!answer?.trim()) return;
       const metadata = response && typeof response === "object" && !Array.isArray(response)
         ? response as Record<string, unknown>
         : undefined;
       const stage = resolveReviewStage(key, metadata) || fallbackStage;
       if (!stage) return;
-      addReviewAnswer(stage, key, answer);
+      addReviewAnswer(stage, key, answer, undefined, undefined, transcript);
     });
   };
   appendAnswers(submittedAnswers?.listeningAnswers, "listening");
@@ -4302,12 +4350,19 @@ export default function InstructorWorkstationPage({
   appendAnswers(submittedAnswers?.writing_responses, "writing");
   appendAnswers(submittedAnswers?.blockResponses);
   appendAnswers(submittedAnswers?.quizSelections);
-  Object.entries(submittedAnswers?.audioUploads || {}).forEach(([key, url]) => {
-    if (!url?.trim()) return;
+  Object.entries((submittedAnswers?.audioUploads || {}) as Record<string, unknown>).forEach(([key, upload]) => {
+    const uploadRecord = upload && typeof upload === "object" && !Array.isArray(upload)
+      ? upload as Record<string, unknown>
+      : undefined;
+    const url = typeof upload === "string"
+      ? upload
+      : [uploadRecord?.url, uploadRecord?.audio_url, uploadRecord?.audioUrl].find((candidate): candidate is string => typeof candidate === "string");
+    const transcript = getReviewTranscript(upload) || reviewTranscripts[key];
+    if (!url?.trim() && !transcript) return;
     const speakingBlock = reviewContent.speaking?.blocks?.some((block: ContentBlock) => block.id === key && block.type === "audio" && block.allowStudentVoiceResponse);
     const stage = reviewStageForKey[key] || (key === "speaking" || speakingBlock ? "speaking" : undefined);
     if (!stage) return;
-    addReviewAnswer(stage, key, "Audio response submitted", url);
+    addReviewAnswer(stage, key, url ? "Audio response submitted" : transcript, url, undefined, transcript);
   });
   if (submittedAnswers?.speakingAudioUrl?.trim() && !reviewStages.some((stage) => stage.tasks.some((task) => task.audioUrls?.includes(submittedAnswers.speakingAudioUrl!)))) {
     addReviewAnswer("speaking", "speaking", "Audio response submitted", submittedAnswers.speakingAudioUrl);

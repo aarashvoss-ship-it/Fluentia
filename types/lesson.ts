@@ -422,6 +422,13 @@ export interface StudentSubmission {
   writingText: string;
   writing_responses?: Record<string, string>;
   speakingAudioUrl?: string;
+  student_transcript?: string;
+  studentTranscript?: string;
+  transcription?: string;
+  transcript?: string;
+  audioTranscripts?: Record<string, string>;
+  studentTranscripts?: Record<string, string>;
+  transcripts?: Record<string, string>;
   blockResponses?: Record<string, string>;
   quizSelections?: Record<string, string>;
   audioUploads?: Record<string, string>;
