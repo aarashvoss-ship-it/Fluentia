@@ -136,6 +136,8 @@ interface AcademisEvaluationContext {
   taskPrompt: string;
   studentResponse: string;
   studentTranscript?: string;
+  referenceTranscript?: string;
+  audioResponseSubmitted?: boolean;
   instructorPrompt: string;
 }
 
@@ -604,6 +606,8 @@ export function SubmissionEvaluator({
                   ? "Audio response submitted; transcript unavailable for grading."
                   : "No written response submitted.")).slice(0, MAX_ACADEMIS_RESPONSE_LENGTH),
               studentTranscript: task.studentTranscript?.trim() || undefined,
+              referenceTranscript: task.referenceTranscript?.trim() || undefined,
+              audioResponseSubmitted: Boolean(task.audioUrls?.length),
               instructorPrompt: "",
             };
             const cacheKey = JSON.stringify([submissionId, activeStage.id, task.id]);
@@ -844,6 +848,8 @@ export function SubmissionEvaluator({
       taskPrompt: requestTaskPrompt,
       studentResponse: requestStudentResponse,
       studentTranscript: studentTranscript.slice(0, MAX_ACADEMIS_RESPONSE_LENGTH) || undefined,
+      referenceTranscript: selectedTask.referenceTranscript?.trim().slice(0, MAX_ACADEMIS_TASK_PROMPT_LENGTH) || undefined,
+      audioResponseSubmitted: Boolean(selectedTask.audioUrls?.length),
       instructorPrompt: academisPrompt.slice(0, MAX_INSTRUCTOR_PROMPT_LENGTH),
     };
     const cacheKey = JSON.stringify([submissionId, selectedStage.id, selectedTask.id]);
@@ -882,6 +888,8 @@ export function SubmissionEvaluator({
           ...(selectedTask.modelAnswer?.trim() ? { model_answer: selectedTask.modelAnswer.trim() } : {}),
           studentResponse: evaluationContext.studentResponse,
           ...(evaluationContext.studentTranscript ? { student_transcript: evaluationContext.studentTranscript } : {}),
+          ...(evaluationContext.referenceTranscript ? { reference_transcript: evaluationContext.referenceTranscript } : {}),
+          audio_response_submitted: evaluationContext.audioResponseSubmitted === true,
           instructorPrompt: evaluationContext.instructorPrompt,
           rubricScores: Object.fromEntries(
             RUBRIC_CRITERIA.map(({ id }) => [id, stageScores[selectedStage.id]?.[id] ?? null]),
@@ -1264,6 +1272,10 @@ export function SubmissionEvaluator({
                   {task.studentTranscript?.trim() && <details open className="mt-2 rounded-md border border-border bg-surface px-3 py-2">
                     <summary className="cursor-pointer text-xs font-medium text-stone-300">Transcript</summary>
                     <p className="mt-2 whitespace-pre-wrap break-words py-1 text-sm leading-relaxed text-stone-200">{stripMarkdown(task.studentTranscript)}</p>
+                  </details>}
+                  {task.referenceTranscript?.trim() && <details open className="mt-2 rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2">
+                    <summary className="cursor-pointer text-xs font-medium text-amber-300">Shadowing source transcript</summary>
+                    <p className="mt-2 whitespace-pre-wrap break-words py-1 text-sm leading-relaxed text-stone-200">{stripMarkdown(task.referenceTranscript)}</p>
                   </details>}
                   {!task.studentTranscript?.trim() && <p className={`mt-2 whitespace-pre-wrap break-words rounded-sm px-2 py-3 text-sm leading-relaxed ${isCorrect ? "bg-emerald-300/10" : isObjectiveAnswer ? "bg-rose-300/10" : "bg-surface"} ${responseTextClass}`}>{stripMarkdown(task.studentAnswer) || <span className="italic text-stone-500">No response submitted.</span>}</p>}
                   {task.audioUrls?.map((url, audioIndex) => <div key={`${url}-${audioIndex}`} className="mt-2"><CustomAudioPlayer src={url} label={`${task.prompt || task.title || "Task"} student recording`} /></div>)}

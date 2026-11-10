@@ -4096,6 +4096,7 @@ export default function InstructorWorkstationPage({
   const reviewModelAnswers: Record<string, string> = {};
   const reviewAutoCheckKeys = new Set<string>();
   const reviewTaskNumbers: Record<string, number> = {};
+  const reviewReferenceTranscripts: Record<string, string> = {};
   const reviewTaskCounters: Record<InstructorReviewStageId, number> = {
     warm_up: 0,
     lesson: 0,
@@ -4274,6 +4275,7 @@ export default function InstructorWorkstationPage({
       } else if (block.type === "audio" && block.allowStudentVoiceResponse) {
         const taskDefinition = block as ContentBlock & { prompt?: string; question?: string };
         addReviewReference(step, block.id, getReviewPrompt(taskDefinition.prompt, taskDefinition.question, block.title, reviewStages.find((stage) => stage.id === step)?.prompt));
+        if (block.transcript?.trim()) reviewReferenceTranscripts[block.id] = block.transcript.trim();
       }
     });
   });
@@ -4308,6 +4310,7 @@ export default function InstructorWorkstationPage({
       prompt: getDisplayQuestion(key, stageId),
       studentAnswer: audioUrl || isUrl ? studentTranscript || "Audio response submitted" : answer,
       studentTranscript,
+      referenceTranscript: reviewReferenceTranscripts[key],
       taskNumber: reviewTaskNumbers[key],
       modelAnswer,
       isCorrect,
