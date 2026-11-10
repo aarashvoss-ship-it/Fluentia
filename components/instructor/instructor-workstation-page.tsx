@@ -4236,22 +4236,24 @@ export default function InstructorWorkstationPage({
     });
   };
   if (submittedAnswers?.writingText?.trim()) addReviewAnswer("writing", "writingText", submittedAnswers.writingText);
-  const appendAnswers = (answers: Record<string, string> | undefined, fallbackStage: InstructorReviewStageId) => {
+  const appendAnswers = (answers: Record<string, string> | undefined, fallbackStage?: InstructorReviewStageId) => {
     Object.entries(answers || {}).forEach(([key, answer]) => {
       if (!answer?.trim()) return;
       const stage = reviewStageForKey[key] || fallbackStage;
+      if (!stage) return;
       addReviewAnswer(stage, key, answer);
     });
   };
   appendAnswers(submittedAnswers?.listeningAnswers, "listening");
   appendAnswers(submittedAnswers?.readingAnswers, "reading");
   appendAnswers(submittedAnswers?.writing_responses, "writing");
-  appendAnswers(submittedAnswers?.blockResponses, "warm_up");
-  appendAnswers(submittedAnswers?.quizSelections, "warm_up");
+  appendAnswers(submittedAnswers?.blockResponses);
+  appendAnswers(submittedAnswers?.quizSelections);
   Object.entries(submittedAnswers?.audioUploads || {}).forEach(([key, url]) => {
     if (!url?.trim()) return;
     const speakingBlock = reviewContent.speaking?.blocks?.some((block: ContentBlock) => block.id === key && block.type === "audio" && block.allowStudentVoiceResponse);
-    const stage = reviewStageForKey[key] || (key === "speaking" || speakingBlock ? "speaking" : "warm_up");
+    const stage = reviewStageForKey[key] || (key === "speaking" || speakingBlock ? "speaking" : undefined);
+    if (!stage) return;
     addReviewAnswer(stage, key, "Audio response submitted", url);
   });
   if (submittedAnswers?.speakingAudioUrl?.trim() && !reviewStages.some((stage) => stage.tasks.some((task) => task.audioUrls?.includes(submittedAnswers.speakingAudioUrl!)))) {
