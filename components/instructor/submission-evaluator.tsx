@@ -87,6 +87,7 @@ const ACADEMIS_PROMPTS = [
   },
 ] as const;
 const DEFAULT_ACADEMIS_CATEGORIES = ACADEMIS_PROMPTS.map(({ id, label }) => ({ id, label }));
+const ALL_ACADEMIS_PROMPTS_CATEGORY_ID = "__all_academis_prompts__";
 interface AcademisPromptPreset {
   id: string;
   label: string;
@@ -908,6 +909,8 @@ export function SubmissionEvaluator({
   };
   const deleteAcademisCategory = (categoryId: string) => {
     if (DEFAULT_ACADEMIS_CATEGORIES.some((category) => category.id === categoryId)) return;
+    const category = academisCategoryDrafts.find((item) => item.id === categoryId);
+    if (category && !window.confirm(`Delete "${category.label}" and its custom prompts? Save changes to confirm permanent deletion.`)) return;
     const categories = academisCategoryDrafts.filter((category) => category.id !== categoryId);
     const fallbackCategoryId = categories.find((category) => DEFAULT_ACADEMIS_CATEGORIES.some((defaultCategory) => defaultCategory.id === category.id))?.id
       || categories[0]?.id;
@@ -919,6 +922,31 @@ export function SubmissionEvaluator({
       return defaultPresetIds.has(preset.id) ? [{ ...preset, categoryId: fallbackCategoryId }] : [];
     }));
     setActiveAcademisCategoryId((activeCategoryId) => activeCategoryId === categoryId ? fallbackCategoryId : activeCategoryId);
+    setAcademisLibraryError(null);
+  };
+  const unpinAcademisPreset = (presetId: string) => {
+    const presets = academisPresets.map((preset) => (
+      preset.id === presetId ? { ...preset, isFavorite: false } : preset
+    ));
+    try {
+      window.localStorage.setItem(
+        `fluentia:academis-presets:${instructorId || "default"}`,
+        JSON.stringify({ categories: academisCategories, presets }),
+      );
+      setAcademisPresets(presets);
+      setAcademisPresetDrafts((drafts) => drafts.map((preset) => (
+        preset.id === presetId ? { ...preset, isFavorite: false } : preset
+      )));
+      setAcademisLibraryError(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to update pinned Academis prompts.";
+      setAcademisError(message);
+      console.error("Academis prompt could not be unpinned:", error);
+    }
+  };
+  const deleteAcademisPreset = (preset: AcademisPromptPreset) => {
+    if (!window.confirm(`Permanently delete "${preset.label || "this prompt"}" from your Prompt Library? This takes effect when you save changes.`)) return;
+    setAcademisPresetDrafts((drafts) => drafts.filter((item) => item.id !== preset.id));
     setAcademisLibraryError(null);
   };
   const saveAcademisLibrary = () => {
@@ -1527,19 +1555,29 @@ export function SubmissionEvaluator({
             </button>
           </div>
           <div className="flex flex-wrap gap-1.5" aria-label="Pinned evaluation prompt presets">
-            {pinnedAcademisPresets.map((preset) => <button
-              key={preset.id}
-              type="button"
-              aria-pressed={activeAcademisPresetId === preset.id}
-              onClick={() => {
-                setActiveAcademisPresetId(preset.id);
-                setAcademisPrompt(preset.prompt);
-              }}
-              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] transition ${activeAcademisPresetId === preset.id ? "border-amber-500/40 bg-amber-500/10 text-amber-200" : "border-border text-stone-400 hover:border-amber-500/30 hover:text-stone-200"}`}
-            >
-              <Star className="h-2.5 w-2.5 fill-current text-amber-400" aria-hidden="true" />
-              {preset.label}
-            </button>)}
+            {pinnedAcademisPresets.map((preset) => <div key={preset.id} className={`inline-flex items-center rounded-full border text-[10px] transition ${activeAcademisPresetId === preset.id ? "border-amber-500/40 bg-amber-500/10 text-amber-200" : "border-border text-stone-400 hover:border-amber-500/30 hover:text-stone-200"}`}>
+              <button
+                type="button"
+                aria-pressed={activeAcademisPresetId === preset.id}
+                onClick={() => {
+                  setActiveAcademisPresetId(preset.id);
+                  setAcademisPrompt(preset.prompt);
+                }}
+                className="inline-flex items-center gap-1 py-1 pl-2.5 pr-1"
+              >
+                <Star className="h-2.5 w-2.5 fill-current text-amber-400" aria-hidden="true" />
+                {preset.label}
+              </button>
+              <button
+                type="button"
+                onClick={() => unpinAcademisPreset(preset.id)}
+                aria-label={`Unpin ${preset.label} from quick access`}
+                title="Remove from quick access"
+                className="mr-1 rounded-full p-0.5 text-stone-500 transition hover:bg-amber-500/15 hover:text-amber-200"
+              >
+                <X className="h-3 w-3" aria-hidden="true" />
+              </button>
+            </div>)}
             {!pinnedAcademisPresets.length && <p className="text-[10px] text-stone-500">Pin prompts in Prompt Library to add quick picks.</p>}
           </div>
           <section className="rounded-md border border-amber-500/25 bg-amber-500/5 p-2.5" aria-label="Active Academis prompt">
@@ -1602,7 +1640,20 @@ export function SubmissionEvaluator({
         </header>
 
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 sm:p-7">
-          <div className="flex items-center gap-2 overflow-x-auto border-b border-border" role="tablist" aria-label="Prompt categories">
+          <div className="flex items-center gap-2 overflow-x-auto border-b border-border" role="tablist" aria-label="Prompt categories and saved prompts">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeAcademisCategoryId === ALL_ACADEMIS_PROMPTS_CATEGORY_ID}
+              aria-controls="academis-category-panel-all-prompts"
+              onClick={() => {
+                setActiveAcademisCategoryId(ALL_ACADEMIS_PROMPTS_CATEGORY_ID);
+                setAcademisLibraryError(null);
+              }}
+              className={`shrink-0 border-b-2 px-3 py-2.5 text-xs transition ${activeAcademisCategoryId === ALL_ACADEMIS_PROMPTS_CATEGORY_ID ? "border-amber-400 text-amber-200" : "border-transparent text-stone-500 hover:text-stone-200"}`}
+            >
+              All saved prompts
+            </button>
             {academisCategoryDrafts.map((category) => <div key={category.id} role="presentation" className="flex shrink-0 items-center">
               <button
                 type="button"
@@ -1617,15 +1668,6 @@ export function SubmissionEvaluator({
               >
                 {category.label}
               </button>
-              {!DEFAULT_ACADEMIS_CATEGORIES.some((defaultCategory) => defaultCategory.id === category.id) && <button
-                type="button"
-                onClick={() => deleteAcademisCategory(category.id)}
-                aria-label={`Delete ${category.label} category`}
-                title={`Delete ${category.label}`}
-                className="rounded p-1 text-stone-600 transition hover:bg-amber-500/10 hover:text-amber-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/60"
-              >
-                <X className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>}
             </div>)}
             <button
               type="button"
@@ -1641,28 +1683,47 @@ export function SubmissionEvaluator({
             </button>
           </div>
 
-          {academisCategoryDrafts.filter((category) => category.id === activeAcademisCategoryId).map((category) => <div
+          {(activeAcademisCategoryId === ALL_ACADEMIS_PROMPTS_CATEGORY_ID
+            ? [{ id: ALL_ACADEMIS_PROMPTS_CATEGORY_ID, label: "All saved prompts" }]
+            : academisCategoryDrafts.filter((category) => category.id === activeAcademisCategoryId)).map((category) => <div
             key={category.id}
-            id={`academis-category-panel-${category.id}`}
+            id={category.id === ALL_ACADEMIS_PROMPTS_CATEGORY_ID
+              ? "academis-category-panel-all-prompts"
+              : `academis-category-panel-${category.id}`}
             role="tabpanel"
             className="space-y-4"
           >
-            <label className="block max-w-sm text-xs text-stone-500">
-              Category name
-              <input
-                value={category.label}
-                maxLength={40}
-                onChange={(event) => setAcademisCategoryDrafts((categories) => categories.map((item) => item.id === category.id ? { ...item, label: event.target.value } : item))}
-                className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500/40"
-              />
-            </label>
+            {category.id === ALL_ACADEMIS_PROMPTS_CATEGORY_ID && <p className="text-xs leading-relaxed text-stone-500">Manage every saved prompt here. Unpinned prompts stay in your library and can be pinned again at any time.</p>}
+            {category.id !== ALL_ACADEMIS_PROMPTS_CATEGORY_ID && <div className="flex flex-wrap items-end gap-3">
+              <label className="block max-w-sm flex-1 text-xs text-stone-500">
+                Category name
+                <input
+                  value={category.label}
+                  maxLength={40}
+                  onChange={(event) => setAcademisCategoryDrafts((categories) => categories.map((item) => item.id === category.id ? { ...item, label: event.target.value } : item))}
+                  className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500/40"
+                />
+              </label>
+              {!DEFAULT_ACADEMIS_CATEGORIES.some((defaultCategory) => defaultCategory.id === category.id) && <button
+                type="button"
+                onClick={() => deleteAcademisCategory(category.id)}
+                className="rounded-md border border-red-500/25 px-3 py-2 text-xs text-red-300 transition hover:border-red-400/50 hover:bg-red-500/5"
+              >
+                Delete category…
+              </button>}
+            </div>}
 
-            {academisPresetDrafts.filter((preset) => preset.categoryId === category.id).map((preset) => <article
+            {academisPresetDrafts.filter((preset) => (
+              category.id === ALL_ACADEMIS_PROMPTS_CATEGORY_ID || preset.categoryId === category.id
+            )).map((preset) => <article
               key={preset.id}
               className="rounded-lg border border-border bg-background/70 p-4 sm:p-5"
             >
               <div className="mb-3 flex items-center justify-between gap-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Evaluation prompt</p>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Evaluation prompt</p>
+                  {category.id === ALL_ACADEMIS_PROMPTS_CATEGORY_ID && <p className="mt-1 text-[10px] text-stone-600">{academisCategoryDrafts.find((item) => item.id === preset.categoryId)?.label || "Uncategorized"}</p>}
+                </div>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -1681,14 +1742,14 @@ export function SubmissionEvaluator({
                   >
                     {preset.isFavorite ? <Star className="h-4 w-4 fill-current" aria-hidden="true" /> : <Pin className="h-4 w-4" aria-hidden="true" />}
                   </button>
-                  {!ACADEMIS_PROMPTS.some((defaultPreset) => defaultPreset.id === preset.id) && <button
+                  <button
                     type="button"
-                    onClick={() => setAcademisPresetDrafts((drafts) => drafts.filter((item) => item.id !== preset.id))}
+                    onClick={() => deleteAcademisPreset(preset)}
                     aria-label={`Delete ${preset.label || "custom"} preset`}
                     className="rounded-md px-2 py-1 text-[10px] text-stone-500 transition hover:text-red-300"
                   >
                     Delete
-                  </button>}
+                  </button>
                 </div>
               </div>
               <label className="block text-xs text-stone-400">
@@ -1714,7 +1775,7 @@ export function SubmissionEvaluator({
               </label>
             </article>)}
 
-            <button
+            {category.id !== ALL_ACADEMIS_PROMPTS_CATEGORY_ID && <button
               type="button"
               onClick={() => setAcademisPresetDrafts((drafts) => [...drafts, {
                 id: `custom-${crypto.randomUUID()}`,
@@ -1726,7 +1787,7 @@ export function SubmissionEvaluator({
               className="rounded-md border border-dashed border-amber-500/30 px-3 py-2 text-xs text-amber-300 transition hover:border-amber-500/60 hover:bg-amber-500/5"
             >
               + Preset
-            </button>
+            </button>}
           </div>)}
           {academisLibraryError && <p role="alert" className="text-xs text-red-300">{academisLibraryError}</p>}
         </div>
