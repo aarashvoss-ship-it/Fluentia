@@ -110,6 +110,7 @@ interface AcademisInsight {
   overall_band_score: number;
   student_summary: string;
   instructor_diagnostic: {
+    stage_summary_diagnostic?: string;
     key_error_patterns: Array<{
       pattern: string;
       example: string;
@@ -181,6 +182,8 @@ function isAcademisInsight(value: unknown): value is AcademisInsight {
     || typeof value.student_summary !== "string"
     || !Array.isArray(value.instructor_diagnostic.key_error_patterns)
     || !Array.isArray(value.instructor_diagnostic.targeted_resources)
+    || (value.instructor_diagnostic.stage_summary_diagnostic !== undefined
+      && typeof value.instructor_diagnostic.stage_summary_diagnostic !== "string")
     || typeof value.instructor_diagnostic.teaching_notes !== "string") {
     return false;
   }
@@ -555,6 +558,14 @@ export function SubmissionEvaluator({
     || activeTask?.title?.trim()
     || activeStage?.prompt?.trim()
     || "";
+  const activeStageSummary = submissionId && activeStage
+    ? Object.entries(academisResultsByTask)
+      .filter(([cacheKey, report]) => cacheKey.startsWith(`${JSON.stringify([submissionId]).slice(0, -1)},`)
+        && report.context.stageId === activeStage.id)
+      .map(([, report]) => report.result.instructor_diagnostic.stage_summary_diagnostic)
+      .filter(Boolean)
+      .at(-1)
+    : undefined;
 
   useEffect(() => {
     if (!submissionId || !activeStage || !activeStage.tasks.length) return;
@@ -806,6 +817,18 @@ export function SubmissionEvaluator({
       .slice(0, MAX_ACADEMIS_TASK_TITLE_LENGTH);
     const requestTaskPrompt = taskPrompt.slice(0, MAX_ACADEMIS_TASK_PROMPT_LENGTH);
     const requestStudentResponse = studentResponse.slice(0, MAX_ACADEMIS_RESPONSE_LENGTH);
+    const stageTaskContexts = selectedStage.tasks.slice(0, 8).map((task) => {
+      const peerKey = JSON.stringify([submissionId, selectedStage.id, task.id]);
+      return {
+        task_id: task.id,
+        task_title: (task.title?.trim() || task.prompt?.trim() || "Untitled task").slice(0, MAX_ACADEMIS_TASK_TITLE_LENGTH),
+        task_prompt: (task.prompt?.trim() || task.title?.trim() || "No task prompt provided.").slice(0, 1200),
+        student_response: (task.studentAnswer?.trim()
+          || (task.audioUrls?.length ? "Audio response submitted; transcript unavailable for grading." : "No written response submitted."))
+          .slice(0, 2000),
+        evaluated_scores: academisResultsByTask[peerKey]?.result.criteria_scores,
+      };
+    });
     const evaluationContext: AcademisEvaluationContext = {
       taskId: selectedTask.id,
       stageId: selectedStage.id,
@@ -853,6 +876,7 @@ export function SubmissionEvaluator({
           rubricScores: Object.fromEntries(
             RUBRIC_CRITERIA.map(({ id }) => [id, stageScores[selectedStage.id]?.[id] ?? null]),
           ),
+          stageTaskContexts,
         }),
       });
       let payload: { error?: string; insight?: unknown; insightSaved?: boolean };
@@ -1139,6 +1163,10 @@ export function SubmissionEvaluator({
           <div className="min-w-0 space-y-5">
             {stageStepper}
             {stageHeading}
+            {activeStageSummary && <section className="rounded-lg border border-amber-500/30 bg-amber-500/[0.06] p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-300">Stage Summary / Diagnostic Overview</p>
+              <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-stone-200">{activeStageSummary}</p>
+            </section>}
             {(activeStage.id === "reading" || activeStage.id === "listening") && (activeStage.referenceText || activeStage.referenceAudioUrl) && <details className="rounded-lg border border-border bg-surface p-3">
               <summary className="cursor-pointer text-xs font-medium text-stone-300">Show lesson reference</summary>
               {activeStage.referenceText && <p className="mt-3 whitespace-pre-wrap text-xs leading-relaxed text-stone-400">{stripMarkdown(activeStage.referenceText)}</p>}
@@ -1937,6 +1965,12 @@ export function SubmissionEvaluator({
                 <section className="rounded-xl border border-border bg-[#0b0e13] p-4 sm:p-5">
                   <h3 className="text-sm font-semibold text-stone-100">Teaching notes</h3>
                   <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-stone-300">{academisInsight.result.instructor_diagnostic.teaching_notes || "No additional teaching notes."}</p>
+                </section>
+                <section className="rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-4 sm:p-5">
+                  <h3 className="text-sm font-semibold text-amber-200">Stage Summary / Diagnostic Overview</h3>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-stone-200">
+                    {academisInsight.result.instructor_diagnostic.stage_summary_diagnostic || "Run Academis with stage task context to generate a cross-task overview."}
+                  </p>
                 </section>
                 <section>
                   <h3 className="mb-3 text-sm font-semibold text-stone-100">Observed error patterns</h3>

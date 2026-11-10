@@ -25,6 +25,7 @@ BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
     EXECUTE 'ALTER TABLE public.academis_evaluation_insights ENABLE ROW LEVEL SECURITY';
     EXECUTE 'DROP POLICY IF EXISTS "Instructors can read their Academis insights" ON public.academis_evaluation_insights';
+    EXECUTE 'DROP POLICY IF EXISTS "Instructors can insert their Academis insights" ON public.academis_evaluation_insights';
     EXECUTE '
       CREATE POLICY "Instructors can read their Academis insights"
       ON public.academis_evaluation_insights
@@ -39,6 +40,24 @@ BEGIN
             AND lessons.instructor_id = auth.uid()
         )
       )';
+    EXECUTE '
+      CREATE POLICY "Instructors can insert their Academis insights"
+      ON public.academis_evaluation_insights
+      FOR INSERT
+      TO authenticated
+      WITH CHECK (
+        auth.uid() = instructor_id
+        AND EXISTS (
+          SELECT 1
+          FROM public.submissions
+          JOIN public.lessons ON lessons.id = submissions.lesson_id
+          WHERE submissions.id = academis_evaluation_insights.submission_id
+            AND submissions.lesson_id = academis_evaluation_insights.lesson_id
+            AND submissions.student_id = academis_evaluation_insights.student_id
+            AND lessons.instructor_id = auth.uid()
+        )
+      )';
+    EXECUTE 'GRANT SELECT, INSERT ON TABLE public.academis_evaluation_insights TO authenticated';
   END IF;
 END
 $$;
