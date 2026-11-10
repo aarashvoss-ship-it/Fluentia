@@ -7,6 +7,7 @@ export const runtime = "nodejs";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PAASTA_CHAT_COMPLETIONS_URL = "https://console.paasta.cloud/api/ai/v1/chat/completions";
 const MAX_TASK_PROMPT_LENGTH = 6000;
+const MAX_MODEL_ANSWER_LENGTH = 6000;
 const MAX_STUDENT_RESPONSE_LENGTH = 12000;
 const MAX_INSTRUCTOR_PROMPT_LENGTH = 2500;
 const MAX_STAGE_CONTEXT_PROMPT_LENGTH = 1200;
@@ -294,6 +295,8 @@ export async function POST(request: Request) {
     || body.studentResponse.length > MAX_STUDENT_RESPONSE_LENGTH
     || (body.instructorPrompt !== undefined
       && (typeof body.instructorPrompt !== "string" || body.instructorPrompt.length > MAX_INSTRUCTOR_PROMPT_LENGTH))
+    || (body.model_answer !== undefined
+      && (typeof body.model_answer !== "string" || body.model_answer.length > MAX_MODEL_ANSWER_LENGTH))
     || (body.rubricScores !== undefined && !isRecord(body.rubricScores))
     || (body.stageTaskContexts !== undefined && !Array.isArray(body.stageTaskContexts))) {
     return NextResponse.json({ error: "Provide a valid task prompt, response, stage, and submission." }, { status: 400 });
@@ -318,6 +321,7 @@ export async function POST(request: Request) {
       ? Object.fromEntries(Object.entries(body.rubricScores)
         .filter((entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1])))
       : {};
+    const modelAnswer = typeof body.model_answer === "string" ? body.model_answer.trim() : "";
     const model = process.env.PAASTA_AI_MODEL || "google/gemini-2.5-flash-lite";
     let paastaResponse: Response;
     try {
@@ -340,6 +344,9 @@ export async function POST(request: Request) {
                 "Return only one JSON object with exactly these top-level keys: criteria_scores, student_summary, instructor_diagnostic.",
                 "criteria_scores must contain integer scores from 1 to 9 with these exact mappings: task = Task Achievement & Depth, coherence = Coherence & Flow, lexical = Lexical Precision & Range, grammar = Grammatical Accuracy. Do not return an overall score; the server computes the arithmetic mean of these four values.",
                 "Evaluate only the current task for criteria_scores. Be direct, specific, and pain-point driven. When Task Achievement is weak, avoid generic praise and explicitly identify which prompt requirement was missed, what detail or reasoning is absent, and the next concrete action that would address it.",
+                ...(modelAnswer
+                  ? ["A model_answer is provided for this task. Evaluate comprehension responses by semantic key-match against its core meaning, not exact wording. If the student captures that meaning, award high Task Achievement even if the answer is brief; do not penalize brevity or omit important credit solely because details differ from the model answer. Penalize only meaningful omissions, contradictions, or inaccuracies relative to the model answer and task prompt."]
+                  : []),
                 "student_summary must be student-ready, concise, actionable, and no more than 2-3 sentences. Do not use generic praise to soften a low score; mention the most important gap and a practical fix.",
                 "instructor_diagnostic must contain stage_summary_diagnostic (a concise, evidence-based synthesis across the provided stage_task_contexts, contrasting strengths and gaps across tasks and noting a shared pattern or progression where supported; if only one task is available, state the key finding without inventing comparisons), key_error_patterns (array of {pattern, example, lesson_adjustment}), targeted_resources (array of {topic, title, reason}), and teaching_notes (concise instructor-only note).",
                 "Use evidence from the current task and supplied stage task contexts; do not invent errors or claim an unprovided task was evaluated. For low Task Achievement, name the omitted prompt requirement and a specific repair. Return empty arrays when none are evident. Suggest specific language-learning resources/rules only when supported by the response.",
@@ -352,6 +359,7 @@ export async function POST(request: Request) {
                 stage: body.stageTitle,
                 task: body.taskTitle,
                 task_prompt: body.taskPrompt,
+                ...(modelAnswer ? { model_answer: modelAnswer } : {}),
                 student_response: body.studentResponse,
                 current_rubric_scores: rubricScores,
                 stage_task_contexts: stageTaskContexts,

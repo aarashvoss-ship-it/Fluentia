@@ -872,6 +872,7 @@ export function SubmissionEvaluator({
           taskId: selectedTask.id,
           taskTitle: evaluationContext.taskTitle,
           taskPrompt: evaluationContext.taskPrompt,
+          ...(selectedTask.modelAnswer?.trim() ? { model_answer: selectedTask.modelAnswer.trim() } : {}),
           studentResponse: evaluationContext.studentResponse,
           instructorPrompt: evaluationContext.instructorPrompt,
           rubricScores: Object.fromEntries(
