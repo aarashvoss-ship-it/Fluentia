@@ -1261,7 +1261,10 @@ export function SubmissionEvaluator({
                 </div>
                 <div className={`rounded-lg border p-4 ${responseBoxClass}`}>
                   <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${responseLabelClass}`}>{task.studentTranscript?.trim() ? "Student transcript" : "Student response"}</p>
-                  {task.studentTranscript?.trim() && <p className="mt-2 whitespace-pre-wrap break-words rounded-sm bg-surface px-2 py-3 text-sm leading-relaxed text-stone-200">{stripMarkdown(task.studentTranscript)}</p>}
+                  {task.studentTranscript?.trim() && <details open className="mt-2 rounded-md border border-border bg-surface px-3 py-2">
+                    <summary className="cursor-pointer text-xs font-medium text-stone-300">Transcript</summary>
+                    <p className="mt-2 whitespace-pre-wrap break-words py-1 text-sm leading-relaxed text-stone-200">{stripMarkdown(task.studentTranscript)}</p>
+                  </details>}
                   {!task.studentTranscript?.trim() && <p className={`mt-2 whitespace-pre-wrap break-words rounded-sm px-2 py-3 text-sm leading-relaxed ${isCorrect ? "bg-emerald-300/10" : isObjectiveAnswer ? "bg-rose-300/10" : "bg-surface"} ${responseTextClass}`}>{stripMarkdown(task.studentAnswer) || <span className="italic text-stone-500">No response submitted.</span>}</p>}
                   {task.audioUrls?.map((url, audioIndex) => <div key={`${url}-${audioIndex}`} className="mt-2"><CustomAudioPlayer src={url} label={`${task.prompt || task.title || "Task"} student recording`} /></div>)}
                 </div>

@@ -4290,7 +4290,9 @@ export default function InstructorWorkstationPage({
     const stage = reviewStages.find((item) => item.id === stageId);
     if (!stage) return;
     const isUrl = /^(?:https?:|blob:|data:audio\/)/i.test(answer.trim());
-    const studentTranscript = transcript?.trim() || reviewTranscripts[key];
+    const studentTranscript = transcript?.trim()
+      || reviewTranscripts[key]
+      || (stageId === "speaking" ? reviewTranscripts.speaking : undefined);
     const modelAnswer = reviewModelAnswers[key];
     const normalizedStudentAnswer = normalizeReviewAnswer(answer);
     const isCorrect = answer.trim()
