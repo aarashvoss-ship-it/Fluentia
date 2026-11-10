@@ -86,6 +86,15 @@ function limitSentences(value: string, maximum: number) {
   return sentences.slice(0, maximum).join(" ").trim();
 }
 
+function normalizeModelAnswer(value: string) {
+  return value
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
 function parseInsight(content: string): AcademisInsight | null {
   const json = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
   let value: unknown;
@@ -345,7 +354,7 @@ export async function POST(request: Request) {
                 "criteria_scores must contain integer scores from 1 to 9 with these exact mappings: task = Task Achievement & Depth, coherence = Coherence & Flow, lexical = Lexical Precision & Range, grammar = Grammatical Accuracy. Do not return an overall score; the server computes the arithmetic mean of these four values.",
                 "Evaluate only the current task for criteria_scores. Be direct, specific, and pain-point driven. When Task Achievement is weak, avoid generic praise and explicitly identify which prompt requirement was missed, what detail or reasoning is absent, and the next concrete action that would address it.",
                 ...(modelAnswer
-                  ? ["A model_answer is provided for this task. Evaluate comprehension responses by semantic key-match against its core meaning, not exact wording. If the student captures that meaning, award high Task Achievement even if the answer is brief; do not penalize brevity or omit important credit solely because details differ from the model answer. Penalize only meaningful omissions, contradictions, or inaccuracies relative to the model answer and task prompt."]
+                  ? ["A model_answer is provided and is the answer key for this task. First compare the student_response strictly for semantic key-match against the model_answer. If the response captures the core meaning or key words—even in a short answer—set criteria_scores.task to exactly 9. Do not penalize brevity, missing explanation, or background details not requested by the task; only a meaningful omission, contradiction, or inaccuracy that changes the key answer can lower Task Achievement. When the core answer matches, student_summary must be exactly one brief confirmation sentence, such as: \"Correct. Your response accurately captures the model answer.\" This answer-key rule overrides general advice to identify gaps or weaknesses."]
                   : []),
                 "student_summary must be student-ready, concise, actionable, and no more than 2-3 sentences. Do not use generic praise to soften a low score; mention the most important gap and a practical fix.",
                 "instructor_diagnostic must contain stage_summary_diagnostic (a concise, evidence-based synthesis across the provided stage_task_contexts, contrasting strengths and gaps across tasks and noting a shared pattern or progression where supported; if only one task is available, state the key finding without inventing comparisons), key_error_patterns (array of {pattern, example, lesson_adjustment}), targeted_resources (array of {topic, title, reason}), and teaching_notes (concise instructor-only note).",
@@ -395,10 +404,23 @@ export async function POST(request: Request) {
       && typeof completion.choices[0].message.content === "string"
       ? completion.choices[0].message.content
       : "";
-    const insight = parseInsight(content);
+    let insight = parseInsight(content);
     if (!insight) {
       console.error("Paasta Academis returned an invalid grading response.");
       return NextResponse.json({ error: "Academis returned an incomplete grading result. Try again." }, { status: 502 });
+    }
+    const normalizedStudentAnswer = normalizeModelAnswer(body.studentResponse);
+    const normalizedModelAnswer = normalizeModelAnswer(modelAnswer);
+    if (normalizedModelAnswer && normalizedStudentAnswer === normalizedModelAnswer) {
+      const criteriaScores = { ...insight.criteria_scores, task: 9 };
+      insight = {
+        ...insight,
+        criteria_scores: criteriaScores,
+        overall_band_score: Math.round(
+          Object.values(criteriaScores).reduce((sum, score) => sum + score, 0) / 4 * 100,
+        ) / 100,
+        student_summary: "Correct. Your response accurately captures the model answer.",
+      };
     }
 
     let insightSaved = false;
