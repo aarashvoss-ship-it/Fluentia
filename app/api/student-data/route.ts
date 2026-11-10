@@ -88,6 +88,8 @@ function mapEvaluation(row: JsonRecord | undefined) {
     stageFeedback: isRecord(details.stages) ? details.stages : {},
     stageScores: isRecord(details.stageScores) ? details.stageScores : {},
     stageRubricScales: isRecord(details.stageRubricScales) ? details.stageRubricScales : {},
+    taskScores: isRecord(details.taskScores) ? details.taskScores : {},
+    taskRubricScales: isRecord(details.taskRubricScales) ? details.taskRubricScales : {},
     globalRubricScale: typeof details.globalRubricScale === "string" ? details.globalRubricScale : "standard-5",
     reportCardScoreOverrides: isRecord(details.reportCardScoreOverrides) ? details.reportCardScoreOverrides : {},
     taskFeedback: isRecord(details.taskFeedback) ? details.taskFeedback : {},

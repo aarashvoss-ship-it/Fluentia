@@ -1827,6 +1827,8 @@ export default function LessonPage() {
                 stageFeedback={evaluation?.stageFeedback || {}}
                 stageScores={evaluation?.stageScores || {}}
                 stageRubricScales={evaluation?.stageRubricScales || {}}
+                taskScores={evaluation?.taskScores || {}}
+                taskRubricScales={evaluation?.taskRubricScales || {}}
                 reportCardScoreOverrides={evaluation?.reportCardScoreOverrides || {}}
                 taskFeedback={evaluation?.taskFeedback || {}}
                 inlineCorrections={evaluation?.inlineCorrections || {}}

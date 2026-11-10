@@ -287,6 +287,8 @@ export async function POST(request: Request) {
       stages: hasObjectValue(evaluation.stageFeedback) ? evaluation.stageFeedback : {},
       stageScores: hasObjectValue(evaluation.stageScores) ? evaluation.stageScores : {},
       stageRubricScales: hasObjectValue(evaluation.stageRubricScales) ? evaluation.stageRubricScales : {},
+      taskScores: hasObjectValue(evaluation.taskScores) ? evaluation.taskScores : {},
+      taskRubricScales: hasObjectValue(evaluation.taskRubricScales) ? evaluation.taskRubricScales : {},
       globalRubricScale: typeof evaluation.globalRubricScale === "string" ? evaluation.globalRubricScale : "standard-5",
       reportCardScoreOverrides: hasObjectValue(evaluation.reportCardScoreOverrides) ? evaluation.reportCardScoreOverrides : {},
       taskFeedback: hasObjectValue(evaluation.taskFeedback) ? evaluation.taskFeedback : {},

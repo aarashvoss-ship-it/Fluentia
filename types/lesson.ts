@@ -398,6 +398,8 @@ export interface LessonEvaluation {
   stageFeedback?: Record<string, string>;
   stageScores?: Record<string, Record<string, number>>;
   stageRubricScales?: Record<string, "standard-5" | "standard-10" | "ielts" | "percentage">;
+  taskScores?: Record<string, Record<string, number>>;
+  taskRubricScales?: Record<string, "standard-5" | "standard-10" | "ielts" | "percentage">;
   globalRubricScale?: "standard-5" | "standard-10" | "ielts" | "percentage";
   reportCardScoreOverrides?: Record<string, number>;
   taskFeedback?: Record<string, string>;

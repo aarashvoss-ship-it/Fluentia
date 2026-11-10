@@ -35,6 +35,8 @@ export interface FeedbackPayload {
   stageFeedback: Record<string, string>;
   stageScores: Record<string, Record<string, number>>;
   stageRubricScales: Record<string, RubricScale>;
+  taskScores: Record<string, Record<string, number>>;
+  taskRubricScales: Record<string, RubricScale>;
   globalRubricScale: RubricScale;
   reportCardScoreOverrides: Record<string, number>;
   taskFeedback: Record<string, string>;
@@ -221,6 +223,8 @@ export function SubmissionEvaluator({
   const stageFeedback = evaluation?.stageFeedback || {};
   const stageScores = evaluation?.stageScores || {};
   const stageRubricScales = evaluation?.stageRubricScales || {};
+  const taskScores = evaluation?.taskScores || {};
+  const taskRubricScales = evaluation?.taskRubricScales || {};
   const globalRubricScale = evaluation?.globalRubricScale || DEFAULT_RUBRIC_SCALE;
   const reportCardScoreOverrides = evaluation?.reportCardScoreOverrides || {};
   const overallAggregation = aggregateOverallRubric({
@@ -443,6 +447,8 @@ export function SubmissionEvaluator({
           stageFeedback: feedback.criterion_feedback?.stages || evaluation?.stageFeedback || {},
           stageScores: feedback.criterion_feedback?.stageScores || evaluation?.stageScores || {},
           stageRubricScales: feedback.criterion_feedback?.stageRubricScales || evaluation?.stageRubricScales || {},
+          taskScores: feedback.criterion_feedback?.taskScores || evaluation?.taskScores || {},
+          taskRubricScales: feedback.criterion_feedback?.taskRubricScales || evaluation?.taskRubricScales || {},
           globalRubricScale: feedback.criterion_feedback?.globalRubricScale || evaluation?.globalRubricScale || DEFAULT_RUBRIC_SCALE,
           reportCardScoreOverrides: feedback.criterion_feedback?.reportCardScoreOverrides || evaluation?.reportCardScoreOverrides || {},
           taskFeedback: feedback.criterion_feedback?.taskFeedback || evaluation?.taskFeedback || {},
@@ -475,6 +481,8 @@ export function SubmissionEvaluator({
   const handleGlobalScaleChange = (nextScale: RubricScale) => {
     const nextStageRubricScales = { ...stageRubricScales };
     const nextStageScores = { ...stageScores };
+    const nextTaskRubricScales = { ...taskRubricScales };
+    const nextTaskScores = { ...taskScores };
     for (const stage of stages) {
       const currentScale = stageRubricScales[stage.id] || globalRubricScale;
       nextStageRubricScales[stage.id] = nextScale;
@@ -484,11 +492,24 @@ export function SubmissionEvaluator({
           convertRubricScore(score, currentScale, nextScale),
         ]),
       );
+      for (const task of stage.tasks) {
+        if (!nextTaskScores[task.id]) continue;
+        const taskScale = taskRubricScales[task.id] || currentScale;
+        nextTaskScores[task.id] = Object.fromEntries(
+          Object.entries(taskScores[task.id]).map(([criterionId, score]) => [
+            criterionId,
+            convertRubricScore(score, taskScale, nextScale),
+          ]),
+        );
+        nextTaskRubricScales[task.id] = nextScale;
+      }
     }
     updateEvaluation({
       globalRubricScale: nextScale,
       stageRubricScales: nextStageRubricScales,
       stageScores: nextStageScores,
+      taskScores: nextTaskScores,
+      taskRubricScales: nextTaskRubricScales,
     });
   };
 
@@ -501,6 +522,8 @@ export function SubmissionEvaluator({
       stageFeedback,
       stageScores,
       stageRubricScales,
+      taskScores,
+      taskRubricScales,
       globalRubricScale,
       reportCardScoreOverrides,
       taskFeedback,
@@ -610,6 +633,8 @@ export function SubmissionEvaluator({
     stageFeedback,
     stageScores,
     stageRubricScales,
+    taskScores,
+    taskRubricScales,
     globalRubricScale,
     reportCardScoreOverrides,
     taskFeedback,
@@ -679,6 +704,8 @@ export function SubmissionEvaluator({
         stageFeedback,
         stageScores,
         stageRubricScales,
+        taskScores,
+        taskRubricScales,
         globalRubricScale,
         reportCardScoreOverrides,
         taskFeedback,
@@ -1179,6 +1206,14 @@ export function SubmissionEvaluator({
                 {task.modelAnswer && <div className={`rounded-md border p-4 ${modelBoxClass}`}>
                   <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${modelLabelClass}`}>Model answer</p>
                   <p className={`mt-2 whitespace-pre-wrap py-2 text-sm leading-relaxed ${modelTextClass}`}>{stripMarkdown(task.modelAnswer)}</p>
+                </div>}
+                {taskScores[task.id] && <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-200">Task rubric scores</p>
+                  <div className="mt-2 grid grid-cols-2 gap-2 xl:grid-cols-4">
+                    {RUBRIC_CRITERIA.map((criterion) => <p key={criterion.id} className="text-[10px] text-stone-400">
+                      {criterion.label}<span className="float-right text-amber-200">{formatRubricScore(taskScores[task.id][criterion.id] || 0)}/{getRubricScale(taskRubricScales[task.id]).max}</span>
+                    </p>)}
+                  </div>
                 </div>}
                 <div>
                   <button
@@ -1834,33 +1869,67 @@ export function SubmissionEvaluator({
                   onClick={() => {
                     const { stageId, taskId } = academisInsight.context;
                     const stageScale = stageRubricScales[stageId] || globalRubricScale;
-                    const taskScores = {
-                      ...stageScores[stageId],
-                      task: convertRubricScore(academisInsight.result.criteria_scores.task, "ielts", stageScale),
-                      coherence: convertRubricScore(academisInsight.result.criteria_scores.coherence, "ielts", stageScale),
-                      lexical: convertRubricScore(academisInsight.result.criteria_scores.lexical, "ielts", stageScale),
-                      grammar: convertRubricScore(academisInsight.result.criteria_scores.grammar, "ielts", stageScale),
+                    const taskRubricScores = {
+                      ...taskScores,
+                      [taskId]: {
+                        task: convertRubricScore(academisInsight.result.criteria_scores.task, "ielts", stageScale),
+                        coherence: convertRubricScore(academisInsight.result.criteria_scores.coherence, "ielts", stageScale),
+                        lexical: convertRubricScore(academisInsight.result.criteria_scores.lexical, "ielts", stageScale),
+                        grammar: convertRubricScore(academisInsight.result.criteria_scores.grammar, "ielts", stageScale),
+                      },
                     };
                     updateEvaluation({
                       taskFeedback: { ...taskFeedback, [taskId]: academisStudentSummary },
-                      stageScores: { ...stageScores, [stageId]: taskScores },
+                      taskScores: taskRubricScores,
+                      taskRubricScales: { ...taskRubricScales, [taskId]: stageScale },
                     });
-                    setAcademisApplyNotice(`Summary and ${academisInsight.result.overall_band_score.toFixed(2)} overall band applied to ${academisInsight.context.taskTitle}.`);
+                    setAcademisApplyNotice(`Summary and rubric scores applied to ${academisInsight.context.taskTitle} only.`);
                   }}
                   className="rounded-md bg-amber-500/20 px-4 py-2.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/30"
                 >
-                  Apply to Student Feedback &amp; Rubric
+                  Apply to This Task Only
                 </button>
                 <button
                   type="button"
                   onClick={() => {
-                    const stageId = academisInsight.context.stageId;
-                    updateEvaluation({ stageFeedback: { ...stageFeedback, [stageId]: academisStudentSummary } });
-                    setAcademisApplyNotice(`Student summary applied to ${academisInsight.context.stageTitle} Stage Feedback.`);
+                    const { stageId, stageTitle, taskId } = academisInsight.context;
+                    const targetStage = stages.find((stage) => stage.id === stageId);
+                    const stageTaskIds = new Set(targetStage
+                      ? targetStage.tasks.map((task) => task.id)
+                      : [taskId]);
+                    const submissionKeyPrefix = JSON.stringify([submissionId]).slice(0, -1) + ",";
+                    const reportsByTask = new Map(
+                      Object.entries(academisResultsByTask)
+                        .filter(([cacheKey, report]) => cacheKey.startsWith(submissionKeyPrefix)
+                          && report.context.stageId === stageId
+                          && stageTaskIds.has(report.context.taskId))
+                        .map(([, report]) => report)
+                        .map((report) => [report.context.taskId, report]),
+                    );
+                    reportsByTask.set(taskId, {
+                      ...academisInsight,
+                      result: { ...academisInsight.result, student_summary: academisStudentSummary },
+                    });
+                    const stageReports = [...reportsByTask.values()];
+                    const averagedScores = Object.fromEntries(RUBRIC_CRITERIA.map(({ id }) => {
+                      const average = stageReports.reduce((sum, report) => (
+                        sum + report.result.criteria_scores[id as keyof AcademisInsight["criteria_scores"]]
+                      ), 0) / stageReports.length;
+                      return [id, convertRubricScore(average, "ielts", stageRubricScales[stageId] || globalRubricScale)];
+                    }));
+                    const stageSummary = stageReports
+                      .filter((report) => report.result.student_summary.trim())
+                      .map((report) => `${report.context.taskTitle}: ${report.result.student_summary.trim()}`)
+                      .join("\n\n");
+                    updateEvaluation({
+                      stageFeedback: { ...stageFeedback, [stageId]: stageSummary },
+                      stageScores: { ...stageScores, [stageId]: averagedScores },
+                    });
+                    setAcademisApplyNotice(`Stage rubric averaged across ${stageReports.length} evaluated task${stageReports.length === 1 ? "" : "s"} in ${stageTitle}.`);
                   }}
                   className="ml-2 rounded-md border border-amber-500/30 px-4 py-2.5 text-xs font-medium text-amber-200 transition hover:bg-amber-500/10"
                 >
-                  Apply to Stage Feedback
+                  Apply &amp; Average into Stage Rubric
                 </button>
               </div>}
 

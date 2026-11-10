@@ -47,6 +47,8 @@ interface UnifiedReportCardProps {
   stageFeedback: Record<string, string>;
   stageScores?: Record<string, Record<string, number>>;
   stageRubricScales?: Record<string, string>;
+  taskScores?: Record<string, Record<string, number>>;
+  taskRubricScales?: Record<string, string>;
   reportCardScoreOverrides?: Record<string, number>;
   taskFeedback?: Record<string, string>;
   inlineCorrections?: Record<string, string>;
@@ -119,6 +121,8 @@ export function UnifiedReportCard({
   stageFeedback,
   stageScores = {},
   stageRubricScales = {},
+  taskScores = {},
+  taskRubricScales = {},
   reportCardScoreOverrides = {},
   taskFeedback = {},
   inlineCorrections = {},
@@ -270,6 +274,14 @@ export function UnifiedReportCard({
               {task.modelAnswer && <div className={`mt-3 rounded-md border p-4 ${modelCardClass}`}>
                 <p className={`text-[10px] font-semibold uppercase tracking-wider ${modelLabelClass}`}>Correct / Model Answer</p>
                 <p className={`mt-2 whitespace-pre-wrap break-words py-2 text-sm leading-relaxed ${modelTextClass}`}>{stripMarkdown(task.modelAnswer)}</p>
+              </div>}
+              {!isInstructorView && taskScores[task.id] && <div className="mt-3 rounded-md border border-amber-500/20 bg-amber-500/5 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-200">Task rubric scores</p>
+                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {RUBRIC_CRITERIA.map((criterion) => <p key={criterion.id} className="text-[10px] text-stone-400">
+                    {criterion.label}<span className="float-right text-amber-200">{formatRubricScore(roundRubricScoreForScale(taskScores[task.id][criterion.id] || 0, taskRubricScales[task.id]))}/{getRubricScale(taskRubricScales[task.id]).max}</span>
+                  </p>)}
+                </div>
               </div>}
               {task.explanation && <div className="mt-3 border-t border-border pt-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Explanation</p>
