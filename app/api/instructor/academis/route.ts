@@ -310,6 +310,8 @@ export async function POST(request: Request) {
       && (typeof body.student_transcript !== "string" || body.student_transcript.length > MAX_STUDENT_RESPONSE_LENGTH))
     || (body.reference_transcript !== undefined
       && (typeof body.reference_transcript !== "string" || body.reference_transcript.length > MAX_TASK_PROMPT_LENGTH))
+    || (body.transcript_source !== undefined
+      && !["student", "task_answer", "shadowing_reference"].includes(body.transcript_source as string))
     || (body.audio_response_submitted !== undefined && typeof body.audio_response_submitted !== "boolean")
     || (body.rubricScores !== undefined && !isRecord(body.rubricScores))
     || (body.stageTaskContexts !== undefined && !Array.isArray(body.stageTaskContexts))) {
@@ -338,8 +340,15 @@ export async function POST(request: Request) {
     const modelAnswer = typeof body.model_answer === "string" ? body.model_answer.trim() : "";
     const studentTranscript = typeof body.student_transcript === "string" ? body.student_transcript.trim() : "";
     const referenceTranscript = typeof body.reference_transcript === "string" ? body.reference_transcript.trim() : "";
+    const transcriptSource = typeof body.transcript_source === "string" ? body.transcript_source : "";
     const audioResponseSubmitted = body.audio_response_submitted === true;
-    const isSpeakingEvaluation = body.stageId === "speaking" || Boolean(studentTranscript || referenceTranscript);
+    const audioResponsePlaceholder = /^audio response submitted(?:; transcript unavailable for grading)?\.?$/i.test(body.studentResponse.trim());
+    const evaluationTranscript = studentTranscript
+      || (transcriptSource === "shadowing_reference" || (body.stageId === "speaking" && audioResponsePlaceholder)
+        ? referenceTranscript
+        : "");
+    const evaluationResponse = evaluationTranscript || body.studentResponse;
+    const isSpeakingEvaluation = body.stageId === "speaking" || Boolean(evaluationTranscript || referenceTranscript);
     const model = process.env.PAASTA_AI_MODEL || "google/gemini-2.5-flash-lite";
     let paastaResponse: Response;
     try {
@@ -366,13 +375,17 @@ export async function POST(request: Request) {
                   ? ["A model_answer is provided and is the answer key for this task. First compare the student_response strictly for semantic key-match against the model_answer. If the response captures the core meaning or key words—even in a short answer—set criteria_scores.task to exactly 9. Do not penalize brevity, missing explanation, or background details not requested by the task; only a meaningful omission, contradiction, or inaccuracy that changes the key answer can lower Task Achievement. When the core answer matches, student_summary must be exactly one brief confirmation sentence, such as: \"Correct. Your response accurately captures the model answer.\" This answer-key rule overrides general advice to identify gaps or weaknesses."]
                   : []),
                 ...(isSpeakingEvaluation
-                  ? [studentTranscript
-                    ? "The student_response is a speech-to-text transcript of the student's spoken response. Evaluate it as spoken language, focusing on spoken fluency, natural phrasing, coherence, and pacing as evidenced by the transcript (such as repetitions, fragments, or discourse flow). Do not assess pronunciation or other audio-only traits from text, and do not assume transcription artifacts are student errors."
+                  ? [evaluationTranscript
+                    ? transcriptSource === "shadowing_reference"
+                      ? "The student_transcript is the available shadowing transcript/source text for this task and is the primary text to evaluate. Evaluate this provided text as the spoken-performance transcript for the shadowing exercise; assess fluency, pacing, phrasing, and delivery of its core message without saying the response text is missing. Do not claim to have heard or verified audio-only pronunciation."
+                      : "The student_response is the available transcript or answer text for this spoken task. Evaluate it as a spoken-performance transcript, focusing on fluency, pacing, natural phrasing, coherence, and delivery of the core message. Do not complain that response text is missing when this text is provided. Do not assess audio-only pronunciation or assume transcription artifacts are student errors."
                     : "No transcript of the student's speech is available. Do not treat the audio-submission placeholder as spoken content or score speech fluency, grammar, or vocabulary based on it."]
                   : []),
                 ...(referenceTranscript
-                  ? ["reference_transcript is the exercise's source/shadowing script, not a transcript of the student's recording. Use it only to understand the target text and task; never treat it as the student's answer or claim the student spoke those words. If audio_response_submitted is true and student_transcript is absent, acknowledge that an audio response was submitted but its speech transcript is unavailable, and do not describe the task as unanswered or infer the student's spoken content from the source script."]
-                  : audioResponseSubmitted && !studentTranscript
+                  ? [transcriptSource === "shadowing_reference"
+                    ? "reference_transcript is the shadowing source selected as the primary evaluation text and is also supplied as student_transcript. Use that provided text to evaluate the shadowing task; do not state that no text or response is available."
+                    : `reference_transcript is the exercise source text, not proof of what the student said. Use it as task context only unless it is explicitly identified as the selected shadowing transcript. ${evaluationTranscript ? "Use the supplied evaluation transcript text." : "If no student transcript is available, do not claim to know the student's spoken content."}`]
+                  : audioResponseSubmitted && !evaluationTranscript
                     ? ["An audio response was submitted, but its speech transcript is unavailable. Do not describe the task as unanswered or infer the student's spoken content from the audio placeholder."]
                     : []),
                 "student_summary must be student-ready, concise, actionable, and no more than 2-3 sentences. Do not use generic praise to soften a low score; mention the most important gap and a practical fix.",
@@ -389,9 +402,10 @@ export async function POST(request: Request) {
                 task_prompt: body.taskPrompt,
                 ...(modelAnswer ? { model_answer: modelAnswer } : {}),
                 ...(referenceTranscript ? { reference_transcript: referenceTranscript } : {}),
+                ...(transcriptSource ? { transcript_source: transcriptSource } : {}),
                 audio_response_submitted: audioResponseSubmitted,
-                student_response: studentTranscript || body.studentResponse,
-                ...(studentTranscript ? { student_transcript: studentTranscript } : {}),
+                student_response: evaluationResponse,
+                ...(evaluationTranscript ? { student_transcript: evaluationTranscript } : {}),
                 current_rubric_scores: rubricScores,
                 stage_task_contexts: stageTaskContexts,
                 instructor_focus: typeof body.instructorPrompt === "string" ? body.instructorPrompt : "",
