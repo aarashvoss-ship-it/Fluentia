@@ -1163,10 +1163,6 @@ export function SubmissionEvaluator({
           <div className="min-w-0 space-y-5">
             {stageStepper}
             {stageHeading}
-            {activeStageSummary && <section className="rounded-lg border border-amber-500/30 bg-amber-500/[0.06] p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-300">Stage Summary / Diagnostic Overview</p>
-              <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-stone-200">{activeStageSummary}</p>
-            </section>}
             {(activeStage.id === "reading" || activeStage.id === "listening") && (activeStage.referenceText || activeStage.referenceAudioUrl) && <details className="rounded-lg border border-border bg-surface p-3">
               <summary className="cursor-pointer text-xs font-medium text-stone-300">Show lesson reference</summary>
               {activeStage.referenceText && <p className="mt-3 whitespace-pre-wrap text-xs leading-relaxed text-stone-400">{stripMarkdown(activeStage.referenceText)}</p>}
@@ -1415,6 +1411,10 @@ export function SubmissionEvaluator({
               </div>}
             </div>}
           </section>
+          {activeStageSummary && <section className="rounded-lg border border-amber-500/30 bg-amber-500/[0.06] p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-300">Stage Summary / Diagnostic Overview</p>
+            <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-stone-200">{activeStageSummary}</p>
+          </section>}
         </div> : null}
 
         {feedbackError && <p role="alert" className="rounded-lg border border-red-700 bg-red-900/30 p-3 text-xs text-red-200">{feedbackError}</p>}

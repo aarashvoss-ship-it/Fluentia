@@ -271,6 +271,10 @@ export function UnifiedReportCard({
                 {task.audioUrls?.map((url, mediaIndex) => <div key={`${url}-${mediaIndex}`} className="mt-2 min-w-0 max-w-full overflow-hidden"><CustomAudioPlayer src={url} label={`${stripMarkdown(taskPrompt)} recording`} /></div>)}
                 {task.fileUrls?.map((url, mediaIndex) => <a key={`${url}-${mediaIndex}`} href={url} target="_blank" rel="noreferrer" className="mt-2 inline-flex max-w-full break-all text-sm text-amber-300 underline underline-offset-2 hover:text-amber-200">Open uploaded file</a>)}
               </div>
+              {!isInstructorView && combineTaskFeedback(taskFeedback[task.id], inlineCorrections[task.id]) && <div className="mt-3 rounded-md border border-border bg-surface p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-300">INSTRUCTOR FEEDBACK &amp; CORRECTION</p>
+                <TiptapEditor value={combineTaskFeedback(taskFeedback[task.id], inlineCorrections[task.id])} onChange={() => {}} ariaLabel={`${stripMarkdown(taskPrompt)} instructor feedback`} readOnly />
+              </div>}
               {task.modelAnswer && <div className={`mt-3 rounded-md border p-4 ${modelCardClass}`}>
                 <p className={`text-[10px] font-semibold uppercase tracking-wider ${modelLabelClass}`}>Correct / Model Answer</p>
                 <p className={`mt-2 whitespace-pre-wrap break-words py-2 text-sm leading-relaxed ${modelTextClass}`}>{stripMarkdown(task.modelAnswer)}</p>
@@ -286,10 +290,6 @@ export function UnifiedReportCard({
               {task.explanation && <div className="mt-3 border-t border-border pt-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">Explanation</p>
                 <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-stone-400">{stripMarkdown(task.explanation)}</p>
-              </div>}
-              {!isInstructorView && combineTaskFeedback(taskFeedback[task.id], inlineCorrections[task.id]) && <div className="mt-3 rounded-md border border-border bg-surface p-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-300">INSTRUCTOR FEEDBACK &amp; CORRECTION</p>
-              <TiptapEditor value={combineTaskFeedback(taskFeedback[task.id], inlineCorrections[task.id])} onChange={() => {}} ariaLabel={`${stripMarkdown(taskPrompt)} instructor feedback`} readOnly />
               </div>}
             </article>;
             })}
