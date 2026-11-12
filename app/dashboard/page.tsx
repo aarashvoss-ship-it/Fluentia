@@ -1415,7 +1415,7 @@ function DashboardContent() {
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-500">Available balance</p>
                   <p className="mt-1 text-2xl font-semibold tabular-nums text-stone-100">
-                    {walletCreditBalance}
+                    {walletCreditBalance.toFixed(2)}
                     <span className="ml-1.5 text-xs font-medium text-stone-400">credits</span>
                   </p>
                 </div>
@@ -1429,7 +1429,7 @@ function DashboardContent() {
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={walletProgress}
-                aria-valuetext={`${walletCreditBalance} of ${walletCreditLimit} credits available`}
+                aria-valuetext={`${walletCreditBalance.toFixed(2)} of ${walletCreditLimit} credits available`}
                 className="mt-4 h-2 overflow-hidden rounded-full bg-stone-800 ring-1 ring-inset ring-white/5"
               >
                 <div className="h-full rounded-full bg-[#F59E0B] shadow-[0_0_8px_rgba(245,158,11,0.3)] transition-[width] duration-300" style={{ width: `${walletProgress}%` }} />
@@ -1441,7 +1441,7 @@ function DashboardContent() {
                 </div>
                 <div className="flex justify-between gap-4 py-2.5">
                   <dt className="text-stone-400">Credits used</dt>
-                  <dd className="font-medium tabular-nums text-stone-200">{walletCreditLimit - walletCreditBalance} credits</dd>
+                  <dd className="font-medium tabular-nums text-stone-200">{(walletCreditLimit - walletCreditBalance).toFixed(2)} credits</dd>
                 </div>
                 <div className="flex justify-between gap-4 py-2.5">
                   <dt className="text-stone-400">Academic tier</dt>
