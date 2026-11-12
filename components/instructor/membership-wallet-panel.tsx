@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   MAX_WALLET_CREDIT_AMOUNT,
   MEMBERSHIP_BADGE_LABELS,
@@ -52,6 +52,7 @@ export function MembershipWalletPanel() {
   const [membershipTier, setMembershipTier] = useState<MembershipTier>("Associate");
   const [creditMode, setCreditMode] = useState<CreditMode>("set");
   const [creditAmount, setCreditAmount] = useState("");
+  const creditAmountDirty = useRef(false);
   const [isScholarship, setIsScholarship] = useState(false);
   const [showWalletWidget, setShowWalletWidget] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -73,6 +74,12 @@ export function MembershipWalletPanel() {
   const selectedStudent = students.find((student) => student.id === selectedStudentId) || null;
 
   useEffect(() => {
+    if (selectedStudent && creditMode === "set" && !creditAmountDirty.current) {
+      setCreditAmount(String(selectedStudent.creditBalance));
+    }
+  }, [selectedStudent?.id, selectedStudent?.creditBalance, creditMode]);
+
+  useEffect(() => {
     let cancelled = false;
     void fetch("/api/instructor/membership")
       .then(async (response) => {
@@ -86,6 +93,7 @@ export function MembershipWalletPanel() {
           if (firstStudent) {
             setMembershipTier(firstStudent.membershipTier);
             setCreditAmount(String(firstStudent.creditBalance));
+            creditAmountDirty.current = false;
             setIsScholarship(firstStudent.isScholarship);
             setShowWalletWidget(firstStudent.showWalletWidget);
           }
@@ -175,6 +183,10 @@ export function MembershipWalletPanel() {
       setStudents((current) => current.map((student) => student.id === selectedStudent.id
         ? { ...student, ...result.student }
         : student));
+      if (creditMode === "set" && typeof result.student.creditBalance === "number") {
+        setCreditAmount(String(result.student.creditBalance));
+      }
+      creditAmountDirty.current = false;
       setLedgerRefresh((current) => current + 1);
       setNotice("Membership and wallet updated.");
     } catch (saveError: unknown) {
@@ -282,6 +294,7 @@ export function MembershipWalletPanel() {
               if (nextStudent) {
                 setMembershipTier(nextStudent.membershipTier);
                 setCreditAmount(String(nextStudent.creditBalance));
+                creditAmountDirty.current = false;
                 setIsScholarship(nextStudent.isScholarship);
                 setShowWalletWidget(nextStudent.showWalletWidget);
                 setCreditMode("set");
@@ -308,6 +321,7 @@ export function MembershipWalletPanel() {
                     <button key={mode} type="button" aria-pressed={creditMode === mode} onClick={() => {
                       setCreditMode(mode);
                       setCreditAmount(mode === "set" ? String(selectedStudent.creditBalance) : "10");
+                      creditAmountDirty.current = false;
                     }} className={`rounded px-3 py-1.5 text-xs transition ${creditMode === mode ? "bg-amber-500/15 text-amber-300" : "text-stone-400 hover:text-stone-200"}`}>
                       {label}
                     </button>
@@ -315,7 +329,10 @@ export function MembershipWalletPanel() {
                 </div>
                 <label className="block space-y-1.5 text-xs text-stone-400">
                   {creditMode === "set" ? "New balance" : "Credits to add"}
-                  <input type="number" min={MIN_WALLET_CREDIT_AMOUNT} max={creditMode === "set" ? MAX_WALLET_CREDIT_AMOUNT : Math.min(MAX_WALLET_CREDIT_AMOUNT, selectedStudent.creditLimit - selectedStudent.creditBalance)} step={1} value={creditAmount} onChange={(event) => setCreditAmount(event.target.value)} className={`h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-stone-100 ${numberInputClassName}`} />
+                  <input type="number" min={MIN_WALLET_CREDIT_AMOUNT} max={creditMode === "set" ? MAX_WALLET_CREDIT_AMOUNT : Math.min(MAX_WALLET_CREDIT_AMOUNT, selectedStudent.creditLimit - selectedStudent.creditBalance)} step={1} value={creditAmount} onChange={(event) => {
+                    creditAmountDirty.current = true;
+                    setCreditAmount(event.target.value);
+                  }} className={`h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-stone-100 ${numberInputClassName}`} />
                 </label>
               </fieldset>
             </div>
