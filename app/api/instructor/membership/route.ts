@@ -3,7 +3,11 @@ import type { PoolClient } from "pg";
 import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
 import { getServerSessionUser } from "@/lib/server/session";
 import { reconcileDailyCreditRule } from "@/lib/student-credit-ledger";
-import { isMembershipTier } from "@/types/membership";
+import {
+  MAX_WALLET_CREDIT_AMOUNT,
+  MIN_WALLET_CREDIT_AMOUNT,
+  isMembershipTier,
+} from "@/types/membership";
 
 export const runtime = "nodejs";
 
@@ -86,7 +90,7 @@ export async function PATCH(request: Request) {
   if (!uuidPattern.test(studentId) || !isMembershipTier(membershipTier)
     || (creditMode !== "set" && creditMode !== "top_up")
     || typeof creditAmount !== "number" || !Number.isInteger(creditAmount)
-    || creditAmount < (creditMode === "top_up" ? 1 : 0) || creditAmount > 100
+    || creditAmount < MIN_WALLET_CREDIT_AMOUNT || creditAmount > MAX_WALLET_CREDIT_AMOUNT
     || creditNote.length > 500
     || typeof isScholarship !== "boolean" || typeof showWalletWidget !== "boolean") {
     return NextResponse.json({ error: "Provide a valid student, membership tier, credit amount, and wallet visibility setting." }, { status: 400 });

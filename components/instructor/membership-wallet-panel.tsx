@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MEMBERSHIP_BADGE_LABELS, MEMBERSHIP_TIERS, type MembershipTier } from "@/types/membership";
+import {
+  MAX_WALLET_CREDIT_AMOUNT,
+  MEMBERSHIP_BADGE_LABELS,
+  MEMBERSHIP_TIERS,
+  MIN_WALLET_CREDIT_AMOUNT,
+  type MembershipTier,
+} from "@/types/membership";
 
 type MembershipStudent = {
   id: string;
@@ -45,7 +51,7 @@ export function MembershipWalletPanel() {
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [membershipTier, setMembershipTier] = useState<MembershipTier>("Associate");
   const [creditMode, setCreditMode] = useState<CreditMode>("set");
-  const [creditAmount, setCreditAmount] = useState("100");
+  const [creditAmount, setCreditAmount] = useState("");
   const [isScholarship, setIsScholarship] = useState(false);
   const [showWalletWidget, setShowWalletWidget] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -74,8 +80,15 @@ export function MembershipWalletPanel() {
         if (!response.ok) throw new Error(result.error || "Unable to load student memberships.");
         if (!cancelled) {
           const nextStudents = result.students || [];
+          const firstStudent = nextStudents[0];
           setStudents(nextStudents);
-          setSelectedStudentId(nextStudents[0]?.id || "");
+          setSelectedStudentId(firstStudent?.id || "");
+          if (firstStudent) {
+            setMembershipTier(firstStudent.membershipTier);
+            setCreditAmount(String(firstStudent.creditBalance));
+            setIsScholarship(firstStudent.isScholarship);
+            setShowWalletWidget(firstStudent.showWalletWidget);
+          }
         }
       })
       .catch((loadError: unknown) => {
@@ -86,15 +99,6 @@ export function MembershipWalletPanel() {
       });
     return () => { cancelled = true; };
   }, []);
-
-  useEffect(() => {
-    if (!selectedStudent) return;
-    setMembershipTier(selectedStudent.membershipTier);
-    setCreditAmount(String(selectedStudent.creditBalance));
-    setIsScholarship(selectedStudent.isScholarship);
-    setShowWalletWidget(selectedStudent.showWalletWidget);
-    setCreditMode("set");
-  }, [selectedStudent]);
 
   useEffect(() => {
     if (!selectedStudentId) {
@@ -139,8 +143,14 @@ export function MembershipWalletPanel() {
     event.preventDefault();
     if (!selectedStudent) return;
     const amount = Number(creditAmount);
-    if (!Number.isInteger(amount) || amount < (creditMode === "top_up" ? 1 : 0)) {
-      setError(creditMode === "top_up" ? "Enter a top-up amount greater than zero." : "Enter a non-negative whole-number balance.");
+    const availableTopUp = selectedStudent.creditLimit - selectedStudent.creditBalance;
+    const maximumAmount = creditMode === "set"
+      ? MAX_WALLET_CREDIT_AMOUNT
+      : Math.min(MAX_WALLET_CREDIT_AMOUNT, availableTopUp);
+    if (!Number.isInteger(amount) || amount < MIN_WALLET_CREDIT_AMOUNT || amount > maximumAmount) {
+      setError(creditMode === "top_up"
+        ? `Enter a whole-number top-up from ${MIN_WALLET_CREDIT_AMOUNT} to ${maximumAmount}.`
+        : `Enter a whole-number balance from ${MIN_WALLET_CREDIT_AMOUNT} to ${MAX_WALLET_CREDIT_AMOUNT}.`);
       return;
     }
 
@@ -266,7 +276,17 @@ export function MembershipWalletPanel() {
         <form onSubmit={saveMembership} className="space-y-5 rounded-lg border border-border bg-surface p-5">
           <label className="block space-y-1.5 text-xs font-medium text-stone-400">
             Student account
-            <select value={selectedStudentId} onChange={(event) => setSelectedStudentId(event.target.value)} disabled={isSaving || isSavingTransaction || isSavingRules} className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-stone-100 [color-scheme:dark] disabled:opacity-60">
+            <select value={selectedStudentId} onChange={(event) => {
+              const nextStudent = students.find((student) => student.id === event.target.value);
+              setSelectedStudentId(event.target.value);
+              if (nextStudent) {
+                setMembershipTier(nextStudent.membershipTier);
+                setCreditAmount(String(nextStudent.creditBalance));
+                setIsScholarship(nextStudent.isScholarship);
+                setShowWalletWidget(nextStudent.showWalletWidget);
+                setCreditMode("set");
+              }
+            }} disabled={isSaving || isSavingTransaction || isSavingRules} className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-stone-100 [color-scheme:dark] disabled:opacity-60">
               {students.map((student) => <option key={student.id} value={student.id}>{student.fullName} · {student.email}</option>)}
             </select>
           </label>
@@ -295,7 +315,7 @@ export function MembershipWalletPanel() {
                 </div>
                 <label className="block space-y-1.5 text-xs text-stone-400">
                   {creditMode === "set" ? "New balance" : "Credits to add"}
-                  <input type="number" min={creditMode === "set" ? 0 : 1} max={creditMode === "set" ? selectedStudent.creditLimit : selectedStudent.creditLimit - selectedStudent.creditBalance} step={1} value={creditAmount} onChange={(event) => setCreditAmount(event.target.value)} className={`h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-stone-100 ${numberInputClassName}`} />
+                  <input type="number" min={MIN_WALLET_CREDIT_AMOUNT} max={creditMode === "set" ? MAX_WALLET_CREDIT_AMOUNT : Math.min(MAX_WALLET_CREDIT_AMOUNT, selectedStudent.creditLimit - selectedStudent.creditBalance)} step={1} value={creditAmount} onChange={(event) => setCreditAmount(event.target.value)} className={`h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-stone-100 ${numberInputClassName}`} />
                 </label>
               </fieldset>
             </div>

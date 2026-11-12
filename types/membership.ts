@@ -10,6 +10,8 @@ export const MEMBERSHIP_TIERS = [
 export type MembershipTier = (typeof MEMBERSHIP_TIERS)[number];
 
 export const DEFAULT_MEMBERSHIP_TIER: MembershipTier = "Associate";
+export const MIN_WALLET_CREDIT_AMOUNT = 1;
+export const MAX_WALLET_CREDIT_AMOUNT = 100;
 
 export const MEMBERSHIP_BADGE_LABELS: Record<MembershipTier, string> = {
   Fellowship: "FELLOWSHIP",
