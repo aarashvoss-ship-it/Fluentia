@@ -44,6 +44,8 @@ Native email/password sign-in verifies the bcrypt hash stored in `public.users.p
 
 The equivalent manual migrations are [`migrations/054_native_auth.sql`](./migrations/054_native_auth.sql) and [`migrations/055_create_waitlist_requests.sql`](./migrations/055_create_waitlist_requests.sql).
 
+ACADEMIS task-report storage is managed by [`migrations/067_create_student_task_reports.sql`](./migrations/067_create_student_task_reports.sql); apply it to the PaasTA PostgreSQL database configured by `DATABASE_URL` (or `POSTGRES_URL`). The server-side PostgreSQL pool uses the direct `pg` connection configuration and does not route report storage through the Supabase client.
+
 The landing-page waitlist stores each applicant's name and email in `public.waitlist_requests`. Email notifications are not sent until an email delivery provider is configured.
 
 **How to find these values:**

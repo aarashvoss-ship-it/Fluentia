@@ -77,6 +77,19 @@ export interface Feedback {
   updated_at: string;
 }
 
+export interface StudentTaskReport {
+  id: string;
+  student_id: StudentId;
+  module_id: string;
+  stage_id: string;
+  task_id: string;
+  report_data: Json;
+  published_content: Json;
+  is_published: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface TelemetryEvent {
   id: string;
   student_id?: StudentId | null;
