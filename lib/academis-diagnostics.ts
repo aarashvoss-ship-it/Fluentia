@@ -29,6 +29,24 @@ export interface ParsedAcademisDiagnosticTable {
   diagnosticTable: AcademisDiagnosticTable;
 }
 
+const SEVERE_CRITIQUE_PATTERN = /\b(?:off[- ]topic|unrelated|unintelligible|mostly inaccurate|missing|miss(?:es|ed) (?:the )?(?:core|main|key|task)|omit(?:s|ted) (?:the )?(?:core|main|key)|failed to (?:answer|address|meet)|fails to (?:answer|address|meet)|does not (?:fully )?(?:answer|address|meet)|doesn't (?:fully )?(?:answer|address|meet)|incorrect|inaccurate)\b|\b(?:major|serious|significant|substantial|frequent|repeated|persistent)\s+(?:\w+\s+){0,2}(?:errors?|mistakes?|gaps?|weakness(?:es)?|issues?|omissions?|inaccuracies|problems?)\b/i;
+const MODERATE_CRITIQUE_PATTERN = /\b(?:limited|unclear|inconsistent|incomplete|underdeveloped|insufficient|weak|lacks?|struggles?|difficulty|needs? (?:more|clearer|stronger)|could (?:improve|strengthen|clarify|include|add)|should (?:include|add|clarify)|would benefit from|expand(?:s|ed)? on|improve(?:s|d)?|add(?:ing)? (?:more|a|an|one)|include more|provide more)\b|\b(?:some|several|minor|occasional)\s+(?:\w+\s+){0,2}(?:errors?|mistakes?|gaps?|issues?|weaknesses|omissions?|inaccuracies|details?|examples?|support)\b/i;
+
+function feedbackIdentifiesConcern(text: string, pattern: RegExp) {
+  return text.split(/(?<=[.!?])\s+/).some((sentence) => {
+    const match = pattern.exec(sentence);
+    if (!match) return false;
+    const precedingText = sentence.slice(0, match.index);
+    return !/\b(?:no|not|without|never)\s+(?:\w+\s+){0,3}$/i.test(precedingText);
+  });
+}
+
+function calibrateScoreFromFeedback(score: number, feedback: string) {
+  if (feedbackIdentifiesConcern(feedback, SEVERE_CRITIQUE_PATTERN)) return Math.min(score, 5);
+  if (feedbackIdentifiesConcern(feedback, MODERATE_CRITIQUE_PATTERN)) return Math.min(score, 7);
+  return score;
+}
+
 export function formatAcademisDiagnosticTable(
   rows: AcademisDiagnosticRow[],
   includeInstructorColumn: boolean,
@@ -79,16 +97,17 @@ export function parseAcademisDiagnosticTable(
     if (!cells) return null;
     const status = cells[1].match(/^([+-]) (.+) \(([1-9])\/9\)$/);
     if (!status || status[2] !== axis.label) return null;
-    const score = Number(status[3]);
-    const expectedSign = score >= 6 ? "+" : "-";
+    const reportedScore = Number(status[3]);
+    const expectedSign = reportedScore >= 6 ? "+" : "-";
     if (cells[0] !== String(index + 1)
       || status[1] !== expectedSign
       || typeof cells[2] !== "string" || !cells[2].trim() || cells[2].length > 300
       || typeof cells[3] !== "string" || !cells[3].trim() || cells[3].length > 800) return null;
+    const score = calibrateScoreFromFeedback(reportedScore, `${cells[2]} ${cells[3]}`);
     criteriaScores[axis.key] = score;
     rows.push({
       index: cells[0],
-      status_axis: cells[1],
+      status_axis: `${score >= 6 ? "+" : "-"} ${axis.label} (${score}/9)`,
       student_feedback: cells[2].trim(),
       instructor_diagnostic: cells[3].trim(),
     });
