@@ -173,7 +173,7 @@ export function prepareAcademisReport(content: string): PreparedAcademisReport {
     reportData,
     publishedContent: {
       format: "structured",
-      content: parsedOutput,
+      content: null,
     },
   };
 }

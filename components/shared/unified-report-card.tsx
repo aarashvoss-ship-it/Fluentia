@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import { combineTaskFeedback } from "@/lib/evaluation-feedback";
@@ -41,6 +43,7 @@ export interface UnifiedReportStage {
 
 interface UnifiedReportCardProps {
   stages: UnifiedReportStage[];
+  moduleId?: string;
   isInstructorView: boolean;
   isEvaluationView?: boolean;
   isEvaluated: boolean;
@@ -85,6 +88,11 @@ const STUDENT_REPORT_TABS = [
   { id: "speaking", title: "Speaking", aliases: ["speaking"] },
 ] as const;
 
+function getAcademisReportKey(stageId: string, taskId: string) {
+  const normalizedStageId = stageId.trim().toLocaleLowerCase().replace(/[_\s]+/g, "-");
+  return JSON.stringify([normalizedStageId, taskId]);
+}
+
 function stripMarkdown(value: string) {
   return value
     .replace(/<br\s*\/?>/gi, "\n")
@@ -109,12 +117,60 @@ function normalizeAnswer(value: string) {
   return value.trim().toLowerCase().replace(/^[a-z]\s*[).]\s*/, "").trim();
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function StudentPublishedContent({ value }: { value: unknown }) {
+  const markdown = typeof value === "string"
+    ? value
+    : isRecord(value) && typeof value.content === "string" ? value.content : null;
+  const explicitHeaders = isRecord(value) && value.format === "markdown_table"
+    && Array.isArray(value.headers) && Array.isArray(value.rows)
+    ? value.headers.filter((header): header is string => typeof header === "string")
+    : null;
+  const explicitRows = isRecord(value) && value.format === "markdown_table"
+    && Array.isArray(value.headers) && Array.isArray(value.rows)
+    ? value.rows.filter((row): row is string[] => Array.isArray(row)
+      && row.every((cell) => typeof cell === "string"))
+    : null;
+  const headers = explicitHeaders;
+  const rows = explicitRows;
+  if (headers && rows) {
+    return <div className="max-w-full overflow-x-auto">
+      <table className="w-full min-w-max border-collapse text-left text-sm text-stone-200">
+        <thead><tr>{headers.map((header, index) => <th key={`${header}-${index}`} className="border-b border-border px-3 py-2 font-semibold text-amber-200">{header}</th>)}</tr></thead>
+        <tbody>{rows.map((row, rowIndex) => <tr key={rowIndex}>
+          {headers.map((_, columnIndex) => <td key={columnIndex} className="border-b border-border/60 px-3 py-2 align-top">{row[columnIndex] || ""}</td>)}
+        </tr>)}</tbody>
+      </table>
+    </div>;
+  }
+  if (markdown !== null) {
+    return <div className="prose prose-invert max-w-none break-words text-sm leading-relaxed text-stone-200">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          table: ({ children }) => <div className="max-w-full overflow-x-auto"><table className="w-full min-w-max border-collapse text-left text-sm text-stone-200">{children}</table></div>,
+          th: ({ children }) => <th className="border-b border-border px-3 py-2 text-left font-semibold text-amber-200">{children}</th>,
+          td: ({ children }) => <td className="border-b border-border/60 px-3 py-2 align-top">{children}</td>,
+        }}
+      >
+        {markdown}
+      </ReactMarkdown>
+    </div>;
+  }
+  const content = isRecord(value) && "content" in value ? value.content : value;
+  return <pre className="whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-200">{JSON.stringify(content, null, 2) || ""}</pre>;
+}
+
 function FeedbackValue({ value, isEvaluated }: { value?: string; isEvaluated: boolean }) {
   return <p className="mt-1 whitespace-pre-wrap text-base leading-relaxed text-white">{value?.trim() || <span className="italic text-white/70">{isEvaluated ? "No comment provided." : "Pending Review"}</span>}</p>;
 }
 
 export function UnifiedReportCard({
   stages,
+  moduleId,
   isInstructorView,
   isEvaluationView = false,
   isEvaluated,
@@ -143,6 +199,56 @@ export function UnifiedReportCard({
   submitError,
 }: UnifiedReportCardProps) {
   const [activeStudentTab, setActiveStudentTab] = useState<string>("warm-up");
+  const [publishedAcademisReports, setPublishedAcademisReports] = useState<Record<string, unknown>>({});
+  const [isLoadingAcademisReports, setIsLoadingAcademisReports] = useState(false);
+  const [academisReportsError, setAcademisReportsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isInstructorView || !moduleId) {
+      setPublishedAcademisReports({});
+      setAcademisReportsError(null);
+      setIsLoadingAcademisReports(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const loadPublishedReports = async () => {
+      setPublishedAcademisReports({});
+      setIsLoadingAcademisReports(true);
+      setAcademisReportsError(null);
+      try {
+        const params = new URLSearchParams({ moduleId });
+        const response = await fetch(`/api/student/academis-reports?${params}`, {
+          credentials: "same-origin",
+          signal: controller.signal,
+        });
+        let payload: { reports?: unknown; error?: string };
+        try {
+          payload = await response.json() as { reports?: unknown; error?: string };
+        } catch {
+          throw new Error("The published feedback response was invalid.");
+        }
+        if (!response.ok) throw new Error(payload.error || "Unable to load published Academis feedback.");
+        if (!Array.isArray(payload.reports)) throw new Error("The published feedback response was invalid.");
+        const reports: Record<string, unknown> = {};
+        for (const report of payload.reports) {
+          if (!isRecord(report) || typeof report.stageId !== "string"
+            || typeof report.taskId !== "string" || !("publishedContent" in report)) continue;
+          reports[getAcademisReportKey(report.stageId, report.taskId)] = report.publishedContent;
+        }
+        setPublishedAcademisReports(reports);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setAcademisReportsError(error instanceof Error ? error.message : "Unable to load published Academis feedback.");
+      } finally {
+        if (!controller.signal.aborted) setIsLoadingAcademisReports(false);
+      }
+    };
+
+    void loadPublishedReports();
+    return () => controller.abort();
+  }, [isInstructorView, moduleId]);
+
   const overallAggregation = aggregateOverallRubric({
     criterionIds: RUBRIC_CRITERIA.map(({ id }) => id),
     stageScores,
@@ -345,6 +451,32 @@ export function UnifiedReportCard({
       aria-labelledby={!isInstructorView ? "student-report-tab-report-card" : undefined}
       className="space-y-5"
     >
+    {!isInstructorView && <section aria-label="Published Academis task feedback" className="space-y-3 rounded-xl border border-amber-500/25 bg-amber-500/[0.04] p-4 sm:p-5">
+      <div className="border-b border-amber-500/20 pb-3">
+        <h3 className="text-lg font-semibold text-white">ACADEMIS Task Feedback</h3>
+        <p className="mt-1 text-xs text-stone-400">Instructor-approved feedback for each task appears here after publication.</p>
+      </div>
+      {isLoadingAcademisReports && <p className="text-sm text-stone-400" role="status">Loading published task feedback…</p>}
+      {academisReportsError && <p className="text-sm text-red-300" role="alert">{academisReportsError}</p>}
+      {!isLoadingAcademisReports && !academisReportsError && Object.keys(publishedAcademisReports).length === 0
+        && <p className="text-sm text-stone-400">No ACADEMIS task feedback has been published for this lesson.</p>}
+      <div className="space-y-4">
+        {stages.map((stage) => {
+          const reports = stage.tasks.flatMap((task) => {
+            const publishedContent = publishedAcademisReports[getAcademisReportKey(stage.id, task.id)];
+            return publishedContent === undefined ? [] : [{ task, publishedContent }];
+          });
+          if (!reports.length) return null;
+          return <section key={stage.id} className="space-y-3">
+            <h4 className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-200">{stage.title}</h4>
+            {reports.map(({ task, publishedContent }) => <article key={task.id} className="rounded-lg border border-border bg-background p-4">
+              <h5 className="mb-2 text-sm font-medium text-stone-100">{task.title?.trim() || task.prompt?.trim() || "Task feedback"}</h5>
+              <StudentPublishedContent value={publishedContent} />
+            </article>)}
+          </section>;
+        })}
+      </div>
+    </section>}
     <section aria-label="Overall Performance Breakdown" className="space-y-3 rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4 sm:p-5">
       <div className="flex items-center justify-between border-b border-emerald-800/40 pb-3">
         <h3 className="text-lg font-semibold text-white">Overall Performance Breakdown</h3>

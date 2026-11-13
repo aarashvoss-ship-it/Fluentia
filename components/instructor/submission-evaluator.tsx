@@ -149,6 +149,20 @@ interface AcademisEvaluationContext {
   instructorPrompt: string;
 }
 
+interface AcademisStoredReport {
+  id: string;
+  report_data?: Record<string, unknown>;
+  published_content: unknown;
+  is_published: boolean;
+}
+
+interface AcademisTaskResult {
+  context: AcademisEvaluationContext;
+  result: AcademisInsight;
+  stored: boolean;
+  report?: AcademisStoredReport;
+}
+
 const DEFAULT_REPORT_STAGES: UnifiedReportStage[] = [
   { id: "warm_up", title: "Warm-up", tasks: [] },
   { id: "lesson", title: "Lesson", tasks: [] },
@@ -291,6 +305,24 @@ function isAcademisDiagnosticTable(value: unknown): value is AcademisDiagnosticT
     && value.markdown === formatAcademisDiagnosticTable(rows, true);
 }
 
+function isAcademisStoredReport(value: unknown): value is AcademisStoredReport {
+  return isRecord(value)
+    && typeof value.id === "string"
+    && (value.report_data === undefined || isRecord(value.report_data))
+    && typeof value.is_published === "boolean"
+    && "published_content" in value;
+}
+
+function getAcademisPublishedEditorText(value: unknown) {
+  if (typeof value === "string") return value;
+  if (!isRecord(value)) return value === null || value === undefined ? "" : JSON.stringify(value, null, 2) || "";
+  if (value.format === "markdown_table" && typeof value.markdown === "string") return value.markdown;
+  if (typeof value.content === "string") return value.content;
+  if (value.format === "structured" && value.content === null) return "";
+  const content = "content" in value ? value.content : value;
+  return JSON.stringify(content, null, 2) || "";
+}
+
 function AcademisDiagnosticTableView({
   rows,
   includeInstructorColumn,
@@ -412,22 +444,18 @@ export function SubmissionEvaluator({
   const [deletingAcademisPresetId, setDeletingAcademisPresetId] = useState<string | null>(null);
   const [academisLibraryError, setAcademisLibraryError] = useState<string | null>(null);
   const [activeAcademisPresetId, setActiveAcademisPresetId] = useState<string>(ACADEMIS_PROMPTS[0].id);
-  const [academisInsight, setAcademisInsight] = useState<{
-    context: AcademisEvaluationContext;
-    result: AcademisInsight;
-    stored: boolean;
-  } | null>(null);
-  const [academisResultsByTask, setAcademisResultsByTask] = useState<Record<string, {
-    context: AcademisEvaluationContext;
-    result: AcademisInsight;
-    stored: boolean;
-  }>>({});
+  const [academisInsight, setAcademisInsight] = useState<AcademisTaskResult | null>(null);
+  const [academisResultsByTask, setAcademisResultsByTask] = useState<Record<string, AcademisTaskResult>>({});
   const [academisLoadedStages, setAcademisLoadedStages] = useState<Record<string, boolean>>({});
   const [academisRequestContext, setAcademisRequestContext] = useState<AcademisEvaluationContext | null>(null);
   const [isAcademisResultOpen, setIsAcademisResultOpen] = useState(false);
   const [academisResultTab, setAcademisResultTab] = useState<AcademisResultTab>("student-summary");
   const [academisStudentSummary, setAcademisStudentSummary] = useState("");
   const [academisApplyNotice, setAcademisApplyNotice] = useState<string | null>(null);
+  const [academisPublishedContentDraft, setAcademisPublishedContentDraft] = useState("");
+  const [isPublishingAcademisReport, setIsPublishingAcademisReport] = useState(false);
+  const [academisPublishError, setAcademisPublishError] = useState<string | null>(null);
+  const [academisPublishNotice, setAcademisPublishNotice] = useState<string | null>(null);
   const [isAcademisLoading, setIsAcademisLoading] = useState(false);
   const [academisError, setAcademisError] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
@@ -731,7 +759,7 @@ export function SubmissionEvaluator({
         });
         if (!response.ok) throw new Error("Unable to load saved Academis reports.");
         const payload: { insights?: unknown } = await response.json();
-        const restoredResults: Record<string, { context: AcademisEvaluationContext; result: AcademisInsight; stored: boolean }> = {};
+        const restoredResults: Record<string, AcademisTaskResult> = {};
         if (Array.isArray(payload.insights)) {
           for (const savedReport of payload.insights) {
             if (!isRecord(savedReport)
@@ -758,7 +786,12 @@ export function SubmissionEvaluator({
               instructorPrompt: "",
             };
             const cacheKey = JSON.stringify([submissionId, activeStage.id, task.id]);
-            restoredResults[cacheKey] = { context, result: savedReport.insight, stored: true };
+            restoredResults[cacheKey] = {
+              context,
+              result: savedReport.insight,
+              stored: true,
+              ...(isAcademisStoredReport(savedReport.report) ? { report: savedReport.report } : {}),
+            };
           }
         }
         setAcademisResultsByTask((current) => {
@@ -1027,6 +1060,11 @@ export function SubmissionEvaluator({
       setAcademisInsight(cachedResult);
       setAcademisRequestContext(cachedResult.context);
       setAcademisStudentSummary(cachedResult.result.student_summary);
+      setAcademisPublishedContentDraft(cachedResult.report
+        ? getAcademisPublishedEditorText(cachedResult.report.published_content)
+        : cachedResult.result.student_summary);
+      setAcademisPublishError(null);
+      setAcademisPublishNotice(null);
       setAcademisApplyNotice(null);
       setAcademisError(null);
       setAcademisResultTab("student-summary");
@@ -1039,6 +1077,9 @@ export function SubmissionEvaluator({
     setAcademisInsight(null);
     setAcademisRequestContext(evaluationContext);
     setAcademisStudentSummary("");
+    setAcademisPublishedContentDraft("");
+    setAcademisPublishError(null);
+    setAcademisPublishNotice(null);
     setAcademisApplyNotice(null);
     setAcademisResultTab("student-summary");
     setIsAcademisResultOpen(true);
@@ -1069,6 +1110,7 @@ export function SubmissionEvaluator({
         insight?: unknown;
         insightSaved?: boolean;
         reportSaved?: boolean;
+        report?: unknown;
       };
       try {
         payload = await response.json() as {
@@ -1076,6 +1118,7 @@ export function SubmissionEvaluator({
           insight?: unknown;
           insightSaved?: boolean;
           reportSaved?: boolean;
+          report?: unknown;
         };
       } catch {
         throw new Error("Academis returned an invalid response.");
@@ -1088,14 +1131,77 @@ export function SubmissionEvaluator({
         context: evaluationContext,
         result: payload.insight,
         stored: payload.reportSaved === true || payload.insightSaved === true,
+        ...(isAcademisStoredReport(payload.report) ? { report: payload.report } : {}),
       };
       setAcademisInsight(completedResult);
       setAcademisResultsByTask((results) => ({ ...results, [cacheKey]: completedResult }));
       setAcademisStudentSummary(payload.insight.student_summary);
+      setAcademisPublishedContentDraft(completedResult.report
+        ? getAcademisPublishedEditorText(completedResult.report.published_content)
+        : payload.insight.student_summary);
     } catch (error) {
       setAcademisError(error instanceof Error ? error.message : "Academis could not complete the grading request.");
     } finally {
       setIsAcademisLoading(false);
+    }
+  };
+  const publishAcademisReport = async () => {
+    const currentResult = academisInsight;
+    const report = currentResult?.report;
+    if (!currentResult || !report) {
+      setAcademisPublishError("This evaluation has no stored report to publish.");
+      return;
+    }
+    if (!academisPublishedContentDraft.trim()) {
+      setAcademisPublishError("Add student-facing feedback before publishing.");
+      return;
+    }
+
+    setIsPublishingAcademisReport(true);
+    setAcademisPublishError(null);
+    setAcademisPublishNotice(null);
+    try {
+      const response = await fetch("/api/instructor/academis/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          reportId: report.id,
+          publishedContent: { format: "text", content: academisPublishedContentDraft },
+        }),
+      });
+      let payload: {
+        error?: string;
+        report?: { published_content?: unknown; is_published?: boolean };
+      };
+      try {
+        payload = await response.json() as typeof payload;
+      } catch {
+        throw new Error("The publication response was invalid.");
+      }
+      if (!response.ok) throw new Error(payload.error || "Unable to publish feedback.");
+      if (!payload.report || payload.report.is_published !== true
+        || !("published_content" in payload.report)) {
+        throw new Error("The report was not marked as published.");
+      }
+
+      const updatedReport: AcademisStoredReport = {
+        ...report,
+        published_content: payload.report.published_content,
+        is_published: true,
+      };
+      const updatedResult = { ...currentResult, report: updatedReport, stored: true };
+      setAcademisInsight(updatedResult);
+      setAcademisResultsByTask((results) => ({
+        ...results,
+        [JSON.stringify([submissionId, updatedResult.context.stageId, updatedResult.context.taskId])]: updatedResult,
+      }));
+      setAcademisPublishedContentDraft(getAcademisPublishedEditorText(updatedReport.published_content));
+      setAcademisPublishNotice("Approved feedback is live in the student's Stage 7 report card.");
+    } catch (error) {
+      setAcademisPublishError(error instanceof Error ? error.message : "Unable to publish feedback.");
+    } finally {
+      setIsPublishingAcademisReport(false);
     }
   };
   const updateAcademisStudentFeedback = (rowIndex: string, studentFeedback: string) => {
@@ -2491,6 +2597,46 @@ export function SubmissionEvaluator({
                     </div>
                     : <p className="rounded-lg border border-border bg-[#0b0e13] p-4 text-xs text-stone-500">No additional resources were recommended.</p>}
                 </section>
+                {academisInsight.report && <section className="space-y-4 rounded-xl border border-amber-500/30 bg-amber-500/[0.05] p-4 sm:p-5">
+                  <div>
+                    <h3 className="text-sm font-semibold text-amber-200">Review and publish to Stage 7</h3>
+                    <p className="mt-1 text-xs leading-relaxed text-stone-400">The full report remains instructor-only. Edit the student-facing preview below; columns 4 and beyond are excluded from the default content.</p>
+                  </div>
+                  <details className="rounded-lg border border-border bg-[#0b0e13] p-3">
+                    <summary className="cursor-pointer text-xs font-medium text-stone-200">Inspect full stored evaluation report</summary>
+                    <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap break-words text-[11px] leading-relaxed text-stone-300">
+                      {JSON.stringify(academisInsight.report.report_data || {}, null, 2)}
+                    </pre>
+                  </details>
+                  <label className="block text-xs font-medium text-stone-200">
+                    Student-facing feedback preview
+                    <textarea
+                      value={academisPublishedContentDraft}
+                      onChange={(event) => {
+                        setAcademisPublishedContentDraft(event.target.value);
+                        setAcademisPublishError(null);
+                        setAcademisPublishNotice(null);
+                      }}
+                      rows={8}
+                      className="mt-2 w-full resize-y rounded-xl border border-border bg-[#0b0e13] p-4 text-sm leading-relaxed text-stone-100 outline-none transition focus:border-amber-500/40"
+                      aria-label="Edit student-facing Academis feedback"
+                    />
+                  </label>
+                  {academisPublishError && <p role="alert" className="text-xs text-red-300">{academisPublishError}</p>}
+                  {academisPublishNotice && <p role="status" className="text-xs text-emerald-300">{academisPublishNotice}</p>}
+                  <button
+                    type="button"
+                    onClick={() => void publishAcademisReport()}
+                    disabled={isPublishingAcademisReport || !academisPublishedContentDraft.trim()}
+                    className="rounded-md bg-amber-500/20 px-4 py-2.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isPublishingAcademisReport
+                      ? "Publishing…"
+                      : academisInsight.report.is_published
+                        ? "Update Stage 7 Feedback"
+                        : "Publish Feedback to Stage 7"}
+                  </button>
+                </section>}
                 <p className="text-[10px] text-stone-500">
                   Instructor diagnostic and resource recommendations are {academisInsight.stored ? "saved to this submission" : "available for this session"} and shown in the selected task&apos;s stage notes.
                 </p>

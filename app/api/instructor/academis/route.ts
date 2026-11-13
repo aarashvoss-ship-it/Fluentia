@@ -261,7 +261,7 @@ export async function GET(request: Request) {
         insight: storedReportIsNewer
           ? createFallbackInsight(storedReport.published_content)
           : legacyReport?.insights || null,
-        report: storedReportIsNewer
+        report: storedReport
           ? {
             id: storedReport.id,
             report_data: storedReport.report_data,
@@ -325,17 +325,21 @@ export async function GET(request: Request) {
     for (const row of reportResult.rows) {
       const previousReport = reportsByTask.get(row.task_id);
       const createdAt = new Date(row.created_at).getTime();
-      if (previousReport && previousReport.createdAt >= createdAt) continue;
+      const report = {
+        id: row.id,
+        report_data: row.report_data,
+        published_content: row.published_content,
+        is_published: row.is_published,
+        created_at: row.created_at,
+      };
+      if (previousReport && previousReport.createdAt >= createdAt) {
+        previousReport.report = report;
+        continue;
+      }
       reportsByTask.set(row.task_id, {
         taskId: row.task_id,
         insight: createFallbackInsight(row.published_content),
-        report: {
-          id: row.id,
-          report_data: row.report_data,
-          published_content: row.published_content,
-          is_published: row.is_published,
-          created_at: row.created_at,
-        },
+        report,
         createdAt,
       });
     }
@@ -592,6 +596,12 @@ export async function POST(request: Request) {
       insightSaved,
       reportSaved: true,
       reportId,
+      report: {
+        id: reportId,
+        report_data: reportData,
+        published_content: preparedReport.publishedContent,
+        is_published: false,
+      },
       publishedContent: preparedReport.publishedContent,
       isPublished: false,
     });

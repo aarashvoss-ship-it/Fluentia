@@ -1819,6 +1819,7 @@ export default function LessonPage() {
               </div>}
               <UnifiedReportCard
                 stages={reportCardStages}
+                moduleId={lesson?.id}
                 isInstructorView={false}
                 isEvaluationView
                 isEvaluated={isEvaluationPublished || submission.status === "reviewed" || submission.status === "evaluated"}
