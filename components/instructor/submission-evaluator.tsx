@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Mic, Pin, Save, Settings2, Sparkles, Star, X } from "lucide-react";
 import { LessonEvaluation } from "@/types/lesson";
 import { getInstructorSubmissionData, saveInstructorEvaluation } from "@/lib/evaluations";
@@ -392,7 +392,12 @@ export function SubmissionEvaluator({
   const [expandedTaskFeedback, setExpandedTaskFeedback] = useState<Record<string, boolean>>({});
   const [isEvaluationSidebarCollapsed, setIsEvaluationSidebarCollapsed] = useState(false);
   const [isAcademisSidebarCollapsed, setIsAcademisSidebarCollapsed] = useState(false);
-  const [academisPrompt, setAcademisPrompt] = useState<string>(ACADEMIS_PROMPTS[0].prompt);
+  const [academisPrompt, setAcademisPromptState] = useState<string>(ACADEMIS_PROMPTS[0].prompt);
+  const academisPromptRef = useRef(ACADEMIS_PROMPTS[0].prompt);
+  const setAcademisPrompt = (prompt: string) => {
+    academisPromptRef.current = prompt;
+    setAcademisPromptState(prompt);
+  };
   const [academisPresets, setAcademisPresets] = useState<AcademisPromptPreset[]>(
     ACADEMIS_PROMPTS.map((preset) => ({
       ...preset,
@@ -771,6 +776,11 @@ export function SubmissionEvaluator({
     return () => controller.abort();
   }, [submissionId, activeStageId, activeStageTaskSignature, academisLoadedStages]);
   const activeAcademisPreset = academisPresets.find((preset) => preset.id === activeAcademisPresetId);
+  const activateAcademisPreset = (preset: AcademisPromptPreset) => {
+    setActiveAcademisPresetId(preset.id);
+    setActiveAcademisCategoryId(preset.categoryId);
+    setAcademisPrompt(preset.prompt);
+  };
   const promptAssignmentOptions = stages.flatMap((stage) => stage.tasks
     .filter((task) => Boolean(task.id))
     .map((task, index) => ({
@@ -784,9 +794,7 @@ export function SubmissionEvaluator({
       || presets.find((item) => item.isFavorite)
       || presets[0];
     if (!preset) return;
-    setActiveAcademisPresetId(preset.id);
-    setActiveAcademisCategoryId(preset.categoryId);
-    setAcademisPrompt(preset.prompt);
+    activateAcademisPreset(preset);
   };
   const evaluationStatus = (stageId: string) => {
     if (evaluation?.published) return "Evaluated";
@@ -1007,7 +1015,7 @@ export function SubmissionEvaluator({
       transcriptSource: evaluationText?.source,
       referenceTranscript: selectedTask.referenceTranscript?.trim().slice(0, MAX_ACADEMIS_TASK_PROMPT_LENGTH) || undefined,
       audioResponseSubmitted: Boolean(selectedTask.audioUrls?.length),
-      instructorPrompt: academisPrompt.slice(0, MAX_INSTRUCTOR_PROMPT_LENGTH),
+      instructorPrompt: academisPromptRef.current.slice(0, MAX_INSTRUCTOR_PROMPT_LENGTH),
     };
     const cacheKey = JSON.stringify([submissionId, selectedStage.id, selectedTask.id]);
     const cachedResult = academisResultsByTask[cacheKey];
@@ -1126,6 +1134,7 @@ export function SubmissionEvaluator({
     setAcademisLibraryError(null);
   };
   const unpinAcademisPreset = async (presetId: string) => {
+    const wasActivePreset = activeAcademisPresetId === presetId;
     const presets = academisPresets.map((preset) => (
       preset.id === presetId ? { ...preset, isFavorite: false } : preset
     ));
@@ -1148,6 +1157,10 @@ export function SubmissionEvaluator({
       setAcademisPresetDrafts((drafts) => drafts.map((preset) => (
         preset.id === presetId ? { ...preset, isFavorite: false } : preset
       )));
+      if (wasActivePreset) {
+        const fallback = library.presets.find((preset) => preset.isFavorite) || library.presets[0];
+        if (fallback) activateAcademisPreset(fallback);
+      }
       setAcademisLibraryError(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to update pinned Academis prompts.";
@@ -1262,13 +1275,11 @@ export function SubmissionEvaluator({
       const assignedPreset = library.presets.find((preset) => (
         preset.stageId === activeStage?.id && preset.taskId === activeTask?.id
       ));
-      const selectedPreset = assignedPreset
-        || library.presets.find((preset) => preset.id === activeAcademisPresetId)
+      const selectedPreset = library.presets.find((preset) => preset.id === activeAcademisPresetId)
+        || assignedPreset
         || library.presets.find((preset) => preset.isFavorite)
         || library.presets[0];
-      setActiveAcademisPresetId(selectedPreset.id);
-      setAcademisPrompt(selectedPreset.prompt);
-      setActiveAcademisCategoryId(selectedPreset.categoryId);
+      activateAcademisPreset(selectedPreset);
       setAcademisPresetDrafts(library.presets);
       setAcademisCategoryDrafts(library.categories);
       setAcademisLibraryError(null);
@@ -1850,8 +1861,7 @@ export function SubmissionEvaluator({
                 type="button"
                 aria-pressed={activeAcademisPresetId === preset.id}
                 onClick={() => {
-                  setActiveAcademisPresetId(preset.id);
-                  setAcademisPrompt(preset.prompt);
+                  activateAcademisPreset(preset);
                 }}
                 className="inline-flex items-center gap-1 py-1 pl-2.5 pr-1"
               >
@@ -2033,11 +2043,19 @@ export function SubmissionEvaluator({
                     title={preset.isFavorite ? "Unpin preset" : "Pin to sidebar"}
                     disabled={isSavingAcademisLibrary || Boolean(deletingAcademisPresetId)}
                     onClick={() => {
-                      if (!preset.isFavorite && academisPresetDrafts.filter((item) => item.isFavorite).length >= 3) {
+                      const willPin = !preset.isFavorite;
+                      if (willPin && academisPresetDrafts.filter((item) => item.isFavorite).length >= 3) {
                         setAcademisLibraryError("Pin up to 3 presets for quick access in the sidebar.");
                         return;
                       }
                       setAcademisPresetDrafts((drafts) => drafts.map((item) => item.id === preset.id ? { ...item, isFavorite: !item.isFavorite } : item));
+                      if (willPin) {
+                        activateAcademisPreset(preset);
+                      } else if (activeAcademisPresetId === preset.id) {
+                        const fallback = academisPresetDrafts.find((item) => item.id !== preset.id && item.isFavorite)
+                          || academisPresetDrafts.find((item) => item.id !== preset.id);
+                        if (fallback) activateAcademisPreset(fallback);
+                      }
                       setAcademisLibraryError(null);
                     }}
                     className={`rounded-md border p-2 transition disabled:cursor-wait disabled:opacity-50 ${preset.isFavorite ? "border-amber-500/40 bg-amber-500/10 text-amber-300" : "border-border text-stone-500 hover:border-amber-500/30 hover:text-amber-200"}`}
