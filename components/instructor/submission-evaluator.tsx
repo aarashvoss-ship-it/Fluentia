@@ -11,6 +11,12 @@ import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import { type UnifiedReportStage } from "@/components/shared/unified-report-card";
 import { combineTaskFeedback } from "@/lib/evaluation-feedback";
 import {
+  ACADEMIS_DIAGNOSTIC_HEADERS,
+  formatAcademisDiagnosticTable,
+  type AcademisDiagnosticRow,
+  type AcademisDiagnosticTable,
+} from "@/lib/academis-diagnostics";
+import {
   type RubricScale,
   DEFAULT_RUBRIC_SCALE,
   RUBRIC_SCALE_OPTIONS,
@@ -69,22 +75,23 @@ const MAX_INSTRUCTOR_PROMPT_LENGTH = 2500;
 const MAX_ACADEMIS_TASK_PROMPT_LENGTH = 6000;
 const MAX_ACADEMIS_TASK_TITLE_LENGTH = 300;
 const MAX_ACADEMIS_RESPONSE_LENGTH = 12000;
+const ACADEMIS_DIAGNOSTIC_PROMPT_GUIDANCE = `Return each grading in exactly one Markdown table with these four columns: ${ACADEMIS_DIAGNOSTIC_HEADERS.join(" | ")}. Include one row per rubric axis, concise actionable student feedback in column 3, and evidence-based instructor / Lesson Builder analysis in column 4.`;
 const AUDIO_RESPONSE_PLACEHOLDER = /^audio response submitted(?:; transcript unavailable for grading)?\.?$/i;
 const ACADEMIS_PROMPTS = [
   {
     id: "balanced",
     label: "Balanced review",
-    prompt: "Assess the submission against the rubric. Highlight evidence for each score, note the strongest area and one practical next step, and keep the tone constructive.",
+    prompt: `${ACADEMIS_DIAGNOSTIC_PROMPT_GUIDANCE} Assess each rubric axis from evidence in the response. Be concise, respectful, direct, and practical. Mention strengths only when the response demonstrates them; avoid generic praise and clichés.`,
   },
   {
     id: "language",
     label: "Language focus",
-    prompt: "Focus on grammatical accuracy, lexical precision, and natural phrasing. Explain recurring patterns with brief examples and prioritize the most useful corrections.",
+    prompt: `${ACADEMIS_DIAGNOSTIC_PROMPT_GUIDANCE} Prioritize evidence-based feedback on grammatical accuracy, lexical precision, and natural phrasing. Identify the most useful correction without generic praise or clichés.`,
   },
   {
     id: "encouraging",
     label: "Encouraging summary",
-    prompt: "Write an encouraging, student-friendly summary of demonstrated strengths and the next learning goal. Be specific, supportive, and concise.",
+    prompt: `${ACADEMIS_DIAGNOSTIC_PROMPT_GUIDANCE} Use a respectful, learner-supportive tone. Identify only genuine, evidence-based strengths and give a direct, practical next step; avoid generic praise and clichés.`,
   },
 ] as const;
 const DEFAULT_ACADEMIS_CATEGORIES = ACADEMIS_PROMPTS.map(({ id, label }) => ({ id, label }));
@@ -113,6 +120,7 @@ interface AcademisInsight {
   };
   overall_band_score: number;
   student_summary: string;
+  diagnostic_table?: AcademisDiagnosticTable;
   instructor_diagnostic: {
     stage_summary_diagnostic?: string;
     key_error_patterns: Array<{
@@ -248,6 +256,7 @@ function isAcademisInsight(value: unknown): value is AcademisInsight {
     || value.overall_band_score < 1
     || value.overall_band_score > 9
     || typeof value.student_summary !== "string"
+    || (value.diagnostic_table !== undefined && !isAcademisDiagnosticTable(value.diagnostic_table))
     || !Array.isArray(value.instructor_diagnostic.key_error_patterns)
     || !Array.isArray(value.instructor_diagnostic.targeted_resources)
     || (value.instructor_diagnostic.stage_summary_diagnostic !== undefined
@@ -270,6 +279,61 @@ function isAcademisInsight(value: unknown): value is AcademisInsight {
         && typeof resource.topic === "string"
         && typeof resource.title === "string"
         && typeof resource.reason === "string");
+}
+
+function isAcademisDiagnosticTable(value: unknown): value is AcademisDiagnosticTable {
+  if (!isRecord(value) || typeof value.markdown !== "string"
+    || !Array.isArray(value.rows) || value.rows.length !== 4
+    || !value.rows.every((row): row is AcademisDiagnosticRow => isRecord(row)
+      && typeof row.index === "string"
+      && typeof row.status_axis === "string"
+      && typeof row.student_feedback === "string"
+      && typeof row.instructor_diagnostic === "string")) return false;
+  return value.rows.every((row, index) => row.index === String(index + 1))
+    && value.markdown === formatAcademisDiagnosticTable(value.rows, true);
+}
+
+function AcademisDiagnosticTableView({
+  rows,
+  includeInstructorColumn,
+  onStudentFeedbackChange,
+}: {
+  rows: AcademisDiagnosticRow[];
+  includeInstructorColumn: boolean;
+  onStudentFeedbackChange?: (index: string, value: string) => void;
+}) {
+  const headers = ACADEMIS_DIAGNOSTIC_HEADERS.slice(0, includeInstructorColumn ? 4 : 3);
+  return <div className="w-full overflow-x-auto rounded-lg border border-border">
+    <table
+        aria-label={includeInstructorColumn ? "Instructor diagnostic table with private analysis" : "Student feedback table"}
+        className={`w-full table-fixed text-left text-xs ${includeInstructorColumn ? "min-w-[1050px]" : "min-w-[720px]"}`}
+    >
+        <thead className="bg-background text-[10px] font-semibold text-stone-300">
+          <tr>{headers.map((header) => <th key={header} scope="col" className="border-b border-border p-3 align-top">{header}</th>)}</tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => <tr key={row.index} className="align-top even:bg-background/40">
+            <td className="w-16 border-b border-border p-3 font-mono text-stone-400">{row.index}</td>
+            <td className="w-48 border-b border-border p-3 font-medium text-stone-200">{row.status_axis}</td>
+            <td className="border-b border-border p-3 text-stone-300">
+              {onStudentFeedbackChange
+                ? <textarea
+                  value={row.student_feedback}
+                  maxLength={300}
+                  rows={3}
+                  onChange={(event) => onStudentFeedbackChange(row.index, event.target.value)}
+                  aria-label={`Edit student feedback for ${row.status_axis}`}
+                  className="w-full resize-y rounded-md border border-border bg-[#0b0e13] p-2 text-xs leading-relaxed text-stone-100 outline-none focus:border-amber-500/40"
+                />
+                : <p className="whitespace-pre-wrap break-words leading-relaxed">{row.student_feedback}</p>}
+            </td>
+            {includeInstructorColumn && <td className="border-b border-border p-3 text-stone-400">
+              <p className="whitespace-pre-wrap break-words leading-relaxed">{row.instructor_diagnostic}</p>
+            </td>}
+          </tr>)}
+        </tbody>
+    </table>
+  </div>;
 }
 
 function normalizeAnswer(value: string) {
@@ -1010,6 +1074,29 @@ export function SubmissionEvaluator({
       setIsAcademisLoading(false);
     }
   };
+  const updateAcademisStudentFeedback = (rowIndex: string, studentFeedback: string) => {
+    if (!academisInsight?.result.diagnostic_table) return;
+    const rows = academisInsight.result.diagnostic_table.rows.map((row) => (
+      row.index === rowIndex ? { ...row, student_feedback: studentFeedback } : row
+    ));
+    const summary = rows.map((row) => `${row.index}. ${row.student_feedback}`).join("\n");
+    const diagnosticTable = {
+      rows,
+      markdown: formatAcademisDiagnosticTable(rows, true),
+    };
+    const updatedInsight = {
+      ...academisInsight,
+      result: { ...academisInsight.result, student_summary: summary, diagnostic_table: diagnosticTable },
+    };
+    setAcademisInsight(updatedInsight);
+    setAcademisStudentSummary(summary);
+    const cacheKey = JSON.stringify([
+      submissionId,
+      updatedInsight.context.stageId,
+      updatedInsight.context.taskId,
+    ]);
+    setAcademisResultsByTask((results) => ({ ...results, [cacheKey]: updatedInsight }));
+  };
   const openAcademisLibrary = () => {
     setAcademisPresetDrafts(academisPresets.map((preset) => ({ ...preset })));
     setAcademisCategoryDrafts(academisCategories.map((category) => ({ ...category })));
@@ -1503,6 +1590,10 @@ export function SubmissionEvaluator({
                 {taskReport && <details className="rounded-md border border-amber-500/20 bg-amber-500/5 p-3">
                   <summary className="cursor-pointer text-[10px] font-semibold text-amber-200">Academis diagnostic · {taskReport.context.taskTitle}</summary>
                   <div className="mt-3 space-y-3 border-t border-amber-500/10 pt-3">
+                    {taskReport.result.diagnostic_table && <AcademisDiagnosticTableView
+                      rows={taskReport.result.diagnostic_table.rows}
+                      includeInstructorColumn
+                    />}
                     <p className="whitespace-pre-wrap text-[11px] leading-relaxed text-stone-300">{taskReport.result.instructor_diagnostic.teaching_notes}</p>
                     {taskReport.result.instructor_diagnostic.key_error_patterns.length > 0 && <div>
                       <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-stone-500">Error patterns</p>
@@ -2176,7 +2267,7 @@ export function SubmissionEvaluator({
                   onClick={() => setAcademisResultTab("student-summary")}
                   className={`border-b-2 px-4 py-3 text-xs font-medium transition ${academisResultTab === "student-summary" ? "border-amber-400 text-amber-200" : "border-transparent text-stone-500 hover:text-stone-200"}`}
                 >
-                  Student Summary
+                  Student Feedback
                 </button>
                 <button
                   type="button"
@@ -2192,17 +2283,23 @@ export function SubmissionEvaluator({
               </div>
 
               {academisResultTab === "student-summary" && <div id="academis-student-summary-panel" role="tabpanel" aria-labelledby="academis-student-summary-tab" className="space-y-4 pt-5">
-                <label className="block text-xs font-medium text-stone-300">
-                  Student-facing feedback
-                  <textarea
-                    value={academisStudentSummary}
-                    onChange={(event) => setAcademisStudentSummary(event.target.value)}
-                    rows={5}
-                    className="mt-2 w-full resize-y rounded-xl border border-border bg-[#0b0e13] p-4 text-sm leading-relaxed text-stone-100 outline-none transition focus:border-amber-500/40"
-                    aria-label="Edit Academis student summary"
+                {academisInsight.result.diagnostic_table
+                  ? <AcademisDiagnosticTableView
+                    rows={academisInsight.result.diagnostic_table.rows}
+                    includeInstructorColumn={false}
+                    onStudentFeedbackChange={updateAcademisStudentFeedback}
                   />
-                </label>
-                <p className="text-[11px] leading-relaxed text-stone-500">This is kept separate from instructor-only diagnostics. Edit it here before applying it to the student feedback field.</p>
+                  : <label className="block text-xs font-medium text-stone-300">
+                    Legacy student feedback
+                    <textarea
+                      value={academisStudentSummary}
+                      onChange={(event) => setAcademisStudentSummary(event.target.value)}
+                      rows={5}
+                      className="mt-2 w-full resize-y rounded-xl border border-border bg-[#0b0e13] p-4 text-sm leading-relaxed text-stone-100 outline-none transition focus:border-amber-500/40"
+                      aria-label="Edit Academis student summary"
+                    />
+                  </label>}
+                <p className="text-[11px] leading-relaxed text-stone-500">Student feedback includes only the first three columns. Instructor analysis is excluded from the published task feedback.</p>
                 <button
                   type="button"
                   onClick={() => {
@@ -2218,7 +2315,12 @@ export function SubmissionEvaluator({
                       },
                     };
                     updateEvaluation({
-                      taskFeedback: { ...taskFeedback, [taskId]: academisStudentSummary },
+                      taskFeedback: {
+                        ...taskFeedback,
+                        [taskId]: academisInsight.result.diagnostic_table
+                          ? formatAcademisDiagnosticTable(academisInsight.result.diagnostic_table.rows, false)
+                          : academisStudentSummary,
+                      },
                       taskScores: taskRubricScores,
                       taskRubricScales: { ...taskRubricScales, [taskId]: stageScale },
                     });
@@ -2273,6 +2375,13 @@ export function SubmissionEvaluator({
               </div>}
 
               {academisResultTab === "instructor-diagnostic" && <div id="academis-instructor-diagnostic-panel" role="tabpanel" aria-labelledby="academis-instructor-diagnostic-tab" className="space-y-5 pt-5">
+                {academisInsight.result.diagnostic_table && <section>
+                  <h3 className="mb-3 text-sm font-semibold text-stone-100">Four-column diagnostic table · instructor only</h3>
+                  <AcademisDiagnosticTableView
+                    rows={academisInsight.result.diagnostic_table.rows}
+                    includeInstructorColumn
+                  />
+                </section>}
                 <section className="rounded-xl border border-border bg-[#0b0e13] p-4 sm:p-5">
                   <h3 className="text-sm font-semibold text-stone-100">Teaching notes</h3>
                   <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-stone-300">{academisInsight.result.instructor_diagnostic.teaching_notes || "No additional teaching notes."}</p>
