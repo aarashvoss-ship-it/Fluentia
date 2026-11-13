@@ -95,6 +95,8 @@ interface AcademisPromptPreset {
   prompt: string;
   categoryId: string;
   isFavorite: boolean;
+  stageId?: string;
+  taskId?: string;
 }
 
 interface AcademisPromptCategory {
@@ -190,6 +192,51 @@ function getTaskEvaluationText(task: UnifiedReportStage["tasks"][number]) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeAcademisPromptLibrary(value: unknown) {
+  const savedCategories = Array.isArray(value)
+    ? DEFAULT_ACADEMIS_CATEGORIES
+    : isRecord(value) && Array.isArray(value.categories) ? value.categories : null;
+  const savedPresets = Array.isArray(value)
+    ? value
+    : isRecord(value) && Array.isArray(value.presets) ? value.presets : null;
+  if (!savedCategories?.length
+    || !savedCategories.every((category) => isRecord(category)
+      && typeof category.id === "string"
+      && typeof category.label === "string")
+    || !savedPresets?.length
+    || !savedPresets.every((preset) => isRecord(preset)
+      && typeof preset.id === "string"
+      && typeof preset.label === "string"
+      && typeof preset.prompt === "string")) {
+    throw new Error("Saved Academis prompt library has an invalid format.");
+  }
+
+  const categories = savedCategories.map((category) => ({
+    id: ((category as Record<string, unknown>).id as string).trim(),
+    label: ((category as Record<string, unknown>).label as string).trim(),
+  })).filter((category) => category.id.trim() && category.label);
+  if (!categories.length) throw new Error("Saved Academis prompt library has no valid categories.");
+  const categoryIds = new Set(categories.map((category) => category.id));
+  const presets: AcademisPromptPreset[] = savedPresets.map((preset) => {
+    const item = preset as Record<string, unknown>;
+    const categoryId = typeof item.categoryId === "string" && categoryIds.has(item.categoryId)
+      ? item.categoryId
+      : categoryIds.has(item.id as string) ? item.id as string : categories[0].id;
+    return {
+      id: (item.id as string).trim(),
+      label: (item.label as string).trim(),
+      prompt: (item.prompt as string).trim(),
+      categoryId,
+      isFavorite: item.isFavorite === true,
+      ...(typeof item.stageId === "string" && typeof item.taskId === "string"
+        ? { stageId: item.stageId, taskId: item.taskId }
+        : {}),
+    };
+  }).filter((preset) => preset.id && preset.label && preset.prompt);
+  if (!presets.length) throw new Error("Saved Academis prompt library has no valid prompts.");
+  return { categories, presets };
 }
 
 function isAcademisInsight(value: unknown): value is AcademisInsight {
@@ -293,6 +340,9 @@ export function SubmissionEvaluator({
   const [academisCategoryDrafts, setAcademisCategoryDrafts] = useState<AcademisPromptCategory[]>([]);
   const [activeAcademisCategoryId, setActiveAcademisCategoryId] = useState<string>(ACADEMIS_PROMPTS[0].id);
   const [isAcademisLibraryOpen, setIsAcademisLibraryOpen] = useState(false);
+  const [isAcademisLibraryLoading, setIsAcademisLibraryLoading] = useState(true);
+  const [isSavingAcademisLibrary, setIsSavingAcademisLibrary] = useState(false);
+  const [deletingAcademisPresetId, setDeletingAcademisPresetId] = useState<string | null>(null);
   const [academisLibraryError, setAcademisLibraryError] = useState<string | null>(null);
   const [activeAcademisPresetId, setActiveAcademisPresetId] = useState<string>(ACADEMIS_PROMPTS[0].id);
   const [academisInsight, setAcademisInsight] = useState<{
@@ -343,78 +393,80 @@ export function SubmissionEvaluator({
   }, [stages, activeStageId, activeTaskId]);
 
   useEffect(() => {
-    try {
-      const savedPresets = window.localStorage.getItem(`fluentia:academis-presets:${instructorId || "default"}`);
-      if (!savedPresets) return;
-      const parsed: unknown = JSON.parse(savedPresets);
-      const savedCategories = Array.isArray(parsed)
-        ? DEFAULT_ACADEMIS_CATEGORIES
-        : parsed && typeof parsed === "object" && "categories" in parsed && Array.isArray(parsed.categories)
-          ? parsed.categories
-          : null;
-      const savedPresetList = Array.isArray(parsed)
-        ? parsed
-        : parsed && typeof parsed === "object" && "presets" in parsed && Array.isArray(parsed.presets)
-          ? parsed.presets
-          : null;
-      if (!savedCategories
-        || !savedCategories.length
-        || !savedCategories.every((category) => category
-          && typeof category === "object"
-          && typeof category.id === "string"
-          && typeof category.label === "string")
-        || !savedPresetList
-        || !savedPresetList.every((preset) => preset
-          && typeof preset === "object"
-          && typeof preset.id === "string"
-          && typeof preset.label === "string"
-          && typeof preset.prompt === "string")) {
-        throw new Error("Saved Academis prompt library has an invalid format.");
-      }
+    const loadPromptLibrary = async () => {
+      try {
+        const response = await fetch("/api/instructor/academis-prompts", { credentials: "same-origin" });
+        const payload: unknown = await response.json();
+        if (!response.ok) {
+          throw new Error(isRecord(payload) && typeof payload.error === "string"
+            ? payload.error
+            : "Unable to load the Academis prompt library.");
+        }
+        if (!isRecord(payload)) throw new Error("The Academis prompt library response is invalid.");
 
-      const categories = savedCategories.map((category) => ({
-        id: category.id.trim(),
-        label: category.label.trim(),
-      })).filter((category) => category.id && category.label);
-      const categoryIds = new Set(categories.map((category) => category.id));
-      const presets: AcademisPromptPreset[] = savedPresetList.map((preset) => {
-        const categoryId = "categoryId" in preset && typeof preset.categoryId === "string" && categoryIds.has(preset.categoryId)
-          ? preset.categoryId
-          : categoryIds.has(preset.id) ? preset.id : categories[0].id;
-        return {
-          id: preset.id.trim(),
-          label: preset.label.trim(),
-          prompt: preset.prompt.trim(),
-          categoryId,
-          isFavorite: "isFavorite" in preset && preset.isFavorite === true,
-        };
-      }).filter((preset) => preset.id && preset.label && preset.prompt);
-      if (categories.length && presets.length) {
-        setAcademisCategories(categories);
-        setAcademisPresets(presets);
-        const selected = presets.find((preset) => preset.isFavorite) || presets[0];
+        let library: ReturnType<typeof normalizeAcademisPromptLibrary>;
+        if (payload.library !== null && payload.library !== undefined) {
+          library = normalizeAcademisPromptLibrary(payload.library);
+        } else {
+          const legacyValue = window.localStorage.getItem(`fluentia:academis-presets:${instructorId || "default"}`);
+          library = legacyValue
+            ? normalizeAcademisPromptLibrary(JSON.parse(legacyValue) as unknown)
+            : {
+              categories: DEFAULT_ACADEMIS_CATEGORIES,
+              presets: ACADEMIS_PROMPTS.map((preset) => ({
+                ...preset,
+                categoryId: preset.id,
+                isFavorite: false,
+              })),
+            };
+          const saveResponse = await fetch("/api/instructor/academis-prompts", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify(library),
+          });
+          const savedPayload: unknown = await saveResponse.json();
+          if (!saveResponse.ok) {
+            throw new Error(isRecord(savedPayload) && typeof savedPayload.error === "string"
+              ? savedPayload.error
+              : "Unable to migrate the Academis prompt library.");
+          }
+          if (!isRecord(savedPayload)) throw new Error("The saved Academis prompt library response is invalid.");
+          library = normalizeAcademisPromptLibrary(savedPayload.library);
+        }
+
+        setAcademisCategories(library.categories);
+        setAcademisPresets(library.presets);
+        const taskPreset = library.presets.find((preset) => (
+          preset.stageId === activeStageId && preset.taskId === activeTaskId
+        ));
+        const selected = taskPreset || library.presets.find((preset) => preset.isFavorite) || library.presets[0];
         setActiveAcademisCategoryId(selected.categoryId);
         setActiveAcademisPresetId(selected.id);
         setAcademisPrompt(selected.prompt);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to load saved Academis prompts.";
+        setAcademisError(message);
+        setAcademisLibraryError(message);
+        console.error("Academis prompt library could not be loaded:", error);
+      } finally {
+        setIsAcademisLibraryLoading(false);
       }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to load saved Academis prompts.";
-      setAcademisError(message);
-      console.error("Academis prompt library could not be loaded:", error);
-    }
+    };
+    void loadPromptLibrary();
   }, [instructorId]);
 
   useEffect(() => {
     if (!isAcademisLibraryOpen && !isAcademisResultOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setIsAcademisLibraryOpen(false);
-        setIsAcademisResultOpen(false);
+        if (!isSavingAcademisLibrary && !deletingAcademisPresetId) setIsAcademisLibraryOpen(false);
+        if (!isAcademisLoading) setIsAcademisResultOpen(false);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isAcademisLibraryOpen, isAcademisResultOpen]);
+  }, [isAcademisLibraryOpen, isAcademisResultOpen, isSavingAcademisLibrary, deletingAcademisPresetId, isAcademisLoading]);
 
   useEffect(() => {
     if (!academisApplyNotice) return;
@@ -654,6 +706,23 @@ export function SubmissionEvaluator({
     return () => controller.abort();
   }, [submissionId, activeStageId, activeStageTaskSignature, academisLoadedStages]);
   const activeAcademisPreset = academisPresets.find((preset) => preset.id === activeAcademisPresetId);
+  const promptAssignmentOptions = stages.flatMap((stage) => stage.tasks
+    .filter((task) => Boolean(task.id))
+    .map((task, index) => ({
+    stageId: stage.id,
+    taskId: task.id,
+    value: JSON.stringify([stage.id, task.id]),
+    label: `${stage.title} · ${stripMarkdown(task.title || task.prompt || `Task ${index + 1}`).replace(/\s+/g, " ").trim()}`,
+    })));
+  const applyAcademisTaskPrompt = (stageId: string, taskId: string, presets = academisPresets) => {
+    const preset = presets.find((item) => item.stageId === stageId && item.taskId === taskId)
+      || presets.find((item) => item.isFavorite)
+      || presets[0];
+    if (!preset) return;
+    setActiveAcademisPresetId(preset.id);
+    setActiveAcademisCategoryId(preset.categoryId);
+    setAcademisPrompt(preset.prompt);
+  };
   const evaluationStatus = (stageId: string) => {
     if (evaluation?.published) return "Evaluated";
     const stage = stages.find((item) => item.id === stageId);
@@ -772,8 +841,11 @@ export function SubmissionEvaluator({
   };
 
   const changeActiveStage = (stageId: string) => {
+    const selectedStage = stages.find((stage) => stage.id === stageId);
+    const firstTaskId = selectedStage?.tasks[0]?.id || "";
     setActiveStageId(stageId);
-    setActiveTaskId(stages.find((stage) => stage.id === stageId)?.tasks[0]?.id || "");
+    setActiveTaskId(firstTaskId);
+    if (selectedStage && firstTaskId) applyAcademisTaskPrompt(stageId, firstTaskId);
     setAcademisInsight(null);
     setAcademisError(null);
     setVoiceUploadError(null);
@@ -941,7 +1013,10 @@ export function SubmissionEvaluator({
   const openAcademisLibrary = () => {
     setAcademisPresetDrafts(academisPresets.map((preset) => ({ ...preset })));
     setAcademisCategoryDrafts(academisCategories.map((category) => ({ ...category })));
-    setActiveAcademisCategoryId(academisCategories[0]?.id || "");
+    const assignedPreset = academisPresets.find((preset) => (
+      preset.stageId === activeStage?.id && preset.taskId === activeTask?.id
+    ));
+    setActiveAcademisCategoryId(assignedPreset?.categoryId || activeAcademisCategoryId || academisCategories[0]?.id || "");
     setAcademisLibraryError(null);
     setIsAcademisLibraryOpen(true);
   };
@@ -962,32 +1037,89 @@ export function SubmissionEvaluator({
     setActiveAcademisCategoryId((activeCategoryId) => activeCategoryId === categoryId ? fallbackCategoryId : activeCategoryId);
     setAcademisLibraryError(null);
   };
-  const unpinAcademisPreset = (presetId: string) => {
+  const unpinAcademisPreset = async (presetId: string) => {
     const presets = academisPresets.map((preset) => (
       preset.id === presetId ? { ...preset, isFavorite: false } : preset
     ));
     try {
-      window.localStorage.setItem(
-        `fluentia:academis-presets:${instructorId || "default"}`,
-        JSON.stringify({ categories: academisCategories, presets }),
-      );
-      setAcademisPresets(presets);
+      const response = await fetch("/api/instructor/academis-prompts", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ categories: academisCategories, presets }),
+      });
+      const payload: unknown = await response.json();
+      if (!response.ok) {
+        throw new Error(isRecord(payload) && typeof payload.error === "string"
+          ? payload.error
+          : "Unable to update pinned Academis prompts.");
+      }
+      if (!isRecord(payload)) throw new Error("The updated Academis prompt library response is invalid.");
+      const library = normalizeAcademisPromptLibrary(payload.library);
+      setAcademisPresets(library.presets);
       setAcademisPresetDrafts((drafts) => drafts.map((preset) => (
         preset.id === presetId ? { ...preset, isFavorite: false } : preset
       )));
       setAcademisLibraryError(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to update pinned Academis prompts.";
-      setAcademisError(message);
+      setAcademisLibraryError(message);
       console.error("Academis prompt could not be unpinned:", error);
     }
   };
-  const deleteAcademisPreset = (preset: AcademisPromptPreset) => {
-    if (!window.confirm(`Permanently delete "${preset.label || "this prompt"}" from your Prompt Library? This takes effect when you save changes.`)) return;
-    setAcademisPresetDrafts((drafts) => drafts.filter((item) => item.id !== preset.id));
+  const deleteAcademisPreset = async (preset: AcademisPromptPreset) => {
+    if (academisPresetDrafts.length <= 1) {
+      setAcademisLibraryError("Keep at least one prompt in your library.");
+      return;
+    }
+    if (!window.confirm(`Permanently delete "${preset.label || "this prompt"}" from your Prompt Library?`)) return;
+    if (!academisPresets.some((item) => item.id === preset.id)) {
+      const remainingDrafts = academisPresetDrafts.filter((item) => item.id !== preset.id);
+      setAcademisPresetDrafts(remainingDrafts);
+      if (activeAcademisPresetId === preset.id) {
+        const fallback = remainingDrafts.find((item) => item.isFavorite) || remainingDrafts[0];
+        setActiveAcademisPresetId(fallback.id);
+        setActiveAcademisCategoryId(fallback.categoryId);
+        setAcademisPrompt(fallback.prompt);
+      }
+      setAcademisLibraryError(null);
+      return;
+    }
+    setDeletingAcademisPresetId(preset.id);
     setAcademisLibraryError(null);
+    try {
+      const response = await fetch("/api/instructor/academis-prompts", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ presetId: preset.id }),
+      });
+      const payload: unknown = await response.json();
+      if (!response.ok) {
+        throw new Error(isRecord(payload) && typeof payload.error === "string"
+          ? payload.error
+          : "Unable to delete the Academis prompt.");
+      }
+      if (!isRecord(payload)) throw new Error("The updated Academis prompt library response is invalid.");
+      const library = normalizeAcademisPromptLibrary(payload.library);
+      setAcademisPresets(library.presets);
+      setAcademisCategories(library.categories);
+      setAcademisPresetDrafts((drafts) => drafts.filter((item) => item.id !== preset.id));
+      if (activeAcademisPresetId === preset.id) {
+        const fallback = library.presets.find((item) => item.isFavorite) || library.presets[0];
+        setActiveAcademisPresetId(fallback.id);
+        setActiveAcademisCategoryId(fallback.categoryId);
+        setAcademisPrompt(fallback.prompt);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to delete the Academis prompt.";
+      setAcademisLibraryError(message);
+      console.error("Academis prompt could not be deleted:", error);
+    } finally {
+      setDeletingAcademisPresetId(null);
+    }
   };
-  const saveAcademisLibrary = () => {
+  const saveAcademisLibrary = async () => {
     const presets = academisPresetDrafts.map((preset) => ({
       ...preset,
       label: preset.label.trim(),
@@ -1021,28 +1153,45 @@ export function SubmissionEvaluator({
       setAcademisLibraryError("Pin no more than 3 presets.");
       return;
     }
+    setIsSavingAcademisLibrary(true);
     try {
-      window.localStorage.setItem(
-        `fluentia:academis-presets:${instructorId || "default"}`,
-        JSON.stringify({ categories, presets }),
-      );
+      const response = await fetch("/api/instructor/academis-prompts", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ categories, presets }),
+      });
+      const payload: unknown = await response.json();
+      if (!response.ok) {
+        throw new Error(isRecord(payload) && typeof payload.error === "string"
+          ? payload.error
+          : "Unable to save the Academis prompt library.");
+      }
+      if (!isRecord(payload)) throw new Error("The saved Academis prompt library response is invalid.");
+      const library = normalizeAcademisPromptLibrary(payload.library);
+      setAcademisPresets(library.presets);
+      setAcademisCategories(library.categories);
+      const assignedPreset = library.presets.find((preset) => (
+        preset.stageId === activeStage?.id && preset.taskId === activeTask?.id
+      ));
+      const selectedPreset = assignedPreset
+        || library.presets.find((preset) => preset.id === activeAcademisPresetId)
+        || library.presets.find((preset) => preset.isFavorite)
+        || library.presets[0];
+      setActiveAcademisPresetId(selectedPreset.id);
+      setAcademisPrompt(selectedPreset.prompt);
+      setActiveAcademisCategoryId(selectedPreset.categoryId);
+      setAcademisPresetDrafts(library.presets);
+      setAcademisCategoryDrafts(library.categories);
+      setAcademisLibraryError(null);
+      setIsAcademisLibraryOpen(false);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to save the Academis prompt library.";
       setAcademisLibraryError(`Could not save your prompts: ${message}`);
       console.error("Academis prompt library could not be saved:", error);
-      return;
+    } finally {
+      setIsSavingAcademisLibrary(false);
     }
-    setAcademisPresets(presets);
-    setAcademisCategories(categories);
-    const selectedPreset = presets.find((preset) => preset.id === activeAcademisPresetId)
-      || presets.find((preset) => preset.isFavorite)
-      || presets[0];
-    if (selectedPreset) {
-      setActiveAcademisPresetId(selectedPreset.id);
-      setAcademisPrompt(selectedPreset.prompt);
-      setActiveAcademisCategoryId(selectedPreset.categoryId);
-    }
-    setIsAcademisLibraryOpen(false);
   };
   const pinnedAcademisPresets = academisPresets.filter((preset) => preset.isFavorite).slice(0, 3);
 
@@ -1535,10 +1684,11 @@ export function SubmissionEvaluator({
               value={activeTask?.id || ""}
               onChange={(event) => {
                 setActiveTaskId(event.target.value);
+                if (activeStage) applyAcademisTaskPrompt(activeStage.id, event.target.value);
                 setAcademisInsight(null);
                 setAcademisError(null);
               }}
-              disabled={!activeStage?.tasks.length || isAcademisLoading}
+              disabled={!activeStage?.tasks.length || isAcademisLoading || isAcademisLibraryLoading}
               aria-label={`Task to evaluate in ${activeStage?.title || "current stage"}`}
               className="mt-1.5 w-full rounded-md border border-border bg-[#0b0e13] px-2.5 py-2 text-xs text-stone-200 outline-none transition focus:border-amber-500/40 disabled:cursor-not-allowed disabled:opacity-60"
             >
@@ -1593,9 +1743,10 @@ export function SubmissionEvaluator({
             <button
               type="button"
               onClick={openAcademisLibrary}
+              disabled={isAcademisLibraryLoading}
               aria-label="Open Academis prompt library"
               title="Prompt Library"
-              className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] text-stone-400 transition hover:border-amber-500/40 hover:text-amber-300"
+              className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] text-stone-400 transition hover:border-amber-500/40 hover:text-amber-300 disabled:cursor-wait disabled:opacity-50"
             >
               <Settings2 className="h-3 w-3" aria-hidden="true" />
               Prompt Library
@@ -1658,19 +1809,21 @@ export function SubmissionEvaluator({
       </aside>
     </div>
     {isAcademisLibraryOpen && <div
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[120] flex justify-end bg-black/70 backdrop-blur-sm"
       role="presentation"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) setIsAcademisLibraryOpen(false);
+        if (event.target === event.currentTarget && !isSavingAcademisLibrary && !deletingAcademisPresetId) {
+          setIsAcademisLibraryOpen(false);
+        }
       }}
     >
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby="academis-library-title"
-        className="flex max-h-[min(90vh,860px)] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-amber-500/30 bg-[#11151b] text-stone-200 shadow-2xl shadow-black/50"
+        className="flex h-full w-full max-w-6xl flex-col overflow-hidden border-l border-amber-500/30 bg-[#11151b] text-stone-200 shadow-2xl shadow-black/50"
       >
-        <header className="flex items-center justify-between gap-4 border-b border-border px-5 py-4 sm:px-7">
+        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border px-5 py-4 sm:px-8 sm:py-6">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Academis</p>
             <h2 id="academis-library-title" className="mt-1 text-lg font-semibold text-stone-100">Prompt Library</h2>
@@ -1679,14 +1832,15 @@ export function SubmissionEvaluator({
           <button
             type="button"
             onClick={() => setIsAcademisLibraryOpen(false)}
+            disabled={isSavingAcademisLibrary || Boolean(deletingAcademisPresetId)}
             aria-label="Close prompt library"
-            className="rounded-md border border-border p-2 text-stone-400 transition hover:border-amber-500/40 hover:text-amber-300"
+            className="rounded-md border border-border p-2 text-stone-400 transition hover:border-amber-500/40 hover:text-amber-300 disabled:cursor-wait disabled:opacity-50"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </header>
 
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 sm:p-7">
+        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-5 sm:p-8">
           <div className="flex items-center gap-2 overflow-x-auto border-b border-border" role="tablist" aria-label="Prompt categories and saved prompts">
             <button
               type="button"
@@ -1718,6 +1872,7 @@ export function SubmissionEvaluator({
             </div>)}
             <button
               type="button"
+              disabled={isSavingAcademisLibrary || Boolean(deletingAcademisPresetId)}
               onClick={() => {
                 const category = { id: `type-${crypto.randomUUID()}`, label: `New Type ${academisCategoryDrafts.length + 1}` };
                 setAcademisCategoryDrafts((categories) => [...categories, category]);
@@ -1747,19 +1902,26 @@ export function SubmissionEvaluator({
                 <input
                   value={category.label}
                   maxLength={40}
+                  disabled={isSavingAcademisLibrary || Boolean(deletingAcademisPresetId)}
                   onChange={(event) => setAcademisCategoryDrafts((categories) => categories.map((item) => item.id === category.id ? { ...item, label: event.target.value } : item))}
-                  className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500/40"
+                  className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500/40 disabled:opacity-50"
                 />
               </label>
               {!DEFAULT_ACADEMIS_CATEGORIES.some((defaultCategory) => defaultCategory.id === category.id) && <button
                 type="button"
+                disabled={isSavingAcademisLibrary || Boolean(deletingAcademisPresetId)}
                 onClick={() => deleteAcademisCategory(category.id)}
-                className="rounded-md border border-red-500/25 px-3 py-2 text-xs text-red-300 transition hover:border-red-400/50 hover:bg-red-500/5"
+                className="rounded-md border border-red-500/25 px-3 py-2 text-xs text-red-300 transition hover:border-red-400/50 hover:bg-red-500/5 disabled:cursor-wait disabled:opacity-50"
               >
                 Delete category…
               </button>}
             </div>}
 
+            {!academisPresetDrafts.some((preset) => (
+              category.id === ALL_ACADEMIS_PROMPTS_CATEGORY_ID || preset.categoryId === category.id
+            )) && <p className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-stone-500">
+              No prompts in this category yet. Add a preset to get started.
+            </p>}
             {academisPresetDrafts.filter((preset) => (
               category.id === ALL_ACADEMIS_PROMPTS_CATEGORY_ID || preset.categoryId === category.id
             )).map((preset) => <article
@@ -1777,6 +1939,7 @@ export function SubmissionEvaluator({
                     aria-pressed={preset.isFavorite}
                     aria-label={preset.isFavorite ? `Unpin ${preset.label}` : `Pin ${preset.label}`}
                     title={preset.isFavorite ? "Unpin preset" : "Pin to sidebar"}
+                    disabled={isSavingAcademisLibrary || Boolean(deletingAcademisPresetId)}
                     onClick={() => {
                       if (!preset.isFavorite && academisPresetDrafts.filter((item) => item.isFavorite).length >= 3) {
                         setAcademisLibraryError("Pin up to 3 presets for quick access in the sidebar.");
@@ -1785,7 +1948,7 @@ export function SubmissionEvaluator({
                       setAcademisPresetDrafts((drafts) => drafts.map((item) => item.id === preset.id ? { ...item, isFavorite: !item.isFavorite } : item));
                       setAcademisLibraryError(null);
                     }}
-                    className={`rounded-md border p-2 transition ${preset.isFavorite ? "border-amber-500/40 bg-amber-500/10 text-amber-300" : "border-border text-stone-500 hover:border-amber-500/30 hover:text-amber-200"}`}
+                    className={`rounded-md border p-2 transition disabled:cursor-wait disabled:opacity-50 ${preset.isFavorite ? "border-amber-500/40 bg-amber-500/10 text-amber-300" : "border-border text-stone-500 hover:border-amber-500/30 hover:text-amber-200"}`}
                   >
                     {preset.isFavorite ? <Star className="h-4 w-4 fill-current" aria-hidden="true" /> : <Pin className="h-4 w-4" aria-hidden="true" />}
                   </button>
@@ -1793,9 +1956,11 @@ export function SubmissionEvaluator({
                     type="button"
                     onClick={() => deleteAcademisPreset(preset)}
                     aria-label={`Delete ${preset.label || "custom"} preset`}
-                    className="rounded-md px-2 py-1 text-[10px] text-stone-500 transition hover:text-red-300"
+                    disabled={isSavingAcademisLibrary || deletingAcademisPresetId === preset.id || academisPresetDrafts.length <= 1}
+                    title={academisPresetDrafts.length <= 1 ? "Keep at least one prompt in your library" : "Delete this prompt"}
+                    className="rounded-md px-2 py-1 text-[10px] text-stone-500 transition hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    Delete
+                    {deletingAcademisPresetId === preset.id ? "Deleting…" : "Delete"}
                   </button>
                 </div>
               </div>
@@ -1804,9 +1969,10 @@ export function SubmissionEvaluator({
                 <input
                   value={preset.label}
                   maxLength={40}
+                  disabled={isSavingAcademisLibrary || Boolean(deletingAcademisPresetId)}
                   onChange={(event) => setAcademisPresetDrafts((drafts) => drafts.map((item) => item.id === preset.id ? { ...item, label: event.target.value } : item))}
                   placeholder="Preset title"
-                  className="mt-1.5 w-full rounded-md border border-border bg-[#0b0e13] px-3 py-2.5 text-sm text-stone-100 outline-none transition focus:border-amber-500/50"
+                  className="mt-1.5 w-full rounded-md border border-border bg-[#0b0e13] px-3 py-2.5 text-sm text-stone-100 outline-none transition focus:border-amber-500/50 disabled:opacity-50"
                 />
               </label>
               <label className="mt-3 block text-xs text-stone-400">
@@ -1815,15 +1981,50 @@ export function SubmissionEvaluator({
                   value={preset.prompt}
                   maxLength={MAX_INSTRUCTOR_PROMPT_LENGTH}
                   rows={4}
+                  disabled={isSavingAcademisLibrary || Boolean(deletingAcademisPresetId)}
                   onChange={(event) => setAcademisPresetDrafts((drafts) => drafts.map((item) => item.id === preset.id ? { ...item, prompt: event.target.value } : item))}
                   placeholder="Describe the focus and style for this grading run..."
-                  className="mt-1.5 w-full resize-y rounded-md border border-border bg-[#0b0e13] px-3 py-2.5 text-sm leading-relaxed text-stone-200 outline-none transition focus:border-amber-500/50"
+                  className="mt-1.5 w-full resize-y rounded-md border border-border bg-[#0b0e13] px-3 py-2.5 text-sm leading-relaxed text-stone-200 outline-none transition focus:border-amber-500/50 disabled:opacity-50"
                 />
+              </label>
+              <label className="mt-4 block max-w-xl text-xs text-stone-400">
+                Automatically use for task
+                <select
+                  value={preset.stageId && preset.taskId ? JSON.stringify([preset.stageId, preset.taskId]) : ""}
+                  disabled={isSavingAcademisLibrary || deletingAcademisPresetId === preset.id}
+                  onChange={(event) => {
+                    const assignment = promptAssignmentOptions.find((option) => option.value === event.target.value);
+                    setAcademisPresetDrafts((drafts) => drafts.map((item) => {
+                      if (item.id === preset.id) {
+                        return {
+                          ...item,
+                          stageId: assignment?.stageId,
+                          taskId: assignment?.taskId,
+                        };
+                      }
+                      if (assignment && item.stageId === assignment.stageId && item.taskId === assignment.taskId) {
+                        return { ...item, stageId: undefined, taskId: undefined };
+                      }
+                      return item;
+                    }));
+                    setAcademisLibraryError(null);
+                  }}
+                  className="mt-1.5 w-full rounded-md border border-border bg-[#0b0e13] px-3 py-2.5 text-sm text-stone-200 outline-none focus:border-amber-500/50"
+                >
+                  <option value="">Default prompt (no task assignment)</option>
+                  {promptAssignmentOptions.map((option) => <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>)}
+                </select>
+                <span className="mt-1 block text-[11px] leading-relaxed text-stone-500">
+                  Selecting that task in the evaluator will automatically activate this prompt.
+                </span>
               </label>
             </article>)}
 
             {category.id !== ALL_ACADEMIS_PROMPTS_CATEGORY_ID && <button
               type="button"
+              disabled={isSavingAcademisLibrary || Boolean(deletingAcademisPresetId)}
               onClick={() => setAcademisPresetDrafts((drafts) => [...drafts, {
                 id: `custom-${crypto.randomUUID()}`,
                 label: "",
@@ -1831,7 +2032,7 @@ export function SubmissionEvaluator({
                 categoryId: category.id,
                 isFavorite: false,
               }])}
-              className="rounded-md border border-dashed border-amber-500/30 px-3 py-2 text-xs text-amber-300 transition hover:border-amber-500/60 hover:bg-amber-500/5"
+              className="rounded-md border border-dashed border-amber-500/30 px-3 py-2 text-xs text-amber-300 transition hover:border-amber-500/60 hover:bg-amber-500/5 disabled:cursor-wait disabled:opacity-50"
             >
               + Preset
             </button>}
@@ -1839,20 +2040,22 @@ export function SubmissionEvaluator({
           {academisLibraryError && <p role="alert" className="text-xs text-red-300">{academisLibraryError}</p>}
         </div>
 
-        <footer className="flex items-center justify-between gap-3 border-t border-border px-5 py-4 sm:px-7">
+        <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-border px-5 py-4 sm:px-8">
           <button
             type="button"
             onClick={() => setIsAcademisLibraryOpen(false)}
+            disabled={isSavingAcademisLibrary || Boolean(deletingAcademisPresetId)}
             className="rounded-md px-3 py-2 text-xs text-stone-400 transition hover:text-stone-200"
           >
             Cancel
           </button>
           <button
             type="button"
-            onClick={saveAcademisLibrary}
-            className="rounded-md bg-amber-500/20 px-4 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/30"
+            onClick={() => void saveAcademisLibrary()}
+            disabled={isSavingAcademisLibrary || Boolean(deletingAcademisPresetId) || isAcademisLibraryLoading}
+            className="rounded-md bg-amber-500/20 px-4 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/30 disabled:cursor-wait disabled:opacity-50"
           >
-            Save changes
+            {isSavingAcademisLibrary ? "Saving…" : "Save changes"}
           </button>
         </footer>
       </section>
