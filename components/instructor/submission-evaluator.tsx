@@ -13,10 +13,13 @@ import { combineTaskFeedback } from "@/lib/evaluation-feedback";
 import { areAcademisPromptTitlesUnique } from "@/lib/academis-prompts";
 import {
   parseMarkdownReportTable,
+  replaceAcademisBreakTags,
   type AcademisReportTableContent,
 } from "@/lib/academis-report";
 import {
   ACADEMIS_DIAGNOSTIC_HEADERS,
+  extractAcademisBandScore,
+  extractAcademisCriterionLabel,
   formatAcademisDiagnosticTable,
   type AcademisDiagnosticRow,
   type AcademisDiagnosticTable,
@@ -323,11 +326,13 @@ function isAcademisStoredReport(value: unknown): value is AcademisStoredReport {
 
 function normalizeAcademisReportTable(value: unknown): Pick<AcademisReportTableContent, "headers" | "rows"> | null {
   if (!isRecord(value) || !Array.isArray(value.headers) || !Array.isArray(value.rows)) return null;
-  const headers = value.headers.filter((header): header is string => typeof header === "string");
+  const headers = value.headers
+    .filter((header): header is string => typeof header === "string")
+    .map(replaceAcademisBreakTags);
   if (!headers.length) return null;
   const rows = value.rows
     .filter((row): row is string[] => Array.isArray(row) && row.every((cell) => typeof cell === "string"))
-    .map((row) => Array.from({ length: headers.length }, (_, index) => row[index] || ""));
+    .map((row) => Array.from({ length: headers.length }, (_, index) => replaceAcademisBreakTags(row[index] || "")));
   return { headers, rows };
 }
 
@@ -349,7 +354,7 @@ function getAcademisPublishedEditorDraft(value: unknown): AcademisPublishedConte
       rows: table.rows.map((row) => row.slice(0, 3)),
     };
   }
-  if (source !== null) return { format: "text", content: source };
+  if (source !== null) return { format: "text", content: replaceAcademisBreakTags(source) };
   return { format: "text", content: "" };
 }
 
@@ -384,9 +389,37 @@ function hasPublishableAcademisContent(draft: AcademisPublishedContentDraft) {
     : draft.content.trim().length > 0;
 }
 
+function getAcademisCriterionScoreEntries(rows: string[][]) {
+  const usedKeys = new Set<string>();
+  return rows.map((row, index) => {
+    const rowIndex = row[0]?.trim() || String(index + 1);
+    const axis = replaceAcademisBreakTags(row[1] || "");
+    const label = extractAcademisCriterionLabel(axis) || `Criterion ${rowIndex}`;
+    let key = label;
+    if (usedKeys.has(key.toLocaleLowerCase())) key = `${label} (${rowIndex})`;
+    usedKeys.add(key.toLocaleLowerCase());
+    return { key, score: extractAcademisBandScore(axis) ?? null, rowIndex };
+  });
+}
+
+function getAcademisScoreMean(scores: Record<string, number | null>) {
+  const values = Object.values(scores).filter((score): score is number => (
+    typeof score === "number" && Number.isFinite(score)
+  ));
+  return values.length
+    ? Math.round(values.reduce((sum, score) => sum + score, 0) / values.length * 100) / 100
+    : null;
+}
+
+function formatAcademisAxisWithScore(axis: string, score: number | null) {
+  const label = extractAcademisCriterionLabel(replaceAcademisBreakTags(axis)) || "Criterion";
+  if (score === null) return label;
+  return `${score >= 6 ? "+" : "-"} ${label} (${score}/9)`;
+}
+
 function formatAcademisPublishedDraft(draft: AcademisPublishedContentDraft) {
   if (draft.format === "text") return draft.content;
-  const escapeCell = (value: string) => value.replace(/\r?\n/g, " ").replace(/\|/g, "\\|").trim();
+  const escapeCell = (value: string) => value.replace(/\|/g, "\\|").replace(/\r?\n/g, "<br>").trim();
   return [
     `| ${draft.headers.map(escapeCell).join(" | ")} |`,
     `| ${draft.headers.map(() => "---").join(" | ")} |`,
@@ -415,21 +448,21 @@ function AcademisDiagnosticTableView({
         <tbody>
           {rows.map((row) => <tr key={row.index} className="align-top even:bg-background/40">
             <td className="w-16 border-b border-border p-3 font-mono text-stone-400">{row.index}</td>
-            <td className="w-48 border-b border-border p-3 font-medium text-stone-200">{row.status_axis}</td>
+            <td className="w-48 border-b border-border p-3 font-medium text-stone-200">{replaceAcademisBreakTags(row.status_axis)}</td>
             <td className="border-b border-border p-3 text-stone-300">
               {onStudentFeedbackChange
                 ? <textarea
-                  value={row.student_feedback}
+                  value={replaceAcademisBreakTags(row.student_feedback)}
                   maxLength={300}
                   rows={3}
                   onChange={(event) => onStudentFeedbackChange(row.index, event.target.value)}
                   aria-label={`Edit student feedback for ${row.status_axis}`}
                   className="w-full resize-y rounded-md border border-border bg-[#0b0e13] p-2 text-xs leading-relaxed text-stone-100 outline-none focus:border-amber-500/40"
                 />
-                : <p className="whitespace-pre-wrap break-words leading-relaxed">{row.student_feedback}</p>}
+                : <p className="whitespace-pre-wrap break-words leading-relaxed">{replaceAcademisBreakTags(row.student_feedback)}</p>}
             </td>
             {includeInstructorColumn && <td className="border-b border-border p-3 text-stone-400">
-              <p className="whitespace-pre-wrap break-words leading-relaxed">{row.instructor_diagnostic}</p>
+              <p className="whitespace-pre-wrap break-words leading-relaxed">{replaceAcademisBreakTags(row.instructor_diagnostic)}</p>
             </td>}
           </tr>)}
         </tbody>
@@ -453,20 +486,20 @@ function AcademisReportTableView({
   return <div className="w-full overflow-x-auto rounded-lg border border-border">
     <table aria-label={ariaLabel} className="w-full min-w-[720px] table-fixed text-left text-xs">
       <thead className="bg-background text-[10px] font-semibold text-stone-300">
-        <tr>{headers.map((header, index) => <th key={`${header}-${index}`} scope="col" className="border-b border-border p-3 align-top">{header}</th>)}</tr>
+        <tr>{headers.map((header, index) => <th key={`${header}-${index}`} scope="col" className="border-b border-border p-3 align-top">{replaceAcademisBreakTags(header)}</th>)}</tr>
       </thead>
       <tbody>
         {rows.map((row, rowIndex) => <tr key={`${row[0] || "row"}-${rowIndex}`} className="align-top even:bg-background/40">
           {headers.map((_, columnIndex) => <td key={columnIndex} className="border-b border-border p-3 text-stone-300">
             {editableColumns.includes(columnIndex) && onCellChange
               ? <textarea
-                value={row[columnIndex] || ""}
+                value={replaceAcademisBreakTags(row[columnIndex] || "")}
                 rows={columnIndex === 2 ? 3 : 1}
                 onChange={(event) => onCellChange(rowIndex, columnIndex, event.target.value)}
                 aria-label={`Edit ${headers[columnIndex]} for row ${row[0] || rowIndex + 1}`}
                 className="w-full resize-y rounded-md border border-border bg-[#0b0e13] p-2 text-xs leading-relaxed text-stone-100 outline-none focus:border-amber-500/40"
               />
-              : <p className="whitespace-pre-wrap break-words leading-relaxed">{row[columnIndex] || ""}</p>}
+              : <p className="whitespace-pre-wrap break-words leading-relaxed">{replaceAcademisBreakTags(row[columnIndex] || "")}</p>}
           </td>)}
         </tr>)}
       </tbody>
@@ -1347,7 +1380,85 @@ export function SubmissionEvaluator({
     ]);
     setAcademisResultsByTask((results) => ({ ...results, [cacheKey]: updatedInsight }));
   };
+  const updateAcademisAxis = (rowIndex: number, statusAxis: string) => {
+    if (academisPublishedContentDraft.format !== "markdown_table") return;
+    const rows = academisPublishedContentDraft.rows.map((row, index) => (
+      index === rowIndex ? row.map((cell, columnIndex) => (columnIndex === 1 ? statusAxis : cell)) : row
+    ));
+    setAcademisPublishedContentDraft({ ...academisPublishedContentDraft, rows });
+    if (!academisInsight) return;
+
+    const criteriaScores = Object.fromEntries(
+      getAcademisCriterionScoreEntries(rows).map(({ key, score }) => [key, score]),
+    );
+    const diagnosticTable = academisInsight.result.diagnostic_table
+      ? {
+        ...academisInsight.result.diagnostic_table,
+        rows: academisInsight.result.diagnostic_table.rows.map((row) => {
+          const updatedRow = rows.find((candidate) => candidate[0] === row.index);
+          return updatedRow ? { ...row, status_axis: updatedRow[1] || "" } : row;
+        }),
+      }
+      : undefined;
+    const updatedInsight = {
+      ...academisInsight,
+      result: {
+        ...academisInsight.result,
+        criteria_scores: criteriaScores,
+        overall_band_score: getAcademisScoreMean(criteriaScores),
+        ...(diagnosticTable
+          ? {
+            diagnostic_table: {
+              ...diagnosticTable,
+              markdown: formatAcademisDiagnosticTable(diagnosticTable.rows, true),
+            },
+          }
+          : {}),
+      },
+    };
+    setAcademisInsight(updatedInsight);
+    const cacheKey = JSON.stringify([
+      submissionId,
+      updatedInsight.context.stageId,
+      updatedInsight.context.taskId,
+    ]);
+    setAcademisResultsByTask((results) => ({ ...results, [cacheKey]: updatedInsight }));
+  };
+  const updateAcademisCriterionScore = (criterion: string, score: number | null) => {
+    if (academisPublishedContentDraft.format === "markdown_table") {
+      const rowIndex = getAcademisCriterionScoreEntries(academisPublishedContentDraft.rows)
+        .findIndex((entry) => entry.key === criterion);
+      if (rowIndex >= 0) {
+        updateAcademisAxis(
+          rowIndex,
+          formatAcademisAxisWithScore(academisPublishedContentDraft.rows[rowIndex][1] || "", score),
+        );
+        return;
+      }
+    }
+    if (!academisInsight) return;
+    const criteriaScores = { ...academisInsight.result.criteria_scores, [criterion]: score };
+    const updatedInsight = {
+      ...academisInsight,
+      result: {
+        ...academisInsight.result,
+        criteria_scores: criteriaScores,
+        overall_band_score: getAcademisScoreMean(criteriaScores),
+      },
+    };
+    setAcademisInsight(updatedInsight);
+    const cacheKey = JSON.stringify([
+      submissionId,
+      updatedInsight.context.stageId,
+      updatedInsight.context.taskId,
+    ]);
+    setAcademisResultsByTask((results) => ({ ...results, [cacheKey]: updatedInsight }));
+  };
   const updateAcademisPublishedTableCell = (rowIndex: number, columnIndex: number, value: string) => {
+    if (columnIndex === 1) {
+      updateAcademisAxis(rowIndex, value);
+      return;
+    }
     setAcademisPublishedContentDraft((draft) => {
       if (draft.format !== "markdown_table") return draft;
       return {
@@ -2588,7 +2699,25 @@ export function SubmissionEvaluator({
                   <article key={criterion} className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-4">
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-xs leading-relaxed text-stone-300">{criterion}</p>
-                      <p className="shrink-0 text-xl font-semibold text-amber-300">{score ?? "—"}<span className="text-[10px] text-stone-500">{score === null ? " not scored" : " / 9"}</span></p>
+                      <label className="flex shrink-0 items-center gap-1 text-[10px] text-stone-500">
+                        <input
+                          type="number"
+                          min={1}
+                          max={9}
+                          step={1}
+                          value={score ?? ""}
+                          onChange={(event) => {
+                            const rawScore = event.target.value;
+                            const nextScore = rawScore === "" ? null : Number(rawScore);
+                            if (nextScore !== null
+                              && (!Number.isInteger(nextScore) || nextScore < 1 || nextScore > 9)) return;
+                            updateAcademisCriterionScore(criterion, nextScore);
+                          }}
+                          aria-label={`${criterion} score out of 9`}
+                          className="w-14 rounded border border-border bg-background px-1.5 py-1 text-center text-lg font-semibold text-amber-300 outline-none focus:border-amber-500/40"
+                        />
+                        <span>/ 9</span>
+                      </label>
                     </div>
                     {score !== null && <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-stone-800">
                       <div className="h-full rounded-full bg-amber-500" style={{ width: `${(score / 9) * 100}%` }} />
@@ -2599,7 +2728,7 @@ export function SubmissionEvaluator({
               {Object.keys(academisInsight.result.criteria_scores).length === 0 && <p className="text-xs text-stone-500">This report contains no numeric criterion scores.</p>}
               <div className="mt-3 flex items-center justify-between rounded-lg border border-amber-500/35 bg-amber-500/10 px-4 py-3">
                 <span className="text-xs font-medium text-amber-100">Mean of criterion scores</span>
-                <span className="text-xl font-semibold text-amber-300">{academisInsight.result.overall_band_score?.toFixed(2) ?? "—"}<span className="text-xs text-amber-200/60"> / 9</span></span>
+                <span className="text-xl font-semibold text-amber-300">{getAcademisScoreMean(academisInsight.result.criteria_scores)?.toFixed(2) ?? "—"}<span className="text-xs text-amber-200/60"> / 9</span></span>
               </div>
             </section>
 
@@ -2634,12 +2763,15 @@ export function SubmissionEvaluator({
                   ? <AcademisReportTableView
                     headers={academisStudentPreviewTable.headers.slice(0, 3)}
                     rows={academisStudentPreviewTable.rows.map((row) => row.slice(0, 3))}
-                    editableColumns={[2]}
+                    editableColumns={[1, 2]}
                     ariaLabel="Student-facing Academis feedback preview"
                     onCellChange={(rowIndex, columnIndex, value) => {
-                      if (columnIndex !== 2) return;
-                      const rowKey = academisStudentPreviewTable.rows[rowIndex]?.[0] || String(rowIndex + 1);
-                      updateAcademisStudentFeedback(rowKey, value);
+                      if (columnIndex === 1) {
+                        updateAcademisPublishedTableCell(rowIndex, columnIndex, value);
+                      } else if (columnIndex === 2) {
+                        const rowKey = academisStudentPreviewTable.rows[rowIndex]?.[0] || String(rowIndex + 1);
+                        updateAcademisStudentFeedback(rowKey, value);
+                      }
                     }}
                   />
                   : <label className="block text-xs font-medium text-stone-300">

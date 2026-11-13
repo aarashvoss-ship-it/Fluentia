@@ -1,3 +1,5 @@
+import { parseMarkdownReportTable } from "@/lib/academis-report";
+
 export const ACADEMIS_DIAGNOSTIC_HEADERS = [
   "Row / Index",
   "Status & Evaluation Axis (+ / - indicators)",
@@ -26,7 +28,7 @@ const MAX_DIAGNOSTIC_ROWS = 40;
 const STATUS_MARKER_PATTERN = /(?:^|[\s([{,:;])([+-])(?=$|[\s)\]},;:.])/;
 const STATUS_MARKER_GLOBAL_PATTERN = /(?:^|[\s([{,:;])([+-])(?=$|[\s)\]},;:.])/g;
 
-function extractBandScore(value: string) {
+export function extractAcademisBandScore(value: string) {
   const fraction = value.match(/\b([1-9])\s*(?:\/\s*9|out\s+of\s+9)\b/i);
   if (fraction) return Number(fraction[1]);
   const band = value.match(/\bband\s*([1-9])\b/i);
@@ -35,7 +37,7 @@ function extractBandScore(value: string) {
   return labeledScore ? Number(labeledScore[1]) : undefined;
 }
 
-function extractCriterionLabel(value: string) {
+export function extractAcademisCriterionLabel(value: string) {
   return value
     .replace(/\b(?:band\s*)?score\s*[:=]?\s*[1-9]\s*(?:(?:\/\s*9)|(?:out\s+of\s+9))?\b/gi, " ")
     .replace(/\bband\s*[1-9]\b/gi, " ")
@@ -69,38 +71,26 @@ export function parseAcademisDiagnosticTable(
   value: unknown,
 ): ParsedAcademisDiagnosticTable | null {
   if (typeof value !== "string") return null;
-  const lines = value.trim().split(/\r?\n/);
-  if (lines.length < 3 || lines.length > MAX_DIAGNOSTIC_ROWS + 2
-    || lines.some((line) => !line.trim())) return null;
+  const parsedTable = parseMarkdownReportTable(value.trim());
+  if (!parsedTable || parsedTable.headers.length !== 4
+    || !parsedTable.headers.every((cell, index) => cell === ACADEMIS_DIAGNOSTIC_HEADERS[index])
+    || parsedTable.rows.length === 0 || parsedTable.rows.length > MAX_DIAGNOSTIC_ROWS
+    || parsedTable.rows.some((row) => row.length !== 4)) return null;
 
-  const parseCells = (line: string) => {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return null;
-    const cells = trimmed.slice(1, -1).split("|").map((cell) => cell.trim());
-    return cells.length === 4 ? cells : null;
-  };
-  const header = parseCells(lines[0]);
-  const separator = parseCells(lines[1]);
-  if (!header || !header.every((cell, index) => cell === ACADEMIS_DIAGNOSTIC_HEADERS[index])
-    || !separator?.every((cell) => /^:?-{3,}:?$/.test(cell))) return null;
-
-  const dataRows = lines.slice(2);
   const rows: AcademisDiagnosticRow[] = [];
   const scores: Array<[string, number | null]> = [];
   const usedIndexes = new Set<string>();
   const usedCriteria = new Set<string>();
-  for (const [index, line] of dataRows.entries()) {
-    const cells = parseCells(line);
-    if (!cells) return null;
+  for (const [index, cells] of parsedTable.rows.entries()) {
     if (cells[1].length > 200
       || !cells[2].trim() || cells[2].length > 300
       || !cells[3].trim() || cells[3].length > 800) return null;
     const marker = cells[1].match(STATUS_MARKER_PATTERN)?.[1];
-    const reportedScore = extractBandScore(cells[1]);
+    const reportedScore = extractAcademisBandScore(cells[1]);
     let rowIndex = cells[0].trim() || String(index + 1);
     if (usedIndexes.has(rowIndex)) rowIndex = `${rowIndex}-${index + 1}`;
     usedIndexes.add(rowIndex);
-    const criterion = extractCriterionLabel(cells[1]) || `Criterion ${rowIndex}`;
+    const criterion = extractAcademisCriterionLabel(cells[1]) || `Criterion ${rowIndex}`;
     if (criterion.length > 120) return null;
     let scoreKey = criterion;
     if (usedCriteria.has(scoreKey.toLowerCase())) scoreKey = `${criterion} (${rowIndex})`;

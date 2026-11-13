@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import { combineTaskFeedback } from "@/lib/evaluation-feedback";
+import { parseMarkdownReportTable, replaceAcademisBreakTags } from "@/lib/academis-report";
 import {
   aggregateOverallRubric,
   calculateStageOverallScore,
@@ -125,23 +126,26 @@ function StudentPublishedContent({ value }: { value: unknown }) {
   const markdown = typeof value === "string"
     ? value
     : isRecord(value) && typeof value.content === "string" ? value.content : null;
-  const explicitHeaders = isRecord(value) && value.format === "markdown_table"
+  const explicitTable = isRecord(value) && value.format === "markdown_table"
     && Array.isArray(value.headers) && Array.isArray(value.rows)
-    ? value.headers.filter((header): header is string => typeof header === "string")
+    ? {
+      headers: value.headers.filter((header): header is string => typeof header === "string"),
+      rows: value.rows.filter((row): row is string[] => Array.isArray(row)
+        && row.every((cell) => typeof cell === "string")),
+    }
     : null;
-  const explicitRows = isRecord(value) && value.format === "markdown_table"
-    && Array.isArray(value.headers) && Array.isArray(value.rows)
-    ? value.rows.filter((row): row is string[] => Array.isArray(row)
-      && row.every((cell) => typeof cell === "string"))
-    : null;
-  const headers = explicitHeaders;
-  const rows = explicitRows;
+  const parsedTable = markdown && !explicitTable ? parseMarkdownReportTable(markdown) : null;
+  const tableHeaders = (explicitTable?.headers || parsedTable?.headers)?.slice(0, 3) || null;
+  const tableRows = (explicitTable?.rows || parsedTable?.rows)
+    ?.map((row) => row.slice(0, 3)) || null;
+  const headers = tableHeaders;
+  const rows = tableRows;
   if (headers && rows) {
     return <div className="max-w-full overflow-x-auto">
       <table className="w-full min-w-max border-collapse text-left text-sm text-stone-200">
-        <thead><tr>{headers.map((header, index) => <th key={`${header}-${index}`} className="border-b border-border px-3 py-2 font-semibold text-amber-200">{header}</th>)}</tr></thead>
+        <thead><tr>{headers.map((header, index) => <th key={`${header}-${index}`} className="whitespace-pre-wrap border-b border-border px-3 py-2 font-semibold text-amber-200">{replaceAcademisBreakTags(header)}</th>)}</tr></thead>
         <tbody>{rows.map((row, rowIndex) => <tr key={rowIndex}>
-          {headers.map((_, columnIndex) => <td key={columnIndex} className="border-b border-border/60 px-3 py-2 align-top">{row[columnIndex] || ""}</td>)}
+          {headers.map((_, columnIndex) => <td key={columnIndex} className="whitespace-pre-wrap border-b border-border/60 px-3 py-2 align-top">{replaceAcademisBreakTags(row[columnIndex] || "")}</td>)}
         </tr>)}</tbody>
       </table>
     </div>;
@@ -156,7 +160,7 @@ function StudentPublishedContent({ value }: { value: unknown }) {
           td: ({ children }) => <td className="border-b border-border/60 px-3 py-2 align-top">{children}</td>,
         }}
       >
-        {markdown}
+        {typeof markdown === "string" ? replaceAcademisBreakTags(markdown) : ""}
       </ReactMarkdown>
     </div>;
   }
@@ -379,9 +383,9 @@ export function UnifiedReportCard({
                 {task.audioUrls?.map((url, mediaIndex) => <div key={`${url}-${mediaIndex}`} className="mt-2 min-w-0 max-w-full overflow-hidden"><CustomAudioPlayer src={url} label={`${stripMarkdown(taskPrompt)} recording`} /></div>)}
                 {task.fileUrls?.map((url, mediaIndex) => <a key={`${url}-${mediaIndex}`} href={url} target="_blank" rel="noreferrer" className="mt-2 inline-flex max-w-full break-all text-sm text-amber-300 underline underline-offset-2 hover:text-amber-200">Open uploaded file</a>)}
               </div>
-              {!isInstructorView && combineTaskFeedback(taskFeedback[task.id], inlineCorrections[task.id]) && <div className="mt-3 rounded-md border border-border bg-surface p-3">
+              {!isInstructorView && combineTaskFeedback(taskFeedback[task.id], inlineCorrections[task.id], 3) && <div className="mt-3 rounded-md border border-border bg-surface p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-300">INSTRUCTOR FEEDBACK &amp; CORRECTION</p>
-                <TiptapEditor value={combineTaskFeedback(taskFeedback[task.id], inlineCorrections[task.id])} onChange={() => {}} ariaLabel={`${stripMarkdown(taskPrompt)} instructor feedback`} readOnly />
+                <TiptapEditor value={combineTaskFeedback(taskFeedback[task.id], inlineCorrections[task.id], 3)} onChange={() => {}} ariaLabel={`${stripMarkdown(taskPrompt)} instructor feedback`} readOnly />
               </div>}
               {task.modelAnswer && <div className={`mt-3 rounded-md border p-4 ${modelCardClass}`}>
                 <p className={`text-[10px] font-semibold uppercase tracking-wider ${modelLabelClass}`}>Correct / Model Answer</p>

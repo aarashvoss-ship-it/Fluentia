@@ -16,6 +16,10 @@ export interface PreparedAcademisReport {
   publishedContent: Record<string, unknown>;
 }
 
+export function replaceAcademisBreakTags(value: string) {
+  return value.replace(/<br\s*\/?>/gi, "\n");
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -39,7 +43,7 @@ function splitMarkdownRow(line: string) {
   cells.push(cell.trim());
   if (value.startsWith("|")) cells.shift();
   if (value.endsWith("|")) cells.pop();
-  return cells;
+  return cells.map(replaceAcademisBreakTags);
 }
 
 function isMarkdownSeparator(cells: string[]) {
@@ -178,7 +182,7 @@ export function prepareAcademisReport(content: string): PreparedAcademisReport {
   if (!isJson) {
     return {
       reportData,
-      publishedContent: { format: "text", content },
+      publishedContent: { format: "text", content: replaceAcademisBreakTags(content) },
     };
   }
 
@@ -186,7 +190,7 @@ export function prepareAcademisReport(content: string): PreparedAcademisReport {
   if (studentText !== null) {
     return {
       reportData,
-      publishedContent: { format: "text", content: studentText },
+      publishedContent: { format: "text", content: replaceAcademisBreakTags(studentText) },
     };
   }
 
@@ -202,6 +206,6 @@ export function prepareAcademisReport(content: string): PreparedAcademisReport {
 export function getAcademisPublishedPreviewText(value: unknown) {
   if (!isRecord(value)) return "";
   if (value.format === "markdown_table" && typeof value.markdown === "string") return value.markdown;
-  if (value.format === "text" && typeof value.content === "string") return value.content;
-  return findStudentFacingText(value.content) || "";
+  if (value.format === "text" && typeof value.content === "string") return replaceAcademisBreakTags(value.content);
+  return replaceAcademisBreakTags(findStudentFacingText(value.content) || "");
 }
