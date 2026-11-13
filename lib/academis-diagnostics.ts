@@ -17,34 +17,33 @@ export interface AcademisDiagnosticTable {
   rows: AcademisDiagnosticRow[];
 }
 
-export interface AcademisCriteriaScores {
-  task: number;
-  coherence: number;
-  lexical: number;
-  grammar: number;
-}
-
 export interface ParsedAcademisDiagnosticTable {
-  criteriaScores: AcademisCriteriaScores;
+  criteriaScores: Record<string, number | null>;
   diagnosticTable: AcademisDiagnosticTable;
 }
 
-const SEVERE_CRITIQUE_PATTERN = /\b(?:off[- ]topic|unrelated|unintelligible|mostly inaccurate|missing|miss(?:es|ed) (?:the )?(?:core|main|key|task)|omit(?:s|ted) (?:the )?(?:core|main|key)|failed to (?:answer|address|meet)|fails to (?:answer|address|meet)|does not (?:fully )?(?:answer|address|meet)|doesn't (?:fully )?(?:answer|address|meet)|incorrect|inaccurate)\b|\b(?:major|serious|significant|substantial|frequent|repeated|persistent)\s+(?:\w+\s+){0,2}(?:errors?|mistakes?|gaps?|weakness(?:es)?|issues?|omissions?|inaccuracies|problems?)\b/i;
-const MODERATE_CRITIQUE_PATTERN = /\b(?:limited|unclear|inconsistent|incomplete|underdeveloped|insufficient|weak|lacks?|struggles?|difficulty|needs? (?:more|clearer|stronger)|could (?:improve|strengthen|clarify|include|add)|should (?:include|add|clarify)|would benefit from|expand(?:s|ed)? on|improve(?:s|d)?|add(?:ing)? (?:more|a|an|one)|include more|provide more)\b|\b(?:some|several|minor|occasional)\s+(?:\w+\s+){0,2}(?:errors?|mistakes?|gaps?|issues?|weaknesses|omissions?|inaccuracies|details?|examples?|support)\b/i;
+const MAX_DIAGNOSTIC_ROWS = 40;
+const STATUS_MARKER_PATTERN = /(?:^|[\s([{,:;])([+-])(?=$|[\s)\]},;:.])/;
+const STATUS_MARKER_GLOBAL_PATTERN = /(?:^|[\s([{,:;])([+-])(?=$|[\s)\]},;:.])/g;
 
-function feedbackIdentifiesConcern(text: string, pattern: RegExp) {
-  return text.split(/(?<=[.!?])\s+/).some((sentence) => {
-    const match = pattern.exec(sentence);
-    if (!match) return false;
-    const precedingText = sentence.slice(0, match.index);
-    return !/\b(?:no|not|without|never)\s+(?:\w+\s+){0,3}$/i.test(precedingText);
-  });
+function extractBandScore(value: string) {
+  const fraction = value.match(/\b([1-9])\s*(?:\/\s*9|out\s+of\s+9)\b/i);
+  if (fraction) return Number(fraction[1]);
+  const band = value.match(/\bband\s*([1-9])\b/i);
+  if (band) return Number(band[1]);
+  const labeledScore = value.match(/\b(?:band\s*)?score\s*[:=]?\s*([1-9])\b/i);
+  return labeledScore ? Number(labeledScore[1]) : undefined;
 }
 
-function calibrateScoreFromFeedback(score: number, feedback: string) {
-  if (feedbackIdentifiesConcern(feedback, SEVERE_CRITIQUE_PATTERN)) return Math.min(score, 5);
-  if (feedbackIdentifiesConcern(feedback, MODERATE_CRITIQUE_PATTERN)) return Math.min(score, 7);
-  return score;
+function extractCriterionLabel(value: string) {
+  return value
+    .replace(/\b(?:band\s*)?score\s*[:=]?\s*[1-9]\s*(?:(?:\/\s*9)|(?:out\s+of\s+9))?\b/gi, " ")
+    .replace(/\bband\s*[1-9]\b/gi, " ")
+    .replace(/\b[1-9]\s*(?:\/\s*9|out\s+of\s+9)\b/gi, " ")
+    .replace(STATUS_MARKER_GLOBAL_PATTERN, " ")
+    .replace(/^[\s:;,()[\]{}—–-]+|[\s:;,()[\]{}—–-]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function formatAcademisDiagnosticTable(
@@ -71,7 +70,8 @@ export function parseAcademisDiagnosticTable(
 ): ParsedAcademisDiagnosticTable | null {
   if (typeof value !== "string") return null;
   const lines = value.trim().split(/\r?\n/);
-  if (lines.length !== 6 || lines.some((line) => !line.trim())) return null;
+  if (lines.length < 3 || lines.length > MAX_DIAGNOSTIC_ROWS + 2
+    || lines.some((line) => !line.trim())) return null;
 
   const parseCells = (line: string) => {
     const trimmed = line.trim();
@@ -84,36 +84,41 @@ export function parseAcademisDiagnosticTable(
   if (!header || !header.every((cell, index) => cell === ACADEMIS_DIAGNOSTIC_HEADERS[index])
     || !separator?.every((cell) => /^:?-{3,}:?$/.test(cell))) return null;
 
-  const axes: Array<{ key: keyof AcademisCriteriaScores; label: string }> = [
-    { key: "task", label: "Task Achievement & Depth" },
-    { key: "coherence", label: "Coherence & Flow" },
-    { key: "lexical", label: "Lexical Precision & Range" },
-    { key: "grammar", label: "Grammatical Accuracy" },
-  ];
+  const dataRows = lines.slice(2);
   const rows: AcademisDiagnosticRow[] = [];
-  const criteriaScores = {} as AcademisCriteriaScores;
-  for (const [index, axis] of axes.entries()) {
-    const cells = parseCells(lines[index + 2]);
+  const scores: Array<[string, number | null]> = [];
+  const usedIndexes = new Set<string>();
+  const usedCriteria = new Set<string>();
+  for (const [index, line] of dataRows.entries()) {
+    const cells = parseCells(line);
     if (!cells) return null;
-    const status = cells[1].match(/^([+-]) (.+) \(([1-9])\/9\)$/);
-    if (!status || status[2] !== axis.label) return null;
-    const reportedScore = Number(status[3]);
-    const expectedSign = reportedScore >= 6 ? "+" : "-";
-    if (cells[0] !== String(index + 1)
-      || status[1] !== expectedSign
-      || typeof cells[2] !== "string" || !cells[2].trim() || cells[2].length > 300
-      || typeof cells[3] !== "string" || !cells[3].trim() || cells[3].length > 800) return null;
-    const score = calibrateScoreFromFeedback(reportedScore, `${cells[2]} ${cells[3]}`);
-    criteriaScores[axis.key] = score;
+    if (cells[1].length > 200
+      || !cells[2].trim() || cells[2].length > 300
+      || !cells[3].trim() || cells[3].length > 800) return null;
+    const marker = cells[1].match(STATUS_MARKER_PATTERN)?.[1];
+    const reportedScore = extractBandScore(cells[1]);
+    let rowIndex = cells[0].trim() || String(index + 1);
+    if (usedIndexes.has(rowIndex)) rowIndex = `${rowIndex}-${index + 1}`;
+    usedIndexes.add(rowIndex);
+    const criterion = extractCriterionLabel(cells[1]) || `Criterion ${rowIndex}`;
+    if (criterion.length > 120) return null;
+    let scoreKey = criterion;
+    if (usedCriteria.has(scoreKey.toLowerCase())) scoreKey = `${criterion} (${rowIndex})`;
+    if (usedCriteria.has(scoreKey.toLowerCase())) return null;
+    usedCriteria.add(scoreKey.toLowerCase());
+    const indicator = reportedScore === undefined
+      ? marker
+      : reportedScore >= 6 ? "+" : "-";
+    scores.push([scoreKey, reportedScore ?? null]);
     rows.push({
-      index: cells[0],
-      status_axis: `${score >= 6 ? "+" : "-"} ${axis.label} (${score}/9)`,
+      index: rowIndex,
+      status_axis: `${indicator ? `${indicator} ` : ""}${criterion}${reportedScore === undefined ? "" : ` (${reportedScore}/9)`}`,
       student_feedback: cells[2].trim(),
       instructor_diagnostic: cells[3].trim(),
     });
   }
   return {
-    criteriaScores,
+    criteriaScores: Object.fromEntries(scores),
     diagnosticTable: {
       rows,
       markdown: formatAcademisDiagnosticTable(rows, true),

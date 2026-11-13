@@ -76,7 +76,7 @@ const MAX_INSTRUCTOR_PROMPT_LENGTH = 2500;
 const MAX_ACADEMIS_TASK_PROMPT_LENGTH = 6000;
 const MAX_ACADEMIS_TASK_TITLE_LENGTH = 300;
 const MAX_ACADEMIS_RESPONSE_LENGTH = 12000;
-const ACADEMIS_DIAGNOSTIC_PROMPT_GUIDANCE = `Return each grading in exactly one Markdown table with these four columns: ${ACADEMIS_DIAGNOSTIC_HEADERS.join(" | ")}. Include one row per rubric axis, concise actionable student feedback in column 3, and evidence-based instructor / Lesson Builder analysis in column 4.`;
+const ACADEMIS_DIAGNOSTIC_PROMPT_GUIDANCE = `Return each grading in exactly one Markdown table with these four columns: ${ACADEMIS_DIAGNOSTIC_HEADERS.join(" | ")}. Include one row per criterion specified by the active prompt without assuming a fixed criterion set, concise actionable student feedback in column 3, and evidence-based instructor / Lesson Builder analysis in column 4.`;
 const AUDIO_RESPONSE_PLACEHOLDER = /^audio response submitted(?:; transcript unavailable for grading)?\.?$/i;
 const ACADEMIS_PROMPTS = [
   {
@@ -113,13 +113,8 @@ interface AcademisPromptCategory {
 }
 
 interface AcademisInsight {
-  criteria_scores: {
-    task: number;
-    coherence: number;
-    lexical: number;
-    grammar: number;
-  };
-  overall_band_score: number;
+  criteria_scores: Record<string, number | null>;
+  overall_band_score: number | null;
   student_summary: string;
   diagnostic_table?: AcademisDiagnosticTable;
   instructor_diagnostic: {
@@ -251,10 +246,11 @@ function isAcademisInsight(value: unknown): value is AcademisInsight {
   if (!isRecord(value)
     || !isRecord(value.criteria_scores)
     || !isRecord(value.instructor_diagnostic)
-    || typeof value.overall_band_score !== "number"
-    || !Number.isFinite(value.overall_band_score)
-    || value.overall_band_score < 1
-    || value.overall_band_score > 9
+    || (value.overall_band_score !== null
+      && (typeof value.overall_band_score !== "number"
+        || !Number.isFinite(value.overall_band_score)
+        || value.overall_band_score < 1
+        || value.overall_band_score > 9))
     || typeof value.student_summary !== "string"
     || (value.diagnostic_table !== undefined && !isAcademisDiagnosticTable(value.diagnostic_table))
     || !Array.isArray(value.instructor_diagnostic.key_error_patterns)
@@ -265,10 +261,11 @@ function isAcademisInsight(value: unknown): value is AcademisInsight {
     return false;
   }
   const criteriaScores = value.criteria_scores;
-  if (!["task", "coherence", "lexical", "grammar"].every((criterion) => {
-    const score = criteriaScores[criterion];
-    return typeof score === "number" && Number.isInteger(score) && score >= 1 && score <= 9;
-  })) return false;
+  const scoreEntries = Object.entries(criteriaScores);
+  if (!scoreEntries.length || !scoreEntries.every(([criterion, score]) => (
+    Boolean(criterion.trim()) && (score === null
+      || (typeof score === "number" && Number.isInteger(score) && score >= 1 && score <= 9))
+  ))) return false;
   return value.instructor_diagnostic.key_error_patterns.every((pattern) =>
     isRecord(pattern)
       && typeof pattern.pattern === "string"
@@ -283,14 +280,15 @@ function isAcademisInsight(value: unknown): value is AcademisInsight {
 
 function isAcademisDiagnosticTable(value: unknown): value is AcademisDiagnosticTable {
   if (!isRecord(value) || typeof value.markdown !== "string"
-    || !Array.isArray(value.rows) || value.rows.length !== 4
+    || !Array.isArray(value.rows) || value.rows.length === 0 || value.rows.length > 40
     || !value.rows.every((row): row is AcademisDiagnosticRow => isRecord(row)
       && typeof row.index === "string"
       && typeof row.status_axis === "string"
       && typeof row.student_feedback === "string"
       && typeof row.instructor_diagnostic === "string")) return false;
-  return value.rows.every((row, index) => row.index === String(index + 1))
-    && value.markdown === formatAcademisDiagnosticTable(value.rows, true);
+  const rows = value.rows as AcademisDiagnosticRow[];
+  return new Set(rows.map((row) => row.index)).size === rows.length
+    && value.markdown === formatAcademisDiagnosticTable(rows, true);
 }
 
 function AcademisDiagnosticTableView({
@@ -2316,25 +2314,24 @@ export function SubmissionEvaluator({
                   <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-500">Granular rubric breakdown</p>
                   <h3 className="mt-1 text-sm font-semibold text-stone-100">Criterion scores</h3>
                 </div>
-                <p className="text-xs text-stone-500">Four criterion scores averaged</p>
+                <p className="text-xs text-stone-500">{Object.keys(academisInsight.result.criteria_scores).length} criteria identified</p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {RUBRIC_CRITERIA.map((criterion) => {
-                  const score = academisInsight.result.criteria_scores[criterion.id as keyof AcademisInsight["criteria_scores"]];
-                  return <article key={criterion.id} className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-4">
+                {Object.entries(academisInsight.result.criteria_scores).map(([criterion, score]) => (
+                  <article key={criterion} className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-4">
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-xs leading-relaxed text-stone-300">{criterion.label}</p>
-                      <p className="shrink-0 text-xl font-semibold text-amber-300">{score}<span className="text-[10px] text-stone-500"> / 9</span></p>
+                      <p className="text-xs leading-relaxed text-stone-300">{criterion}</p>
+                      <p className="shrink-0 text-xl font-semibold text-amber-300">{score ?? "—"}<span className="text-[10px] text-stone-500">{score === null ? " not scored" : " / 9"}</span></p>
                     </div>
-                    <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-stone-800">
+                    {score !== null && <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-stone-800">
                       <div className="h-full rounded-full bg-amber-500" style={{ width: `${(score / 9) * 100}%` }} />
-                    </div>
-                  </article>;
-                })}
+                    </div>}
+                  </article>
+                ))}
               </div>
               <div className="mt-3 flex items-center justify-between rounded-lg border border-amber-500/35 bg-amber-500/10 px-4 py-3">
-                <span className="text-xs font-medium text-amber-100">Overall Band Score · arithmetic mean</span>
-                <span className="text-xl font-semibold text-amber-300">{academisInsight.result.overall_band_score.toFixed(2)}<span className="text-xs text-amber-200/60"> / 9</span></span>
+                <span className="text-xs font-medium text-amber-100">Mean of criterion scores</span>
+                <span className="text-xl font-semibold text-amber-300">{academisInsight.result.overall_band_score?.toFixed(2) ?? "—"}<span className="text-xs text-amber-200/60"> / 9</span></span>
               </div>
             </section>
 
@@ -2385,17 +2382,7 @@ export function SubmissionEvaluator({
                 <button
                   type="button"
                   onClick={() => {
-                    const { stageId, taskId } = academisInsight.context;
-                    const stageScale = stageRubricScales[stageId] || globalRubricScale;
-                    const taskRubricScores = {
-                      ...taskScores,
-                      [taskId]: {
-                        task: convertRubricScore(academisInsight.result.criteria_scores.task, "ielts", stageScale),
-                        coherence: convertRubricScore(academisInsight.result.criteria_scores.coherence, "ielts", stageScale),
-                        lexical: convertRubricScore(academisInsight.result.criteria_scores.lexical, "ielts", stageScale),
-                        grammar: convertRubricScore(academisInsight.result.criteria_scores.grammar, "ielts", stageScale),
-                      },
-                    };
+                    const { taskId } = academisInsight.context;
                     updateEvaluation({
                       taskFeedback: {
                         ...taskFeedback,
@@ -2403,14 +2390,12 @@ export function SubmissionEvaluator({
                           ? formatAcademisDiagnosticTable(academisInsight.result.diagnostic_table.rows, false)
                           : academisStudentSummary,
                       },
-                      taskScores: taskRubricScores,
-                      taskRubricScales: { ...taskRubricScales, [taskId]: stageScale },
                     });
-                    setAcademisApplyNotice(`Summary and rubric scores applied to ${academisInsight.context.taskTitle} only.`);
+                    setAcademisApplyNotice(`Feedback applied to ${academisInsight.context.taskTitle} only.`);
                   }}
                   className="rounded-md bg-amber-500/20 px-4 py-2.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/30"
                 >
-                  Apply to This Task Only
+                  Apply Feedback to This Task
                 </button>
                 <button
                   type="button"
@@ -2434,25 +2419,18 @@ export function SubmissionEvaluator({
                       result: { ...academisInsight.result, student_summary: academisStudentSummary },
                     });
                     const stageReports = [...reportsByTask.values()];
-                    const averagedScores = Object.fromEntries(RUBRIC_CRITERIA.map(({ id }) => {
-                      const average = stageReports.reduce((sum, report) => (
-                        sum + report.result.criteria_scores[id as keyof AcademisInsight["criteria_scores"]]
-                      ), 0) / stageReports.length;
-                      return [id, convertRubricScore(average, "ielts", stageRubricScales[stageId] || globalRubricScale)];
-                    }));
                     const stageSummary = stageReports
                       .filter((report) => report.result.student_summary.trim())
                       .map((report) => `${report.context.taskTitle}: ${report.result.student_summary.trim()}`)
                       .join("\n\n");
                     updateEvaluation({
                       stageFeedback: { ...stageFeedback, [stageId]: stageSummary },
-                      stageScores: { ...stageScores, [stageId]: averagedScores },
                     });
-                    setAcademisApplyNotice(`Stage rubric averaged across ${stageReports.length} evaluated task${stageReports.length === 1 ? "" : "s"} in ${stageTitle}.`);
+                    setAcademisApplyNotice(`Feedback from ${stageReports.length} evaluated task${stageReports.length === 1 ? "" : "s"} applied to ${stageTitle}.`);
                   }}
                   className="ml-2 rounded-md border border-amber-500/30 px-4 py-2.5 text-xs font-medium text-amber-200 transition hover:bg-amber-500/10"
                 >
-                  Apply &amp; Average into Stage Rubric
+                  Apply Feedback to Stage Summary
                 </button>
               </div>}
 
