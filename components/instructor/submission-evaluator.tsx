@@ -210,11 +210,11 @@ function normalizeAcademisPromptLibrary(value: unknown) {
   const savedPresets = Array.isArray(value)
     ? value
     : isRecord(value) && Array.isArray(value.presets) ? value.presets : null;
-  if (!savedCategories?.length
+  if (!savedCategories
     || !savedCategories.every((category) => isRecord(category)
       && typeof category.id === "string"
       && typeof category.label === "string")
-    || !savedPresets?.length
+    || !savedPresets
     || !savedPresets.every((preset) => isRecord(preset)
       && typeof preset.id === "string"
       && typeof preset.label === "string"
@@ -226,13 +226,13 @@ function normalizeAcademisPromptLibrary(value: unknown) {
     id: ((category as Record<string, unknown>).id as string).trim(),
     label: ((category as Record<string, unknown>).label as string).trim(),
   })).filter((category) => category.id.trim() && category.label);
-  if (!categories.length) throw new Error("Saved Academis prompt library has no valid categories.");
   const categoryIds = new Set(categories.map((category) => category.id));
   const presets: AcademisPromptPreset[] = savedPresets.map((preset) => {
     const item = preset as Record<string, unknown>;
     const categoryId = typeof item.categoryId === "string" && categoryIds.has(item.categoryId)
       ? item.categoryId
-      : categoryIds.has(item.id as string) ? item.id as string : categories[0].id;
+      : categoryIds.has(item.id as string) ? item.id as string : categories[0]?.id;
+    if (!categoryId) throw new Error("Saved Academis prompts must be assigned to a category.");
     return {
       id: (item.id as string).trim(),
       label: (item.label as string).trim(),
@@ -244,7 +244,6 @@ function normalizeAcademisPromptLibrary(value: unknown) {
         : {}),
     };
   }).filter((preset) => preset.id && preset.label && preset.prompt);
-  if (!presets.length) throw new Error("Saved Academis prompt library has no valid prompts.");
   return { categories, presets };
 }
 
@@ -511,9 +510,15 @@ export function SubmissionEvaluator({
           preset.stageId === activeStageId && preset.taskId === activeTaskId
         ));
         const selected = taskPreset || library.presets.find((preset) => preset.isFavorite) || library.presets[0];
-        setActiveAcademisCategoryId(selected.categoryId);
-        setActiveAcademisPresetId(selected.id);
-        setAcademisPrompt(selected.prompt);
+        if (selected) {
+          setActiveAcademisCategoryId(selected.categoryId);
+          setActiveAcademisPresetId(selected.id);
+          setAcademisPrompt(selected.prompt);
+        } else {
+          setActiveAcademisCategoryId(library.categories[0]?.id || ALL_ACADEMIS_PROMPTS_CATEGORY_ID);
+          setActiveAcademisPresetId("");
+          setAcademisPrompt("");
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to load saved Academis prompts.";
         setAcademisError(message);
@@ -1115,25 +1120,34 @@ export function SubmissionEvaluator({
     const assignedPreset = academisPresets.find((preset) => (
       preset.stageId === activeStage?.id && preset.taskId === activeTask?.id
     ));
-    setActiveAcademisCategoryId(assignedPreset?.categoryId || activeAcademisCategoryId || academisCategories[0]?.id || "");
+    setActiveAcademisCategoryId(assignedPreset?.categoryId
+      || activeAcademisCategoryId
+      || academisCategories[0]?.id
+      || ALL_ACADEMIS_PROMPTS_CATEGORY_ID);
     setAcademisLibraryError(null);
     setIsAcademisLibraryOpen(true);
   };
   const deleteAcademisCategory = (categoryId: string) => {
-    if (DEFAULT_ACADEMIS_CATEGORIES.some((category) => category.id === categoryId)) return;
     const category = academisCategoryDrafts.find((item) => item.id === categoryId);
-    if (category && !window.confirm(`Delete "${category.label}" and its custom prompts? Save changes to confirm permanent deletion.`)) return;
+    if (!category || !window.confirm(`Delete "${category.label}" and all prompts in it? Save changes to confirm permanent deletion.`)) return;
     const categories = academisCategoryDrafts.filter((category) => category.id !== categoryId);
-    const fallbackCategoryId = categories.find((category) => DEFAULT_ACADEMIS_CATEGORIES.some((defaultCategory) => defaultCategory.id === category.id))?.id
-      || categories[0]?.id;
-    if (!fallbackCategoryId) return;
-    const defaultPresetIds = new Set<string>(ACADEMIS_PROMPTS.map((preset) => preset.id));
+    const presets = academisPresetDrafts.filter((preset) => preset.categoryId !== categoryId);
     setAcademisCategoryDrafts(categories);
-    setAcademisPresetDrafts((presets) => presets.flatMap((preset) => {
-      if (preset.categoryId !== categoryId) return [preset];
-      return defaultPresetIds.has(preset.id) ? [{ ...preset, categoryId: fallbackCategoryId }] : [];
-    }));
-    setActiveAcademisCategoryId((activeCategoryId) => activeCategoryId === categoryId ? fallbackCategoryId : activeCategoryId);
+    setAcademisPresetDrafts(presets);
+    if (activeAcademisCategoryId === categoryId) {
+      setActiveAcademisCategoryId(categories[0]?.id || ALL_ACADEMIS_PROMPTS_CATEGORY_ID);
+    }
+    if (academisPresetDrafts.some((preset) => preset.categoryId === categoryId && preset.id === activeAcademisPresetId)) {
+      const fallback = presets.find((preset) => preset.isFavorite) || presets[0];
+      if (fallback) {
+        setActiveAcademisPresetId(fallback.id);
+        setActiveAcademisCategoryId(fallback.categoryId);
+        setAcademisPrompt(fallback.prompt);
+      } else {
+        setActiveAcademisPresetId("");
+        setAcademisPrompt("");
+      }
+    }
     setAcademisLibraryError(null);
   };
   const unpinAcademisPreset = async (presetId: string) => {
@@ -1172,19 +1186,20 @@ export function SubmissionEvaluator({
     }
   };
   const deleteAcademisPreset = async (preset: AcademisPromptPreset) => {
-    if (academisPresetDrafts.length <= 1) {
-      setAcademisLibraryError("Keep at least one prompt in your library.");
-      return;
-    }
     if (!window.confirm(`Permanently delete "${preset.label || "this prompt"}" from your Prompt Library?`)) return;
     if (!academisPresets.some((item) => item.id === preset.id)) {
       const remainingDrafts = academisPresetDrafts.filter((item) => item.id !== preset.id);
       setAcademisPresetDrafts(remainingDrafts);
       if (activeAcademisPresetId === preset.id) {
         const fallback = remainingDrafts.find((item) => item.isFavorite) || remainingDrafts[0];
-        setActiveAcademisPresetId(fallback.id);
-        setActiveAcademisCategoryId(fallback.categoryId);
-        setAcademisPrompt(fallback.prompt);
+        if (fallback) {
+          setActiveAcademisPresetId(fallback.id);
+          setActiveAcademisCategoryId(fallback.categoryId);
+          setAcademisPrompt(fallback.prompt);
+        } else {
+          setActiveAcademisPresetId("");
+          setAcademisPrompt("");
+        }
       }
       setAcademisLibraryError(null);
       return;
@@ -1211,9 +1226,14 @@ export function SubmissionEvaluator({
       setAcademisPresetDrafts((drafts) => drafts.filter((item) => item.id !== preset.id));
       if (activeAcademisPresetId === preset.id) {
         const fallback = library.presets.find((item) => item.isFavorite) || library.presets[0];
-        setActiveAcademisPresetId(fallback.id);
-        setActiveAcademisCategoryId(fallback.categoryId);
-        setAcademisPrompt(fallback.prompt);
+        if (fallback) {
+          setActiveAcademisPresetId(fallback.id);
+          setActiveAcademisCategoryId(fallback.categoryId);
+          setAcademisPrompt(fallback.prompt);
+        } else {
+          setActiveAcademisPresetId("");
+          setAcademisPrompt("");
+        }
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to delete the Academis prompt.";
@@ -1223,24 +1243,26 @@ export function SubmissionEvaluator({
       setDeletingAcademisPresetId(null);
     }
   };
-  const saveAcademisLibrary = async () => {
-    const presets = academisPresetDrafts.map((preset) => ({
+  const saveAcademisLibrary = async (
+    presetDrafts = academisPresetDrafts,
+    categoryDrafts = academisCategoryDrafts,
+  ) => {
+    const presets = presetDrafts.map((preset) => ({
       ...preset,
       label: preset.label.trim(),
       prompt: preset.prompt.trim(),
     }));
-    const categories = academisCategoryDrafts.map((category) => ({
+    const categories = categoryDrafts.map((category) => ({
       ...category,
       label: category.label.trim(),
     }));
-    if (!categories.length
-      || categories.some((category) => !category.label || category.label.length > 40)
+    if (categories.some((category) => !category.label || category.label.length > 40)
       || new Set(categories.map((category) => category.id)).size !== categories.length
       || new Set(categories.map((category) => category.label.toLowerCase())).size !== categories.length) {
       setAcademisLibraryError("Give each category a unique title.");
       return;
     }
-    if (!presets.length || presets.some((preset) => !preset.label
+    if (presets.some((preset) => !preset.label
       || preset.label.length > 40
       || !preset.prompt
       || preset.prompt.length > MAX_INSTRUCTOR_PROMPT_LENGTH
@@ -1282,7 +1304,13 @@ export function SubmissionEvaluator({
         || assignedPreset
         || library.presets.find((preset) => preset.isFavorite)
         || library.presets[0];
-      activateAcademisPreset(selectedPreset);
+      if (selectedPreset) {
+        activateAcademisPreset(selectedPreset);
+      } else {
+        setActiveAcademisPresetId("");
+        setActiveAcademisCategoryId(library.categories[0]?.id || ALL_ACADEMIS_PROMPTS_CATEGORY_ID);
+        setAcademisPrompt("");
+      }
       setAcademisPresetDrafts(library.presets);
       setAcademisCategoryDrafts(library.categories);
       setAcademisLibraryError(null);
@@ -1294,6 +1322,11 @@ export function SubmissionEvaluator({
     } finally {
       setIsSavingAcademisLibrary(false);
     }
+  };
+  const clearAcademisPrompts = async () => {
+    if (!academisPresets.length && !academisPresetDrafts.length) return;
+    if (!window.confirm("Permanently delete all saved prompts? Categories will remain so you can add a new set.")) return;
+    await saveAcademisLibrary([], academisCategoryDrafts);
   };
   const pinnedAcademisPresets = academisPresets.filter((preset) => preset.isFavorite).slice(0, 3);
 
@@ -2012,14 +2045,14 @@ export function SubmissionEvaluator({
                   className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-500/40 disabled:opacity-50"
                 />
               </label>
-              {!DEFAULT_ACADEMIS_CATEGORIES.some((defaultCategory) => defaultCategory.id === category.id) && <button
+              <button
                 type="button"
                 disabled={isSavingAcademisLibrary || Boolean(deletingAcademisPresetId)}
                 onClick={() => deleteAcademisCategory(category.id)}
                 className="rounded-md border border-red-500/25 px-3 py-2 text-xs text-red-300 transition hover:border-red-400/50 hover:bg-red-500/5 disabled:cursor-wait disabled:opacity-50"
               >
                 Delete category…
-              </button>}
+              </button>
             </div>}
 
             {!academisPresetDrafts.some((preset) => (
@@ -2069,8 +2102,8 @@ export function SubmissionEvaluator({
                     type="button"
                     onClick={() => deleteAcademisPreset(preset)}
                     aria-label={`Delete ${preset.label || "custom"} preset`}
-                    disabled={isSavingAcademisLibrary || deletingAcademisPresetId === preset.id || academisPresetDrafts.length <= 1}
-                    title={academisPresetDrafts.length <= 1 ? "Keep at least one prompt in your library" : "Delete this prompt"}
+                    disabled={isSavingAcademisLibrary || Boolean(deletingAcademisPresetId)}
+                    title="Delete this prompt"
                     className="rounded-md px-2 py-1 text-[10px] text-stone-500 transition hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {deletingAcademisPresetId === preset.id ? "Deleting…" : "Delete"}
@@ -2154,14 +2187,24 @@ export function SubmissionEvaluator({
         </div>
 
         <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-border px-5 py-4 sm:px-8">
-          <button
-            type="button"
-            onClick={() => setIsAcademisLibraryOpen(false)}
-            disabled={isSavingAcademisLibrary || Boolean(deletingAcademisPresetId)}
-            className="rounded-md px-3 py-2 text-xs text-stone-400 transition hover:text-stone-200"
-          >
-            Cancel
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsAcademisLibraryOpen(false)}
+              disabled={isSavingAcademisLibrary || Boolean(deletingAcademisPresetId)}
+              className="rounded-md px-3 py-2 text-xs text-stone-400 transition hover:text-stone-200"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void clearAcademisPrompts()}
+              disabled={isSavingAcademisLibrary || Boolean(deletingAcademisPresetId) || isAcademisLibraryLoading || (!academisPresets.length && !academisPresetDrafts.length)}
+              className="rounded-md border border-red-500/25 px-3 py-2 text-xs text-red-300 transition hover:border-red-400/50 hover:bg-red-500/5 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Delete all prompts
+            </button>
+          </div>
           <button
             type="button"
             onClick={() => void saveAcademisLibrary()}

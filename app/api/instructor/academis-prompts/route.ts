@@ -36,8 +36,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function parsePromptLibrary(value: unknown): PromptLibrary | null {
   if (!isRecord(value) || !Array.isArray(value.categories) || !Array.isArray(value.presets)) return null;
-  if (!value.categories.length || !value.presets.length
-    || value.categories.length > MAX_CATEGORIES || value.presets.length > MAX_PRESETS) return null;
+  if (value.categories.length > MAX_CATEGORIES || value.presets.length > MAX_PRESETS) return null;
 
   const categories: PromptCategory[] = [];
   for (const item of value.categories) {
@@ -175,10 +174,6 @@ export async function DELETE(request: Request) {
     if (presets.length === current.presets.length) {
       await client.query("ROLLBACK");
       return NextResponse.json({ error: "That prompt no longer exists. Reload the library and try again." }, { status: 404 });
-    }
-    if (!presets.length) {
-      await client.query("ROLLBACK");
-      return NextResponse.json({ error: "Keep at least one prompt in your library." }, { status: 400 });
     }
     const library = { ...current, presets };
     await client.query(
