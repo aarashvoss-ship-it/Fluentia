@@ -4,6 +4,13 @@ export interface AcademisMarkdownReportTable {
   markdown: string;
 }
 
+export interface AcademisReportTableContent {
+  format: "markdown_table";
+  headers: string[];
+  rows: string[][];
+  markdown?: string;
+}
+
 export interface PreparedAcademisReport {
   reportData: Record<string, unknown>;
   publishedContent: Record<string, unknown>;
@@ -80,6 +87,11 @@ function formatMarkdownTable(headers: string[], rows: string[][]) {
   ].join("\n");
 }
 
+function normalizeTableRows(headers: string[], rows: string[][]) {
+  return rows.map((row) =>
+    Array.from({ length: headers.length }, (_, index) => row[index] || ""));
+}
+
 function findStudentFacingText(value: unknown): string | null {
   if (typeof value === "string") return value;
   if (Array.isArray(value)) {
@@ -128,28 +140,37 @@ export function prepareAcademisReport(content: string): PreparedAcademisReport {
   }
 
   const table = findReportTable(content, parsedOutput);
+  const tableRows = table ? normalizeTableRows(table.headers, table.rows) : [];
+  const studentColumnCount = table ? Math.min(table.headers.length, 3) : 0;
+  const studentHeaders = table?.headers.slice(0, studentColumnCount) || [];
+  const studentRows = tableRows.map((row) => row.slice(0, studentColumnCount));
+  const instructorHeaders = table ? [table.headers[0], ...table.headers.slice(3)] : [];
+  const instructorRows = tableRows.map((row) => [row[0] || "", ...row.slice(3)]);
   const reportData: Record<string, unknown> = {
     format: table ? "markdown_table" : isJson ? "json" : "text",
     raw_output: content,
     parsed_output: isJson
       ? parsedOutput
       : table
-        ? { headers: table.headers, rows: table.rows }
+        ? { headers: table.headers, rows: tableRows }
         : { text: content },
-    ...(table ? { markdown_table: table } : {}),
+    ...(table ? {
+      markdown_table: { headers: table.headers, rows: tableRows },
+      student_facing_table: { headers: studentHeaders, rows: studentRows },
+      ...(instructorHeaders.length
+        ? { instructor_only_table: { headers: instructorHeaders, rows: instructorRows } }
+        : {}),
+    } : {}),
   };
 
   if (table) {
-    const visibleColumnCount = table.headers.length >= 4 ? 3 : table.headers.length;
-    const headers = table.headers.slice(0, visibleColumnCount);
-    const rows = table.rows.map((row) => row.slice(0, visibleColumnCount));
     return {
       reportData,
       publishedContent: {
         format: "markdown_table",
-        headers,
-        rows,
-        markdown: formatMarkdownTable(headers, rows),
+        headers: studentHeaders,
+        rows: studentRows,
+        markdown: formatMarkdownTable(studentHeaders, studentRows),
       },
     };
   }

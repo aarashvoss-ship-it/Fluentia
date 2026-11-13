@@ -12,6 +12,10 @@ import { type UnifiedReportStage } from "@/components/shared/unified-report-card
 import { combineTaskFeedback } from "@/lib/evaluation-feedback";
 import { areAcademisPromptTitlesUnique } from "@/lib/academis-prompts";
 import {
+  parseMarkdownReportTable,
+  type AcademisReportTableContent,
+} from "@/lib/academis-report";
+import {
   ACADEMIS_DIAGNOSTIC_HEADERS,
   formatAcademisDiagnosticTable,
   type AcademisDiagnosticRow,
@@ -163,6 +167,10 @@ interface AcademisTaskResult {
   report?: AcademisStoredReport;
 }
 
+type AcademisPublishedContentDraft =
+  | { format: "markdown_table"; headers: string[]; rows: string[][] }
+  | { format: "text"; content: string };
+
 const DEFAULT_REPORT_STAGES: UnifiedReportStage[] = [
   { id: "warm_up", title: "Warm-up", tasks: [] },
   { id: "lesson", title: "Lesson", tasks: [] },
@@ -313,14 +321,77 @@ function isAcademisStoredReport(value: unknown): value is AcademisStoredReport {
     && "published_content" in value;
 }
 
-function getAcademisPublishedEditorText(value: unknown) {
-  if (typeof value === "string") return value;
-  if (!isRecord(value)) return value === null || value === undefined ? "" : JSON.stringify(value, null, 2) || "";
-  if (value.format === "markdown_table" && typeof value.markdown === "string") return value.markdown;
-  if (typeof value.content === "string") return value.content;
-  if (value.format === "structured" && value.content === null) return "";
-  const content = "content" in value ? value.content : value;
-  return JSON.stringify(content, null, 2) || "";
+function normalizeAcademisReportTable(value: unknown): Pick<AcademisReportTableContent, "headers" | "rows"> | null {
+  if (!isRecord(value) || !Array.isArray(value.headers) || !Array.isArray(value.rows)) return null;
+  const headers = value.headers.filter((header): header is string => typeof header === "string");
+  if (!headers.length) return null;
+  const rows = value.rows
+    .filter((row): row is string[] => Array.isArray(row) && row.every((cell) => typeof cell === "string"))
+    .map((row) => Array.from({ length: headers.length }, (_, index) => row[index] || ""));
+  return { headers, rows };
+}
+
+function getAcademisPublishedEditorDraft(value: unknown): AcademisPublishedContentDraft {
+  const source = typeof value === "string"
+    ? value
+    : isRecord(value) && typeof value.content === "string"
+      ? value.content
+      : isRecord(value) && typeof value.markdown === "string"
+        ? value.markdown
+      : null;
+  const table = normalizeAcademisReportTable(value)
+    || (source ? parseMarkdownReportTable(source) : null);
+  if (table) {
+    const headers = table.headers.slice(0, 3);
+    return {
+      format: "markdown_table",
+      headers,
+      rows: table.rows.map((row) => row.slice(0, 3)),
+    };
+  }
+  if (source !== null) return { format: "text", content: source };
+  return { format: "text", content: "" };
+}
+
+function getAcademisStoredReportTable(report: AcademisStoredReport | undefined, insight: AcademisInsight) {
+  const storedTable = normalizeAcademisReportTable(report?.report_data?.markdown_table);
+  if (storedTable) return storedTable;
+  if (!insight.diagnostic_table) return null;
+  return {
+    headers: [...ACADEMIS_DIAGNOSTIC_HEADERS],
+    rows: insight.diagnostic_table.rows.map((row) => [
+      row.index,
+      row.status_axis,
+      row.student_feedback,
+      row.instructor_diagnostic,
+    ]),
+  };
+}
+
+function getAcademisInstructorOnlyTable(report: AcademisStoredReport | undefined, insight: AcademisInsight) {
+  const storedTable = normalizeAcademisReportTable(report?.report_data?.instructor_only_table);
+  if (storedTable) return storedTable;
+  if (!insight.diagnostic_table) return null;
+  return {
+    headers: [ACADEMIS_DIAGNOSTIC_HEADERS[0], ACADEMIS_DIAGNOSTIC_HEADERS[3]],
+    rows: insight.diagnostic_table.rows.map((row) => [row.index, row.instructor_diagnostic]),
+  };
+}
+
+function hasPublishableAcademisContent(draft: AcademisPublishedContentDraft) {
+  return draft.format === "markdown_table"
+    ? draft.headers.length > 0 && draft.rows.length > 0
+    : draft.content.trim().length > 0;
+}
+
+function formatAcademisPublishedDraft(draft: AcademisPublishedContentDraft) {
+  if (draft.format === "text") return draft.content;
+  const escapeCell = (value: string) => value.replace(/\r?\n/g, " ").replace(/\|/g, "\\|").trim();
+  return [
+    `| ${draft.headers.map(escapeCell).join(" | ")} |`,
+    `| ${draft.headers.map(() => "---").join(" | ")} |`,
+    ...draft.rows.map((row) => `| ${draft.headers.map((_, index) => escapeCell(row[index] || "")).join(" | ")} |`),
+  ].join("\n");
 }
 
 function AcademisDiagnosticTableView({
@@ -362,6 +433,43 @@ function AcademisDiagnosticTableView({
             </td>}
           </tr>)}
         </tbody>
+    </table>
+  </div>;
+}
+
+function AcademisReportTableView({
+  headers,
+  rows,
+  editableColumns = [],
+  onCellChange,
+  ariaLabel,
+}: {
+  headers: string[];
+  rows: string[][];
+  editableColumns?: number[];
+  onCellChange?: (rowIndex: number, columnIndex: number, value: string) => void;
+  ariaLabel: string;
+}) {
+  return <div className="w-full overflow-x-auto rounded-lg border border-border">
+    <table aria-label={ariaLabel} className="w-full min-w-[720px] table-fixed text-left text-xs">
+      <thead className="bg-background text-[10px] font-semibold text-stone-300">
+        <tr>{headers.map((header, index) => <th key={`${header}-${index}`} scope="col" className="border-b border-border p-3 align-top">{header}</th>)}</tr>
+      </thead>
+      <tbody>
+        {rows.map((row, rowIndex) => <tr key={`${row[0] || "row"}-${rowIndex}`} className="align-top even:bg-background/40">
+          {headers.map((_, columnIndex) => <td key={columnIndex} className="border-b border-border p-3 text-stone-300">
+            {editableColumns.includes(columnIndex) && onCellChange
+              ? <textarea
+                value={row[columnIndex] || ""}
+                rows={columnIndex === 2 ? 3 : 1}
+                onChange={(event) => onCellChange(rowIndex, columnIndex, event.target.value)}
+                aria-label={`Edit ${headers[columnIndex]} for row ${row[0] || rowIndex + 1}`}
+                className="w-full resize-y rounded-md border border-border bg-[#0b0e13] p-2 text-xs leading-relaxed text-stone-100 outline-none focus:border-amber-500/40"
+              />
+              : <p className="whitespace-pre-wrap break-words leading-relaxed">{row[columnIndex] || ""}</p>}
+          </td>)}
+        </tr>)}
+      </tbody>
     </table>
   </div>;
 }
@@ -452,7 +560,10 @@ export function SubmissionEvaluator({
   const [academisResultTab, setAcademisResultTab] = useState<AcademisResultTab>("student-summary");
   const [academisStudentSummary, setAcademisStudentSummary] = useState("");
   const [academisApplyNotice, setAcademisApplyNotice] = useState<string | null>(null);
-  const [academisPublishedContentDraft, setAcademisPublishedContentDraft] = useState("");
+  const [academisPublishedContentDraft, setAcademisPublishedContentDraft] = useState<AcademisPublishedContentDraft>({
+    format: "text",
+    content: "",
+  });
   const [isPublishingAcademisReport, setIsPublishingAcademisReport] = useState(false);
   const [academisPublishError, setAcademisPublishError] = useState<string | null>(null);
   const [academisPublishNotice, setAcademisPublishNotice] = useState<string | null>(null);
@@ -1061,8 +1172,8 @@ export function SubmissionEvaluator({
       setAcademisRequestContext(cachedResult.context);
       setAcademisStudentSummary(cachedResult.result.student_summary);
       setAcademisPublishedContentDraft(cachedResult.report
-        ? getAcademisPublishedEditorText(cachedResult.report.published_content)
-        : cachedResult.result.student_summary);
+        ? getAcademisPublishedEditorDraft(cachedResult.report.published_content)
+        : { format: "text", content: cachedResult.result.student_summary });
       setAcademisPublishError(null);
       setAcademisPublishNotice(null);
       setAcademisApplyNotice(null);
@@ -1077,7 +1188,7 @@ export function SubmissionEvaluator({
     setAcademisInsight(null);
     setAcademisRequestContext(evaluationContext);
     setAcademisStudentSummary("");
-    setAcademisPublishedContentDraft("");
+    setAcademisPublishedContentDraft({ format: "text", content: "" });
     setAcademisPublishError(null);
     setAcademisPublishNotice(null);
     setAcademisApplyNotice(null);
@@ -1137,8 +1248,8 @@ export function SubmissionEvaluator({
       setAcademisResultsByTask((results) => ({ ...results, [cacheKey]: completedResult }));
       setAcademisStudentSummary(payload.insight.student_summary);
       setAcademisPublishedContentDraft(completedResult.report
-        ? getAcademisPublishedEditorText(completedResult.report.published_content)
-        : payload.insight.student_summary);
+        ? getAcademisPublishedEditorDraft(completedResult.report.published_content)
+        : { format: "text", content: payload.insight.student_summary });
     } catch (error) {
       setAcademisError(error instanceof Error ? error.message : "Academis could not complete the grading request.");
     } finally {
@@ -1152,7 +1263,7 @@ export function SubmissionEvaluator({
       setAcademisPublishError("This evaluation has no stored report to publish.");
       return;
     }
-    if (!academisPublishedContentDraft.trim()) {
+    if (!hasPublishableAcademisContent(academisPublishedContentDraft)) {
       setAcademisPublishError("Add student-facing feedback before publishing.");
       return;
     }
@@ -1167,7 +1278,7 @@ export function SubmissionEvaluator({
         credentials: "same-origin",
         body: JSON.stringify({
           reportId: report.id,
-          publishedContent: { format: "text", content: academisPublishedContentDraft },
+          publishedContent: academisPublishedContentDraft,
         }),
       });
       let payload: {
@@ -1196,7 +1307,7 @@ export function SubmissionEvaluator({
         ...results,
         [JSON.stringify([submissionId, updatedResult.context.stageId, updatedResult.context.taskId])]: updatedResult,
       }));
-      setAcademisPublishedContentDraft(getAcademisPublishedEditorText(updatedReport.published_content));
+      setAcademisPublishedContentDraft(getAcademisPublishedEditorDraft(updatedReport.published_content));
       setAcademisPublishNotice("Approved feedback is live in the student's Stage 7 report card.");
     } catch (error) {
       setAcademisPublishError(error instanceof Error ? error.message : "Unable to publish feedback.");
@@ -1205,6 +1316,15 @@ export function SubmissionEvaluator({
     }
   };
   const updateAcademisStudentFeedback = (rowIndex: string, studentFeedback: string) => {
+    setAcademisPublishedContentDraft((draft) => {
+      if (draft.format !== "markdown_table") return draft;
+      const rowPosition = draft.rows.findIndex((row) => row[0] === rowIndex);
+      if (rowPosition < 0 || draft.headers.length < 3) return draft;
+      const rows = draft.rows.map((row, index) => (
+        index === rowPosition ? row.map((cell, columnIndex) => (columnIndex === 2 ? studentFeedback : cell)) : row
+      ));
+      return { ...draft, rows };
+    });
     if (!academisInsight?.result.diagnostic_table) return;
     const rows = academisInsight.result.diagnostic_table.rows.map((row) => (
       row.index === rowIndex ? { ...row, student_feedback: studentFeedback } : row
@@ -1227,6 +1347,33 @@ export function SubmissionEvaluator({
     ]);
     setAcademisResultsByTask((results) => ({ ...results, [cacheKey]: updatedInsight }));
   };
+  const updateAcademisPublishedTableCell = (rowIndex: number, columnIndex: number, value: string) => {
+    setAcademisPublishedContentDraft((draft) => {
+      if (draft.format !== "markdown_table") return draft;
+      return {
+        ...draft,
+        rows: draft.rows.map((row, index) => (
+          index === rowIndex
+            ? row.map((cell, currentColumnIndex) => (currentColumnIndex === columnIndex ? value : cell))
+            : row
+        )),
+      };
+    });
+  };
+  const academisReportTable = academisInsight
+    ? getAcademisStoredReportTable(academisInsight.report, academisInsight.result)
+    : null;
+  const academisStudentPreviewTable = academisPublishedContentDraft.format === "markdown_table"
+    ? academisPublishedContentDraft
+    : academisReportTable
+      ? {
+        headers: academisReportTable.headers.slice(0, 3),
+        rows: academisReportTable.rows.map((row) => row.slice(0, 3)),
+      }
+      : null;
+  const academisInstructorOnlyTable = academisInsight
+    ? getAcademisInstructorOnlyTable(academisInsight.report, academisInsight.result)
+    : null;
   const openAcademisLibrary = () => {
     setAcademisPresetDrafts(academisPresets.map((preset) => ({ ...preset })));
     setAcademisCategoryDrafts(academisCategories.map((category) => ({ ...category })));
@@ -2483,11 +2630,17 @@ export function SubmissionEvaluator({
               </div>
 
               {academisResultTab === "student-summary" && <div id="academis-student-summary-panel" role="tabpanel" aria-labelledby="academis-student-summary-tab" className="space-y-4 pt-5">
-                {academisInsight.result.diagnostic_table
-                  ? <AcademisDiagnosticTableView
-                    rows={academisInsight.result.diagnostic_table.rows}
-                    includeInstructorColumn={false}
-                    onStudentFeedbackChange={updateAcademisStudentFeedback}
+                {academisStudentPreviewTable
+                  ? <AcademisReportTableView
+                    headers={academisStudentPreviewTable.headers.slice(0, 3)}
+                    rows={academisStudentPreviewTable.rows.map((row) => row.slice(0, 3))}
+                    editableColumns={[2]}
+                    ariaLabel="Student-facing Academis feedback preview"
+                    onCellChange={(rowIndex, columnIndex, value) => {
+                      if (columnIndex !== 2) return;
+                      const rowKey = academisStudentPreviewTable.rows[rowIndex]?.[0] || String(rowIndex + 1);
+                      updateAcademisStudentFeedback(rowKey, value);
+                    }}
                   />
                   : <label className="block text-xs font-medium text-stone-300">
                     Legacy student feedback
@@ -2507,9 +2660,7 @@ export function SubmissionEvaluator({
                     updateEvaluation({
                       taskFeedback: {
                         ...taskFeedback,
-                        [taskId]: academisInsight.result.diagnostic_table
-                          ? formatAcademisDiagnosticTable(academisInsight.result.diagnostic_table.rows, false)
-                          : academisStudentSummary,
+                        [taskId]: formatAcademisPublishedDraft(academisPublishedContentDraft),
                       },
                     });
                     setAcademisApplyNotice(`Feedback applied to ${academisInsight.context.taskTitle} only.`);
@@ -2556,11 +2707,12 @@ export function SubmissionEvaluator({
               </div>}
 
               {academisResultTab === "instructor-diagnostic" && <div id="academis-instructor-diagnostic-panel" role="tabpanel" aria-labelledby="academis-instructor-diagnostic-tab" className="space-y-5 pt-5">
-                {academisInsight.result.diagnostic_table && <section>
-                  <h3 className="mb-3 text-sm font-semibold text-stone-100">Four-column diagnostic table · instructor only</h3>
-                  <AcademisDiagnosticTableView
-                    rows={academisInsight.result.diagnostic_table.rows}
-                    includeInstructorColumn
+                {academisInstructorOnlyTable && <section>
+                  <h3 className="mb-3 text-sm font-semibold text-stone-100">Deep Diagnostic Analysis · instructor only</h3>
+                  <AcademisReportTableView
+                    headers={academisInstructorOnlyTable.headers}
+                    rows={academisInstructorOnlyTable.rows}
+                    ariaLabel="Instructor-only deep diagnostic analysis"
                   />
                 </section>}
                 <section className="rounded-xl border border-border bg-[#0b0e13] p-4 sm:p-5">
@@ -2603,31 +2755,55 @@ export function SubmissionEvaluator({
                     <p className="mt-1 text-xs leading-relaxed text-stone-400">The full report remains instructor-only. Edit the student-facing preview below; columns 4 and beyond are excluded from the default content.</p>
                   </div>
                   <details className="rounded-lg border border-border bg-[#0b0e13] p-3">
-                    <summary className="cursor-pointer text-xs font-medium text-stone-200">Inspect full stored evaluation report</summary>
-                    <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap break-words text-[11px] leading-relaxed text-stone-300">
-                      {JSON.stringify(academisInsight.report.report_data || {}, null, 2)}
-                    </pre>
+                    <summary className="cursor-pointer text-xs font-medium text-stone-200">Inspect full stored evaluation table</summary>
+                    <div className="mt-3">
+                      {academisReportTable
+                        ? <AcademisReportTableView
+                          headers={academisReportTable.headers}
+                          rows={academisReportTable.rows}
+                          ariaLabel="Full stored Academis evaluation table"
+                        />
+                        : <p className="text-xs leading-relaxed text-stone-400">This report has no Markdown table; no raw model output is displayed.</p>}
+                    </div>
                   </details>
-                  <label className="block text-xs font-medium text-stone-200">
-                    Student-facing feedback preview
-                    <textarea
-                      value={academisPublishedContentDraft}
-                      onChange={(event) => {
-                        setAcademisPublishedContentDraft(event.target.value);
-                        setAcademisPublishError(null);
-                        setAcademisPublishNotice(null);
-                      }}
-                      rows={8}
-                      className="mt-2 w-full resize-y rounded-xl border border-border bg-[#0b0e13] p-4 text-sm leading-relaxed text-stone-100 outline-none transition focus:border-amber-500/40"
-                      aria-label="Edit student-facing Academis feedback"
-                    />
-                  </label>
+                  <section className="space-y-2">
+                    <h4 className="text-xs font-medium text-stone-200">Student-facing feedback preview · columns 1–3</h4>
+                    {academisPublishedContentDraft.format === "markdown_table"
+                      ? <AcademisReportTableView
+                        headers={academisPublishedContentDraft.headers}
+                        rows={academisPublishedContentDraft.rows}
+                        editableColumns={academisPublishedContentDraft.headers.map((_, index) => index)}
+                        onCellChange={(rowIndex, columnIndex, value) => {
+                          if (columnIndex === 2) {
+                            const rowKey = academisPublishedContentDraft.rows[rowIndex]?.[0];
+                            if (rowKey) updateAcademisStudentFeedback(rowKey, value);
+                            else updateAcademisPublishedTableCell(rowIndex, columnIndex, value);
+                          } else {
+                            updateAcademisPublishedTableCell(rowIndex, columnIndex, value);
+                          }
+                          setAcademisPublishError(null);
+                          setAcademisPublishNotice(null);
+                        }}
+                        ariaLabel="Editable student-facing Academis table preview"
+                      />
+                      : <textarea
+                        value={academisPublishedContentDraft.content}
+                        onChange={(event) => {
+                          setAcademisPublishedContentDraft({ format: "text", content: event.target.value });
+                          setAcademisPublishError(null);
+                          setAcademisPublishNotice(null);
+                        }}
+                        rows={8}
+                        className="w-full resize-y rounded-xl border border-border bg-[#0b0e13] p-4 text-sm leading-relaxed text-stone-100 outline-none transition focus:border-amber-500/40"
+                        aria-label="Edit student-facing Academis feedback"
+                      />}
+                  </section>
                   {academisPublishError && <p role="alert" className="text-xs text-red-300">{academisPublishError}</p>}
                   {academisPublishNotice && <p role="status" className="text-xs text-emerald-300">{academisPublishNotice}</p>}
                   <button
                     type="button"
                     onClick={() => void publishAcademisReport()}
-                    disabled={isPublishingAcademisReport || !academisPublishedContentDraft.trim()}
+                    disabled={isPublishingAcademisReport || !hasPublishableAcademisContent(academisPublishedContentDraft)}
                     className="rounded-md bg-amber-500/20 px-4 py-2.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/30 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isPublishingAcademisReport
