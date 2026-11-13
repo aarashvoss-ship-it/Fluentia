@@ -24,6 +24,11 @@ export interface AcademisCriteriaScores {
   grammar: number;
 }
 
+export interface ParsedAcademisDiagnosticTable {
+  criteriaScores: AcademisCriteriaScores;
+  diagnosticTable: AcademisDiagnosticTable;
+}
+
 export function formatAcademisDiagnosticTable(
   rows: AcademisDiagnosticRow[],
   includeInstructorColumn: boolean,
@@ -45,8 +50,7 @@ export function formatAcademisDiagnosticTable(
 
 export function parseAcademisDiagnosticTable(
   value: unknown,
-  criteriaScores: AcademisCriteriaScores,
-): AcademisDiagnosticTable | null {
+): ParsedAcademisDiagnosticTable | null {
   if (typeof value !== "string") return null;
   const lines = value.trim().split(/\r?\n/);
   if (lines.length !== 6 || lines.some((line) => !line.trim())) return null;
@@ -62,21 +66,26 @@ export function parseAcademisDiagnosticTable(
   if (!header || !header.every((cell, index) => cell === ACADEMIS_DIAGNOSTIC_HEADERS[index])
     || !separator?.every((cell) => /^:?-{3,}:?$/.test(cell))) return null;
 
-  const axes: Array<{ label: string; score: number }> = [
-    { label: "Task Achievement & Depth", score: criteriaScores.task },
-    { label: "Coherence & Flow", score: criteriaScores.coherence },
-    { label: "Lexical Precision & Range", score: criteriaScores.lexical },
-    { label: "Grammatical Accuracy", score: criteriaScores.grammar },
+  const axes: Array<{ key: keyof AcademisCriteriaScores; label: string }> = [
+    { key: "task", label: "Task Achievement & Depth" },
+    { key: "coherence", label: "Coherence & Flow" },
+    { key: "lexical", label: "Lexical Precision & Range" },
+    { key: "grammar", label: "Grammatical Accuracy" },
   ];
   const rows: AcademisDiagnosticRow[] = [];
+  const criteriaScores = {} as AcademisCriteriaScores;
   for (const [index, axis] of axes.entries()) {
     const cells = parseCells(lines[index + 2]);
     if (!cells) return null;
-    const expectedSign = axis.score >= 6 ? "+" : "-";
+    const status = cells[1].match(/^([+-]) (.+) \(([1-9])\/9\)$/);
+    if (!status || status[2] !== axis.label) return null;
+    const score = Number(status[3]);
+    const expectedSign = score >= 6 ? "+" : "-";
     if (cells[0] !== String(index + 1)
-      || cells[1] !== `${expectedSign} ${axis.label}`
+      || status[1] !== expectedSign
       || typeof cells[2] !== "string" || !cells[2].trim() || cells[2].length > 300
       || typeof cells[3] !== "string" || !cells[3].trim() || cells[3].length > 800) return null;
+    criteriaScores[axis.key] = score;
     rows.push({
       index: cells[0],
       status_axis: cells[1],
@@ -85,7 +94,10 @@ export function parseAcademisDiagnosticTable(
     });
   }
   return {
-    rows,
-    markdown: formatAcademisDiagnosticTable(rows, true),
+    criteriaScores,
+    diagnosticTable: {
+      rows,
+      markdown: formatAcademisDiagnosticTable(rows, true),
+    },
   };
 }

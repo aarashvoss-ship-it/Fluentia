@@ -1000,7 +1000,6 @@ export function SubmissionEvaluator({
     const requestTaskPrompt = taskPrompt.slice(0, MAX_ACADEMIS_TASK_PROMPT_LENGTH);
     const requestStudentResponse = studentResponse.slice(0, MAX_ACADEMIS_RESPONSE_LENGTH);
     const stageTaskContexts = selectedStage.tasks.slice(0, 8).map((task) => {
-      const peerKey = JSON.stringify([submissionId, selectedStage.id, task.id]);
       const peerEvaluationText = getTaskEvaluationText(task);
       return {
         task_id: task.id,
@@ -1009,7 +1008,6 @@ export function SubmissionEvaluator({
         student_response: (peerEvaluationText?.text.trim()
           || (task.audioUrls?.length ? "Audio response submitted; transcript unavailable for grading." : "No written response submitted."))
           .slice(0, 2000),
-        evaluated_scores: academisResultsByTask[peerKey]?.result.criteria_scores,
       };
     });
     const evaluationContext: AcademisEvaluationContext = {
@@ -1065,9 +1063,6 @@ export function SubmissionEvaluator({
           ...(evaluationContext.referenceTranscript ? { reference_transcript: evaluationContext.referenceTranscript } : {}),
           audio_response_submitted: evaluationContext.audioResponseSubmitted === true,
           instructorPrompt: evaluationContext.instructorPrompt,
-          rubricScores: Object.fromEntries(
-            RUBRIC_CRITERIA.map(({ id }) => [id, stageScores[selectedStage.id]?.[id] ?? null]),
-          ),
           stageTaskContexts,
         }),
       });
