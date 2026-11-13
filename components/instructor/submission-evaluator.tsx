@@ -262,7 +262,7 @@ function isAcademisInsight(value: unknown): value is AcademisInsight {
   }
   const criteriaScores = value.criteria_scores;
   const scoreEntries = Object.entries(criteriaScores);
-  if (!scoreEntries.length || !scoreEntries.every(([criterion, score]) => (
+  if (!scoreEntries.every(([criterion, score]) => (
     Boolean(criterion.trim()) && (score === null
       || (typeof score === "number" && Number.isInteger(score) && score >= 1 && score <= 9))
   ))) return false;
@@ -1064,9 +1064,19 @@ export function SubmissionEvaluator({
           stageTaskContexts,
         }),
       });
-      let payload: { error?: string; insight?: unknown; insightSaved?: boolean };
+      let payload: {
+        error?: string;
+        insight?: unknown;
+        insightSaved?: boolean;
+        reportSaved?: boolean;
+      };
       try {
-        payload = await response.json() as { error?: string; insight?: unknown; insightSaved?: boolean };
+        payload = await response.json() as {
+          error?: string;
+          insight?: unknown;
+          insightSaved?: boolean;
+          reportSaved?: boolean;
+        };
       } catch {
         throw new Error("Academis returned an invalid response.");
       }
@@ -1074,7 +1084,11 @@ export function SubmissionEvaluator({
       if (!isAcademisInsight(payload.insight)) {
         throw new Error("Academis returned an incomplete grading result.");
       }
-      const completedResult = { context: evaluationContext, result: payload.insight, stored: payload.insightSaved === true };
+      const completedResult = {
+        context: evaluationContext,
+        result: payload.insight,
+        stored: payload.reportSaved === true || payload.insightSaved === true,
+      };
       setAcademisInsight(completedResult);
       setAcademisResultsByTask((results) => ({ ...results, [cacheKey]: completedResult }));
       setAcademisStudentSummary(payload.insight.student_summary);
@@ -2329,6 +2343,7 @@ export function SubmissionEvaluator({
                   </article>
                 ))}
               </div>
+              {Object.keys(academisInsight.result.criteria_scores).length === 0 && <p className="text-xs text-stone-500">This report contains no numeric criterion scores.</p>}
               <div className="mt-3 flex items-center justify-between rounded-lg border border-amber-500/35 bg-amber-500/10 px-4 py-3">
                 <span className="text-xs font-medium text-amber-100">Mean of criterion scores</span>
                 <span className="text-xl font-semibold text-amber-300">{academisInsight.result.overall_band_score?.toFixed(2) ?? "—"}<span className="text-xs text-amber-200/60"> / 9</span></span>

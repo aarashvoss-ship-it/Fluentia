@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
 import { getServerSessionUser } from "@/lib/server/session";
 import {
+  getAcademisPublishedPreviewText,
+  prepareAcademisReport,
+} from "@/lib/academis-report";
+import {
   ACADEMIS_DIAGNOSTIC_HEADERS,
   type AcademisDiagnosticTable,
   parseAcademisDiagnosticTable,
@@ -23,7 +27,7 @@ interface AcademisInsight {
   criteria_scores: Record<string, number | null>;
   overall_band_score: number | null;
   student_summary: string;
-  diagnostic_table: AcademisDiagnosticTable;
+  diagnostic_table?: AcademisDiagnosticTable;
   instructor_diagnostic: {
     stage_summary_diagnostic: string;
     key_error_patterns: Array<{
@@ -143,6 +147,20 @@ function parseInsight(content: string): AcademisInsight | null {
   };
 }
 
+function createFallbackInsight(publishedContent: unknown): AcademisInsight {
+  return {
+    criteria_scores: {},
+    overall_band_score: null,
+    student_summary: getAcademisPublishedPreviewText(publishedContent),
+    instructor_diagnostic: {
+      stage_summary_diagnostic: "",
+      key_error_patterns: [],
+      targeted_resources: [],
+      teaching_notes: "",
+    },
+  };
+}
+
 async function getAuthorizedSubmission(submissionId: string, userId: string, role: string) {
   const result = await getPostgresPool().query<{
     id: string;
@@ -210,40 +228,129 @@ export async function GET(request: Request) {
     const context = await getAuthorizedSubmission(submissionId, user.id, user.role);
     if ("response" in context) return context.response;
     if (taskId !== null) {
-      const result = await getPostgresPool().query<{ insights: AcademisInsight }>(
-        `SELECT insights
-         FROM public.academis_evaluation_insights
-         WHERE submission_id = $1::uuid AND stage_id = $2 AND task_id = $3
-         ORDER BY created_at DESC
-         LIMIT 1`,
-        [submissionId, stageId, taskId],
-      );
-      return NextResponse.json({ insight: result.rows[0]?.insights || null });
+      const [legacyResult, reportResult] = await Promise.all([
+        getPostgresPool().query<{ insights: AcademisInsight; created_at: Date | string }>(
+          `SELECT insights, created_at
+           FROM public.academis_evaluation_insights
+           WHERE submission_id = $1::uuid AND stage_id = $2 AND task_id = $3
+           ORDER BY created_at DESC
+           LIMIT 1`,
+          [submissionId, stageId, taskId],
+        ),
+        getPostgresPool().query<{
+          id: string;
+          report_data: Record<string, unknown>;
+          published_content: unknown;
+          is_published: boolean;
+          created_at: Date | string;
+        }>(
+          `SELECT id::text, report_data, published_content, is_published, created_at
+           FROM public.student_task_reports
+           WHERE student_id = $1 AND module_id = $2 AND stage_id = $3 AND task_id = $4
+             AND report_data->>'submission_id' = $5
+           ORDER BY created_at DESC
+           LIMIT 1`,
+          [context.submission.student_id, context.submission.lesson_id, stageId, taskId, submissionId],
+        ),
+      ]);
+      const legacyReport = legacyResult.rows[0];
+      const storedReport = reportResult.rows[0];
+      const storedReportIsNewer = storedReport
+        && (!legacyReport || new Date(storedReport.created_at).getTime() > new Date(legacyReport.created_at).getTime());
+      return NextResponse.json({
+        insight: storedReportIsNewer
+          ? createFallbackInsight(storedReport.published_content)
+          : legacyReport?.insights || null,
+        report: storedReportIsNewer
+          ? {
+            id: storedReport.id,
+            report_data: storedReport.report_data,
+            published_content: storedReport.published_content,
+            is_published: storedReport.is_published,
+            created_at: storedReport.created_at,
+          }
+          : null,
+      });
     }
 
-    const result = await getPostgresPool().query<{
-      task_id: string;
-      insights: AcademisInsight;
-      created_at: Date | string;
-    }>(
-      `SELECT DISTINCT ON (task_id) task_id, insights, created_at
-       FROM public.academis_evaluation_insights
-       WHERE submission_id = $1::uuid AND stage_id = $2 AND task_id IS NOT NULL
-       ORDER BY task_id, created_at DESC`,
-      [submissionId, stageId],
-    );
-    const insights = result.rows
-      .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
-      .map(({ task_id, insights: insight }) => ({ taskId: task_id, insight }));
+    const [legacyResult, reportResult] = await Promise.all([
+      getPostgresPool().query<{
+        task_id: string;
+        insights: AcademisInsight;
+        created_at: Date | string;
+      }>(
+        `SELECT DISTINCT ON (task_id) task_id, insights, created_at
+         FROM public.academis_evaluation_insights
+         WHERE submission_id = $1::uuid AND stage_id = $2 AND task_id IS NOT NULL
+         ORDER BY task_id, created_at DESC`,
+        [submissionId, stageId],
+      ),
+      getPostgresPool().query<{
+        id: string;
+        task_id: string;
+        report_data: Record<string, unknown>;
+        published_content: unknown;
+        is_published: boolean;
+        created_at: Date | string;
+      }>(
+        `SELECT DISTINCT ON (task_id)
+           id::text, task_id, report_data, published_content, is_published, created_at
+         FROM public.student_task_reports
+         WHERE student_id = $1 AND module_id = $2 AND stage_id = $3
+           AND report_data->>'submission_id' = $4
+         ORDER BY task_id, created_at DESC`,
+        [context.submission.student_id, context.submission.lesson_id, stageId, submissionId],
+      ),
+    ]);
+
+    const reportsByTask = new Map<string, {
+      taskId: string;
+      insight: AcademisInsight;
+      report?: {
+        id: string;
+        report_data: Record<string, unknown>;
+        published_content: unknown;
+        is_published: boolean;
+        created_at: Date | string;
+      };
+      createdAt: number;
+    }>();
+    for (const row of legacyResult.rows) {
+      reportsByTask.set(row.task_id, {
+        taskId: row.task_id,
+        insight: row.insights,
+        createdAt: new Date(row.created_at).getTime(),
+      });
+    }
+    for (const row of reportResult.rows) {
+      const previousReport = reportsByTask.get(row.task_id);
+      const createdAt = new Date(row.created_at).getTime();
+      if (previousReport && previousReport.createdAt >= createdAt) continue;
+      reportsByTask.set(row.task_id, {
+        taskId: row.task_id,
+        insight: createFallbackInsight(row.published_content),
+        report: {
+          id: row.id,
+          report_data: row.report_data,
+          published_content: row.published_content,
+          is_published: row.is_published,
+          created_at: row.created_at,
+        },
+        createdAt,
+      });
+    }
+    const insights = [...reportsByTask.values()]
+      .sort((left, right) => right.createdAt - left.createdAt)
+      .map(({ createdAt, ...report }) => ({
+        ...report,
+        created_at: new Date(createdAt).toISOString(),
+      }));
     return NextResponse.json({ insight: insights[0]?.insight || null, insights });
   } catch (error) {
-    console.warn("Unable to load saved Academis diagnostic:", {
-      message: error instanceof Error ? error.message : String(error),
-      code: error !== null && typeof error === "object" && "code" in error && typeof error.code === "string"
-        ? error.code
-        : undefined,
-    });
-    return NextResponse.json({ insight: null, storageAvailable: false });
+    logDatabaseError("Unable to load saved Academis reports:", error);
+    return NextResponse.json({
+      error: "Saved Academis report storage is unavailable. Verify migrations 064 and 067 are applied to PaasTA PostgreSQL.",
+    }, { status: 503 });
   }
 }
 
@@ -408,42 +515,86 @@ export async function POST(request: Request) {
       && typeof completion.choices[0].message.content === "string"
       ? completion.choices[0].message.content
       : "";
-    const insight = parseInsight(content);
-    if (!insight) {
-      console.error("Paasta Academis returned an invalid grading response.");
-      return NextResponse.json({ error: "Academis returned an incomplete grading result. Try again." }, { status: 502 });
-    }
-    let insightSaved = false;
-    try {
-      const savedInsight = await getPostgresPool().query<{ id: string }>(
-        `INSERT INTO public.academis_evaluation_insights
-           (submission_id, lesson_id, student_id, instructor_id, stage_id, task_id, score, insights, model)
-         VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7, $8::jsonb, $9)
-         RETURNING id::text`,
-        [
-          submission.id,
-          submission.lesson_id,
-          submission.student_id,
-          user.id,
-          body.stageId,
-          body.taskId || null,
-          insight.overall_band_score,
-          JSON.stringify(insight),
-          model,
-        ],
-      );
-      if (!savedInsight.rows[0]?.id) throw new Error("Academis insight insert did not return a saved row.");
-      insightSaved = true;
-    } catch (error) {
-      console.warn("Academis evaluation succeeded, but its insights could not be saved:", {
-        message: error instanceof Error ? error.message : String(error),
-        code: error !== null && typeof error === "object" && "code" in error && typeof error.code === "string"
-          ? error.code
-          : undefined,
-      });
+    if (!content.trim()) {
+      console.error("Paasta Academis returned an empty grading response.");
+      return NextResponse.json({ error: "Academis returned an empty grading response. Try again." }, { status: 502 });
     }
 
-    return NextResponse.json({ insight, insightSaved });
+    const preparedReport = prepareAcademisReport(content);
+    const reportData = {
+      ...preparedReport.reportData,
+      model,
+      submission_id: submission.id,
+      stage_title: body.stageTitle,
+      task_title: body.taskTitle,
+    };
+    let reportId: string;
+    try {
+      const savedReport = await getPostgresPool().query<{ id: string }>(
+        `INSERT INTO public.student_task_reports
+           (student_id, module_id, stage_id, task_id, report_data, published_content, is_published)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, false)
+         RETURNING id::text`,
+        [
+          submission.student_id,
+          submission.lesson_id,
+          body.stageId,
+          body.taskId,
+          JSON.stringify(reportData),
+          JSON.stringify(preparedReport.publishedContent),
+        ],
+      );
+      if (!savedReport.rows[0]?.id) throw new Error("Student task report insert did not return a saved row.");
+      reportId = savedReport.rows[0].id;
+    } catch (error) {
+      logDatabaseError("Unable to save the ACADEMIS student-task report:", error);
+      return NextResponse.json({
+        error: "Academis generated a report, but it could not be saved. Ensure migration 067 is applied to PaasTA PostgreSQL.",
+      }, { status: 500 });
+    }
+
+    const insight = parseInsight(content);
+    const responseInsight = insight || createFallbackInsight(preparedReport.publishedContent);
+    let insightSaved = false;
+    if (insight) {
+      try {
+        const savedInsight = await getPostgresPool().query<{ id: string }>(
+          `INSERT INTO public.academis_evaluation_insights
+             (submission_id, lesson_id, student_id, instructor_id, stage_id, task_id, score, insights, model)
+           VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7, $8::jsonb, $9)
+           RETURNING id::text`,
+          [
+            submission.id,
+            submission.lesson_id,
+            submission.student_id,
+            user.id,
+            body.stageId,
+            body.taskId || null,
+            insight.overall_band_score,
+            JSON.stringify(insight),
+            model,
+          ],
+        );
+        if (!savedInsight.rows[0]?.id) throw new Error("Academis insight insert did not return a saved row.");
+        insightSaved = true;
+      } catch (error) {
+        console.warn("Academis evaluation succeeded, but its legacy insights could not be saved:", {
+          message: error instanceof Error ? error.message : String(error),
+          code: error !== null && typeof error === "object" && "code" in error && typeof error.code === "string"
+            ? error.code
+            : undefined,
+        });
+      }
+    }
+
+    return NextResponse.json({
+      insight: responseInsight,
+      insightSaved,
+      reportSaved: true,
+      reportId,
+      publishedContent: preparedReport.publishedContent,
+      isPublished: false,
+    });
   } catch (error) {
     if (error instanceof Error && error.name === "TimeoutError") {
       return NextResponse.json({ error: "Academis took too long to respond. Try again." }, { status: 504 });
