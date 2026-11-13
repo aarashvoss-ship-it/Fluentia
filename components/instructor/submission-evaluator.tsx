@@ -393,7 +393,7 @@ export function SubmissionEvaluator({
   const [isEvaluationSidebarCollapsed, setIsEvaluationSidebarCollapsed] = useState(false);
   const [isAcademisSidebarCollapsed, setIsAcademisSidebarCollapsed] = useState(false);
   const [academisPrompt, setAcademisPromptState] = useState<string>(ACADEMIS_PROMPTS[0].prompt);
-  const academisPromptRef = useRef(ACADEMIS_PROMPTS[0].prompt);
+  const academisPromptRef = useRef<string>(ACADEMIS_PROMPTS[0].prompt);
   const setAcademisPrompt = (prompt: string) => {
     academisPromptRef.current = prompt;
     setAcademisPromptState(prompt);
@@ -695,9 +695,12 @@ export function SubmissionEvaluator({
   const activeAcademisCacheKey = submissionId && activeStage && activeTask
     ? JSON.stringify([submissionId, activeStage.id, activeTask.id])
     : null;
-  const hasCachedAcademisResult = activeAcademisCacheKey
-    ? Boolean(academisResultsByTask[activeAcademisCacheKey])
-    : false;
+  const cachedAcademisResult = activeAcademisCacheKey
+    ? academisResultsByTask[activeAcademisCacheKey]
+    : undefined;
+  const activeInstructorPrompt = academisPromptRef.current.slice(0, MAX_INSTRUCTOR_PROMPT_LENGTH);
+  const hasMatchingCachedAcademisResult = Boolean(cachedAcademisResult
+    && cachedAcademisResult.context.instructorPrompt === activeInstructorPrompt);
   const activeTaskPrompt = activeTask?.prompt?.trim()
     || activeTask?.title?.trim()
     || activeStage?.prompt?.trim()
@@ -1893,7 +1896,7 @@ export function SubmissionEvaluator({
 
           <button
             type="button"
-            onClick={() => void generateAcademisInsight()}
+            onClick={() => void generateAcademisInsight(!hasMatchingCachedAcademisResult)}
             disabled={isAcademisLoading || !submissionId || !activeTask}
             className="flex w-full items-center justify-center gap-2 rounded-md bg-amber-500/20 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/30 disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -1904,8 +1907,8 @@ export function SubmissionEvaluator({
                 ? submissionLoadState === "loading" ? "Loading submission…" : "Submission unavailable"
                 : !activeTask
                   ? "Select a task to evaluate"
-                  : hasCachedAcademisResult ? "View Last Evaluation Report"
-                    : academisInsight ? "Run again with Academis" : "Evaluate with Academis"}
+                  : hasMatchingCachedAcademisResult ? "View Last Evaluation Report"
+                    : "Evaluate with Academis"}
           </button>
         </div>
       </aside>
@@ -2234,6 +2237,28 @@ export function SubmissionEvaluator({
               {academisPresets.find((preset) => preset.prompt === academisRequestContext.instructorPrompt)?.label || "Custom prompt"}
             </p>
             <p className="mt-1 max-h-24 overflow-y-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-stone-400">{academisRequestContext.instructorPrompt || "Use concise, evidence-based language-learning feedback."}</p>
+          </section>}
+
+          {academisInsight && <section className="rounded-lg border border-amber-500/25 bg-amber-500/[0.04] px-4 py-3">
+            <label htmlFor="academis-rerun-prompt" className="text-[9px] font-semibold uppercase tracking-[0.12em] text-amber-400">
+              Prompt for next run
+            </label>
+            <select
+              id="academis-rerun-prompt"
+              value={activeAcademisPresetId}
+              onChange={(event) => {
+                const preset = academisPresets.find((item) => item.id === event.target.value);
+                if (preset) activateAcademisPreset(preset);
+              }}
+              className="mt-2 w-full rounded-md border border-border bg-[#0b0e13] px-3 py-2 text-xs text-stone-200 outline-none focus:border-amber-500/50"
+            >
+              {academisPresets.map((preset) => <option key={preset.id} value={preset.id}>
+                {preset.label}{preset.isFavorite ? " · pinned" : ""}
+              </option>)}
+            </select>
+            <p className="mt-2 max-h-24 overflow-y-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-stone-400">
+              {academisPrompt.trim() || "No evaluation prompt selected."}
+            </p>
           </section>}
 
           {isAcademisLoading && <div className="flex min-h-48 flex-col items-center justify-center gap-3 text-center" role="status" aria-live="polite">
