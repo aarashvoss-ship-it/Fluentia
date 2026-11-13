@@ -1,4 +1,4 @@
-import { parseMarkdownReportTable } from "@/lib/academis-report";
+import { parseMarkdownReportTable, replaceAcademisBreakTags } from "@/lib/academis-report";
 
 export const ACADEMIS_DIAGNOSTIC_HEADERS = [
   "Row / Index",
@@ -46,6 +46,32 @@ export function extractAcademisCriterionLabel(value: string) {
     .replace(/^[\s:;,()[\]{}—–-]+|[\s:;,()[\]{}—–-]+$/g, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+export function parseAcademisCriterionScores(
+  rows: Array<{ index: string; status_axis: string }>,
+) {
+  const scores: Record<string, number | null> = {};
+  const usedKeys = new Set<string>();
+  rows.forEach((row, index) => {
+    const rowIndex = row.index.trim() || String(index + 1);
+    const axis = replaceAcademisBreakTags(row.status_axis);
+    const label = extractAcademisCriterionLabel(axis) || `Criterion ${rowIndex}`;
+    let key = label;
+    if (usedKeys.has(key.toLocaleLowerCase())) key = `${label} (${rowIndex})`;
+    usedKeys.add(key.toLocaleLowerCase());
+    scores[key] = extractAcademisBandScore(axis) ?? null;
+  });
+  return scores;
+}
+
+export function calculateAcademisScoreMean(scores: Record<string, number | null>) {
+  const numericScores = Object.values(scores).filter((score): score is number => (
+    typeof score === "number" && Number.isFinite(score)
+  ));
+  return numericScores.length
+    ? Math.round(numericScores.reduce((sum, score) => sum + score, 0) / numericScores.length * 100) / 100
+    : null;
 }
 
 export function formatAcademisDiagnosticTable(

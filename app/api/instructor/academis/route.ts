@@ -7,6 +7,8 @@ import {
 } from "@/lib/academis-report";
 import {
   ACADEMIS_DIAGNOSTIC_HEADERS,
+  calculateAcademisScoreMean,
+  parseAcademisCriterionScores,
   type AcademisDiagnosticTable,
   parseAcademisDiagnosticTable,
 } from "@/lib/academis-diagnostics";
@@ -113,19 +115,15 @@ function parseInsight(content: string): AcademisInsight | null {
   const parsedTable = parseAcademisDiagnosticTable(value.diagnostic_table);
   if (!parsedTable) return null;
   const { criteriaScores, diagnosticTable } = parsedTable;
-  const scoreValues = Object.values(criteriaScores).filter((score): score is number => score !== null);
   const keyErrorPatterns = diagnosticValue.key_error_patterns.slice(0, 8);
   if (!keyErrorPatterns.every(isAcademisErrorPattern)) {
     return null;
   }
   const targetedResources = diagnosticValue.targeted_resources.slice(0, 8);
   if (!targetedResources.every(isAcademisResource)) return null;
-  const overallBandScore = scoreValues.length
-    ? Math.round(scoreValues.reduce((sum, score) => sum + score, 0) / scoreValues.length * 100) / 100
-    : null;
   return {
     criteria_scores: criteriaScores,
-    overall_band_score: overallBandScore,
+    overall_band_score: calculateAcademisScoreMean(criteriaScores),
     student_summary: diagnosticTable.rows
       .map((row) => `${row.index}. ${row.student_feedback}`)
       .join("\n"),
@@ -147,10 +145,19 @@ function parseInsight(content: string): AcademisInsight | null {
   };
 }
 
-function createFallbackInsight(publishedContent: unknown): AcademisInsight {
+function createFallbackInsight(publishedContent: unknown, reportData: Record<string, unknown>): AcademisInsight {
+  const table = isRecord(reportData.markdown_table) ? reportData.markdown_table : null;
+  const rows = table && Array.isArray(table.rows)
+    ? table.rows.filter((row): row is string[] => Array.isArray(row)
+      && row.length >= 2 && row.every((cell) => typeof cell === "string"))
+    : [];
+  const criteriaScores = parseAcademisCriterionScores(rows.map((row) => ({
+    index: row[0],
+    status_axis: row[1],
+  })));
   return {
-    criteria_scores: {},
-    overall_band_score: null,
+    criteria_scores: criteriaScores,
+    overall_band_score: calculateAcademisScoreMean(criteriaScores),
     student_summary: getAcademisPublishedPreviewText(publishedContent),
     instructor_diagnostic: {
       stage_summary_diagnostic: "",
@@ -259,7 +266,7 @@ export async function GET(request: Request) {
         && (!legacyReport || new Date(storedReport.created_at).getTime() > new Date(legacyReport.created_at).getTime());
       return NextResponse.json({
         insight: storedReportIsNewer
-          ? createFallbackInsight(storedReport.published_content)
+          ? createFallbackInsight(storedReport.published_content, storedReport.report_data)
           : legacyReport?.insights || null,
         report: storedReport
           ? {
@@ -338,7 +345,7 @@ export async function GET(request: Request) {
       }
       reportsByTask.set(row.task_id, {
         taskId: row.task_id,
-        insight: createFallbackInsight(row.published_content),
+        insight: createFallbackInsight(row.published_content, row.report_data),
         report,
         createdAt,
       });
@@ -558,7 +565,7 @@ export async function POST(request: Request) {
     }
 
     const insight = parseInsight(content);
-    const responseInsight = insight || createFallbackInsight(preparedReport.publishedContent);
+    const responseInsight = insight || createFallbackInsight(preparedReport.publishedContent, reportData);
     let insightSaved = false;
     if (insight) {
       try {
