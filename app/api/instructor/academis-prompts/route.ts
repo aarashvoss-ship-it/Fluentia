@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
-import { isSameOriginRequest } from "@/lib/auth";
+import { areAcademisPromptTitlesUnique } from "@/lib/academis-prompts";
+import { isAllowedRequestOrigin } from "@/lib/auth";
 import { getServerSessionUser } from "@/lib/server/session";
 
 export const runtime = "nodejs";
@@ -70,7 +71,7 @@ function parsePromptLibrary(value: unknown): PromptLibrary | null {
     });
   }
   if (new Set(presets.map((preset) => preset.id)).size !== presets.length
-    || new Set(presets.map((preset) => preset.label.toLowerCase())).size !== presets.length
+    || !areAcademisPromptTitlesUnique(presets)
     || presets.filter((preset) => preset.isFavorite).length > 3
     || new Set(presets
       .filter((preset) => preset.stageId && preset.taskId)
@@ -109,7 +110,7 @@ export async function GET() {
 export async function PUT(request: Request) {
   const access = await requireInstructor();
   if ("response" in access) return access.response;
-  if (!isSameOriginRequest(request)) {
+  if (!isAllowedRequestOrigin(request)) {
     return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
   }
 
@@ -143,7 +144,7 @@ export async function PUT(request: Request) {
 export async function DELETE(request: Request) {
   const access = await requireInstructor();
   if ("response" in access) return access.response;
-  if (!isSameOriginRequest(request)) {
+  if (!isAllowedRequestOrigin(request)) {
     return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
   }
 

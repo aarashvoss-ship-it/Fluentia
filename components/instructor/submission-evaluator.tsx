@@ -10,6 +10,7 @@ import { AudioRecorder } from "@/components/shared/audio-recorder";
 import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import { type UnifiedReportStage } from "@/components/shared/unified-report-card";
 import { combineTaskFeedback } from "@/lib/evaluation-feedback";
+import { areAcademisPromptTitlesUnique } from "@/lib/academis-prompts";
 import {
   ACADEMIS_DIAGNOSTIC_HEADERS,
   formatAcademisDiagnosticTable,
@@ -1232,8 +1233,8 @@ export function SubmissionEvaluator({
       return;
     }
     if (new Set(presets.map((preset) => preset.id)).size !== presets.length
-      || new Set(presets.map((preset) => preset.label.toLowerCase())).size !== presets.length) {
-      setAcademisLibraryError("Preset titles must be unique.");
+      || !areAcademisPromptTitlesUnique(presets)) {
+      setAcademisLibraryError("Prompt titles must be unique within each category.");
       return;
     }
     if (presets.filter((preset) => preset.isFavorite).length > 3) {
