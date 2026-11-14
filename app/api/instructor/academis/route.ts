@@ -24,6 +24,7 @@ import {
 } from "@/lib/academis-diagnostics";
 
 export const runtime = "nodejs";
+export const maxDuration = 120;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_TASK_PROMPT_LENGTH = 6000;
@@ -555,7 +556,7 @@ export async function POST(request: Request) {
               STANDARD_EVALUATION_RESPONSE_FORMAT,
             ),
           });
-      const signal = AbortSignal.timeout(45000);
+      const signal = AbortSignal.timeout(100_000);
       const sendRequest = (payload: Record<string, unknown>) => fetch(ACADEMIS_EVAL_MODEL.endpoint, {
         method: "POST",
         headers: {

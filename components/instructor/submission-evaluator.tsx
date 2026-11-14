@@ -2395,7 +2395,7 @@ export function SubmissionEvaluator({
           >
             <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
             {isAcademisLoading
-              ? "Evaluating…"
+              ? "Processing deep evaluation…"
               : !submissionId
                 ? submissionLoadState === "loading" ? "Loading submission…" : "Submission unavailable"
                 : !activeTask
@@ -2766,8 +2766,8 @@ export function SubmissionEvaluator({
 
           {isAcademisLoading && <div className="flex min-h-48 flex-col items-center justify-center gap-3 text-center" role="status" aria-live="polite">
             <span className="h-8 w-8 animate-spin rounded-full border-2 border-amber-500/20 border-t-amber-400" aria-hidden="true" />
-            <p className="text-sm font-medium text-stone-200">Academis is evaluating this response</p>
-            <p className="text-xs text-stone-500">Scoring each rubric criterion and preparing instructor diagnostics…</p>
+            <p className="text-sm font-medium text-stone-200">Processing deep evaluation…</p>
+            <p className="text-xs text-stone-500">Academis is scoring each rubric criterion and preparing instructor diagnostics. This may take up to 100 seconds.</p>
           </div>}
 
           {!isAcademisLoading && academisError && <div role="alert" className="rounded-lg border border-red-500/30 bg-red-950/30 p-4 text-sm text-red-200">
