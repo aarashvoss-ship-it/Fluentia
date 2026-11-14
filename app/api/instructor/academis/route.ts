@@ -499,13 +499,7 @@ export async function POST(request: Request) {
     const model = ACADEMIS_EVAL_MODEL.model;
     let paastaResponse: Response;
     try {
-      paastaResponse = await fetch(ACADEMIS_EVAL_MODEL.endpoint, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(buildAiChatCompletionBody(ACADEMIS_EVAL_MODEL, [
+      const requestBody = buildAiChatCompletionBody(ACADEMIS_EVAL_MODEL, [
             {
               role: "system",
               content: [
@@ -560,11 +554,44 @@ export async function POST(request: Request) {
               ACADEMIS_EVAL_MODEL,
               STANDARD_EVALUATION_RESPONSE_FORMAT,
             ),
-          })),
-        signal: AbortSignal.timeout(45000),
+          });
+      const signal = AbortSignal.timeout(45000);
+      const sendRequest = (payload: Record<string, unknown>) => fetch(ACADEMIS_EVAL_MODEL.endpoint, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+        signal,
       });
+      paastaResponse = await sendRequest(requestBody);
+      const appliedFallbacks = new Set<string>();
+      for (let attempt = 0; !paastaResponse.ok && attempt < 2; attempt += 1) {
+        if (paastaResponse.status !== 400 && paastaResponse.status !== 422) break;
+        const providerError = await paastaResponse.clone().text();
+        const rejectsSchema = "response_format" in requestBody
+          && (requestBody.response_format as { type?: string })?.type === "json_schema"
+          && /response_format|json_schema|structured output/i.test(providerError);
+        const rejectsCompletionTokenField = typeof requestBody.max_completion_tokens === "number"
+          && /max_completion_tokens/i.test(providerError)
+          && /unsupported|unknown|unrecognized|not allowed|not support/i.test(providerError);
+        if (rejectsSchema && !appliedFallbacks.has("json_object")) {
+          appliedFallbacks.add("json_object");
+          console.warn("PaasTA rejected ACADEMIS JSON Schema mode; retrying with JSON object mode.");
+          requestBody.response_format = { type: "json_object" };
+        } else if (rejectsCompletionTokenField && !appliedFallbacks.has("max_tokens")) {
+          appliedFallbacks.add("max_tokens");
+          console.warn("PaasTA rejected max_completion_tokens; retrying with max_tokens.");
+          requestBody.max_tokens = requestBody.max_completion_tokens;
+          delete requestBody.max_completion_tokens;
+        } else {
+          break;
+        }
+        paastaResponse = await sendRequest(requestBody);
+      }
     } catch (error) {
-      console.error("Paasta Academis request failed:", error);
+      console.error("ACADEMIS AI ERROR:", error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (error instanceof Error && error.name === "TimeoutError") {
         return NextResponse.json({
@@ -587,11 +614,13 @@ export async function POST(request: Request) {
         console.error("Could not read the Paasta Academis error response:", error);
       }
       console.error("Paasta Academis request was rejected:", {
+        model,
         status: paastaResponse.status,
         statusText: paastaResponse.statusText,
         response: responseDetails,
       });
       const errorMessage = `Academis AI provider returned ${paastaResponse.status} ${paastaResponse.statusText}${responseDetails ? `: ${responseDetails}` : ""}`;
+      console.error("ACADEMIS AI ERROR:", new Error(errorMessage));
       return NextResponse.json({
         error: process.env.NODE_ENV === "development"
           ? errorMessage
@@ -700,6 +729,7 @@ export async function POST(request: Request) {
       isPublished: false,
     });
   } catch (error) {
+    console.error("ACADEMIS AI ERROR:", error);
     if (error instanceof Error && error.name === "TimeoutError") {
       return NextResponse.json({ error: "Academis took too long to respond. Try again." }, { status: 504 });
     }

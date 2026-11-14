@@ -93,7 +93,7 @@ export const LESSON_BUILDER_MODEL = createModelProfile(
 );
 
 export function getAiApiKey(profile: AiModelProfile) {
-  return process.env[profile.apiKeyEnv] || process.env.AI_API_KEY || "";
+  return process.env[profile.apiKeyEnv]?.trim() || process.env.AI_API_KEY?.trim() || "";
 }
 
 export function getAiStructuredResponseFormat(profile: AiModelProfile, schema: unknown) {
