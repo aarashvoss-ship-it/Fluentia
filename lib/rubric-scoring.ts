@@ -86,6 +86,37 @@ export function calculateStageOverallScore(
   return roundRubricScoreForScale(average, scaleId);
 }
 
+export function aggregateTaskRubricScoresForStage(
+  taskIds: string[],
+  taskScores: Record<string, Record<string, number>>,
+  taskRubricScales: Record<string, string>,
+  stageScaleId?: string,
+) {
+  const stageScale = getRubricScale(stageScaleId);
+  const criterionScores: Record<string, number[]> = {};
+  for (const taskId of taskIds) {
+    const scores = taskScores[taskId];
+    if (!scores) continue;
+    const taskScaleId = taskRubricScales[taskId] || stageScale.id;
+    for (const [criterionId, score] of Object.entries(scores)) {
+      if (typeof score !== "number" || !Number.isFinite(score)) continue;
+      const convertedScore = convertRubricScore(score, taskScaleId, stageScale.id);
+      if (!criterionScores[criterionId]) criterionScores[criterionId] = [];
+      criterionScores[criterionId].push(convertedScore);
+    }
+  }
+
+  return Object.fromEntries(
+    Object.entries(criterionScores).map(([criterionId, scores]) => [
+      criterionId,
+      roundRubricScoreForScale(
+        scores.reduce((sum, score) => sum + score, 0) / scores.length,
+        stageScale.id,
+      ),
+    ]),
+  );
+}
+
 export interface OverallRubricResult {
   scaleId: RubricScale;
   criterionScores: Record<string, number>;

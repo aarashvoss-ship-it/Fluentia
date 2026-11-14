@@ -1,7 +1,7 @@
 export const STANDARD_EVALUATION_HEADERS = [
   "Row / Index",
   "Evaluation Axis & Percentage Score (0–100%)",
-  "Actionable Feedback for the Student",
+  "Actionable Feedback",
   "Deep Diagnostic Analysis for Instructors and the Lesson Builder (hidden from the student view)",
 ] as const;
 

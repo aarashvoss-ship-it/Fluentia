@@ -1830,6 +1830,7 @@ export default function LessonPage() {
                 stageRubricScales={evaluation?.stageRubricScales || {}}
                 taskScores={evaluation?.taskScores || {}}
                 taskRubricScales={evaluation?.taskRubricScales || {}}
+                globalRubricScale={evaluation?.globalRubricScale}
                 reportCardScoreOverrides={evaluation?.reportCardScoreOverrides || {}}
                 taskFeedback={evaluation?.taskFeedback || {}}
                 inlineCorrections={evaluation?.inlineCorrections || {}}

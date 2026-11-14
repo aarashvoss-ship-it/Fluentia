@@ -8,6 +8,8 @@ import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import { combineTaskFeedback } from "@/lib/evaluation-feedback";
 import { parseMarkdownReportTable, replaceAcademisBreakTags } from "@/lib/academis-report";
 import {
+  DEFAULT_RUBRIC_SCALE,
+  aggregateTaskRubricScoresForStage,
   aggregateOverallRubric,
   calculateStageOverallScore,
   formatOverallRubricTotal,
@@ -55,6 +57,7 @@ interface UnifiedReportCardProps {
   stageRubricScales?: Record<string, string>;
   taskScores?: Record<string, Record<string, number>>;
   taskRubricScales?: Record<string, string>;
+  globalRubricScale?: string;
   reportCardScoreOverrides?: Record<string, number>;
   taskFeedback?: Record<string, string>;
   inlineCorrections?: Record<string, string>;
@@ -185,6 +188,7 @@ export function UnifiedReportCard({
   stageRubricScales = {},
   taskScores = {},
   taskRubricScales = {},
+  globalRubricScale = DEFAULT_RUBRIC_SCALE,
   reportCardScoreOverrides = {},
   taskFeedback = {},
   inlineCorrections = {},
@@ -253,10 +257,26 @@ export function UnifiedReportCard({
     return () => controller.abort();
   }, [isInstructorView, moduleId]);
 
+  const effectiveStageRubricScales = Object.fromEntries(stages.map((stage) => [
+    stage.id,
+    stageRubricScales[stage.id] || globalRubricScale,
+  ]));
+  const effectiveStageScores = Object.fromEntries(stages.map((stage) => [
+    stage.id,
+    {
+      ...aggregateTaskRubricScoresForStage(
+        stage.tasks.map((task) => task.id),
+        taskScores,
+        taskRubricScales,
+        effectiveStageRubricScales[stage.id],
+      ),
+      ...(stageScores[stage.id] || {}),
+    },
+  ]));
   const overallAggregation = aggregateOverallRubric({
     criterionIds: RUBRIC_CRITERIA.map(({ id }) => id),
-    stageScores,
-    stageRubricScales,
+    stageScores: effectiveStageScores,
+    stageRubricScales: effectiveStageRubricScales,
     reportCardScoreOverrides,
     fallbackScores: scores,
   });
@@ -395,7 +415,7 @@ export function UnifiedReportCard({
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-200">Task rubric scores</p>
                 <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {RUBRIC_CRITERIA.map((criterion) => <p key={criterion.id} className="text-[10px] text-stone-400">
-                    {criterion.label}<span className="float-right text-amber-200">{formatRubricScore(roundRubricScoreForScale(taskScores[task.id][criterion.id] || 0, taskRubricScales[task.id]))}/{getRubricScale(taskRubricScales[task.id]).max}</span>
+                    {criterion.label}<span className="float-right text-amber-200">{formatRubricScore(roundRubricScoreForScale(taskScores[task.id][criterion.id] || 0, taskRubricScales[task.id] || effectiveStageRubricScales[stage.id]))}/{getRubricScale(taskRubricScales[task.id] || effectiveStageRubricScales[stage.id]).max}</span>
                   </p>)}
                 </div>
               </div>}
@@ -419,9 +439,9 @@ export function UnifiedReportCard({
               className="mt-2 w-full resize-y rounded-md border border-border bg-surface p-3 text-sm text-stone-200 outline-none focus:border-amber-500/40"
             /> : stageFeedback[stage.id]?.trim() ? <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-300">{stageFeedback[stage.id]}</p> : <p className="mt-1 text-sm text-stone-500">{isEvaluated ? "No comment provided." : "Pending Instructor Review"}</p>}
           </div>
-          {!isInstructorView && Object.keys(stageScores[stage.id] || {}).length > 0 && <div className="grid gap-2 sm:grid-cols-3">
-            {Object.entries(stageScores[stage.id] || {}).map(([criterion, score]) => {
-              const scaleId = stageRubricScales[stage.id];
+          {!isInstructorView && Object.keys(effectiveStageScores[stage.id] || {}).length > 0 && <div className="grid gap-2 sm:grid-cols-3">
+            {Object.entries(effectiveStageScores[stage.id] || {}).map(([criterion, score]) => {
+              const scaleId = effectiveStageRubricScales[stage.id];
               const scale = getRubricScale(scaleId);
               const criterionLabel = RUBRIC_CRITERIA.find(({ id }) => id === criterion)?.label || criterion;
               return <div key={criterion} className="rounded-md border border-border bg-background px-3 py-2 text-xs text-stone-400">
@@ -429,10 +449,10 @@ export function UnifiedReportCard({
               </div>;
             })}
             {(() => {
-              const scaleId = stageRubricScales[stage.id];
+              const scaleId = effectiveStageRubricScales[stage.id];
               const scale = getRubricScale(scaleId);
               const stageOverallScore = calculateStageOverallScore(
-                stageScores[stage.id] || {},
+                effectiveStageScores[stage.id] || {},
                 RUBRIC_CRITERIA.map(({ id }) => id),
                 scaleId,
               );

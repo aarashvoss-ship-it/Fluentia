@@ -30,6 +30,7 @@ import {
   type RubricScale,
   DEFAULT_RUBRIC_SCALE,
   RUBRIC_SCALE_OPTIONS,
+  aggregateTaskRubricScoresForStage,
   aggregateOverallRubric,
   calculateStageOverallScore,
   convertRubricScore,
@@ -598,20 +599,37 @@ export function SubmissionEvaluator({
   const taskRubricScales = evaluation?.taskRubricScales || {};
   const globalRubricScale = evaluation?.globalRubricScale || DEFAULT_RUBRIC_SCALE;
   const reportCardScoreOverrides = evaluation?.reportCardScoreOverrides || {};
+  const stages = reportCardStages.length ? reportCardStages : DEFAULT_REPORT_STAGES;
+  const effectiveStageRubricScales = Object.fromEntries(stages.map((stage) => [
+    stage.id,
+    stageRubricScales[stage.id] || globalRubricScale,
+  ]));
+  const effectiveStageScores = Object.fromEntries(stages.map((stage) => [
+    stage.id,
+    {
+      ...aggregateTaskRubricScoresForStage(
+        stage.tasks.map((task) => task.id),
+        taskScores,
+        taskRubricScales,
+        effectiveStageRubricScales[stage.id],
+      ),
+      ...(stageScores[stage.id] || {}),
+    },
+  ]));
   const overallAggregation = aggregateOverallRubric({
     criterionIds: RUBRIC_CRITERIA.map(({ id }) => id),
-    stageScores,
-    stageRubricScales,
+    stageScores: effectiveStageScores,
+    stageRubricScales: effectiveStageRubricScales,
     reportCardScoreOverrides,
     fallbackScores: evaluation?.scores,
   });
   const overallScaleId = overallAggregation.scaleId;
   const overallScale = getRubricScale(overallScaleId);
   const stageAverages = Object.fromEntries(RUBRIC_CRITERIA.map(({ id }) => {
-    const values = Object.entries(stageScores)
+    const values = Object.entries(effectiveStageScores)
       .map(([stageId, stage]) => {
         const score = stage[id];
-        return typeof score === "number" ? normalizeRubricScore(score, stageRubricScales[stageId]) : undefined;
+        return typeof score === "number" ? normalizeRubricScore(score, effectiveStageRubricScales[stageId]) : undefined;
       })
       .filter((score): score is number => typeof score === "number" && Number.isFinite(score));
     return [id, values.length ? values.reduce((sum, score) => sum + score, 0) / values.length : undefined];
@@ -621,7 +639,6 @@ export function SubmissionEvaluator({
   const taskFeedback = evaluation?.taskFeedback || {};
   const inlineCorrections = evaluation?.inlineCorrections || {};
   const stageVoiceFeedback = evaluation?.stageVoiceFeedback || {};
-  const stages = reportCardStages.length ? reportCardStages : DEFAULT_REPORT_STAGES;
   const initialStage = stages.find((stage) => stage.tasks.length > 0) || stages[0];
   const [activeStageId, setActiveStageId] = useState(initialStage?.id || "report-card");
   const [activeTaskId, setActiveTaskId] = useState(initialStage?.tasks[0]?.id || "");
@@ -1942,14 +1959,15 @@ export function SubmissionEvaluator({
             </div>
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
               {STAGE_RUBRIC_CRITERIA.map((criterion) => {
-                const scale = getRubricScale(stageRubricScales[stage.id]);
-                return <label key={criterion.id} className="rounded-md border border-border bg-background p-2 text-[10px] text-stone-400">{criterion.label}<span className="float-right text-amber-300">{formatRubricScore(roundRubricScoreForScale(stageScores[stage.id]?.[criterion.id] || 0, stageRubricScales[stage.id]))}/{scale.max}</span></label>;
+                const scaleId = effectiveStageRubricScales[stage.id];
+                const scale = getRubricScale(scaleId);
+                return <label key={criterion.id} className="rounded-md border border-border bg-background p-2 text-[10px] text-stone-400">{criterion.label}<span className="float-right text-amber-300">{formatRubricScore(roundRubricScoreForScale(effectiveStageScores[stage.id]?.[criterion.id] || 0, scaleId))}/{scale.max}</span></label>;
               })}
               {(() => {
-                const scaleId = stageRubricScales[stage.id];
+                const scaleId = effectiveStageRubricScales[stage.id];
                 const scale = getRubricScale(scaleId);
                 const stageOverallScore = calculateStageOverallScore(
-                  stageScores[stage.id] || {},
+                  effectiveStageScores[stage.id] || {},
                   STAGE_RUBRIC_CRITERIA.map(({ id }) => id),
                   scaleId,
                 );
@@ -2177,8 +2195,8 @@ export function SubmissionEvaluator({
             </div>
             <div className="divide-y divide-border">
               {STAGE_RUBRIC_CRITERIA.map((criterion) => {
-                const scale = getRubricScale(stageRubricScales[activeStage.id]);
-                const score = stageScores[activeStage.id]?.[criterion.id];
+                const scale = getRubricScale(effectiveStageRubricScales[activeStage.id]);
+                const score = effectiveStageScores[activeStage.id]?.[criterion.id];
                 return <div key={criterion.id} className="grid gap-2 py-3 sm:grid-cols-[minmax(180px,0.8fr)_minmax(0,2fr)_96px] sm:items-center">
                   <label htmlFor={`stage-score-${activeStage.id}-${criterion.id}`} className="text-xs font-medium text-stone-300">{criterion.label}</label>
                   <input
@@ -2225,6 +2243,19 @@ export function SubmissionEvaluator({
                 </div>;
               })}
             </div>
+            {(() => {
+              const scaleId = effectiveStageRubricScales[activeStage.id];
+              const scale = getRubricScale(scaleId);
+              const stageOverallScore = calculateStageOverallScore(
+                effectiveStageScores[activeStage.id] || {},
+                STAGE_RUBRIC_CRITERIA.map(({ id }) => id),
+                scaleId,
+              );
+              return stageOverallScore === undefined ? null : <div className="flex items-center justify-between rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200">
+                <span>Stage Overall Score</span>
+                <span className="text-amber-300">{formatRubricScore(stageOverallScore)}/{scale.max}</span>
+              </div>;
+            })()}
             <label className="block border-t border-border pt-3 text-xs font-medium text-stone-300">Stage feedback
               <textarea value={stageFeedback[activeStage.id] || ""} onChange={(event) => updateEvaluation({ stageFeedback: { ...stageFeedback, [activeStage.id]: event.target.value } })} rows={3} placeholder={`Comments on ${activeStage.title.toLowerCase()}...`} className="mt-1 w-full resize-y rounded-md border border-border bg-background p-3 text-xs font-normal leading-relaxed text-stone-200 outline-none focus:border-amber-500/40" />
             </label>
