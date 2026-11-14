@@ -90,7 +90,7 @@ function mapEvaluation(row: JsonRecord | undefined) {
     stageRubricScales: isRecord(details.stageRubricScales) ? details.stageRubricScales : {},
     taskScores: isRecord(details.taskScores) ? details.taskScores : {},
     taskRubricScales: isRecord(details.taskRubricScales) ? details.taskRubricScales : {},
-    globalRubricScale: typeof details.globalRubricScale === "string" ? details.globalRubricScale : "standard-5",
+    globalRubricScale: typeof details.globalRubricScale === "string" ? details.globalRubricScale : "percentage",
     reportCardScoreOverrides: isRecord(details.reportCardScoreOverrides) ? details.reportCardScoreOverrides : {},
     taskFeedback: isRecord(details.taskFeedback) ? details.taskFeedback : {},
     inlineCorrections: isRecord(details.inlineCorrections) ? details.inlineCorrections : {},

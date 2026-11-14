@@ -20,7 +20,7 @@ import {
 import {
   ACADEMIS_DIAGNOSTIC_HEADERS,
   calculateAcademisScoreMean,
-  extractAcademisBandScore,
+  extractAcademisPercentageScore,
   extractAcademisCriterionLabel,
   formatAcademisDiagnosticTable,
   type AcademisDiagnosticRow,
@@ -85,7 +85,7 @@ const MAX_INSTRUCTOR_PROMPT_LENGTH = 2500;
 const MAX_ACADEMIS_TASK_PROMPT_LENGTH = 6000;
 const MAX_ACADEMIS_TASK_TITLE_LENGTH = 300;
 const MAX_ACADEMIS_RESPONSE_LENGTH = 12000;
-const ACADEMIS_DIAGNOSTIC_PROMPT_GUIDANCE = `Return each grading in exactly one Markdown table with these four columns: ${ACADEMIS_DIAGNOSTIC_HEADERS.join(" | ")}. Include one row per criterion specified by the active prompt without assuming a fixed criterion set, concise actionable student feedback in column 3, and evidence-based instructor / Lesson Builder analysis in column 4.`;
+const ACADEMIS_DIAGNOSTIC_PROMPT_GUIDANCE = `Return each grading in exactly one Markdown table with these four columns: ${ACADEMIS_DIAGNOSTIC_HEADERS.join(" | ")}. Score every criterion as an integer percentage from 0 to 100, never as an IELTS band. Include one row per criterion specified by the active prompt without assuming a fixed criterion set, concise actionable student feedback in column 3, and evidence-based instructor / Lesson Builder analysis in column 4.`;
 const AUDIO_RESPONSE_PLACEHOLDER = /^audio response submitted(?:; transcript unavailable for grading)?\.?$/i;
 const ACADEMIS_PROMPTS = [
   {
@@ -276,8 +276,8 @@ function isAcademisInsight(value: unknown): value is AcademisInsight {
     || (value.overall_band_score !== null
       && (typeof value.overall_band_score !== "number"
         || !Number.isFinite(value.overall_band_score)
-        || value.overall_band_score < 1
-        || value.overall_band_score > 9))
+        || value.overall_band_score < 0
+        || value.overall_band_score > 100))
     || typeof value.student_summary !== "string"
     || (value.diagnostic_table !== undefined && !isAcademisDiagnosticTable(value.diagnostic_table))
     || !Array.isArray(value.instructor_diagnostic.key_error_patterns)
@@ -291,7 +291,7 @@ function isAcademisInsight(value: unknown): value is AcademisInsight {
   const scoreEntries = Object.entries(criteriaScores);
   if (!scoreEntries.every(([criterion, score]) => (
     Boolean(criterion.trim()) && (score === null
-      || (typeof score === "number" && Number.isFinite(score) && score >= 1 && score <= 9))
+      || (typeof score === "number" && Number.isInteger(score) && score >= 0 && score <= 100))
   ))) return false;
   return value.instructor_diagnostic.key_error_patterns.every((pattern) =>
     isRecord(pattern)
@@ -341,7 +341,7 @@ function normalizeAcademisReportTable(value: unknown): Pick<AcademisReportTableC
         : extractAcademisCriterionLabel(legacyAxis);
       const score = typeof row.score === "number"
         ? row.score
-        : extractAcademisBandScore(legacyAxis);
+        : extractAcademisPercentageScore(legacyAxis);
       const cells = [
         row.index,
         score === undefined ? legacyAxis || axis : formatAcademisAxisScore(axis, score),
@@ -449,14 +449,14 @@ function getAcademisCriterionScoreEntries(rows: string[][]) {
     let key = label;
     if (usedKeys.has(key.toLocaleLowerCase())) key = `${label} (${rowIndex})`;
     usedKeys.add(key.toLocaleLowerCase());
-    return { key, score: extractAcademisBandScore(axis) ?? null };
+    return { key, score: extractAcademisPercentageScore(axis) ?? null };
   });
 }
 
 function formatAcademisAxisWithScore(axis: string, score: number | null) {
   const label = extractAcademisCriterionLabel(replaceAcademisBreakTags(axis)) || "Criterion";
   if (score === null) return label;
-  return `${score >= 6 ? "+" : "-"} ${label} (${score}/9)`;
+  return `${label} (${score}%)`;
 }
 
 function formatAcademisPublishedDraft(draft: AcademisPublishedContentDraft) {
@@ -2799,25 +2799,25 @@ export function SubmissionEvaluator({
                       <label className="flex shrink-0 items-center gap-1 text-[10px] text-stone-500">
                         <input
                           type="number"
-                          min={1}
-                          max={9}
-                          step={0.5}
+                          min={0}
+                          max={100}
+                          step={1}
                           value={score ?? ""}
                           onChange={(event) => {
                             const rawScore = event.target.value;
                             const nextScore = rawScore === "" ? null : Number(rawScore);
                             if (nextScore !== null
-                              && (!Number.isFinite(nextScore) || nextScore < 1 || nextScore > 9)) return;
+                              && (!Number.isInteger(nextScore) || nextScore < 0 || nextScore > 100)) return;
                             updateAcademisCriterionScore(criterion, nextScore);
                           }}
-                          aria-label={`${criterion} score out of 9`}
+                          aria-label={`${criterion} score percentage`}
                           className="w-14 rounded border border-border bg-background px-1.5 py-1 text-center text-lg font-semibold text-amber-300 outline-none focus:border-amber-500/40"
                         />
-                        <span>/ 9</span>
+                        <span>%</span>
                       </label>
                     </div>
                     {score !== null && <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-stone-800">
-                      <div className="h-full rounded-full bg-amber-500" style={{ width: `${(score / 9) * 100}%` }} />
+                      <div className="h-full rounded-full bg-amber-500" style={{ width: `${score}%` }} />
                     </div>}
                   </article>
                 ))}
@@ -2825,7 +2825,7 @@ export function SubmissionEvaluator({
               {Object.keys(academisInsight.result.criteria_scores).length === 0 && <p className="text-xs text-stone-500">This report contains no numeric criterion scores.</p>}
               <div className="mt-3 flex items-center justify-between rounded-lg border border-amber-500/35 bg-amber-500/10 px-4 py-3">
                 <span className="text-xs font-medium text-amber-100">Mean of criterion scores</span>
-                <span className="text-xl font-semibold text-amber-300">{calculateAcademisScoreMean(academisInsight.result.criteria_scores)?.toFixed(2) ?? "—"}<span className="text-xs text-amber-200/60"> / 9</span></span>
+                <span className="text-xl font-semibold text-amber-300">{calculateAcademisScoreMean(academisInsight.result.criteria_scores)?.toFixed(2) ?? "—"}<span className="text-xs text-amber-200/60">%</span></span>
               </div>
             </section>
 

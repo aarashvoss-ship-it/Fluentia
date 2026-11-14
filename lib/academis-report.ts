@@ -28,11 +28,11 @@ export function replaceAcademisBreakTags(value: string) {
 export function formatAcademisAxisScore(axis: string, score: number) {
   const criterion = replaceAcademisBreakTags(axis)
     .replace(/^\s*[+-]\s*/, "")
-    .replace(/\s*\(\s*[1-9](?:\.\d+)?\s*\/\s*9\s*\)\s*$/, "")
-    .replace(/\s+[1-9](?:\.\d+)?\s*[+-]\s*$/, "")
+    .replace(/\s*\(?\s*(?:100|[1-9]?\d)(?:\.\d+)?\s*(?:%|percent|\/\s*100)\s*\)?\s*$/i, "")
+    .replace(/\s+(?:100|[1-9]?\d)(?:\.\d+)?\s*[+-]\s*$/, "")
     .replace(/\s*[+-]\s*$/, "")
     .trim() || "Criterion";
-  return `${score >= 6 ? "+" : "-"} ${criterion} (${score}/9)`;
+  return `${criterion} (${score}%)`;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

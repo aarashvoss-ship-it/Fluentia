@@ -25,7 +25,7 @@ export const STANDARD_EVALUATION_RESPONSE_FORMAT = {
             properties: {
               index: { type: "string" },
               axis: { type: "string" },
-              score: { type: "number", minimum: 1, maximum: 9 },
+              score: { type: "integer", minimum: 0, maximum: 100 },
               actionable_feedback: { type: "string" },
               strengths_weaknesses_diagnostics: { type: "string" },
             },
@@ -214,8 +214,7 @@ function normalizeStandardEvaluationRow(value: unknown): StandardEvaluationRow |
   if (isCurrentFormat && typeof value.axis === "string") {
     axis = value.axis.trim()
       .replace(/^\s*[+-]\s*/, "")
-      .replace(/\s+[1-9](?:\.\d+)?\s*[+-]\s*$/, "")
-      .replace(/\s*\(\s*[1-9](?:\.\d+)?\s*\/\s*9\s*\)\s*$/, "")
+      .replace(/\s*\(?\s*(?:100|[1-9]?\d)(?:\.\d+)?\s*(?:%|percent|\/\s*100)\s*\)?\s*$/i, "")
       .replace(/\s*[+-]\s*$/, "")
       .trim();
     score = typeof value.score === "number"
@@ -224,22 +223,19 @@ function normalizeStandardEvaluationRow(value: unknown): StandardEvaluationRow |
   } else if (isLegacyFormat && typeof value.axis_score === "string") {
     const legacyAxis = value.axis_score.trim();
     const scoreMatch = legacyAxis.match(
-      /\b([1-9](?:\.\d+)?)\s*(?:\/\s*9|out\s+of\s+9)\b/i,
-    ) || legacyAxis.match(/(?:^|\s)([1-9](?:\.\d+)?)\s*[+-]?\s*$/);
+      /\b((?:100|[1-9]?\d)(?:\.\d+)?)(?:\s*(?:%|percent\b|\/\s*100\b))/i,
+    );
     if (!scoreMatch) return null;
     score = Number(scoreMatch[1]);
     axis = legacyAxis
-      .replace(/\(\s*[1-9](?:\.\d+)?\s*(?:\/\s*9|out\s+of\s+9)\s*\)/i, " ")
-      .replace(/\b[1-9](?:\.\d+)?\s*(?:\/\s*9|out\s+of\s+9)\b/i, " ")
-      .replace(/\s+[1-9](?:\.\d+)?\s*[+-]?\s*$/, "")
-      .replace(/\s*[+-]\s*$/, "")
+      .replace(/\(?\s*(?:100|[1-9]?\d)(?:\.\d+)?\s*(?:%|percent|\/\s*100)\s*\)?/i, " ")
       .replace(/\s+/g, " ")
       .trim();
   } else {
     return null;
   }
 
-  if (!axis || axis.length > 300 || !Number.isFinite(score) || score < 1 || score > 9) return null;
+  if (!axis || axis.length > 300 || !Number.isInteger(score) || score < 0 || score > 100) return null;
   return {
     index: value.index.trim(),
     axis,

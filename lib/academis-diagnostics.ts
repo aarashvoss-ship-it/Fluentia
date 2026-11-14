@@ -21,27 +21,24 @@ export interface ParsedAcademisDiagnosticTable {
 }
 
 const MAX_DIAGNOSTIC_ROWS = 40;
-const STATUS_MARKER_PATTERN = /(?:^|[\s([{,:;])([+-])(?=$|[\s)\]},;:.])/;
 const STATUS_MARKER_GLOBAL_PATTERN = /(?:^|[\s([{,:;])([+-])(?=$|[\s)\]},;:.])/g;
 
-export function extractAcademisBandScore(value: string) {
-  const scorePattern = "([1-9](?:\\.\\d+)?)";
-  const fraction = value.match(new RegExp(`\\b${scorePattern}\\s*(?:\\/\\s*9|out\\s+of\\s+9)\\b`, "i"));
-  const band = value.match(new RegExp(`\\bband\\s*${scorePattern}\\b`, "i"));
-  const labeledScore = value.match(new RegExp(`\\b(?:band\\s*)?score\\s*[:=]?\\s*${scorePattern}\\b`, "i"));
-  const trailingScore = value.match(new RegExp(`(?:^|\\s)${scorePattern}\\s*[+-]?\\s*$`));
-  const score = fraction || band || labeledScore || trailingScore;
+export function extractAcademisPercentageScore(value: string) {
+  const scorePattern = "((?:100|[1-9]?\\d)(?:\\.\\d+)?)";
+  const percent = value.match(new RegExp(`\\b${scorePattern}\\s*(?:%|percent\\b)`, "i"));
+  const fraction = value.match(new RegExp(`\\b${scorePattern}\\s*\\/\\s*100\\b`, "i"));
+  const labeledScore = value.match(new RegExp(`\\b(?:percentage\\s*)?score\\s*[:=]?\\s*${scorePattern}\\b`, "i"));
+  const score = percent || fraction || labeledScore;
   if (!score) return undefined;
   const numericScore = Number(score[1]);
-  return numericScore <= 9 ? numericScore : undefined;
+  return numericScore >= 0 && numericScore <= 100 ? numericScore : undefined;
 }
 
 export function extractAcademisCriterionLabel(value: string) {
   return value
-    .replace(/\b(?:band\s*)?score\s*[:=]?\s*[1-9](?:\.\d+)?\s*(?:(?:\/\s*9)|(?:out\s+of\s+9))?\b/gi, " ")
-    .replace(/\bband\s*[1-9](?:\.\d+)?\b/gi, " ")
-    .replace(/\b[1-9](?:\.\d+)?\s*(?:\/\s*9|out\s+of\s+9)\b/gi, " ")
-    .replace(/\s+[1-9](?:\.\d+)?\s*[+-]\s*$/g, "")
+    .replace(/\b(?:percentage\s*)?score\s*[:=]?\s*(?:100|[1-9]?\d)(?:\.\d+)?\s*(?:%|percent\b)?/gi, " ")
+    .replace(/\b(?:100|[1-9]?\d)(?:\.\d+)?\s*(?:%|percent\b|\/\s*(?:100|9)\b)/gi, " ")
+    .replace(/\s+(?:100|[1-9]?\d)(?:\.\d+)?\s*[+-]\s*$/g, "")
     .replace(STATUS_MARKER_GLOBAL_PATTERN, " ")
     .replace(/^[\s:;,()[\]{}—–-]+|[\s:;,()[\]{}—–-]+$/g, "")
     .replace(/\s+/g, " ")
@@ -60,7 +57,7 @@ export function parseAcademisCriterionScores(
     let key = label;
     if (usedKeys.has(key.toLocaleLowerCase())) key = `${label} (${rowIndex})`;
     usedKeys.add(key.toLocaleLowerCase());
-    scores[key] = extractAcademisBandScore(axis) ?? null;
+    scores[key] = extractAcademisPercentageScore(axis) ?? null;
   });
   return scores;
 }
@@ -131,8 +128,7 @@ export function parseAcademisDiagnosticTable(
   const usedCriteria = new Set<string>();
   for (const [index, cells] of normalizedRows.entries()) {
     if (cells[1].length > 300 || cells[2].length > 1200 || cells[3].length > 2400) return null;
-    const marker = cells[1].match(STATUS_MARKER_PATTERN)?.[1];
-    const reportedScore = extractAcademisBandScore(cells[1]);
+    const reportedScore = extractAcademisPercentageScore(cells[1]);
     let rowIndex = cells[0].trim() || String(index + 1);
     if (usedIndexes.has(rowIndex)) rowIndex = `${rowIndex}-${index + 1}`;
     usedIndexes.add(rowIndex);
@@ -142,13 +138,10 @@ export function parseAcademisDiagnosticTable(
     if (usedCriteria.has(scoreKey.toLowerCase())) scoreKey = `${criterion} (${rowIndex})`;
     if (usedCriteria.has(scoreKey.toLowerCase())) return null;
     usedCriteria.add(scoreKey.toLowerCase());
-    const indicator = reportedScore === undefined
-      ? marker
-      : reportedScore >= 6 ? "+" : "-";
     scores.push([scoreKey, reportedScore ?? null]);
     rows.push({
       index: rowIndex,
-      status_axis: `${indicator ? `${indicator} ` : ""}${criterion}${reportedScore === undefined ? "" : ` (${reportedScore}/9)`}`,
+      status_axis: `${criterion}${reportedScore === undefined ? "" : ` (${reportedScore}%)`}`,
       student_feedback: cells[2].trim(),
       instructor_diagnostic: cells[3].trim(),
     });
