@@ -4289,6 +4289,9 @@ export default function InstructorWorkstationPage({
       if (shouldAutoCheck) reviewAutoCheckKeys.add(key);
     }
   };
+  if (!(warmUpContent.blocks || []).length) {
+    addReviewReference("warm_up", "warm_up", warmUpPrompt || "Warm-up reflection");
+  }
   if (!(listeningContent.blocks || []).length) {
     (listeningContent.questions || []).forEach((question: { id: string; question?: string; prompt?: string; title?: string; correct_answer?: string }) => {
       addReviewReference("listening", question.id, getReviewPrompt(question.prompt, question.title, question.question), question.correct_answer || reviewContent.results?.answer_keys?.listening?.[question.id]);
