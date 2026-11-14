@@ -433,7 +433,7 @@ export async function POST(request: Request) {
         : "");
     const evaluationResponse = evaluationTranscript || body.studentResponse;
     const isSpeakingEvaluation = body.stageId === "speaking" || Boolean(evaluationTranscript || referenceTranscript);
-    const model = process.env.PAASTA_AI_MODEL || "google/gemini-2.5-flash-lite";
+    const model = process.env.PAASTA_AI_MODEL || "openai/gpt-5";
     let paastaResponse: Response;
     try {
       paastaResponse = await fetch(PAASTA_CHAT_COMPLETIONS_URL, {
@@ -444,7 +444,6 @@ export async function POST(request: Request) {
         },
         body: JSON.stringify({
           model,
-          temperature: 0.2,
           response_format: { type: "json_object" },
           messages: [
             {
@@ -502,22 +501,50 @@ export async function POST(request: Request) {
         signal: AbortSignal.timeout(45000),
       });
     } catch (error) {
+      console.error("Paasta Academis request failed:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       if (error instanceof Error && error.name === "TimeoutError") {
-        return NextResponse.json({ error: "Academis took too long to respond. Try again." }, { status: 504 });
+        return NextResponse.json({
+          error: process.env.NODE_ENV === "development"
+            ? errorMessage
+            : "Academis took too long to respond. Try again.",
+        }, { status: 504 });
       }
-      console.error("Paasta Academis request failed:", { reason: error instanceof Error ? error.name : "UnknownError" });
-      return NextResponse.json({ error: "Academis could not connect to the grading service. Try again shortly." }, { status: 502 });
+      return NextResponse.json({
+        error: process.env.NODE_ENV === "development"
+          ? errorMessage
+          : "Academis could not connect to the grading service. Try again shortly.",
+      }, { status: 502 });
     }
     if (!paastaResponse.ok) {
-      console.error("Paasta Academis request failed:", { status: paastaResponse.status });
-      return NextResponse.json({ error: "Academis could not complete the grading request. Try again shortly." }, { status: 502 });
+      let responseDetails = "";
+      try {
+        responseDetails = await paastaResponse.text();
+      } catch (error) {
+        console.error("Could not read the Paasta Academis error response:", error);
+      }
+      console.error("Paasta Academis request was rejected:", {
+        status: paastaResponse.status,
+        statusText: paastaResponse.statusText,
+        response: responseDetails,
+      });
+      const errorMessage = `Academis AI provider returned ${paastaResponse.status} ${paastaResponse.statusText}${responseDetails ? `: ${responseDetails}` : ""}`;
+      return NextResponse.json({
+        error: process.env.NODE_ENV === "development"
+          ? errorMessage
+          : "Academis could not complete the grading request. Try again shortly.",
+      }, { status: 502 });
     }
     let completion: unknown;
     try {
       completion = await paastaResponse.json();
-    } catch {
-      console.error("Paasta Academis returned invalid JSON.");
-      return NextResponse.json({ error: "Academis returned an invalid grading response. Try again." }, { status: 502 });
+    } catch (error) {
+      console.error("Paasta Academis returned invalid JSON:", error);
+      return NextResponse.json({
+        error: process.env.NODE_ENV === "development"
+          ? error instanceof Error ? error.message : String(error)
+          : "Academis returned an invalid grading response. Try again.",
+      }, { status: 502 });
     }
     const content = isRecord(completion)
       && Array.isArray(completion.choices)
@@ -527,8 +554,12 @@ export async function POST(request: Request) {
       ? completion.choices[0].message.content
       : "";
     if (!content.trim()) {
-      console.error("Paasta Academis returned an empty grading response.");
-      return NextResponse.json({ error: "Academis returned an empty grading response. Try again." }, { status: 502 });
+      console.error("Paasta Academis returned an empty grading response:", completion);
+      return NextResponse.json({
+        error: process.env.NODE_ENV === "development"
+          ? "Paasta Academis returned an empty grading response."
+          : "Academis returned an empty grading response. Try again.",
+      }, { status: 502 });
     }
 
     const preparedReport = prepareAcademisReport(content);
