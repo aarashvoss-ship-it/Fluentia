@@ -645,6 +645,98 @@ type PendingReviewSubmission = {
   submission: StudentSubmission;
 };
 
+function isRecordValue(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeSubmissionResponseMap(value: unknown): Record<string, string> {
+  if (!isRecordValue(value)) return {};
+  return Object.fromEntries(Object.entries(value).flatMap(([key, response]) => {
+    if (typeof response === "string") return [[key, response]];
+    if (!isRecordValue(response)) return [];
+    const text = [
+      response.answer,
+      response.response,
+      response.value,
+      response.student_transcript,
+      response.studentTranscript,
+      response.transcript,
+    ].find((candidate): candidate is string => typeof candidate === "string");
+    return text === undefined ? [] : [[key, text]];
+  }));
+}
+
+function normalizeSubmissionAnswers(value: unknown): Partial<StudentSubmission> {
+  let answers: unknown = value;
+  if (typeof answers === "string") {
+    try {
+      answers = JSON.parse(answers) as unknown;
+    } catch {
+      return {};
+    }
+  }
+  const knownFields = new Set([
+    "listeningAnswers", "listening_answers", "readingAnswers", "reading_answers",
+    "writingText", "writing_text", "writing_responses", "writingResponses",
+    "writingAnswers", "writing_answers", "blockResponses", "block_responses",
+    "quizSelections", "quiz_selections", "audioUploads", "audio_uploads",
+    "speakingAudioUrl", "speaking_audio_url", "student_transcript",
+    "studentTranscript", "transcription", "transcript", "audioTranscripts",
+    "audio_transcripts", "studentTranscripts", "student_transcripts", "transcripts",
+  ]);
+  for (let depth = 0; depth < 3 && isRecordValue(answers); depth += 1) {
+    if (Object.keys(answers).some((key) => knownFields.has(key))) break;
+    const wrapped = [answers.submission, answers.answers, answers.response, answers.data]
+      .find(isRecordValue);
+    if (!wrapped) break;
+    answers = wrapped;
+  }
+  if (!isRecordValue(answers)) return {};
+
+  const pick = (...keys: string[]) => keys.map((key) => answers[key]).find((candidate) => candidate !== undefined);
+  const directResponses = Object.fromEntries(Object.entries(answers)
+    .filter(([key]) => !knownFields.has(key) && !["status", "progress", "submittedAt", "submitted_at"].includes(key)));
+  return {
+    listeningAnswers: normalizeSubmissionResponseMap(pick("listeningAnswers", "listening_answers")),
+    readingAnswers: normalizeSubmissionResponseMap(pick("readingAnswers", "reading_answers")),
+    writingText: typeof pick("writingText", "writing_text") === "string" ? pick("writingText", "writing_text") as string : "",
+    writing_responses: normalizeSubmissionResponseMap(pick("writing_responses", "writingResponses", "writingAnswers", "writing_answers")),
+    speakingAudioUrl: typeof pick("speakingAudioUrl", "speaking_audio_url") === "string" ? pick("speakingAudioUrl", "speaking_audio_url") as string : undefined,
+    student_transcript: typeof pick("student_transcript", "studentTranscript") === "string" ? pick("student_transcript", "studentTranscript") as string : undefined,
+    transcription: typeof answers.transcription === "string" ? answers.transcription : undefined,
+    transcript: typeof answers.transcript === "string" ? answers.transcript : undefined,
+    audioTranscripts: normalizeSubmissionResponseMap(pick("audioTranscripts", "audio_transcripts")),
+    studentTranscripts: normalizeSubmissionResponseMap(pick("studentTranscripts", "student_transcripts")),
+    transcripts: normalizeSubmissionResponseMap(answers.transcripts),
+    blockResponses: {
+      ...normalizeSubmissionResponseMap(directResponses),
+      ...normalizeSubmissionResponseMap(pick("blockResponses", "block_responses")),
+    },
+    quizSelections: normalizeSubmissionResponseMap(pick("quizSelections", "quiz_selections")),
+    audioUploads: normalizeSubmissionResponseMap(pick("audioUploads", "audio_uploads")),
+  };
+}
+
+function getReviewStageContent(content: Record<string, any>, stageId: InstructorReviewStageId): Record<string, any> {
+  const containers = [content, content.steps, content.stages];
+  for (const container of containers) {
+    if (Array.isArray(container)) {
+      const stage = container.find((candidate) => isRecordValue(candidate)
+        && [candidate.id, candidate.stage_id, candidate.stageId, candidate.title]
+          .some((value) => typeof value === "string"
+            && value.trim().toLowerCase().replace(/[\s-]+/g, "_") === stageId));
+      if (isRecordValue(stage)) return stage;
+      continue;
+    }
+    if (!isRecordValue(container)) continue;
+    const direct = container[stageId]
+      || (stageId === "warm_up" ? container.warmup : undefined)
+      || container[`stage_${stageId}`];
+    if (isRecordValue(direct)) return direct;
+  }
+  return {};
+}
+
 type LessonBuilderFormState = {
   studentId: string;
   title: string;
@@ -3414,9 +3506,7 @@ export default function InstructorWorkstationPage({
         if (!summaryResponse.ok) throw new Error(summary.error || "Unable to load instructor dashboard data.");
         const allAssignments: PendingReviewSubmission[] = [];
         for (const row of summary.submissions || []) {
-          const answers = row.answers && typeof row.answers === "object"
-            ? row.answers as Partial<StudentSubmission>
-            : {};
+          const answers = normalizeSubmissionAnswers(row.answers);
           const submissionStatus = row.status === "completed" ? "pending_evaluation" : row.status;
           allAssignments.push({
             id: row.id,
@@ -4056,39 +4146,45 @@ export default function InstructorWorkstationPage({
       : "border-border bg-surface text-stone-400";
   const submittedAnswers = workstationState.submission;
   const reviewContent = workstationState.content as Record<string, any>;
+  const warmUpContent = getReviewStageContent(reviewContent, "warm_up");
+  const lessonStageContent = getReviewStageContent(reviewContent, "lesson");
+  const listeningContent = getReviewStageContent(reviewContent, "listening");
+  const readingContent = getReviewStageContent(reviewContent, "reading");
+  const writingContent = getReviewStageContent(reviewContent, "writing");
+  const speakingContent = getReviewStageContent(reviewContent, "speaking");
   const warmUpPrompt = getReviewPrompt(
-    reviewContent.warm_up?.prompt?.text,
-    ...(reviewContent.warm_up?.quick_prompts || []).map((item: { text?: string }) => item.text),
-    reviewContent.warm_up?.intro_narrative?.text,
-    reviewContent.warm_up?.quote?.text,
+    warmUpContent.prompt?.text,
+    ...(warmUpContent.quick_prompts || []).map((item: { text?: string }) => item.text),
+    warmUpContent.intro_narrative?.text,
+    warmUpContent.quote?.text,
   );
   const reviewStages: InstructorReviewStage[] = [
     { id: "warm_up", title: "Warm-up", prompt: warmUpPrompt, tasks: [] },
-    { id: "lesson", title: "Lesson", prompt: reviewContent.lesson?.core_concept?.text, tasks: [] },
+    { id: "lesson", title: "Lesson", prompt: lessonStageContent.core_concept?.text, tasks: [] },
     {
       id: "listening",
       title: "Listening",
-      referenceText: reviewContent.listening?.transcript?.text?.trim() || undefined,
-      referenceAudioUrl: reviewContent.listening?.audio_url?.trim() || undefined,
+      referenceText: listeningContent.transcript?.text?.trim() || undefined,
+      referenceAudioUrl: listeningContent.audio_url?.trim() || undefined,
       tasks: [],
     },
     {
       id: "reading",
       title: "Reading",
-      referenceText: reviewContent.reading?.article_markdown?.text?.trim()
-        || reviewContent.reading?.mainArticle?.text?.trim()
+      referenceText: readingContent.article_markdown?.text?.trim()
+        || readingContent.mainArticle?.text?.trim()
         || reviewContent.mainArticle?.text?.trim()
         || undefined,
       tasks: [],
     },
-    { id: "writing", title: "Writing", prompt: reviewContent.writing?.prompt?.text, tasks: [] },
-    { id: "speaking", title: "Speaking", prompt: reviewContent.speaking?.scenario?.text, tasks: [] },
+    { id: "writing", title: "Writing", prompt: writingContent.prompt?.text, tasks: [] },
+    { id: "speaking", title: "Speaking", prompt: speakingContent.scenario?.text, tasks: [] },
   ];
   const reviewQuestionText: Record<string, string> = {};
-  const writingPrompt = getReviewPrompt(reviewContent.writing?.prompt?.text);
+  const writingPrompt = getReviewPrompt(writingContent.prompt?.text);
   const speakingPrompt = getReviewPrompt(
-    reviewContent.speaking?.scenario?.text,
-    ...(reviewContent.speaking?.discussion_points || []).map((point: { text?: string }) => point.text),
+    speakingContent.scenario?.text,
+    ...(speakingContent.discussion_points || []).map((point: { text?: string }) => point.text),
   );
   if (warmUpPrompt) reviewQuestionText.warm_up = stripReviewMarkdown(warmUpPrompt);
   if (writingPrompt) reviewQuestionText.writingText = stripReviewMarkdown(writingPrompt);
@@ -4193,18 +4289,18 @@ export default function InstructorWorkstationPage({
       if (shouldAutoCheck) reviewAutoCheckKeys.add(key);
     }
   };
-  if (!(reviewContent.listening?.blocks || []).length) {
-    (reviewContent.listening?.questions || []).forEach((question: { id: string; question?: string; prompt?: string; title?: string; correct_answer?: string }) => {
+  if (!(listeningContent.blocks || []).length) {
+    (listeningContent.questions || []).forEach((question: { id: string; question?: string; prompt?: string; title?: string; correct_answer?: string }) => {
       addReviewReference("listening", question.id, getReviewPrompt(question.prompt, question.title, question.question), question.correct_answer || reviewContent.results?.answer_keys?.listening?.[question.id]);
     });
   }
-  if (!(reviewContent.reading?.blocks || []).length) {
-    (reviewContent.reading?.analytical_questions || []).forEach((question: { id: string; question?: string; prompt?: string; title?: string; correct_answer?: string }) => {
+  if (!(readingContent.blocks || []).length) {
+    (readingContent.analytical_questions || []).forEach((question: { id: string; question?: string; prompt?: string; title?: string; correct_answer?: string }) => {
       addReviewReference("reading", question.id, getReviewPrompt(question.prompt, question.title, question.question), question.correct_answer || reviewContent.results?.answer_keys?.reading?.[question.id]);
     });
   }
   (reviewStages.map((stage) => stage.id)).forEach((step) => {
-    (reviewContent[step]?.blocks || []).forEach((block: ContentBlock) => {
+    (getReviewStageContent(reviewContent, step).blocks || []).forEach((block: ContentBlock) => {
       if (block.type === "question") {
         const taskDefinition = block as unknown as { prompt?: string; question?: string };
         const taskNumber = nextReviewTaskNumber(step);
