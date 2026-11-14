@@ -81,18 +81,24 @@ function extractTextContent(value: unknown): string {
   return "";
 }
 
-function extractCompletionContent(completion: unknown): { content: string; detail?: string } {
+function extractCompletionContent(completion: unknown, depth = 0): { content: string; detail?: string } {
+  if (typeof completion === "string") return { content: completion };
+  if (depth > 3) return { content: "" };
   if (!isRecord(completion)) return { content: "" };
   if (typeof completion.output_text === "string" && completion.output_text.trim()) {
     return { content: completion.output_text };
   }
   const responseOutput = extractTextContent(completion.output);
   if (responseOutput.trim()) return { content: responseOutput };
+  const directContent = extractTextContent(completion.content);
+  if (directContent.trim()) return { content: directContent };
 
   const choice = Array.isArray(completion.choices) && isRecord(completion.choices[0])
     ? completion.choices[0]
     : null;
-  const message = choice && isRecord(choice.message) ? choice.message : null;
+  const message = choice && isRecord(choice.message)
+    ? choice.message
+    : isRecord(completion.message) ? completion.message : null;
   const content = message ? extractTextContent(message.content) : "";
   if (content.trim()) return { content };
   if (choice && typeof choice.text === "string" && choice.text.trim()) {
@@ -112,6 +118,11 @@ function extractCompletionContent(completion: unknown): { content: string; detai
     : choice && typeof choice.finish_reason === "string"
       ? `Completion finished with reason "${choice.finish_reason}" and no text content.`
       : undefined;
+  for (const key of ["data", "response", "result", "completion"]) {
+    if (completion[key] === undefined || completion[key] === completion) continue;
+    const nested = extractCompletionContent(completion[key], depth + 1);
+    if (nested.content.trim()) return nested;
+  }
   return { content: "", ...(detail ? { detail } : {}) };
 }
 
@@ -613,6 +624,7 @@ export async function POST(request: Request) {
     }
     const { content, detail } = extractCompletionContent(completion);
     if (!content.trim()) {
+      console.log("Raw AI Response:", JSON.stringify(completion));
       console.error("Paasta Academis returned no grading text:", { completion, detail });
       return NextResponse.json({
         error: process.env.NODE_ENV === "development"
