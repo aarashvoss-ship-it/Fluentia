@@ -1,11 +1,22 @@
 import { NextResponse } from "next/server";
 import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
 import { getServerSessionUser } from "@/lib/server/session";
+import { normalizeSubmissionAnswers } from "@/lib/submission-answers";
 
 export const runtime = "nodejs";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const submissionStatuses = new Set(["draft", "not_started", "in_progress", "submitted", "pending_evaluation", "completed", "reviewed", "evaluated"]);
+
+function normalizeSubmissionRow<T extends { id?: unknown; answers?: unknown }>(submission: T) {
+  return {
+    ...submission,
+    answers: normalizeSubmissionAnswers(
+      submission.answers,
+      `GET /api/submissions${typeof submission.id === "string" ? ` submission ${submission.id}` : ""}`,
+    ),
+  };
+}
 
 function invalidSchema(error: unknown) {
   return error !== null && typeof error === "object" && "code" in error
@@ -75,7 +86,7 @@ export async function GET(request: Request) {
       if (!(await canAccessLesson(user, submission.lesson_id, submission.student_id))) {
         return NextResponse.json({ error: "You do not have access to this submission." }, { status: 403 });
       }
-      return NextResponse.json({ submission });
+      return NextResponse.json({ submission: normalizeSubmissionRow(submission) });
     }
 
     if (lessonId && studentId) {
@@ -89,7 +100,7 @@ export async function GET(request: Request) {
          ORDER BY submitted_at DESC LIMIT 1`,
         [lessonId, studentId],
       );
-      return NextResponse.json({ submission: result.rows[0] || null });
+      return NextResponse.json({ submission: result.rows[0] ? normalizeSubmissionRow(result.rows[0]) : null });
     }
 
     if (lessonId && !(await canAccessLesson(user, lessonId, studentId || undefined))) {
@@ -113,7 +124,7 @@ export async function GET(request: Request) {
        ORDER BY submissions.submitted_at DESC`,
       [lessonId || null, studentId || null, user.role, user.id],
     );
-    return NextResponse.json({ submissions: result.rows });
+    return NextResponse.json({ submissions: result.rows.map(normalizeSubmissionRow) });
   } catch (error) {
     return databaseError(error);
   }

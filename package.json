@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck:supabase": "tsc --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --skipLibCheck scripts/test-supabase.ts",
+    "test:submission-mapper": "node --no-warnings --experimental-strip-types --test tests/submission-answers.test.mjs",
     "test:supabase": "node --no-warnings --experimental-strip-types scripts/test-supabase.ts"
   },
   "dependencies": {

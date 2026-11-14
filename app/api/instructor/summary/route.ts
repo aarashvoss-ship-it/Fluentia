@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
 import { getServerSessionUser } from "@/lib/server/session";
 import { assignUnownedSampleLesson } from "@/lib/server/sample-lesson";
+import { normalizeSubmissionAnswers } from "@/lib/submission-answers";
 
 export const runtime = "nodejs";
 
@@ -40,7 +41,10 @@ export async function GET() {
       ),
     ]);
     return NextResponse.json({
-      submissions: submissionResult.rows,
+      submissions: submissionResult.rows.map((submission) => ({
+        ...submission,
+        answers: normalizeSubmissionAnswers(submission.answers, `GET /api/instructor/summary submission ${submission.id}`),
+      })),
       publishedLessonCount: lessonCountResult.rows[0]?.published_count ?? 0,
       draftLessonCount: lessonCountResult.rows[0]?.draft_count ?? 0,
     });

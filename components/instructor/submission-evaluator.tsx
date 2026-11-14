@@ -72,6 +72,7 @@ interface SubmissionEvaluatorProps {
   evaluation?: LessonEvaluation;
   reportCardStages?: UnifiedReportStage[];
   onUpdateEvaluation?: (evaluation: LessonEvaluation) => void;
+  onSubmissionAnswersLoaded?: (answers: unknown) => void;
   usePostgres?: boolean;
 }
 
@@ -588,6 +589,7 @@ export function SubmissionEvaluator({
   evaluation,
   reportCardStages = [],
   onUpdateEvaluation,
+  onSubmissionAnswersLoaded,
   usePostgres = true,
 }: SubmissionEvaluatorProps) {
   const comments = evaluation?.comments || "";
@@ -817,6 +819,11 @@ export function SubmissionEvaluator({
     if (!UUID_PATTERN.test(normalizedLessonId)
       || !UUID_PATTERN.test(normalizedStudentId)
       || (pendingSubmissionId !== undefined && !UUID_PATTERN.test(pendingSubmissionId))) {
+      console.warn("[instructor-evaluation-mapper] Submission lookup skipped because an identifier was invalid.", {
+        hasLessonId: Boolean(normalizedLessonId),
+        hasStudentId: Boolean(normalizedStudentId),
+        hasSubmissionId: Boolean(pendingSubmissionId),
+      });
       setSubmissionId(null);
       setSubmissionLoadState("missing");
       return;
@@ -831,9 +838,15 @@ export function SubmissionEvaluator({
       );
       const submission = result.submission;
       if (submission) {
+        onSubmissionAnswersLoaded?.(submission.answers);
         setSubmissionId(submission.id);
         setSubmissionLoadState("loaded");
       } else {
+        console.warn("[instructor-evaluation-mapper] Submission lookup returned no matching row.", {
+          lessonId: normalizedLessonId,
+          studentId: normalizedStudentId,
+          submissionId: pendingSubmissionId,
+        });
         setSubmissionId(null);
         setSubmissionLoadState("missing");
       }
@@ -871,7 +884,12 @@ export function SubmissionEvaluator({
       setSubmissionLoadState("missing");
       const message = error instanceof Error ? error.message : "Unable to load this submission.";
       setSubmitError(message);
-      console.error("Student submission could not be refreshed:", error);
+      console.error("Instructor evaluation submission mapping/fetch failed.", {
+        lessonId: normalizedLessonId,
+        studentId: normalizedStudentId,
+        submissionId: pendingSubmissionId,
+        error,
+      });
     }
   };
 

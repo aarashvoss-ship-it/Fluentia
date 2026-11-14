@@ -10,6 +10,7 @@ import {
   StrictStepContent,
 } from "@/types/lesson";
 import { PublishedLessonState, getLessonStateKey } from "@/lib/lesson-store";
+import { normalizeSubmissionAnswers } from "@/lib/submission-answers";
 
 export type LessonStatus = "draft" | "published";
 export type SubmissionStatus = "not_started" | "in_progress" | "submitted" | "pending_evaluation" | "reviewed" | "evaluated";
@@ -211,15 +212,19 @@ function mapLessonRow(row: ApiRecord): LessonContent {
 }
 
 function mapSubmission(row: ApiRecord): StudentSubmission {
-  const content = row.answers || row.content || {};
+  const answersAreEmpty = row.answers !== null && typeof row.answers === "object"
+    && !Array.isArray(row.answers) && Object.keys(row.answers).length === 0;
+  const answerPayload = answersAreEmpty ? row.content || row.answers : row.answers || row.content || {};
+  const content = normalizeSubmissionAnswers(answerPayload, `storage-service submission ${String(row.id || "unknown")}`);
+  const normalizedStatus = normalizeSubmissionStatus(row.status || content.status);
   return {
     ...content,
-    status: normalizeSubmissionStatus(row.status || content.status),
+    status: normalizedStatus === "not_started" ? "in_progress" : normalizedStatus,
     allowResubmission: row.allow_resubmission === true,
     listeningAnswers: content.listeningAnswers || {},
     readingAnswers: content.readingAnswers || {},
     writingText: content.writingText || "",
-    writing_responses: content.writing_responses || content.writingAnswers || {},
+    writing_responses: content.writing_responses || {},
     speakingAudioUrl: row.audio_url || content.speakingAudioUrl,
     blockResponses: content.blockResponses || {},
     quizSelections: content.quizSelections || {},

@@ -9,6 +9,7 @@ import { InstructorBannerManager, type BannerPosition } from "@/components/instr
 import { normalizeBannerDimness } from "@/lib/banner-position";
 import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/submission-evaluator";
 import { updateSubmission } from "@/lib/evaluations";
+import { normalizeSubmissionAnswers } from "@/lib/submission-answers";
 import type { UnifiedReportStage } from "@/components/shared/unified-report-card";
 import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission, StudyStepId, type LessonResource } from "@/types/lesson";
 import { assignLessonToAllActiveStudents, clearStudentLessonResources, createLesson, deleteLesson, getLessons, publishLessonAndAssign, removeLessonResource, removeStudentLessonCustomResource, saveLessonResources, setLessonAssignments, setStudentLessonResourceSelected, unassignLesson, updateLesson, type LessonAssignmentResourceOptions, type LessonTags, type LessonWithVersion } from "@/lib/lessons";
@@ -649,89 +650,35 @@ function isRecordValue(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function normalizeSubmissionResponseMap(value: unknown): Record<string, string> {
-  if (!isRecordValue(value)) return {};
-  return Object.fromEntries(Object.entries(value).flatMap(([key, response]) => {
-    if (typeof response === "string") return [[key, response]];
-    if (!isRecordValue(response)) return [];
-    const text = [
-      response.answer,
-      response.response,
-      response.value,
-      response.student_transcript,
-      response.studentTranscript,
-      response.transcript,
-    ].find((candidate): candidate is string => typeof candidate === "string");
-    return text === undefined ? [] : [[key, text]];
-  }));
-}
-
-function normalizeSubmissionAnswers(value: unknown): Partial<StudentSubmission> {
-  let answers: unknown = value;
-  if (typeof answers === "string") {
-    try {
-      answers = JSON.parse(answers) as unknown;
-    } catch {
-      return {};
-    }
-  }
-  const knownFields = new Set([
-    "listeningAnswers", "listening_answers", "readingAnswers", "reading_answers",
-    "writingText", "writing_text", "writing_responses", "writingResponses",
-    "writingAnswers", "writing_answers", "blockResponses", "block_responses",
-    "quizSelections", "quiz_selections", "audioUploads", "audio_uploads",
-    "speakingAudioUrl", "speaking_audio_url", "student_transcript",
-    "studentTranscript", "transcription", "transcript", "audioTranscripts",
-    "audio_transcripts", "studentTranscripts", "student_transcripts", "transcripts",
-  ]);
-  for (let depth = 0; depth < 3 && isRecordValue(answers); depth += 1) {
-    if (Object.keys(answers).some((key) => knownFields.has(key))) break;
-    const wrapped = [answers.submission, answers.answers, answers.response, answers.data]
-      .find(isRecordValue);
-    if (!wrapped) break;
-    answers = wrapped;
-  }
-  if (!isRecordValue(answers)) return {};
-
-  const pick = (...keys: string[]) => keys.map((key) => answers[key]).find((candidate) => candidate !== undefined);
-  const directResponses = Object.fromEntries(Object.entries(answers)
-    .filter(([key]) => !knownFields.has(key) && !["status", "progress", "submittedAt", "submitted_at"].includes(key)));
-  return {
-    listeningAnswers: normalizeSubmissionResponseMap(pick("listeningAnswers", "listening_answers")),
-    readingAnswers: normalizeSubmissionResponseMap(pick("readingAnswers", "reading_answers")),
-    writingText: typeof pick("writingText", "writing_text") === "string" ? pick("writingText", "writing_text") as string : "",
-    writing_responses: normalizeSubmissionResponseMap(pick("writing_responses", "writingResponses", "writingAnswers", "writing_answers")),
-    speakingAudioUrl: typeof pick("speakingAudioUrl", "speaking_audio_url") === "string" ? pick("speakingAudioUrl", "speaking_audio_url") as string : undefined,
-    student_transcript: typeof pick("student_transcript", "studentTranscript") === "string" ? pick("student_transcript", "studentTranscript") as string : undefined,
-    transcription: typeof answers.transcription === "string" ? answers.transcription : undefined,
-    transcript: typeof answers.transcript === "string" ? answers.transcript : undefined,
-    audioTranscripts: normalizeSubmissionResponseMap(pick("audioTranscripts", "audio_transcripts")),
-    studentTranscripts: normalizeSubmissionResponseMap(pick("studentTranscripts", "student_transcripts")),
-    transcripts: normalizeSubmissionResponseMap(answers.transcripts),
-    blockResponses: {
-      ...normalizeSubmissionResponseMap(directResponses),
-      ...normalizeSubmissionResponseMap(pick("blockResponses", "block_responses")),
-    },
-    quizSelections: normalizeSubmissionResponseMap(pick("quizSelections", "quiz_selections")),
-    audioUploads: normalizeSubmissionResponseMap(pick("audioUploads", "audio_uploads")),
-  };
-}
-
 function getReviewStageContent(content: Record<string, any>, stageId: InstructorReviewStageId): Record<string, any> {
+  const stageAliases: Record<InstructorReviewStageId, string[]> = {
+    warm_up: ["warm_up", "warmup", "introduction", "intro", "stage_1", "step_0"],
+    lesson: ["lesson", "core_lesson", "stage_2", "step_1"],
+    listening: ["listening", "stage_3", "step_2"],
+    reading: ["reading", "stage_4", "step_3"],
+    writing: ["writing", "stage_5", "step_4"],
+    speaking: ["speaking", "stage_6", "step_5"],
+  };
+  const matchesStage = (value: unknown) => {
+    if (typeof value !== "string") return false;
+    const normalized = value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+    return stageAliases[stageId].some((alias) => normalized === alias
+      || normalized.startsWith(alias)
+      || normalized.includes(`_${alias}_`)
+      || normalized.endsWith(`_${alias}`));
+  };
   const containers = [content, content.steps, content.stages];
   for (const container of containers) {
     if (Array.isArray(container)) {
       const stage = container.find((candidate) => isRecordValue(candidate)
-        && [candidate.id, candidate.stage_id, candidate.stageId, candidate.title]
-          .some((value) => typeof value === "string"
-            && value.trim().toLowerCase().replace(/[\s-]+/g, "_") === stageId));
+        && [candidate.id, candidate.stage_id, candidate.stageId, candidate.title, candidate.step_id, candidate.stepId]
+          .some(matchesStage));
       if (isRecordValue(stage)) return stage;
       continue;
     }
     if (!isRecordValue(container)) continue;
-    const direct = container[stageId]
-      || (stageId === "warm_up" ? container.warmup : undefined)
-      || container[`stage_${stageId}`];
+    const direct = Object.entries(container).find(([key, candidate]) => matchesStage(key) && isRecordValue(candidate))?.[1]
+      || stageAliases[stageId].map((alias) => container[alias]).find(isRecordValue);
     if (isRecordValue(direct)) return direct;
   }
   return {};
@@ -3506,7 +3453,7 @@ export default function InstructorWorkstationPage({
         if (!summaryResponse.ok) throw new Error(summary.error || "Unable to load instructor dashboard data.");
         const allAssignments: PendingReviewSubmission[] = [];
         for (const row of summary.submissions || []) {
-          const answers = normalizeSubmissionAnswers(row.answers);
+          const answers = normalizeSubmissionAnswers(row.answers, `instructor summary submission ${row.id}`);
           const submissionStatus = row.status === "completed" ? "pending_evaluation" : row.status;
           allAssignments.push({
             id: row.id,
@@ -4227,17 +4174,27 @@ export default function InstructorWorkstationPage({
   ].find((candidate) => typeof candidate === "string" && candidate.trim());
   if (typeof defaultSpeakingTranscript === "string") reviewTranscripts.speaking = defaultSpeakingTranscript.trim();
   const normalizeReviewStageId = (value: string): InstructorReviewStageId | undefined => {
-    const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+    const normalized = value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+    const stageAliases: Record<InstructorReviewStageId, string[]> = {
+      warm_up: ["warm_up", "warmup", "introduction", "intro", "stage_1", "step_0"],
+      lesson: ["lesson", "core_lesson", "stage_2", "step_1"],
+      listening: ["listening", "stage_3", "step_2"],
+      reading: ["reading", "stage_4", "step_3"],
+      writing: ["writing", "stage_5", "step_4"],
+      speaking: ["speaking", "stage_6", "step_5"],
+    };
     const stage = reviewStages.find((candidate) => (
-      candidate.id === normalized
-      || candidate.title.toLowerCase().replace(/[\s-]+/g, "_") === normalized
-      || (candidate.id === "warm_up" && normalized === "warmup")
+      stageAliases[candidate.id].some((alias) => normalized === alias
+        || normalized.startsWith(alias)
+        || normalized.includes(`_${alias}_`)
+        || normalized.endsWith(`_${alias}`))
+      || candidate.title.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") === normalized
     ));
     return stage?.id;
   };
   const reviewStageFromIndex = (index: number) => reviewStages[index]?.id;
   const resolveReviewStage = (key: string, metadata?: Record<string, unknown>) => {
-    const explicitStageId = metadata?.stage_id ?? metadata?.stageId;
+    const explicitStageId = metadata?.stage_id ?? metadata?.stageId ?? metadata?.stage ?? metadata?.step;
     if (typeof explicitStageId === "string") {
       const stageId = normalizeReviewStageId(explicitStageId);
       if (stageId) return stageId;
@@ -4250,14 +4207,14 @@ export default function InstructorWorkstationPage({
       const stage = reviewStageFromIndex(explicitStageId === 0 ? 0 : explicitStageId - 1);
       if (stage) return stage;
     }
-    const stepIndex = metadata?.step_index ?? metadata?.stepIndex ?? metadata?.stageIndex;
+    const stepIndex = metadata?.step_index ?? metadata?.stepIndex ?? metadata?.stageIndex ?? metadata?.stage_index;
     if (typeof stepIndex === "number" && Number.isInteger(stepIndex)) {
       const stage = reviewStageFromIndex(stepIndex);
       if (stage) return stage;
     }
     const exactStage = reviewStageForKey[key];
     if (exactStage) return exactStage;
-    for (const part of key.split(/[:|/]/)) {
+    for (const part of key.split(/[:|/.]/)) {
       const stageId = normalizeReviewStageId(part);
       if (stageId) return stageId;
       const stepMatch = part.match(/^(step|stage)_?(\d+)$/i);
@@ -4438,22 +4395,34 @@ export default function InstructorWorkstationPage({
       const answer = typeof response === "string"
         ? response
         : response && typeof response === "object" && !Array.isArray(response)
-          ? ["answer", "response", "value"].map((field) => (response as Record<string, unknown>)[field]).find((value): value is string => typeof value === "string") || transcript
-          : transcript;
-      if (!answer?.trim()) return;
+          ? ["answer", "response", "value", "text", "studentAnswer", "student_answer", "selectedOption", "selected_option", "transcript", "studentTranscript", "student_transcript"]
+            .map((field) => (response as Record<string, unknown>)[field])
+            .find((value): value is string | number | boolean => typeof value === "string" || typeof value === "number" || typeof value === "boolean")
+            ?.toString() || transcript
+          : typeof response === "number" || typeof response === "boolean"
+            ? String(response)
+            : Array.isArray(response) ? response.map(String).join("\n") : transcript;
+      if (answer === undefined || !answer.trim()) return;
       const metadata = response && typeof response === "object" && !Array.isArray(response)
         ? response as Record<string, unknown>
         : undefined;
-      const stage = resolveReviewStage(key, metadata) || fallbackStage;
-      if (!stage) return;
+      const resolvedStage = resolveReviewStage(key, metadata);
+      const stage = resolvedStage || fallbackStage || "lesson";
+      if (!resolvedStage) {
+        console.warn("[instructor-evaluation-mapper] Preserving a response with an unknown stage under a fallback stage.", {
+          submissionId: reviewSubmissionId,
+          responseKey: key,
+          fallbackStage: stage,
+        });
+      }
       addReviewAnswer(stage, key, answer, undefined, undefined, transcript);
     });
   };
   appendAnswers(submittedAnswers?.listeningAnswers, "listening");
   appendAnswers(submittedAnswers?.readingAnswers, "reading");
   appendAnswers(submittedAnswers?.writing_responses, "writing");
-  appendAnswers(submittedAnswers?.blockResponses);
-  appendAnswers(submittedAnswers?.quizSelections);
+  appendAnswers(submittedAnswers?.blockResponses, "lesson");
+  appendAnswers(submittedAnswers?.quizSelections, "lesson");
   Object.entries((submittedAnswers?.audioUploads || {}) as Record<string, unknown>).forEach(([key, upload]) => {
     const uploadRecord = upload && typeof upload === "object" && !Array.isArray(upload)
       ? upload as Record<string, unknown>
@@ -4463,9 +4432,16 @@ export default function InstructorWorkstationPage({
       : [uploadRecord?.url, uploadRecord?.audio_url, uploadRecord?.audioUrl].find((candidate): candidate is string => typeof candidate === "string");
     const transcript = getReviewTranscript(upload) || reviewTranscripts[key];
     if (!url?.trim() && !transcript) return;
-    const speakingBlock = reviewContent.speaking?.blocks?.some((block: ContentBlock) => block.id === key && block.type === "audio" && block.allowStudentVoiceResponse);
-    const stage = reviewStageForKey[key] || (key === "speaking" || speakingBlock ? "speaking" : undefined);
-    if (!stage) return;
+    const speakingBlock = speakingContent.blocks?.some((block: ContentBlock) => block.id === key && block.type === "audio" && block.allowStudentVoiceResponse);
+    const stage = resolveReviewStage(key, uploadRecord)
+      || reviewStageForKey[key]
+      || (key === "speaking" || speakingBlock ? "speaking" : "lesson");
+    if (stage === "lesson" && key !== "speaking" && !speakingBlock) {
+      console.warn("[instructor-evaluation-mapper] Preserving an audio response with an unknown stage under Lesson.", {
+        submissionId: reviewSubmissionId,
+        responseKey: key,
+      });
+    }
     addReviewAnswer(stage, key, url ? "Audio response submitted" : transcript, url, undefined, transcript);
   });
   if (submittedAnswers?.speakingAudioUrl?.trim() && !reviewStages.some((stage) => stage.tasks.some((task) => task.audioUrls?.includes(submittedAnswers.speakingAudioUrl!)))) {
@@ -6939,6 +6915,23 @@ export default function InstructorWorkstationPage({
                   usePostgres
                   evaluation={workstationState.evaluation}
                   onUpdateEvaluation={(evaluation: LessonEvaluation) => setWorkstationState((previous) => ({ ...previous, evaluation }))}
+                  onSubmissionAnswersLoaded={(rawAnswers) => {
+                    if (rawAnswers === null || rawAnswers === undefined) return;
+                    const answers = normalizeSubmissionAnswers(
+                      rawAnswers,
+                      `fresh instructor evaluation submission ${selectedReviewSubmission.id}`,
+                    );
+                    setWorkstationState((previous) => ({
+                      ...previous,
+                      submission: {
+                        ...selectedReviewSubmission.submission,
+                        ...previous.submission,
+                        ...answers,
+                        status: selectedReviewSubmission.submission.status,
+                        allowResubmission: selectedReviewSubmission.submission.allowResubmission,
+                      },
+                    }));
+                  }}
                   onSaveDraft={async (feedback: FeedbackPayload) => {
                     const evaluation = {
                       ...workstationState.evaluation,
