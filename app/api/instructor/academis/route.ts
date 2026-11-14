@@ -69,15 +69,23 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function extractTextContent(value: unknown): string {
+function extractTextContent(value: unknown, depth = 0): string {
+  if (depth > 8) return "";
   if (typeof value === "string") return value;
   if (Array.isArray(value)) {
-    return value.map(extractTextContent).filter(Boolean).join("\n");
+    return value.map((part) => extractTextContent(part, depth + 1)).filter(Boolean).join("\n");
   }
   if (!isRecord(value)) return "";
-  if (typeof value.text === "string") return value.text;
-  if (typeof value.output_text === "string") return value.output_text;
-  if (value.content !== undefined) return extractTextContent(value.content);
+  for (const key of ["content", "text", "output_text", "value"]) {
+    if (value[key] === undefined) continue;
+    const text = extractTextContent(value[key], depth + 1);
+    if (text.trim()) return text;
+  }
+  for (const key of ["choices", "message", "delta", "output", "data", "response", "result", "completion", "body", "parsed"]) {
+    if (value[key] === undefined) continue;
+    const text = extractTextContent(value[key], depth + 1);
+    if (text.trim()) return text;
+  }
   return "";
 }
 
@@ -118,6 +126,8 @@ function extractCompletionContent(completion: unknown, depth = 0): { content: st
     : choice && typeof choice.finish_reason === "string"
       ? `Completion finished with reason "${choice.finish_reason}" and no text content.`
       : undefined;
+  const nestedContent = extractTextContent(completion);
+  if (nestedContent.trim()) return { content: nestedContent };
   for (const key of ["data", "response", "result", "completion"]) {
     if (completion[key] === undefined || completion[key] === completion) continue;
     const nested = extractCompletionContent(completion[key], depth + 1);
