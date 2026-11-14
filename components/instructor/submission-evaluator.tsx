@@ -614,8 +614,10 @@ export function SubmissionEvaluator({
   const inlineCorrections = evaluation?.inlineCorrections || {};
   const stageVoiceFeedback = evaluation?.stageVoiceFeedback || {};
   const stages = reportCardStages.length ? reportCardStages : DEFAULT_REPORT_STAGES;
-  const [activeStageId, setActiveStageId] = useState(stages[0]?.id || "report-card");
-  const [activeTaskId, setActiveTaskId] = useState(stages[0]?.tasks[0]?.id || "");
+  const initialStage = stages.find((stage) => stage.tasks.length > 0) || stages[0];
+  const [activeStageId, setActiveStageId] = useState(initialStage?.id || "report-card");
+  const [activeTaskId, setActiveTaskId] = useState(initialStage?.tasks[0]?.id || "");
+  const hasManuallySelectedStageRef = useRef(false);
   const [expandedTaskFeedback, setExpandedTaskFeedback] = useState<Record<string, boolean>>({});
   const [isEvaluationSidebarCollapsed, setIsEvaluationSidebarCollapsed] = useState(false);
   const [isAcademisSidebarCollapsed, setIsAcademisSidebarCollapsed] = useState(false);
@@ -1036,6 +1038,17 @@ export function SubmissionEvaluator({
     if (!preset) return;
     activateAcademisPreset(preset);
   };
+  useEffect(() => {
+    if (hasManuallySelectedStageRef.current || activeStageId === reportStageId) return;
+    const currentStage = stages.find((stage) => stage.id === activeStageId);
+    if (currentStage?.tasks.length) return;
+    const firstTaskStage = stages.find((stage) => stage.tasks.length > 0);
+    const firstTask = firstTaskStage?.tasks[0];
+    if (!firstTaskStage || !firstTask) return;
+    setActiveStageId(firstTaskStage.id);
+    setActiveTaskId(firstTask.id);
+    applyAcademisTaskPrompt(firstTaskStage.id, firstTask.id);
+  }, [stages, activeStageId, academisPresets]);
   const evaluationStatus = (stageId: string) => {
     if (evaluation?.published) return "Evaluated";
     const stage = stages.find((item) => item.id === stageId);
@@ -1154,6 +1167,7 @@ export function SubmissionEvaluator({
   };
 
   const changeActiveStage = (stageId: string) => {
+    hasManuallySelectedStageRef.current = true;
     const selectedStage = stages.find((stage) => stage.id === stageId);
     const firstTaskId = selectedStage?.tasks[0]?.id || "";
     setActiveStageId(stageId);
