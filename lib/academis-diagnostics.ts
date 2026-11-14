@@ -96,21 +96,41 @@ export function formatAcademisDiagnosticTable(
 export function parseAcademisDiagnosticTable(
   value: unknown,
 ): ParsedAcademisDiagnosticTable | null {
-  if (typeof value !== "string") return null;
-  const parsedTable = parseMarkdownReportTable(value.trim());
-  if (!parsedTable || parsedTable.headers.length !== 4
-    || !parsedTable.headers.every((cell, index) => cell === ACADEMIS_DIAGNOSTIC_HEADERS[index])
-    || parsedTable.rows.length === 0 || parsedTable.rows.length > MAX_DIAGNOSTIC_ROWS
-    || parsedTable.rows.some((row) => row.length !== 4)) return null;
+  let headers: string[];
+  let sourceRows: unknown[];
+  if (typeof value === "string") {
+    const parsedTable = parseMarkdownReportTable(value.trim());
+    if (!parsedTable) return null;
+    headers = parsedTable.headers;
+    sourceRows = parsedTable.rows;
+  } else if (value !== null && typeof value === "object" && !Array.isArray(value)
+    && "headers" in value && "rows" in value
+    && Array.isArray(value.headers) && Array.isArray(value.rows)) {
+    headers = value.headers.map((header) => typeof header === "string" ? header : "");
+    sourceRows = value.rows;
+  } else {
+    return null;
+  }
+  if (headers.length < 3 || sourceRows.length === 0
+    || !headers.slice(0, 3).every((header) => header.trim())) return null;
+
+  const normalizedRows = sourceRows.slice(0, MAX_DIAGNOSTIC_ROWS).flatMap((row) => {
+    if (!Array.isArray(row)) return [];
+    const cells = row.map((cell) => typeof cell === "string"
+      ? cell
+      : typeof cell === "number" || typeof cell === "boolean" ? String(cell) : "");
+    if (cells.length > 4) cells.splice(3, cells.length - 3, cells.slice(3).join(" | "));
+    while (cells.length < 4) cells.push("");
+    return [cells];
+  });
+  if (!normalizedRows.length) return null;
 
   const rows: AcademisDiagnosticRow[] = [];
   const scores: Array<[string, number | null]> = [];
   const usedIndexes = new Set<string>();
   const usedCriteria = new Set<string>();
-  for (const [index, cells] of parsedTable.rows.entries()) {
-    if (cells[1].length > 200
-      || !cells[2].trim() || cells[2].length > 300
-      || !cells[3].trim() || cells[3].length > 800) return null;
+  for (const [index, cells] of normalizedRows.entries()) {
+    if (cells[1].length > 300 || cells[2].length > 1200 || cells[3].length > 2400) return null;
     const marker = cells[1].match(STATUS_MARKER_PATTERN)?.[1];
     const reportedScore = extractAcademisBandScore(cells[1]);
     let rowIndex = cells[0].trim() || String(index + 1);

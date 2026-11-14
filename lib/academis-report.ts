@@ -73,13 +73,6 @@ export function parseMarkdownReportTable(value: string): AcademisMarkdownReportT
   return null;
 }
 
-function collectStrings(value: unknown): string[] {
-  if (typeof value === "string") return [value];
-  if (Array.isArray(value)) return value.flatMap(collectStrings);
-  if (isRecord(value)) return Object.values(value).flatMap(collectStrings);
-  return [];
-}
-
 function formatMarkdownTable(headers: string[], rows: string[][]) {
   const normalizedRows = rows.map((row) =>
     Array.from({ length: headers.length }, (_, index) => row[index] || ""));
@@ -92,8 +85,13 @@ function formatMarkdownTable(headers: string[], rows: string[][]) {
 }
 
 function normalizeTableRows(headers: string[], rows: string[][]) {
-  return rows.map((row) =>
-    Array.from({ length: headers.length }, (_, index) => row[index] || ""));
+  return rows.map((row) => {
+    const cells = [...row];
+    if (cells.length > headers.length) {
+      cells.splice(headers.length - 1, cells.length - headers.length + 1, cells.slice(headers.length - 1).join(" | "));
+    }
+    return Array.from({ length: headers.length }, (_, index) => cells[index] || "");
+  });
 }
 
 function findStudentFacingText(value: unknown): string | null {
@@ -122,7 +120,34 @@ function findStudentFacingText(value: unknown): string | null {
 }
 
 function findReportTable(content: string, parsedOutput: unknown) {
-  for (const candidate of [content, ...collectStrings(parsedOutput)]) {
+  const candidates: unknown[] = [content];
+  const pending: unknown[] = [parsedOutput];
+  while (pending.length) {
+    const candidate = pending.pop();
+    if (typeof candidate === "string") {
+      candidates.push(candidate);
+    } else if (Array.isArray(candidate)) {
+      pending.push(...candidate);
+    } else if (isRecord(candidate)) {
+      if (Array.isArray(candidate.headers) && Array.isArray(candidate.rows)) {
+        const headers = candidate.headers.map((header) => typeof header === "string" ? header : "");
+        const rows = candidate.rows
+          .filter(Array.isArray)
+          .map((row) => row.map((cell: unknown) => typeof cell === "string" ? cell : String(cell ?? "")));
+        if (headers.length && rows.length) {
+          const normalizedRows = normalizeTableRows(headers, rows);
+          return {
+            headers,
+            rows: normalizedRows,
+            markdown: formatMarkdownTable(headers, normalizedRows),
+          };
+        }
+      }
+      pending.push(...Object.values(candidate));
+    }
+  }
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string") continue;
     const table = parseMarkdownReportTable(candidate);
     if (table) return table;
   }

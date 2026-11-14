@@ -69,6 +69,52 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+function extractTextContent(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    return value.map(extractTextContent).filter(Boolean).join("\n");
+  }
+  if (!isRecord(value)) return "";
+  if (typeof value.text === "string") return value.text;
+  if (typeof value.output_text === "string") return value.output_text;
+  if (value.content !== undefined) return extractTextContent(value.content);
+  return "";
+}
+
+function extractCompletionContent(completion: unknown): { content: string; detail?: string } {
+  if (!isRecord(completion)) return { content: "" };
+  if (typeof completion.output_text === "string" && completion.output_text.trim()) {
+    return { content: completion.output_text };
+  }
+  const responseOutput = extractTextContent(completion.output);
+  if (responseOutput.trim()) return { content: responseOutput };
+
+  const choice = Array.isArray(completion.choices) && isRecord(completion.choices[0])
+    ? completion.choices[0]
+    : null;
+  const message = choice && isRecord(choice.message) ? choice.message : null;
+  const content = message ? extractTextContent(message.content) : "";
+  if (content.trim()) return { content };
+  if (choice && typeof choice.text === "string" && choice.text.trim()) {
+    return { content: choice.text };
+  }
+
+  if (message && message.parsed !== undefined) {
+    try {
+      return { content: JSON.stringify(message.parsed) };
+    } catch {
+      return { content: "" };
+    }
+  }
+
+  const detail = message && typeof message.refusal === "string"
+    ? message.refusal
+    : choice && typeof choice.finish_reason === "string"
+      ? `Completion finished with reason "${choice.finish_reason}" and no text content.`
+      : undefined;
+  return { content: "", ...(detail ? { detail } : {}) };
+}
+
 function boundedString(value: unknown, maximum: number): value is string {
   return typeof value === "string" && value.trim().length > 0 && value.length <= maximum;
 }
@@ -98,29 +144,48 @@ function parseInsight(content: string): AcademisInsight | null {
   try {
     value = JSON.parse(json);
   } catch {
-    return null;
+    const firstBrace = json.indexOf("{");
+    const lastBrace = json.lastIndexOf("}");
+    if (firstBrace < 0 || lastBrace <= firstBrace) return null;
+    try {
+      value = JSON.parse(json.slice(firstBrace, lastBrace + 1));
+    } catch {
+      return null;
+    }
   }
   if (!isRecord(value)) return null;
-  const expectedKeys = ["diagnostic_table", "instructor_diagnostic"];
-  if (Object.keys(value).length !== expectedKeys.length
-    || !expectedKeys.every((key) => key in value)) return null;
-  const diagnosticValue = value.instructor_diagnostic;
-  if (!isRecord(diagnosticValue)
-    || !Array.isArray(diagnosticValue.key_error_patterns)
-    || !Array.isArray(diagnosticValue.targeted_resources)
-    || !boundedString(diagnosticValue.stage_summary_diagnostic, 1200)
-    || !boundedString(diagnosticValue.teaching_notes, 1200)) {
-    return null;
-  }
+  const diagnosticValue = isRecord(value.instructor_diagnostic) ? value.instructor_diagnostic : {};
   const parsedTable = parseAcademisDiagnosticTable(value.diagnostic_table);
   if (!parsedTable) return null;
   const { criteriaScores, diagnosticTable } = parsedTable;
-  const keyErrorPatterns = diagnosticValue.key_error_patterns.slice(0, 8);
-  if (!keyErrorPatterns.every(isAcademisErrorPattern)) {
-    return null;
-  }
-  const targetedResources = diagnosticValue.targeted_resources.slice(0, 8);
-  if (!targetedResources.every(isAcademisResource)) return null;
+  const rawErrorPatterns = Array.isArray(diagnosticValue.key_error_patterns)
+    ? diagnosticValue.key_error_patterns
+    : Array.isArray(diagnosticValue.keyErrorPatterns) ? diagnosticValue.keyErrorPatterns : [];
+  const keyErrorPatterns = rawErrorPatterns.slice(0, 8).flatMap((pattern) => {
+    if (!isRecord(pattern)) return [];
+    const normalized = {
+      pattern: pattern.pattern,
+      example: pattern.example,
+      lesson_adjustment: pattern.lesson_adjustment ?? pattern.lessonAdjustment,
+    };
+    return isAcademisErrorPattern(normalized) ? [normalized] : [];
+  });
+  const rawResources = Array.isArray(diagnosticValue.targeted_resources)
+    ? diagnosticValue.targeted_resources
+    : Array.isArray(diagnosticValue.targetedResources) ? diagnosticValue.targetedResources : [];
+  const targetedResources = rawResources.slice(0, 8).flatMap((resource) => {
+    if (!isRecord(resource)) return [];
+    const normalized = {
+      topic: resource.topic,
+      title: resource.title,
+      reason: resource.reason,
+    };
+    return isAcademisResource(normalized) ? [normalized] : [];
+  });
+  const summary = diagnosticValue.stage_summary_diagnostic
+    ?? diagnosticValue.stageSummaryDiagnostic;
+  const teachingNotes = diagnosticValue.teaching_notes ?? diagnosticValue.teachingNotes;
+  const stageSummary = typeof summary === "string" ? summary.trim().slice(0, 1200) : "";
   return {
     criteria_scores: criteriaScores,
     overall_band_score: calculateAcademisScoreMean(criteriaScores),
@@ -134,13 +199,13 @@ function parseInsight(content: string): AcademisInsight | null {
         example: pattern.example.trim(),
         lesson_adjustment: pattern.lesson_adjustment.trim(),
       })),
-      stage_summary_diagnostic: limitSentences(diagnosticValue.stage_summary_diagnostic.trim(), 4),
+      stage_summary_diagnostic: limitSentences(stageSummary, 4),
       targeted_resources: targetedResources.map((resource) => ({
         topic: resource.topic.trim(),
         title: resource.title.trim(),
         reason: resource.reason.trim(),
       })),
-      teaching_notes: diagnosticValue.teaching_notes.trim(),
+      teaching_notes: typeof teachingNotes === "string" ? teachingNotes.trim().slice(0, 1200) : "",
     },
   };
 }
@@ -546,18 +611,12 @@ export async function POST(request: Request) {
           : "Academis returned an invalid grading response. Try again.",
       }, { status: 502 });
     }
-    const content = isRecord(completion)
-      && Array.isArray(completion.choices)
-      && isRecord(completion.choices[0])
-      && isRecord(completion.choices[0].message)
-      && typeof completion.choices[0].message.content === "string"
-      ? completion.choices[0].message.content
-      : "";
+    const { content, detail } = extractCompletionContent(completion);
     if (!content.trim()) {
-      console.error("Paasta Academis returned an empty grading response:", completion);
+      console.error("Paasta Academis returned no grading text:", { completion, detail });
       return NextResponse.json({
         error: process.env.NODE_ENV === "development"
-          ? "Paasta Academis returned an empty grading response."
+          ? detail || "Paasta Academis returned no grading text in its completion response."
           : "Academis returned an empty grading response. Try again.",
       }, { status: 502 });
     }

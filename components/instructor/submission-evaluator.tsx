@@ -313,8 +313,7 @@ function isAcademisDiagnosticTable(value: unknown): value is AcademisDiagnosticT
       && typeof row.student_feedback === "string"
       && typeof row.instructor_diagnostic === "string")) return false;
   const rows = value.rows as AcademisDiagnosticRow[];
-  return new Set(rows.map((row) => row.index)).size === rows.length
-    && value.markdown === formatAcademisDiagnosticTable(rows, true);
+  return new Set(rows.map((row) => row.index)).size === rows.length;
 }
 
 function isAcademisStoredReport(value: unknown): value is AcademisStoredReport {
@@ -326,14 +325,30 @@ function isAcademisStoredReport(value: unknown): value is AcademisStoredReport {
 }
 
 function normalizeAcademisReportTable(value: unknown): Pick<AcademisReportTableContent, "headers" | "rows"> | null {
-  if (!isRecord(value) || !Array.isArray(value.headers) || !Array.isArray(value.rows)) return null;
-  const headers = value.headers
-    .filter((header): header is string => typeof header === "string")
-    .map(replaceAcademisBreakTags);
+  if (typeof value === "string") {
+    const parsed = parseMarkdownReportTable(value);
+    return parsed ? { headers: parsed.headers, rows: parsed.rows } : null;
+  }
+  if (!isRecord(value)) return null;
+  if ((!Array.isArray(value.headers) || !Array.isArray(value.rows)) && typeof value.markdown === "string") {
+    const parsed = parseMarkdownReportTable(value.markdown);
+    return parsed ? { headers: parsed.headers, rows: parsed.rows } : null;
+  }
+  if (!Array.isArray(value.headers) || !Array.isArray(value.rows)) return null;
+  const toCell = (cell: unknown) => typeof cell === "string"
+    ? replaceAcademisBreakTags(cell)
+    : typeof cell === "number" || typeof cell === "boolean" ? String(cell) : "";
+  const headers = value.headers.map(toCell);
   if (!headers.length) return null;
   const rows = value.rows
-    .filter((row): row is string[] => Array.isArray(row) && row.every((cell) => typeof cell === "string"))
-    .map((row) => Array.from({ length: headers.length }, (_, index) => replaceAcademisBreakTags(row[index] || "")));
+    .filter(Array.isArray)
+    .map((row) => {
+      const cells = row.map(toCell);
+      if (cells.length > headers.length) {
+        cells.splice(headers.length - 1, cells.length - headers.length + 1, cells.slice(headers.length - 1).join(" | "));
+      }
+      return Array.from({ length: headers.length }, (_, index) => cells[index] || "");
+    });
   return { headers, rows };
 }
 
@@ -377,6 +392,13 @@ function getAcademisStoredReportTable(report: AcademisStoredReport | undefined, 
 function getAcademisInstructorOnlyTable(report: AcademisStoredReport | undefined, insight: AcademisInsight) {
   const storedTable = normalizeAcademisReportTable(report?.report_data?.instructor_only_table);
   if (storedTable) return storedTable;
+  const fullTable = normalizeAcademisReportTable(report?.report_data?.markdown_table);
+  if (fullTable && fullTable.headers.length > 3) {
+    return {
+      headers: [fullTable.headers[0], ...fullTable.headers.slice(3)],
+      rows: fullTable.rows.map((row) => [row[0] || "", ...row.slice(3)]),
+    };
+  }
   if (!insight.diagnostic_table) return null;
   return {
     headers: [ACADEMIS_DIAGNOSTIC_HEADERS[0], ACADEMIS_DIAGNOSTIC_HEADERS[3]],
