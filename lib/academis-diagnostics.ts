@@ -1,11 +1,7 @@
 import { parseMarkdownReportTable, replaceAcademisBreakTags } from "@/lib/academis-report";
+import { STANDARD_EVALUATION_HEADERS } from "@/lib/ai/types";
 
-export const ACADEMIS_DIAGNOSTIC_HEADERS = [
-  "Row / Index",
-  "Status & Evaluation Axis (+ / - indicators)",
-  "Actionable Feedback for the Student",
-  "Deep Diagnostic Analysis for Instructors and the Lesson Builder (hidden from the student view)",
-] as const;
+export const ACADEMIS_DIAGNOSTIC_HEADERS = STANDARD_EVALUATION_HEADERS;
 
 export interface AcademisDiagnosticRow {
   index: string;

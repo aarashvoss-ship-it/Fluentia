@@ -1,3 +1,8 @@
+import {
+  type StandardEvaluationReport,
+  STANDARD_EVALUATION_HEADERS,
+} from "@/lib/ai/types";
+
 export interface AcademisMarkdownReportTable {
   headers: string[];
   rows: string[][];
@@ -84,16 +89,6 @@ function formatMarkdownTable(headers: string[], rows: string[][]) {
   ].join("\n");
 }
 
-function normalizeTableRows(headers: string[], rows: string[][]) {
-  return rows.map((row) => {
-    const cells = [...row];
-    if (cells.length > headers.length) {
-      cells.splice(headers.length - 1, cells.length - headers.length + 1, cells.slice(headers.length - 1).join(" | "));
-    }
-    return Array.from({ length: headers.length }, (_, index) => cells[index] || "");
-  });
-}
-
 function findStudentFacingText(value: unknown): string | null {
   if (typeof value === "string") return value;
   if (Array.isArray(value)) {
@@ -119,111 +114,45 @@ function findStudentFacingText(value: unknown): string | null {
   return null;
 }
 
-function findReportTable(content: string, parsedOutput: unknown) {
-  const candidates: unknown[] = [content];
-  const pending: unknown[] = [parsedOutput];
-  while (pending.length) {
-    const candidate = pending.pop();
-    if (typeof candidate === "string") {
-      candidates.push(candidate);
-    } else if (Array.isArray(candidate)) {
-      pending.push(...candidate);
-    } else if (isRecord(candidate)) {
-      if (Array.isArray(candidate.headers) && Array.isArray(candidate.rows)) {
-        const headers = candidate.headers.map((header) => typeof header === "string" ? header : "");
-        const rows = candidate.rows
-          .filter(Array.isArray)
-          .map((row) => row.map((cell: unknown) => typeof cell === "string" ? cell : String(cell ?? "")));
-        if (headers.length && rows.length) {
-          const normalizedRows = normalizeTableRows(headers, rows);
-          return {
-            headers,
-            rows: normalizedRows,
-            markdown: formatMarkdownTable(headers, normalizedRows),
-          };
-        }
-      }
-      pending.push(...Object.values(candidate));
-    }
-  }
-  for (const candidate of candidates) {
-    if (typeof candidate !== "string") continue;
-    const table = parseMarkdownReportTable(candidate);
-    if (table) return table;
-  }
-  return null;
-}
-
-export function prepareAcademisReport(content: string): PreparedAcademisReport {
-  const trimmedContent = content.trim();
-  const unfencedContent = trimmedContent
-    .replace(/^```(?:json|markdown|md)?\s*/i, "")
-    .replace(/\s*```$/, "");
+export function prepareAcademisReport(
+  content: string,
+  standardReport: StandardEvaluationReport,
+): PreparedAcademisReport {
   let parsedOutput: unknown = content;
-  let isJson = false;
   try {
-    parsedOutput = JSON.parse(unfencedContent);
-    isJson = true;
+    parsedOutput = JSON.parse(content);
   } catch {
-    parsedOutput = content;
+    parsedOutput = { text: content };
   }
 
-  const table = findReportTable(content, parsedOutput);
-  const tableRows = table ? normalizeTableRows(table.headers, table.rows) : [];
-  const studentColumnCount = table ? Math.min(table.headers.length, 3) : 0;
-  const studentHeaders = table?.headers.slice(0, studentColumnCount) || [];
-  const studentRows = tableRows.map((row) => row.slice(0, studentColumnCount));
-  const instructorHeaders = table ? [table.headers[0], ...table.headers.slice(3)] : [];
-  const instructorRows = tableRows.map((row) => [row[0] || "", ...row.slice(3)]);
+  const headers = [...STANDARD_EVALUATION_HEADERS];
+  const tableRows = standardReport.rows.map((row) => [
+    row.index,
+    row.axis_score,
+    row.actionable_feedback,
+    row.strengths_weaknesses_diagnostics,
+  ]);
+  const studentHeaders = headers.slice(0, 3);
+  const studentRows = tableRows.map((row) => row.slice(0, 3));
+  const instructorHeaders = [headers[0], headers[3]];
+  const instructorRows = tableRows.map((row) => [row[0], row[3]]);
   const reportData: Record<string, unknown> = {
-    format: table ? "markdown_table" : isJson ? "json" : "text",
+    format: "markdown_table",
     raw_output: content,
-    parsed_output: isJson
-      ? parsedOutput
-      : table
-        ? { headers: table.headers, rows: tableRows }
-        : { text: content },
-    ...(table ? {
-      markdown_table: { headers: table.headers, rows: tableRows },
-      student_facing_table: { headers: studentHeaders, rows: studentRows },
-      ...(instructorHeaders.length
-        ? { instructor_only_table: { headers: instructorHeaders, rows: instructorRows } }
-        : {}),
-    } : {}),
+    parsed_output: parsedOutput,
+    standard_evaluation_report: standardReport,
+    markdown_table: { headers, rows: tableRows },
+    student_facing_table: { headers: studentHeaders, rows: studentRows },
+    instructor_only_table: { headers: instructorHeaders, rows: instructorRows },
   };
-
-  if (table) {
-    return {
-      reportData,
-      publishedContent: {
-        format: "markdown_table",
-        headers: studentHeaders,
-        rows: studentRows,
-        markdown: formatMarkdownTable(studentHeaders, studentRows),
-      },
-    };
-  }
-
-  if (!isJson) {
-    return {
-      reportData,
-      publishedContent: { format: "text", content: replaceAcademisBreakTags(content) },
-    };
-  }
-
-  const studentText = findStudentFacingText(parsedOutput);
-  if (studentText !== null) {
-    return {
-      reportData,
-      publishedContent: { format: "text", content: replaceAcademisBreakTags(studentText) },
-    };
-  }
 
   return {
     reportData,
     publishedContent: {
-      format: "structured",
-      content: null,
+      format: "markdown_table",
+      headers: studentHeaders,
+      rows: studentRows,
+      markdown: formatMarkdownTable(studentHeaders, studentRows),
     },
   };
 }

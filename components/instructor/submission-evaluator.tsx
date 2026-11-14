@@ -330,6 +330,25 @@ function normalizeAcademisReportTable(value: unknown): Pick<AcademisReportTableC
     return parsed ? { headers: parsed.headers, rows: parsed.rows } : null;
   }
   if (!isRecord(value)) return null;
+  if (value.format === "standard_evaluation_report_v1" && Array.isArray(value.rows)) {
+    const rows: string[][] = [];
+    for (const row of value.rows) {
+      if (!isRecord(row)) return null;
+      const cells = [
+        row.index,
+        row.axis_score,
+        row.actionable_feedback,
+        row.strengths_weaknesses_diagnostics,
+      ];
+      if (!cells.every((cell): cell is string => typeof cell === "string")) return null;
+      rows.push(cells.map(replaceAcademisBreakTags));
+    }
+    if (!rows.length) return null;
+    return {
+      headers: [...ACADEMIS_DIAGNOSTIC_HEADERS],
+      rows,
+    };
+  }
   if ((!Array.isArray(value.headers) || !Array.isArray(value.rows)) && typeof value.markdown === "string") {
     const parsed = parseMarkdownReportTable(value.markdown);
     return parsed ? { headers: parsed.headers, rows: parsed.rows } : null;
@@ -375,7 +394,8 @@ function getAcademisPublishedEditorDraft(value: unknown): AcademisPublishedConte
 }
 
 function getAcademisStoredReportTable(report: AcademisStoredReport | undefined, insight: AcademisInsight) {
-  const storedTable = normalizeAcademisReportTable(report?.report_data?.markdown_table);
+  const storedTable = normalizeAcademisReportTable(report?.report_data?.standard_evaluation_report)
+    || normalizeAcademisReportTable(report?.report_data?.markdown_table);
   if (storedTable) return storedTable;
   if (!insight.diagnostic_table) return null;
   return {
@@ -1288,6 +1308,7 @@ export function SubmissionEvaluator({
       });
       let payload: {
         error?: string;
+        fallback?: boolean;
         insight?: unknown;
         insightSaved?: boolean;
         reportSaved?: boolean;
@@ -1296,6 +1317,7 @@ export function SubmissionEvaluator({
       try {
         payload = await response.json() as {
           error?: string;
+          fallback?: boolean;
           insight?: unknown;
           insightSaved?: boolean;
           reportSaved?: boolean;
@@ -1315,7 +1337,11 @@ export function SubmissionEvaluator({
         ...(isAcademisStoredReport(payload.report) ? { report: payload.report } : {}),
       };
       setAcademisInsight(completedResult);
-      setAcademisResultsByTask((results) => ({ ...results, [cacheKey]: completedResult }));
+      if (payload.fallback) {
+        setAcademisError(payload.error || "Academis could not produce a valid evaluation. Please retry.");
+      } else {
+        setAcademisResultsByTask((results) => ({ ...results, [cacheKey]: completedResult }));
+      }
       setAcademisStudentSummary(payload.insight.student_summary);
       setAcademisPublishedContentDraft(completedResult.report
         ? getAcademisPublishedEditorDraft(completedResult.report.published_content)
