@@ -12,6 +12,7 @@ import { type UnifiedReportStage } from "@/components/shared/unified-report-card
 import { combineTaskFeedback } from "@/lib/evaluation-feedback";
 import { areAcademisPromptTitlesUnique } from "@/lib/academis-prompts";
 import {
+  formatAcademisAxisScore,
   parseMarkdownReportTable,
   replaceAcademisBreakTags,
   type AcademisReportTableContent,
@@ -290,7 +291,7 @@ function isAcademisInsight(value: unknown): value is AcademisInsight {
   const scoreEntries = Object.entries(criteriaScores);
   if (!scoreEntries.every(([criterion, score]) => (
     Boolean(criterion.trim()) && (score === null
-      || (typeof score === "number" && Number.isInteger(score) && score >= 1 && score <= 9))
+      || (typeof score === "number" && Number.isFinite(score) && score >= 1 && score <= 9))
   ))) return false;
   return value.instructor_diagnostic.key_error_patterns.every((pattern) =>
     isRecord(pattern)
@@ -334,9 +335,16 @@ function normalizeAcademisReportTable(value: unknown): Pick<AcademisReportTableC
     const rows: string[][] = [];
     for (const row of value.rows) {
       if (!isRecord(row)) return null;
+      const legacyAxis = typeof row.axis_score === "string" ? row.axis_score : "";
+      const axis = typeof row.axis === "string"
+        ? row.axis
+        : extractAcademisCriterionLabel(legacyAxis);
+      const score = typeof row.score === "number"
+        ? row.score
+        : extractAcademisBandScore(legacyAxis);
       const cells = [
         row.index,
-        row.axis_score,
+        score === undefined ? legacyAxis || axis : formatAcademisAxisScore(axis, score),
         row.actionable_feedback,
         row.strengths_weaknesses_diagnostics,
       ];
@@ -2793,13 +2801,13 @@ export function SubmissionEvaluator({
                           type="number"
                           min={1}
                           max={9}
-                          step={1}
+                          step={0.5}
                           value={score ?? ""}
                           onChange={(event) => {
                             const rawScore = event.target.value;
                             const nextScore = rawScore === "" ? null : Number(rawScore);
                             if (nextScore !== null
-                              && (!Number.isInteger(nextScore) || nextScore < 1 || nextScore > 9)) return;
+                              && (!Number.isFinite(nextScore) || nextScore < 1 || nextScore > 9)) return;
                             updateAcademisCriterionScore(criterion, nextScore);
                           }}
                           aria-label={`${criterion} score out of 9`}

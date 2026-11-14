@@ -7,7 +7,8 @@ export const STANDARD_EVALUATION_HEADERS = [
 
 export interface StandardEvaluationRow {
   index: string;
-  axis_score: string;
+  axis: string;
+  score: number;
   actionable_feedback: string;
   strengths_weaknesses_diagnostics: string;
 }

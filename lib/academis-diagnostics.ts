@@ -25,19 +25,23 @@ const STATUS_MARKER_PATTERN = /(?:^|[\s([{,:;])([+-])(?=$|[\s)\]},;:.])/;
 const STATUS_MARKER_GLOBAL_PATTERN = /(?:^|[\s([{,:;])([+-])(?=$|[\s)\]},;:.])/g;
 
 export function extractAcademisBandScore(value: string) {
-  const fraction = value.match(/\b([1-9])\s*(?:\/\s*9|out\s+of\s+9)\b/i);
-  if (fraction) return Number(fraction[1]);
-  const band = value.match(/\bband\s*([1-9])\b/i);
-  if (band) return Number(band[1]);
-  const labeledScore = value.match(/\b(?:band\s*)?score\s*[:=]?\s*([1-9])\b/i);
-  return labeledScore ? Number(labeledScore[1]) : undefined;
+  const scorePattern = "([1-9](?:\\.\\d+)?)";
+  const fraction = value.match(new RegExp(`\\b${scorePattern}\\s*(?:\\/\\s*9|out\\s+of\\s+9)\\b`, "i"));
+  const band = value.match(new RegExp(`\\bband\\s*${scorePattern}\\b`, "i"));
+  const labeledScore = value.match(new RegExp(`\\b(?:band\\s*)?score\\s*[:=]?\\s*${scorePattern}\\b`, "i"));
+  const trailingScore = value.match(new RegExp(`(?:^|\\s)${scorePattern}\\s*[+-]?\\s*$`));
+  const score = fraction || band || labeledScore || trailingScore;
+  if (!score) return undefined;
+  const numericScore = Number(score[1]);
+  return numericScore <= 9 ? numericScore : undefined;
 }
 
 export function extractAcademisCriterionLabel(value: string) {
   return value
-    .replace(/\b(?:band\s*)?score\s*[:=]?\s*[1-9]\s*(?:(?:\/\s*9)|(?:out\s+of\s+9))?\b/gi, " ")
-    .replace(/\bband\s*[1-9]\b/gi, " ")
-    .replace(/\b[1-9]\s*(?:\/\s*9|out\s+of\s+9)\b/gi, " ")
+    .replace(/\b(?:band\s*)?score\s*[:=]?\s*[1-9](?:\.\d+)?\s*(?:(?:\/\s*9)|(?:out\s+of\s+9))?\b/gi, " ")
+    .replace(/\bband\s*[1-9](?:\.\d+)?\b/gi, " ")
+    .replace(/\b[1-9](?:\.\d+)?\s*(?:\/\s*9|out\s+of\s+9)\b/gi, " ")
+    .replace(/\s+[1-9](?:\.\d+)?\s*[+-]\s*$/g, "")
     .replace(STATUS_MARKER_GLOBAL_PATTERN, " ")
     .replace(/^[\s:;,()[\]{}—–-]+|[\s:;,()[\]{}—–-]+$/g, "")
     .replace(/\s+/g, " ")

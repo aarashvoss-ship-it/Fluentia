@@ -25,6 +25,16 @@ export function replaceAcademisBreakTags(value: string) {
   return value.replace(/<br\s*\/?>/gi, "\n");
 }
 
+export function formatAcademisAxisScore(axis: string, score: number) {
+  const criterion = replaceAcademisBreakTags(axis)
+    .replace(/^\s*[+-]\s*/, "")
+    .replace(/\s*\(\s*[1-9](?:\.\d+)?\s*\/\s*9\s*\)\s*$/, "")
+    .replace(/\s+[1-9](?:\.\d+)?\s*[+-]\s*$/, "")
+    .replace(/\s*[+-]\s*$/, "")
+    .trim() || "Criterion";
+  return `${score >= 6 ? "+" : "-"} ${criterion} (${score}/9)`;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -128,7 +138,7 @@ export function prepareAcademisReport(
   const headers = [...STANDARD_EVALUATION_HEADERS];
   const tableRows = standardReport.rows.map((row) => [
     row.index,
-    row.axis_score,
+    formatAcademisAxisScore(row.axis, row.score),
     row.actionable_feedback,
     row.strengths_weaknesses_diagnostics,
   ]);

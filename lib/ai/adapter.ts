@@ -24,13 +24,15 @@ export const STANDARD_EVALUATION_RESPONSE_FORMAT = {
             additionalProperties: false,
             properties: {
               index: { type: "string" },
-              axis_score: { type: "string" },
+              axis: { type: "string" },
+              score: { type: "number", minimum: 1, maximum: 9 },
               actionable_feedback: { type: "string" },
               strengths_weaknesses_diagnostics: { type: "string" },
             },
             required: [
               "index",
-              "axis_score",
+              "axis",
+              "score",
               "actionable_feedback",
               "strengths_weaknesses_diagnostics",
             ],
@@ -190,40 +192,76 @@ function getReportObject(value: unknown): Record<string, unknown> | null {
   return null;
 }
 
-function isStandardEvaluationRow(value: unknown): value is StandardEvaluationRow {
-  return isRecord(value)
-    && Object.keys(value).length === 4
+function normalizeStandardEvaluationRow(value: unknown): StandardEvaluationRow | null {
+  if (!isRecord(value)
+    || typeof value.index !== "string"
+    || !value.index.trim()
+    || value.index.length > 40
+    || typeof value.actionable_feedback !== "string"
+    || !value.actionable_feedback.trim()
+    || value.actionable_feedback.length > 1200
+    || typeof value.strengths_weaknesses_diagnostics !== "string"
+    || value.strengths_weaknesses_diagnostics.length > 2400) return null;
+
+  const isCurrentFormat = Object.keys(value).length === 5
+    && ["index", "axis", "score", "actionable_feedback", "strengths_weaknesses_diagnostics"]
+      .every((key) => key in value);
+  const isLegacyFormat = Object.keys(value).length === 4
     && ["index", "axis_score", "actionable_feedback", "strengths_weaknesses_diagnostics"]
-      .every((key) => key in value)
-    && typeof value.index === "string"
-    && value.index.trim().length > 0
-    && value.index.length <= 40
-    && typeof value.axis_score === "string"
-    && value.axis_score.trim().length > 0
-    && value.axis_score.length <= 300
-    && typeof value.actionable_feedback === "string"
-    && value.actionable_feedback.trim().length > 0
-    && value.actionable_feedback.length <= 1200
-    && typeof value.strengths_weaknesses_diagnostics === "string";
+      .every((key) => key in value);
+  let axis: string;
+  let score: number;
+  if (isCurrentFormat && typeof value.axis === "string") {
+    axis = value.axis.trim()
+      .replace(/^\s*[+-]\s*/, "")
+      .replace(/\s+[1-9](?:\.\d+)?\s*[+-]\s*$/, "")
+      .replace(/\s*\(\s*[1-9](?:\.\d+)?\s*\/\s*9\s*\)\s*$/, "")
+      .replace(/\s*[+-]\s*$/, "")
+      .trim();
+    score = typeof value.score === "number"
+      ? value.score
+      : typeof value.score === "string" && value.score.trim() ? Number(value.score) : NaN;
+  } else if (isLegacyFormat && typeof value.axis_score === "string") {
+    const legacyAxis = value.axis_score.trim();
+    const scoreMatch = legacyAxis.match(
+      /\b([1-9](?:\.\d+)?)\s*(?:\/\s*9|out\s+of\s+9)\b/i,
+    ) || legacyAxis.match(/(?:^|\s)([1-9](?:\.\d+)?)\s*[+-]?\s*$/);
+    if (!scoreMatch) return null;
+    score = Number(scoreMatch[1]);
+    axis = legacyAxis
+      .replace(/\(\s*[1-9](?:\.\d+)?\s*(?:\/\s*9|out\s+of\s+9)\s*\)/i, " ")
+      .replace(/\b[1-9](?:\.\d+)?\s*(?:\/\s*9|out\s+of\s+9)\b/i, " ")
+      .replace(/\s+[1-9](?:\.\d+)?\s*[+-]?\s*$/, "")
+      .replace(/\s*[+-]\s*$/, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  } else {
+    return null;
+  }
+
+  if (!axis || axis.length > 300 || !Number.isFinite(score) || score < 1 || score > 9) return null;
+  return {
+    index: value.index.trim(),
+    axis,
+    score,
+    actionable_feedback: value.actionable_feedback.trim(),
+    strengths_weaknesses_diagnostics: value.strengths_weaknesses_diagnostics.trim(),
+  };
 }
 
 export function normalizeStandardEvaluationReport(response: unknown): StandardEvaluationReport | null {
   const extracted = extractAiResponseText(response);
   const parsed = parseStructuredJson(extracted.text || response);
   const report = getReportObject(parsed);
-  if (!report || !Array.isArray(report.rows) || report.rows.length === 0 || report.rows.length > 40
-    || !report.rows.every(isStandardEvaluationRow)
-    || report.rows.some((row) => row.strengths_weaknesses_diagnostics.length > 2400)
-    || new Set(report.rows.map((row) => row.index.trim())).size !== report.rows.length) return null;
+  if (!report || !Array.isArray(report.rows) || report.rows.length === 0 || report.rows.length > 40) return null;
+  const normalizedRows = report.rows.map(normalizeStandardEvaluationRow);
+  if (normalizedRows.some((row) => row === null)) return null;
+  const rows = normalizedRows.filter((row): row is StandardEvaluationRow => row !== null);
+  if (new Set(rows.map((row) => row.index)).size !== rows.length) return null;
 
   return {
     format: REPORT_FORMAT,
-    rows: report.rows.map((row) => ({
-      index: row.index.trim(),
-      axis_score: row.axis_score.trim(),
-      actionable_feedback: row.actionable_feedback.trim(),
-      strengths_weaknesses_diagnostics: row.strengths_weaknesses_diagnostics.trim(),
-    })),
+    rows,
   };
 }
 
