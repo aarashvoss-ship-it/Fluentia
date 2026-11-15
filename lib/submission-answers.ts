@@ -64,6 +64,10 @@ const METADATA_KEYS = new Set([
   "submitted_at",
   "updatedat",
   "updated_at",
+  "createdat",
+  "created_at",
+  "completedat",
+  "completed_at",
   "lessonid",
   "lesson_id",
   "studentid",
@@ -84,6 +88,37 @@ const METADATA_KEYS = new Set([
   "block_id",
   "questionid",
   "question_id",
+  "allowresubmission",
+  "allow_resubmission",
+  "evaluationviewedat",
+  "evaluation_viewed_at",
+  "isactive",
+  "is_active",
+  "isenabled",
+  "is_enabled",
+  "ispublished",
+  "is_published",
+  "isfinal",
+  "is_final",
+  "isdraft",
+  "is_draft",
+  "iscompleted",
+  "is_completed",
+  "isreviewed",
+  "is_reviewed",
+  "islocked",
+  "is_locked",
+  "isdeleted",
+  "is_deleted",
+  "isarchived",
+  "is_archived",
+  "attemptcount",
+  "attempt_count",
+  "flags",
+  "config",
+  "configuration",
+  "settings",
+  "metadata",
 ]);
 
 const KNOWN_ANSWER_FIELDS = new Set([
@@ -125,6 +160,10 @@ const KNOWN_ANSWER_FIELDS = new Set([
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+export function isSubmissionMetadataKey(key: string) {
+  return METADATA_KEYS.has(key.toLowerCase());
 }
 
 function mappingWarning(context: string, detail: string, metadata?: Record<string, unknown>) {
@@ -192,6 +231,7 @@ function normalizeResponseMap(
   const responses: Record<string, string> = {};
 
   const addResponse = (key: string, response: unknown) => {
+    if (key.split(/[:|/.]/).some(isSubmissionMetadataKey)) return;
     if (response === null || response === undefined) return;
     const answer = extractResponseText(response, 0, valueKeys);
     if (answer === undefined) {
@@ -240,7 +280,7 @@ function normalizeResponseMap(
       return;
     }
     Object.entries(item).forEach(([key, response]) => {
-      if (METADATA_KEYS.has(key.toLowerCase())) return;
+      if (isSubmissionMetadataKey(key)) return;
       visit(response, prefix ? `${prefix}:${key}` : key);
     });
   };
@@ -311,7 +351,7 @@ export function normalizeSubmissionAnswers(value: unknown, context = "submission
     ? normalizeResponseMap({ unmapped_response: answers }, context)
     : normalizeResponseMap(
       Object.fromEntries(Object.entries(answers).filter(([key]) =>
-        !KNOWN_ANSWER_FIELDS.has(key.toLowerCase()) && !METADATA_KEYS.has(key.toLowerCase())
+        !KNOWN_ANSWER_FIELDS.has(key.toLowerCase()) && !isSubmissionMetadataKey(key)
         && !["status", "progress"].includes(key.toLowerCase()),
       )),
       context,

@@ -47,3 +47,20 @@ test("preserves stage metadata and prioritizes audio URLs over transcripts", () 
   assert.equal(result.audioUploads?.speaking, "https://example.test/voice.mp3");
   assert.equal(result.audioTranscripts?.speaking, "Student transcript.");
 });
+
+test("filters submission configuration metadata without dropping boolean student answers", () => {
+  const result = normalizeSubmissionAnswers({
+    allowResubmission: false,
+    isPublished: true,
+    flags: { reviewed: true },
+    configuration: { retryLimit: 2 },
+    quizSelections: { question1: false },
+    blockResponses: {
+      task1: { answer: "A real student response." },
+      allowResubmission: false,
+    },
+  });
+
+  assert.deepEqual(result.blockResponses, { task1: "A real student response." });
+  assert.deepEqual(result.quizSelections, { question1: "false" });
+});

@@ -807,12 +807,16 @@ export function SubmissionEvaluator({
 
   // Load the instructor's submission and saved evaluation through the authenticated API.
   useEffect(() => {
+    let isCurrent = true;
     if (usePostgres && lessonId?.trim() && studentId?.trim()) {
-      loadSubmissionData();
+      void loadSubmissionData(() => isCurrent);
     }
+    return () => {
+      isCurrent = false;
+    };
   }, [lessonId, studentId, pendingSubmissionId, usePostgres]);
 
-  const loadSubmissionData = async () => {
+  const loadSubmissionData = async (isCurrent: () => boolean) => {
     const normalizedLessonId = lessonId?.trim() || "";
     const normalizedStudentId = studentId?.trim() || "";
     setSubmitError(null);
@@ -836,6 +840,7 @@ export function SubmissionEvaluator({
         normalizedStudentId,
         pendingSubmissionId,
       );
+      if (!isCurrent()) return;
       const submission = result.submission;
       if (submission) {
         onSubmissionAnswersLoaded?.(submission.answers);
@@ -880,6 +885,7 @@ export function SubmissionEvaluator({
         });
       }
     } catch (error) {
+      if (!isCurrent()) return;
       setSubmissionId(null);
       setSubmissionLoadState("missing");
       const message = error instanceof Error ? error.message : "Unable to load this submission.";

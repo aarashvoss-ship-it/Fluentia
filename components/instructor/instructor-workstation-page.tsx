@@ -9,7 +9,7 @@ import { InstructorBannerManager, type BannerPosition } from "@/components/instr
 import { normalizeBannerDimness } from "@/lib/banner-position";
 import { SubmissionEvaluator, FeedbackPayload } from "@/components/instructor/submission-evaluator";
 import { updateSubmission } from "@/lib/evaluations";
-import { normalizeSubmissionAnswers } from "@/lib/submission-answers";
+import { isSubmissionMetadataKey, normalizeSubmissionAnswers } from "@/lib/submission-answers";
 import type { UnifiedReportStage } from "@/components/shared/unified-report-card";
 import { ContentBlock, LessonEvaluation, StrictStepContent, StudentProfile, StudentSubmission, StudyStepId, type LessonResource } from "@/types/lesson";
 import { assignLessonToAllActiveStudents, clearStudentLessonResources, createLesson, deleteLesson, getLessons, publishLessonAndAssign, removeLessonResource, removeStudentLessonCustomResource, saveLessonResources, setLessonAssignments, setStudentLessonResourceSelected, unassignLesson, updateLesson, type LessonAssignmentResourceOptions, type LessonTags, type LessonWithVersion } from "@/lib/lessons";
@@ -1126,6 +1126,8 @@ export default function InstructorWorkstationPage({
 
   const [databaseLessonId, setDatabaseLessonId] = useState<string | null>(null);
   const [reviewSubmissionId, setReviewSubmissionId] = useState<string | null>(null);
+  const reviewSubmissionIdRef = useRef<string | null>(null);
+  reviewSubmissionIdRef.current = reviewSubmissionId;
   const [reviewSubmissionLessonId, setReviewSubmissionLessonId] = useState<string | null>(null);
   const [submittedAssignments, setSubmittedAssignments] = useState<PendingReviewSubmission[]>([]);
   const [pendingSubmissionCount, setPendingSubmissionCount] = useState(0);
@@ -2319,7 +2321,9 @@ export default function InstructorWorkstationPage({
       ...previous,
       submission: submission.submission,
       studentProfile: student.profile,
-      evaluation: { scores: { task: 4, coherence: 4, lexical: 3, grammar: 4 }, comments: "", criterionFeedback: {}, published: false },
+      evaluation: reviewSubmissionId === submission.id
+        ? previous.evaluation
+        : { scores: { task: 4, coherence: 4, lexical: 3, grammar: 4 }, comments: "", criterionFeedback: {}, published: false },
     }));
     setIsPendingSubmissionsExpanded(false);
     setActiveTab("evaluation");
@@ -4390,6 +4394,7 @@ export default function InstructorWorkstationPage({
   if (submittedAnswers?.writingText?.trim()) addReviewAnswer("writing", "writingText", submittedAnswers.writingText);
   const appendAnswers = (answers: Record<string, unknown> | undefined, fallbackStage?: InstructorReviewStageId) => {
     Object.entries(answers || {}).forEach(([key, response]) => {
+      if (isSubmissionMetadataKey(key)) return;
       const transcript = getReviewTranscript(response);
       if (transcript) reviewTranscripts[key] = transcript;
       const answer = typeof response === "string"
@@ -6951,6 +6956,7 @@ export default function InstructorWorkstationPage({
                       published: false,
                     };
                     const saved = await saveInstructorFeedback(selectedReviewSubmission.lessonId, selectedStudent.id, evaluation, selectedReviewSubmission.id, false);
+                    if (reviewSubmissionIdRef.current !== selectedReviewSubmission.id) return;
                     setWorkstationState((previous) => ({ ...previous, submission: saved.submission || previous.submission, evaluation: saved.evaluation }));
                     setPublishStatus("Evaluation draft saved. It has not been sent to the student.");
                   }}
@@ -6973,6 +6979,7 @@ export default function InstructorWorkstationPage({
                       published: true,
                     };
                     const saved = await saveInstructorFeedback(selectedReviewSubmission.lessonId, selectedStudent.id, evaluation, selectedReviewSubmission.id);
+                    if (reviewSubmissionIdRef.current !== selectedReviewSubmission.id) return;
                     setWorkstationState((previous) => ({ ...previous, submission: saved.submission || previous.submission, evaluation: saved.evaluation }));
                     setPublishStatus("Strengths, study plan, and evaluation synced with student view!");
                   }}
