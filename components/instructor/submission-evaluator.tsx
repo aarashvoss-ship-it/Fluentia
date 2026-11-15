@@ -42,6 +42,11 @@ import {
   normalizeRubricScore,
   roundRubricScoreForScale,
 } from "@/lib/rubric-scoring";
+import {
+  ACADEMIS_MODEL_OPTIONS,
+  type AcademisModelOption,
+  type AcademisTier,
+} from "@/lib/ai/models";
 
 export type { RubricScale } from "@/lib/rubric-scoring";
 
@@ -91,6 +96,7 @@ const MAX_INSTRUCTOR_PROMPT_LENGTH = 2500;
 const MAX_ACADEMIS_TASK_PROMPT_LENGTH = 6000;
 const MAX_ACADEMIS_TASK_TITLE_LENGTH = 300;
 const MAX_ACADEMIS_RESPONSE_LENGTH = 12000;
+const PAID_GEMINI_FLASH_OPTION = ACADEMIS_MODEL_OPTIONS[1];
 const ACADEMIS_DIAGNOSTIC_PROMPT_GUIDANCE = `Return each grading in exactly one Markdown table with these four columns: ${ACADEMIS_DIAGNOSTIC_HEADERS.join(" | ")}. Score every criterion as an integer percentage from 0 to 100, never as an IELTS band. Include one row per criterion specified by the active prompt without assuming a fixed criterion set, concise actionable student feedback in column 3, and evidence-based instructor / Lesson Builder analysis in column 4.`;
 const AUDIO_RESPONSE_PLACEHOLDER = /^audio response submitted(?:; transcript unavailable for grading)?\.?$/i;
 const ACADEMIS_PROMPTS = [
@@ -131,6 +137,8 @@ interface AcademisInsight {
   criteria_scores: Record<string, number | null>;
   overall_band_score: number | null;
   student_summary: string;
+  used_model?: string;
+  tier?: AcademisTier;
   diagnostic_table?: AcademisDiagnosticTable;
   instructor_diagnostic: {
     stage_summary_diagnostic?: string;
@@ -161,6 +169,8 @@ interface AcademisEvaluationContext {
   transcriptSource?: "student" | "task_answer" | "shadowing_reference";
   referenceTranscript?: string;
   audioResponseSubmitted?: boolean;
+  selectedModel?: string;
+  tier?: AcademisTier;
   instructorPrompt: string;
 }
 
@@ -660,6 +670,7 @@ export function SubmissionEvaluator({
   const [pendingTaskOverrideIds, setPendingTaskOverrideIds] = useState<Record<string, boolean>>({});
   const [isEvaluationSidebarCollapsed, setIsEvaluationSidebarCollapsed] = useState(false);
   const [isAcademisSidebarCollapsed, setIsAcademisSidebarCollapsed] = useState(false);
+  const [academisModelOption, setAcademisModelOption] = useState<AcademisModelOption>(ACADEMIS_MODEL_OPTIONS[0]);
   const [academisPrompt, setAcademisPromptState] = useState<string>(ACADEMIS_PROMPTS[0].prompt);
   const academisPromptRef = useRef<string>(ACADEMIS_PROMPTS[0].prompt);
   const setAcademisPrompt = (prompt: string) => {
@@ -700,6 +711,7 @@ export function SubmissionEvaluator({
   const [academisPublishNotice, setAcademisPublishNotice] = useState<string | null>(null);
   const [isAcademisLoading, setIsAcademisLoading] = useState(false);
   const [academisError, setAcademisError] = useState<string | null>(null);
+  const [freeQuotaRetryAfterText, setFreeQuotaRetryAfterText] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isSavingDraft, setIsSavingDraft] = useState<boolean>(false);
@@ -1037,7 +1049,9 @@ export function SubmissionEvaluator({
     : undefined;
   const activeInstructorPrompt = academisPromptRef.current.slice(0, MAX_INSTRUCTOR_PROMPT_LENGTH);
   const hasMatchingCachedAcademisResult = Boolean(cachedAcademisResult
-    && cachedAcademisResult.context.instructorPrompt === activeInstructorPrompt);
+    && cachedAcademisResult.context.instructorPrompt === activeInstructorPrompt
+    && cachedAcademisResult.context.selectedModel === academisModelOption.model
+    && cachedAcademisResult.context.tier === academisModelOption.tier);
   const activeTaskPrompt = activeTask?.prompt?.trim()
     || activeTask?.title?.trim()
     || activeStage?.prompt?.trim()
@@ -1089,6 +1103,12 @@ export function SubmissionEvaluator({
               transcriptSource: evaluationText?.source,
               referenceTranscript: task.referenceTranscript?.trim() || undefined,
               audioResponseSubmitted: Boolean(task.audioUrls?.length),
+              ...(typeof savedReport.insight.used_model === "string"
+                ? { selectedModel: savedReport.insight.used_model }
+                : {}),
+              ...(savedReport.insight.tier === "free" || savedReport.insight.tier === "paid"
+                ? { tier: savedReport.insight.tier }
+                : {}),
               instructorPrompt: "",
             };
             const cacheKey = JSON.stringify([submissionId, activeStage.id, task.id]);
@@ -1323,7 +1343,11 @@ export function SubmissionEvaluator({
     </div>
     {activeStageId !== reportStageId && activeStage && <span className={`rounded-full border px-2.5 py-1 text-[10px] ${stageStatusClass(evaluationStatus(activeStage.id))}`}>{evaluationStatus(activeStage.id)}</span>}
   </header>;
-  const generateAcademisInsight = async (forceRefresh = false) => {
+  const generateAcademisInsight = async (
+    forceRefresh = false,
+    selectionOverride?: AcademisModelOption,
+  ) => {
+    const selectedOption = selectionOverride || academisModelOption;
     const selectedStage = stages.find((stage) => stage.id === activeStageId);
     const selectedTask = selectedStage?.tasks.find((task) => task.id === activeTaskId)
       || selectedStage?.tasks[0];
@@ -1379,11 +1403,17 @@ export function SubmissionEvaluator({
       transcriptSource: evaluationText?.source,
       referenceTranscript: selectedTask.referenceTranscript?.trim().slice(0, MAX_ACADEMIS_TASK_PROMPT_LENGTH) || undefined,
       audioResponseSubmitted: Boolean(selectedTask.audioUrls?.length),
+      selectedModel: selectedOption.model,
+      tier: selectedOption.tier,
       instructorPrompt: academisPromptRef.current.slice(0, MAX_INSTRUCTOR_PROMPT_LENGTH),
     };
     const cacheKey = JSON.stringify([submissionId, selectedStage.id, selectedTask.id]);
     const cachedResult = academisResultsByTask[cacheKey];
-    if (cachedResult && !forceRefresh) {
+    const cachedResultMatchesSelection = cachedResult
+      && cachedResult.context.selectedModel === selectedOption.model
+      && cachedResult.context.tier === selectedOption.tier
+      && cachedResult.context.instructorPrompt === evaluationContext.instructorPrompt;
+    if (cachedResultMatchesSelection && !forceRefresh) {
       setAcademisInsight(cachedResult);
       setAcademisRequestContext(cachedResult.context);
       setAcademisStudentSummary(cachedResult.result.student_summary);
@@ -1394,6 +1424,7 @@ export function SubmissionEvaluator({
       setAcademisPublishNotice(null);
       setAcademisApplyNotice(null);
       setAcademisError(null);
+      setFreeQuotaRetryAfterText(null);
       setAcademisResultTab("student-summary");
       setIsAcademisResultOpen(true);
       return;
@@ -1429,6 +1460,8 @@ export function SubmissionEvaluator({
           ...(evaluationContext.referenceTranscript ? { reference_transcript: evaluationContext.referenceTranscript } : {}),
           audio_response_submitted: evaluationContext.audioResponseSubmitted === true,
           ...(selectedTask.audioUrls?.[0] ? { audio_url: selectedTask.audioUrls[0] } : {}),
+          selectedModel: selectedOption.model,
+          tier: selectedOption.tier,
           instructorPrompt: evaluationContext.instructorPrompt,
           stageTaskContexts,
         }),
@@ -1440,6 +1473,8 @@ export function SubmissionEvaluator({
         insightSaved?: boolean;
         reportSaved?: boolean;
         report?: unknown;
+        errorCode?: string;
+        retryAfterText?: string;
       };
       try {
         payload = await response.json() as {
@@ -1449,9 +1484,16 @@ export function SubmissionEvaluator({
           insightSaved?: boolean;
           reportSaved?: boolean;
           report?: unknown;
+          errorCode?: string;
+          retryAfterText?: string;
         };
       } catch {
         throw new Error("Academis returned an invalid response.");
+      }
+      if (!response.ok && payload.errorCode === "FREE_QUOTA_EXCEEDED") {
+        setFreeQuotaRetryAfterText(payload.retryAfterText || "an unknown time; try again later");
+        setAcademisError(null);
+        return;
       }
       if (!response.ok) throw new Error(payload.error || "Academis could not complete the grading request.");
       if (!isAcademisInsight(payload.insight)) {
@@ -1478,6 +1520,11 @@ export function SubmissionEvaluator({
     } finally {
       setIsAcademisLoading(false);
     }
+  };
+  const retryWithPaidGemini = () => {
+    setAcademisModelOption(PAID_GEMINI_FLASH_OPTION);
+    setFreeQuotaRetryAfterText(null);
+    void generateAcademisInsight(true, PAID_GEMINI_FLASH_OPTION);
   };
   const publishAcademisReport = async () => {
     const currentResult = academisInsight;
@@ -2488,6 +2535,63 @@ export function SubmissionEvaluator({
         </div>
         <div id="academis-sidebar-content" hidden={isAcademisSidebarCollapsed} className={`mt-4 min-h-0 flex-1 flex-col gap-3 overflow-y-auto ${isAcademisSidebarCollapsed ? "hidden" : "flex"}`}>
           <label className="block rounded-md border border-border bg-background/60 p-2.5 text-[10px] text-stone-400">
+            AI Model
+            <select
+              value={`${academisModelOption.model}::${academisModelOption.tier}`}
+              onChange={(event) => {
+                const nextOption = ACADEMIS_MODEL_OPTIONS.find((option) =>
+                  `${option.model}::${option.tier}` === event.target.value,
+                );
+                if (!nextOption) {
+                  setAcademisError("Select a supported Academis model and tier.");
+                  return;
+                }
+                setAcademisModelOption(nextOption);
+                setFreeQuotaRetryAfterText(null);
+                setAcademisError(null);
+              }}
+              disabled={isAcademisLoading}
+              aria-label="Academis AI model and tier"
+              className="mt-1.5 w-full rounded-md border border-border bg-[#0b0e13] px-2.5 py-2 text-xs text-stone-200 outline-none transition focus:border-amber-500/40 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <optgroup label="Google">
+                {ACADEMIS_MODEL_OPTIONS.filter((option) => option.vendor === "Google").map((option) => (
+                  <option key={`${option.model}::${option.tier}`} value={`${option.model}::${option.tier}`}>
+                    {`${option.name} (${option.tierLabel}) — Best for: ${option.useCase}`}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="OpenAI">
+                {ACADEMIS_MODEL_OPTIONS.filter((option) => option.vendor === "OpenAI").map((option) => (
+                  <option key={`${option.model}::${option.tier}`} value={`${option.model}::${option.tier}`}>
+                    {`${option.name} (${option.tierLabel}) — Best for: ${option.useCase}`}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+            <span className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[9px] text-stone-500">
+              <span className="rounded border border-border px-1.5 py-0.5 text-stone-400">{academisModelOption.tierLabel}</span>
+              <span>Best for: {academisModelOption.useCase}</span>
+            </span>
+          </label>
+          {freeQuotaRetryAfterText && academisModelOption.tier === "free" && <div
+            role="alert"
+            className="rounded-md border border-amber-500/30 bg-amber-500/[0.07] p-3"
+          >
+            <p className="text-[11px] font-semibold text-amber-200">Free daily quota reached</p>
+            <p className="mt-1 text-[10px] leading-relaxed text-stone-400">
+              Google AI Studio can be retried in {freeQuotaRetryAfterText}. No paid request was made.
+            </p>
+            <button
+              type="button"
+              onClick={retryWithPaidGemini}
+              disabled={isAcademisLoading}
+              className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Switch to Paid (PaasTA) &amp; Retry
+            </button>
+          </div>}
+          <label className="block rounded-md border border-border bg-background/60 p-2.5 text-[10px] text-stone-400">
             Task to evaluate · {activeStage?.title || "Choose a stage"}
             <select
               value={activeTask?.id || ""}
@@ -2496,6 +2600,7 @@ export function SubmissionEvaluator({
                 if (activeStage) applyAcademisTaskPrompt(activeStage.id, event.target.value);
                 setAcademisInsight(null);
                 setAcademisError(null);
+                setFreeQuotaRetryAfterText(null);
               }}
               disabled={!activeStage?.tasks.length || isAcademisLoading || isAcademisLibraryLoading}
               aria-label={`Task to evaluate in ${activeStage?.title || "current stage"}`}

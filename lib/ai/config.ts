@@ -1,4 +1,8 @@
 import type { AiInputAudioPart } from "@/lib/ai/audio";
+import {
+  ACADEMIS_MODEL_OPTIONS,
+  type AcademisTier,
+} from "./models";
 
 export type AiTokenLimitParameter = "max_completion_tokens" | "max_tokens";
 export type AiModelVendor = "openai" | "gemini" | "other";
@@ -7,6 +11,7 @@ export type AiStructuredOutputMode = "json_schema" | "json_object";
 export interface AiModelProfile {
   model: string;
   vendor: AiModelVendor;
+  provider: "google-ai-studio" | "paasta";
   structuredOutputMode: AiStructuredOutputMode;
   endpoint: string;
   apiKeyEnv: string;
@@ -68,6 +73,7 @@ function createModelProfile(
   return {
     model,
     vendor,
+    provider: "paasta",
     structuredOutputMode: vendor === "openai" ? "json_schema" : "json_object",
     endpoint: process.env.AI_CHAT_COMPLETIONS_URL?.trim()
       || process.env.PAASTA_AI_BASE_URL?.trim()
@@ -96,6 +102,68 @@ export const LESSON_BUILDER_MODEL = createModelProfile(
 
 export function getAiApiKey(profile: AiModelProfile) {
   return process.env[profile.apiKeyEnv]?.trim() || process.env.AI_API_KEY?.trim() || "";
+}
+
+function getPaastaChatCompletionsEndpoint(): string {
+  const configuredEndpoint = process.env.PAASTA_AI_API_BASE_URL?.trim()
+    || process.env.PAASTA_AI_BASE_URL?.trim()
+    || process.env.AI_CHAT_COMPLETIONS_URL?.trim();
+  if (!configuredEndpoint) return DEFAULT_CHAT_COMPLETIONS_ENDPOINT;
+
+  const url = new URL(configuredEndpoint);
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new Error("PAASTA_AI_API_BASE_URL must use HTTP or HTTPS.");
+  }
+  if (!/\/chat\/completions\/?$/.test(url.pathname)) {
+    url.pathname = `${url.pathname.replace(/\/+$/, "")}/chat/completions`;
+  }
+  return url.toString();
+}
+
+function getGoogleAiStudioEndpoint(model: string): string {
+  const baseUrl = process.env.GOOGLE_AI_STUDIO_API_BASE_URL?.trim()
+    || "https://generativelanguage.googleapis.com/v1beta";
+  const url = new URL(baseUrl);
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new Error("GOOGLE_AI_STUDIO_API_BASE_URL must use HTTP or HTTPS.");
+  }
+  url.pathname = `${url.pathname.replace(/\/+$/, "")}/models/${encodeURIComponent(model.replace(/^google\//, ""))}:generateContent`;
+  url.search = "";
+  url.hash = "";
+  return url.toString();
+}
+
+export function getAcademisModelProfile(
+  model: string,
+  tier: AcademisTier,
+): AiModelProfile | null {
+  const option = ACADEMIS_MODEL_OPTIONS.find((candidate) =>
+    candidate.model === model && candidate.tier === tier,
+  );
+  if (!option) return null;
+
+  const vendor = getModelVendor(model);
+  const isFreeGoogle = tier === "free";
+  const tokenParameterOverride = process.env.ACADEMIS_EVAL_TOKEN_LIMIT_PARAMETER?.trim()
+    || process.env.AI_TOKEN_LIMIT_PARAMETER?.trim();
+  return {
+    model,
+    vendor,
+    provider: isFreeGoogle ? "google-ai-studio" : "paasta",
+    structuredOutputMode: vendor === "openai" ? "json_schema" : "json_object",
+    endpoint: isFreeGoogle
+      ? getGoogleAiStudioEndpoint(model)
+      : getPaastaChatCompletionsEndpoint(),
+    apiKeyEnv: isFreeGoogle ? "GOOGLE_AI_STUDIO_API_KEY" : "PAASTA_AI_API_KEY",
+    tokenLimitParameter: getTokenLimitParameter(model, vendor, tokenParameterOverride),
+    maxOutputTokens: getOptionalPositiveInteger("ACADEMIS_EVAL_MAX_OUTPUT_TOKENS")
+      ?? getOptionalPositiveInteger("AI_MAX_OUTPUT_TOKENS")
+      ?? 8192,
+  };
+}
+
+export function getAcademisAiApiKey(profile: AiModelProfile): string {
+  return process.env[profile.apiKeyEnv]?.trim() || "";
 }
 
 export function getAiStructuredResponseFormat(profile: AiModelProfile, schema: unknown) {
