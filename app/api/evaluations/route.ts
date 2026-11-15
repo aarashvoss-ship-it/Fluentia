@@ -64,11 +64,34 @@ function mapEvaluation(row: Record<string, any>, submissionId: string) {
     feedback: comments,
     score: row.total_score ?? null,
     evaluated_at: row.updated_at || "",
+    taskAnswerOverrides: hasObjectValue(details.taskAnswerOverrides) ? details.taskAnswerOverrides : {},
+    taskModelAnswerOverrides: hasObjectValue(details.taskModelAnswerOverrides) ? details.taskModelAnswerOverrides : {},
+    taskOverrideAudit: hasObjectValue(details.taskOverrideAudit) ? details.taskOverrideAudit : {},
   };
 }
 
 function hasObjectValue(value: unknown): value is EvaluationPayload {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function stringRecord(value: unknown): Record<string, string> {
+  if (!hasObjectValue(value)) return {};
+  return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => (
+    typeof entry[1] === "string"
+  )));
+}
+
+function taskOverrideAudit(value: unknown, instructorId: string) {
+  if (!hasObjectValue(value)) return {};
+  const allowedFields = new Set(["studentAnswer", "modelAnswer", "scores"]);
+  return Object.fromEntries(Object.entries(value).flatMap(([taskId, entry]) => {
+    if (!hasObjectValue(entry) || !Array.isArray(entry.fields)) return [];
+    const fields = [...new Set(entry.fields.filter((field): field is string => (
+      typeof field === "string" && allowedFields.has(field)
+    )))];
+    if (!fields.length) return [];
+    return [[taskId, { fields, editedAt: new Date().toISOString(), instructorId }]];
+  }));
 }
 
 async function parseBody(request: Request): Promise<EvaluationPayload | NextResponse> {
@@ -233,6 +256,12 @@ export async function POST(request: Request) {
     const submission = context.submission;
     const comment = typeof evaluation.comments === "string" ? evaluation.comments : "";
     const scores = hasObjectValue(evaluation.scores) ? evaluation.scores : {};
+    const savedEvaluation = {
+      ...evaluation,
+      taskAnswerOverrides: stringRecord(evaluation.taskAnswerOverrides),
+      taskModelAnswerOverrides: stringRecord(evaluation.taskModelAnswerOverrides),
+      taskOverrideAudit: taskOverrideAudit(evaluation.taskOverrideAudit, user.id),
+    };
     const scoreValue = Number(evaluation.totalScore ?? 0);
     if (!Number.isFinite(scoreValue)) {
       await client.query("ROLLBACK");
@@ -275,10 +304,10 @@ export async function POST(request: Request) {
            instructor_id = EXCLUDED.instructor_id,
            evaluation = EXCLUDED.evaluation,
            updated_at = now()`,
-        [submission.id, submission.lesson_id, submission.student_id, user.id, JSON.stringify({ ...evaluation, published: false })],
+        [submission.id, submission.lesson_id, submission.student_id, user.id, JSON.stringify({ ...savedEvaluation, published: false })],
       );
       await client.query("COMMIT");
-      return NextResponse.json({ evaluation: { ...evaluation, published: false }, saved: true });
+      return NextResponse.json({ evaluation: { ...savedEvaluation, published: false }, saved: true });
     }
 
     const criterionFeedback = {
@@ -289,6 +318,9 @@ export async function POST(request: Request) {
       stageRubricScales: hasObjectValue(evaluation.stageRubricScales) ? evaluation.stageRubricScales : {},
       taskScores: hasObjectValue(evaluation.taskScores) ? evaluation.taskScores : {},
       taskRubricScales: hasObjectValue(evaluation.taskRubricScales) ? evaluation.taskRubricScales : {},
+      taskAnswerOverrides: savedEvaluation.taskAnswerOverrides,
+      taskModelAnswerOverrides: savedEvaluation.taskModelAnswerOverrides,
+      taskOverrideAudit: savedEvaluation.taskOverrideAudit,
       globalRubricScale: typeof evaluation.globalRubricScale === "string" ? evaluation.globalRubricScale : "percentage",
       reportCardScoreOverrides: hasObjectValue(evaluation.reportCardScoreOverrides) ? evaluation.reportCardScoreOverrides : {},
       taskFeedback: hasObjectValue(evaluation.taskFeedback) ? evaluation.taskFeedback : {},
@@ -330,7 +362,7 @@ export async function POST(request: Request) {
     await client.query("COMMIT");
     const result = feedback.rows[0];
     return NextResponse.json({
-      evaluation: { ...evaluation, published: true },
+      evaluation: { ...savedEvaluation, published: true },
       saved: true,
       record: {
         id: result.id,

@@ -523,7 +523,8 @@ export async function saveInstructorFeedback(
     ? submissionRows.find((row) => row.id === submissionId)
     : submissionRows[0];
   if (!target?.id) throw new Error("No submission exists for this student and lesson.");
-  const totalScore = Object.values(evaluation.scores).reduce<number>((total, score) => total + Number(score), 0);
+  const totalScore = evaluation.totalScore
+    ?? Object.values(evaluation.scores).reduce<number>((total, score) => total + Number(score), 0);
   const savedEvaluation = { ...evaluation, totalScore, published: isPublished };
   const result = await apiRequest<{ evaluation?: LessonEvaluation }>("/api/evaluations", {
     method: "POST",

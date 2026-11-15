@@ -10,6 +10,7 @@ import { AudioRecorder } from "@/components/shared/audio-recorder";
 import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import { type UnifiedReportStage } from "@/components/shared/unified-report-card";
 import { combineTaskFeedback } from "@/lib/evaluation-feedback";
+import { applyTaskEvaluationOverrides } from "@/lib/evaluation-overrides";
 import { areAcademisPromptTitlesUnique } from "@/lib/academis-prompts";
 import {
   formatAcademisAxisScore,
@@ -54,6 +55,9 @@ export interface FeedbackPayload {
   stageRubricScales: Record<string, RubricScale>;
   taskScores: Record<string, Record<string, number>>;
   taskRubricScales: Record<string, RubricScale>;
+  taskAnswerOverrides: Record<string, string>;
+  taskModelAnswerOverrides: Record<string, string>;
+  taskOverrideAudit: NonNullable<LessonEvaluation["taskOverrideAudit"]>;
   globalRubricScale: RubricScale;
   reportCardScoreOverrides: Record<string, number>;
   taskFeedback: Record<string, string>;
@@ -599,9 +603,16 @@ export function SubmissionEvaluator({
   const stageRubricScales = evaluation?.stageRubricScales || {};
   const taskScores = evaluation?.taskScores || {};
   const taskRubricScales = evaluation?.taskRubricScales || {};
+  const taskAnswerOverrides = evaluation?.taskAnswerOverrides || {};
+  const taskModelAnswerOverrides = evaluation?.taskModelAnswerOverrides || {};
+  const taskOverrideAudit = evaluation?.taskOverrideAudit || {};
   const globalRubricScale = evaluation?.globalRubricScale || DEFAULT_RUBRIC_SCALE;
   const reportCardScoreOverrides = evaluation?.reportCardScoreOverrides || {};
-  const stages = reportCardStages.length ? reportCardStages : DEFAULT_REPORT_STAGES;
+  const stages = applyTaskEvaluationOverrides(
+    reportCardStages.length ? reportCardStages : DEFAULT_REPORT_STAGES,
+    taskAnswerOverrides,
+    taskModelAnswerOverrides,
+  );
   const effectiveStageRubricScales = Object.fromEntries(stages.map((stage) => [
     stage.id,
     stageRubricScales[stage.id] || globalRubricScale,
@@ -646,6 +657,7 @@ export function SubmissionEvaluator({
   const [activeTaskId, setActiveTaskId] = useState(initialStage?.tasks[0]?.id || "");
   const hasManuallySelectedStageRef = useRef(false);
   const [expandedTaskFeedback, setExpandedTaskFeedback] = useState<Record<string, boolean>>({});
+  const [pendingTaskOverrideIds, setPendingTaskOverrideIds] = useState<Record<string, boolean>>({});
   const [isEvaluationSidebarCollapsed, setIsEvaluationSidebarCollapsed] = useState(false);
   const [isAcademisSidebarCollapsed, setIsAcademisSidebarCollapsed] = useState(false);
   const [academisPrompt, setAcademisPromptState] = useState<string>(ACADEMIS_PROMPTS[0].prompt);
@@ -872,6 +884,9 @@ export function SubmissionEvaluator({
           stageRubricScales: feedback.criterion_feedback?.stageRubricScales || evaluation?.stageRubricScales || {},
           taskScores: feedback.criterion_feedback?.taskScores || evaluation?.taskScores || {},
           taskRubricScales: feedback.criterion_feedback?.taskRubricScales || evaluation?.taskRubricScales || {},
+          taskAnswerOverrides: feedback.criterion_feedback?.taskAnswerOverrides || evaluation?.taskAnswerOverrides || {},
+          taskModelAnswerOverrides: feedback.criterion_feedback?.taskModelAnswerOverrides || evaluation?.taskModelAnswerOverrides || {},
+          taskOverrideAudit: feedback.criterion_feedback?.taskOverrideAudit || evaluation?.taskOverrideAudit || {},
           globalRubricScale: feedback.criterion_feedback?.globalRubricScale || evaluation?.globalRubricScale || DEFAULT_RUBRIC_SCALE,
           reportCardScoreOverrides: feedback.criterion_feedback?.reportCardScoreOverrides || evaluation?.reportCardScoreOverrides || {},
           taskFeedback: feedback.criterion_feedback?.taskFeedback || evaluation?.taskFeedback || {},
@@ -953,6 +968,9 @@ export function SubmissionEvaluator({
       stageRubricScales,
       taskScores,
       taskRubricScales,
+      taskAnswerOverrides,
+      taskModelAnswerOverrides,
+      taskOverrideAudit,
       globalRubricScale,
       reportCardScoreOverrides,
       taskFeedback,
@@ -962,6 +980,42 @@ export function SubmissionEvaluator({
     });
     setIsSubmitted(false);
     setDraftStatus(null);
+  };
+
+  const markTaskOverrideField = (
+    taskId: string,
+    field: "studentAnswer" | "modelAnswer" | "scores",
+  ): NonNullable<LessonEvaluation["taskOverrideAudit"]> => ({
+    ...taskOverrideAudit,
+    [taskId]: {
+      fields: [...new Set([...(taskOverrideAudit[taskId]?.fields || []), field])],
+      editedAt: new Date().toISOString(),
+    },
+  });
+
+  const updateTaskCriterionScore = (
+    taskId: string,
+    stageId: string,
+    criterionId: string,
+    value: number,
+  ) => {
+    const stageScoresWithoutOverride = Object.fromEntries(
+      Object.entries(stageScores[stageId] || {}).filter(([id]) => id !== criterionId),
+    );
+    const reportCardOverridesWithoutCriterion = Object.fromEntries(
+      Object.entries(reportCardScoreOverrides).filter(([id]) => id !== criterionId),
+    );
+    updateEvaluation({
+      taskScores: {
+        ...taskScores,
+        [taskId]: { ...taskScores[taskId], [criterionId]: value },
+      },
+      taskRubricScales: { ...taskRubricScales, [taskId]: effectiveStageRubricScales[stageId] },
+      stageScores: { ...stageScores, [stageId]: stageScoresWithoutOverride },
+      reportCardScoreOverrides: reportCardOverridesWithoutCriterion,
+      taskOverrideAudit: markTaskOverrideField(taskId, "scores"),
+    });
+    setPendingTaskOverrideIds((current) => ({ ...current, [taskId]: true }));
   };
 
   const totalScore = overallAggregation.totalScore;
@@ -1117,6 +1171,9 @@ export function SubmissionEvaluator({
     stageRubricScales,
     taskScores,
     taskRubricScales,
+    taskAnswerOverrides,
+    taskModelAnswerOverrides,
+    taskOverrideAudit,
     globalRubricScale,
     reportCardScoreOverrides,
     taskFeedback,
@@ -1124,7 +1181,7 @@ export function SubmissionEvaluator({
     stageVoiceFeedback,
   };
 
-  const handleSaveDraft = async () => {
+  const handleSaveDraft = async (): Promise<boolean> => {
     setIsSavingDraft(true);
     setSubmitError(null);
     setDraftStatus(null);
@@ -1141,10 +1198,13 @@ export function SubmissionEvaluator({
         throw new Error("Draft saving is unavailable for this evaluation.");
       }
       setDraftStatus("Draft saved. It has not been sent to the student.");
+      setPendingTaskOverrideIds({});
+      return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to save the evaluation draft.";
       setSubmitError(message);
       console.error("Error saving evaluation draft:", error);
+      return false;
     } finally {
       setIsSavingDraft(false);
     }
@@ -1188,6 +1248,9 @@ export function SubmissionEvaluator({
         stageRubricScales,
         taskScores,
         taskRubricScales,
+        taskAnswerOverrides,
+        taskModelAnswerOverrides,
+        taskOverrideAudit,
         globalRubricScale,
         reportCardScoreOverrides,
         taskFeedback,
@@ -2085,6 +2148,7 @@ export function SubmissionEvaluator({
                 </div>
                 <div className={`rounded-lg border p-4 ${responseBoxClass}`}>
                   <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${responseLabelClass}`}>{taskEvaluationText?.source === "shadowing_reference" ? "Shadowing transcript" : taskEvaluationText?.source === "student" ? "Student transcript" : "Student response"}</p>
+                  {taskOverrideAudit[task.id]?.fields.includes("studentAnswer") && <span className="mt-1 inline-block rounded-full border border-amber-500/30 px-2 py-0.5 text-[9px] font-semibold text-amber-300">Instructor Override</span>}
                   {taskEvaluationText && taskEvaluationText.source !== "task_answer" && <details open className="mt-2 rounded-md border border-border bg-surface px-3 py-2">
                     <summary className="cursor-pointer text-xs font-medium text-stone-300">{taskEvaluationText.source === "shadowing_reference" ? "Shadowing transcript" : "Transcript"}</summary>
                     <p className="mt-2 whitespace-pre-wrap break-words py-1 text-sm leading-relaxed text-stone-200">{stripMarkdown(taskEvaluationText.text)}</p>
@@ -2096,18 +2160,100 @@ export function SubmissionEvaluator({
                   {(!taskEvaluationText || taskEvaluationText.source === "task_answer") && <p className={`mt-2 whitespace-pre-wrap break-words rounded-sm px-2 py-3 text-sm leading-relaxed ${isCorrect ? "bg-emerald-300/10" : isObjectiveAnswer ? "bg-rose-300/10" : "bg-surface"} ${responseTextClass}`}>{stripMarkdown(taskEvaluationText?.text || task.studentAnswer) || <span className="italic text-stone-500">No response submitted.</span>}</p>}
                   {task.audioUrls?.map((url, audioIndex) => <div key={`${url}-${audioIndex}`} className="mt-2"><CustomAudioPlayer src={url} label={`${task.prompt || task.title || "Task"} student recording`} /></div>)}
                 </div>
-                {task.modelAnswer && <div className={`rounded-md border p-4 ${modelBoxClass}`}>
-                  <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${modelLabelClass}`}>Model answer</p>
-                  <p className={`mt-2 whitespace-pre-wrap py-2 text-sm leading-relaxed ${modelTextClass}`}>{stripMarkdown(task.modelAnswer)}</p>
-                </div>}
-                {taskScores[task.id] && <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-200">Task rubric scores</p>
-                  <div className="mt-2 grid grid-cols-2 gap-2 xl:grid-cols-4">
-                    {RUBRIC_CRITERIA.map((criterion) => <p key={criterion.id} className="text-[10px] text-stone-400">
-                      {criterion.label}<span className="float-right text-amber-200">{formatRubricScore(taskScores[task.id][criterion.id] || 0)}/{getRubricScale(taskRubricScales[task.id]).max}</span>
-                    </p>)}
+                <details className="rounded-md border border-border bg-background p-3">
+                  <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">Edit student response</summary>
+                  <textarea
+                    value={task.studentAnswer}
+                    disabled={isSavingDraft}
+                    onChange={(event) => {
+                      updateEvaluation({
+                        taskAnswerOverrides: { ...taskAnswerOverrides, [task.id]: event.target.value },
+                        taskOverrideAudit: markTaskOverrideField(task.id, "studentAnswer"),
+                      });
+                      setPendingTaskOverrideIds((current) => ({ ...current, [task.id]: true }));
+                    }}
+                    rows={3}
+                    aria-label={`Edit student response for ${task.title || task.prompt || "task"}`}
+                    className="mt-2 w-full resize-y rounded-md border border-border bg-surface p-3 text-sm leading-relaxed text-stone-200 outline-none focus:border-amber-500/40"
+                  />
+                </details>
+                <div className={`rounded-md border p-4 ${modelBoxClass}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${modelLabelClass}`}>Model answer</p>
+                    {taskOverrideAudit[task.id]?.fields.includes("modelAnswer") && <span className="rounded-full border border-amber-500/30 px-2 py-0.5 text-[9px] font-semibold text-amber-300">Instructor Override</span>}
                   </div>
-                </div>}
+                  {task.modelAnswer && <p className={`mt-2 whitespace-pre-wrap py-2 text-sm leading-relaxed ${modelTextClass}`}>{stripMarkdown(task.modelAnswer)}</p>}
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">Edit model answer</summary>
+                    <textarea
+                      value={task.modelAnswer || ""}
+                      disabled={isSavingDraft}
+                      onChange={(event) => {
+                        updateEvaluation({
+                          taskModelAnswerOverrides: { ...taskModelAnswerOverrides, [task.id]: event.target.value },
+                          taskOverrideAudit: markTaskOverrideField(task.id, "modelAnswer"),
+                        });
+                        setPendingTaskOverrideIds((current) => ({ ...current, [task.id]: true }));
+                      }}
+                      rows={3}
+                      aria-label={`Edit model answer for ${task.title || task.prompt || "task"}`}
+                      className="mt-2 w-full resize-y rounded-md border border-border bg-surface p-3 text-sm leading-relaxed text-stone-200 outline-none focus:border-amber-500/40"
+                    />
+                  </details>
+                </div>
+                <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-200">Task rubric scores</p>
+                  {taskOverrideAudit[task.id]?.fields.includes("scores") && <span className="mt-1 inline-block rounded-full border border-amber-500/30 px-2 py-0.5 text-[9px] font-semibold text-amber-300">Instructor Override</span>}
+                  <div className="mt-2 divide-y divide-border">
+                    {RUBRIC_CRITERIA.map((criterion) => {
+                      const scale = getRubricScale(taskRubricScales[task.id] || effectiveStageRubricScales[activeStage.id]);
+                      const score = taskScores[task.id]?.[criterion.id];
+                      return <div key={criterion.id} className="grid gap-2 py-2 sm:grid-cols-[minmax(150px,0.8fr)_minmax(0,2fr)_96px] sm:items-center">
+                        <label htmlFor={`task-score-${task.id}-${criterion.id}`} className="text-[10px] text-stone-400">{criterion.label}</label>
+                        <input
+                          id={`task-score-${task.id}-${criterion.id}`}
+                          type="range"
+                          min={scale.min}
+                          max={scale.max}
+                          step={scale.step}
+                          value={score ?? scale.min}
+                          disabled={isSavingDraft}
+                          onChange={(event) => updateTaskCriterionScore(task.id, activeStage.id, criterion.id, Number(event.target.value))}
+                          aria-label={`${task.title || task.prompt || "Task"} ${criterion.label}`}
+                          className="w-full accent-amber-500"
+                        />
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={scale.min}
+                            max={scale.max}
+                            step={scale.step}
+                            value={score ?? ""}
+                            disabled={isSavingDraft}
+                            onChange={(event) => {
+                              if (event.target.value === "") return;
+                              const value = Number(event.target.value);
+                              if (Number.isFinite(value) && value >= scale.min && value <= scale.max) {
+                                updateTaskCriterionScore(task.id, activeStage.id, criterion.id, value);
+                              }
+                            }}
+                            aria-label={`${task.title || task.prompt || "Task"} ${criterion.label} score`}
+                            className="w-full rounded-md border border-border bg-surface px-2 py-1.5 text-center text-xs text-amber-300 outline-none focus:border-amber-500/40"
+                          />
+                          <span className="text-[10px] text-stone-500">/{scale.max}</span>
+                        </div>
+                      </div>;
+                    })}
+                  </div>
+                </div>
+                {pendingTaskOverrideIds[task.id] && <button
+                  type="button"
+                  onClick={() => void handleSaveDraft()}
+                  disabled={isSavingDraft || (usePostgres && submissionLoadState !== "loaded")}
+                  className="w-full rounded-md bg-amber-500/20 px-3 py-2 text-xs font-semibold text-amber-300 transition hover:bg-amber-500/30 disabled:cursor-wait disabled:opacity-50"
+                >
+                  {isSavingDraft ? "Saving Changes..." : "Save Changes"}
+                </button>}
                 <div>
                   <button
                     type="button"

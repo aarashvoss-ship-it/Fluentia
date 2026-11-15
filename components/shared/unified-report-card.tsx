@@ -6,6 +6,8 @@ import remarkGfm from "remark-gfm";
 import { CustomAudioPlayer } from "@/components/study-room/custom-audio-player";
 import { TiptapEditor } from "@/components/shared/tiptap-editor";
 import { combineTaskFeedback } from "@/lib/evaluation-feedback";
+import { applyTaskEvaluationOverrides } from "@/lib/evaluation-overrides";
+import type { UnifiedReportStage, UnifiedReportTask } from "@/types/lesson";
 import { parseMarkdownReportTable, replaceAcademisBreakTags } from "@/lib/academis-report";
 import {
   DEFAULT_RUBRIC_SCALE,
@@ -19,30 +21,7 @@ import {
   roundRubricScoreForScale,
 } from "@/lib/rubric-scoring";
 
-export interface UnifiedReportTask {
-  id: string;
-  title?: string;
-  prompt?: string;
-  studentAnswer: string;
-  studentTranscript?: string;
-  referenceTranscript?: string;
-  taskNumber?: number;
-  modelAnswer?: string;
-  isCorrect?: boolean;
-  autoCheck?: boolean;
-  audioUrls?: string[];
-  fileUrls?: string[];
-  explanation?: string;
-}
-
-export interface UnifiedReportStage {
-  id: string;
-  title: string;
-  prompt?: string;
-  referenceText?: string;
-  referenceAudioUrl?: string;
-  tasks: UnifiedReportTask[];
-}
+export type { UnifiedReportStage, UnifiedReportTask } from "@/types/lesson";
 
 interface UnifiedReportCardProps {
   stages: UnifiedReportStage[];
@@ -57,6 +36,9 @@ interface UnifiedReportCardProps {
   stageRubricScales?: Record<string, string>;
   taskScores?: Record<string, Record<string, number>>;
   taskRubricScales?: Record<string, string>;
+  taskAnswerOverrides?: Record<string, string>;
+  taskModelAnswerOverrides?: Record<string, string>;
+  taskOverrideAudit?: Record<string, { fields: string[]; editedAt: string; instructorId?: string }>;
   globalRubricScale?: string;
   reportCardScoreOverrides?: Record<string, number>;
   taskFeedback?: Record<string, string>;
@@ -188,6 +170,9 @@ export function UnifiedReportCard({
   stageRubricScales = {},
   taskScores = {},
   taskRubricScales = {},
+  taskAnswerOverrides = {},
+  taskModelAnswerOverrides = {},
+  taskOverrideAudit = {},
   globalRubricScale = DEFAULT_RUBRIC_SCALE,
   reportCardScoreOverrides = {},
   taskFeedback = {},
@@ -211,6 +196,7 @@ export function UnifiedReportCard({
   const [isLoadingAcademisReports, setIsLoadingAcademisReports] = useState(false);
   const [academisReportsError, setAcademisReportsError] = useState<string | null>(null);
 
+  const displayStages = applyTaskEvaluationOverrides(stages, taskAnswerOverrides, taskModelAnswerOverrides);
   useEffect(() => {
     if (isInstructorView || !moduleId) {
       setPublishedAcademisReports({});
@@ -257,11 +243,11 @@ export function UnifiedReportCard({
     return () => controller.abort();
   }, [isInstructorView, moduleId]);
 
-  const effectiveStageRubricScales = Object.fromEntries(stages.map((stage) => [
+  const effectiveStageRubricScales = Object.fromEntries(displayStages.map((stage) => [
     stage.id,
     stageRubricScales[stage.id] || globalRubricScale,
   ]));
-  const effectiveStageScores = Object.fromEntries(stages.map((stage) => [
+  const effectiveStageScores = Object.fromEntries(displayStages.map((stage) => [
     stage.id,
     {
       ...aggregateTaskRubricScoresForStage(
@@ -288,7 +274,7 @@ export function UnifiedReportCard({
     ...STUDENT_REPORT_TABS.map((tab) => ({
       id: tab.id,
       title: tab.title,
-      stage: stages.find((stage) => tab.aliases.some((alias: string) => alias === stage.id)),
+      stage: displayStages.find((stage) => tab.aliases.some((alias: string) => alias === stage.id)),
     })),
     { id: "report-card", title: "Report Card", stage: undefined },
   ];
@@ -351,7 +337,7 @@ export function UnifiedReportCard({
         </div>
       </div>
       <div className="flex w-full min-w-0 flex-col gap-4">
-        {stages.filter((stage) => isInstructorView || stage.id === activeStudentStage?.id).map((stage) => <section key={stage.id} className="w-full min-w-0 space-y-3 rounded-xl border border-border bg-surface/60 p-5">
+        {displayStages.filter((stage) => isInstructorView || stage.id === activeStudentStage?.id).map((stage) => <section key={stage.id} className="w-full min-w-0 space-y-3 rounded-xl border border-border bg-surface/60 p-5">
           <div className="border-b border-border pb-3">
             <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-amber-400">{stage.title}</h3>
             {stage.prompt && <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-stone-400">{stripMarkdown(stage.prompt)}</p>}
@@ -399,6 +385,7 @@ export function UnifiedReportCard({
               </div>
               <div className={`mt-3 rounded-md border p-4 ${responseCardClass}`}>
                 <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${responseLabelClass}`}>Your Response</p>
+                {isInstructorView && taskOverrideAudit[task.id]?.fields.includes("studentAnswer") && <span className="mt-1 inline-block rounded-full border border-amber-500/30 px-2 py-0.5 text-[9px] font-semibold text-amber-300">Instructor Override</span>}
                 <p className={`mt-2 whitespace-pre-wrap break-words rounded-sm px-2 py-3 text-sm leading-relaxed ${isEvaluationView && isCorrect ? "bg-emerald-300/10" : isEvaluationView && isIncorrect ? "bg-rose-300/10" : "bg-surface"} ${responseTextClass}`}>{stripMarkdown(task.studentAnswer) || (task.audioUrls?.length || task.fileUrls?.length ? "Response submitted" : <span className={`italic ${responseLabelClass}`}>No response submitted.</span>)}</p>
                 {task.audioUrls?.map((url, mediaIndex) => <div key={`${url}-${mediaIndex}`} className="mt-2 min-w-0 max-w-full overflow-hidden"><CustomAudioPlayer src={url} label={`${stripMarkdown(taskPrompt)} recording`} /></div>)}
                 {task.fileUrls?.map((url, mediaIndex) => <a key={`${url}-${mediaIndex}`} href={url} target="_blank" rel="noreferrer" className="mt-2 inline-flex max-w-full break-all text-sm text-amber-300 underline underline-offset-2 hover:text-amber-200">Open uploaded file</a>)}
@@ -409,6 +396,7 @@ export function UnifiedReportCard({
               </div>}
               {task.modelAnswer && <div className={`mt-3 rounded-md border p-4 ${modelCardClass}`}>
                 <p className={`text-[10px] font-semibold uppercase tracking-wider ${modelLabelClass}`}>Correct / Model Answer</p>
+                {isInstructorView && taskOverrideAudit[task.id]?.fields.includes("modelAnswer") && <span className="mt-1 inline-block rounded-full border border-amber-500/30 px-2 py-0.5 text-[9px] font-semibold text-amber-300">Instructor Override</span>}
                 <p className={`mt-2 whitespace-pre-wrap break-words py-2 text-sm leading-relaxed ${modelTextClass}`}>{stripMarkdown(task.modelAnswer)}</p>
               </div>}
               {!isInstructorView && taskScores[task.id] && <div className="mt-3 rounded-md border border-amber-500/20 bg-amber-500/5 p-3">
@@ -485,7 +473,7 @@ export function UnifiedReportCard({
       {!isLoadingAcademisReports && !academisReportsError && Object.keys(publishedAcademisReports).length === 0
         && <p className="text-sm text-stone-400">No ACADEMIS task feedback has been published for this lesson.</p>}
       <div className="space-y-4">
-        {stages.map((stage) => {
+        {displayStages.map((stage) => {
           const reports = stage.tasks.flatMap((task) => {
             const publishedContent = publishedAcademisReports[getAcademisReportKey(stage.id, task.id)];
             return publishedContent === undefined ? [] : [{ task, publishedContent }];

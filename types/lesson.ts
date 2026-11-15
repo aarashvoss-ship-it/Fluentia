@@ -400,6 +400,13 @@ export interface LessonEvaluation {
   stageRubricScales?: Record<string, "standard-5" | "standard-10" | "ielts" | "percentage">;
   taskScores?: Record<string, Record<string, number>>;
   taskRubricScales?: Record<string, "standard-5" | "standard-10" | "ielts" | "percentage">;
+  taskAnswerOverrides?: Record<string, string>;
+  taskModelAnswerOverrides?: Record<string, string>;
+  taskOverrideAudit?: Record<string, {
+    fields: Array<"studentAnswer" | "modelAnswer" | "scores">;
+    editedAt: string;
+    instructorId?: string;
+  }>;
   globalRubricScale?: "standard-5" | "standard-10" | "ielts" | "percentage";
   reportCardScoreOverrides?: Record<string, number>;
   taskFeedback?: Record<string, string>;
@@ -410,6 +417,31 @@ export interface LessonEvaluation {
   studyHubPrescription?: string;
   voiceFeedbackUrl?: string;
   published?: boolean;
+}
+
+export interface UnifiedReportTask {
+  id: string;
+  title?: string;
+  prompt?: string;
+  studentAnswer: string;
+  studentTranscript?: string;
+  referenceTranscript?: string;
+  taskNumber?: number;
+  modelAnswer?: string;
+  isCorrect?: boolean;
+  autoCheck?: boolean;
+  audioUrls?: string[];
+  fileUrls?: string[];
+  explanation?: string;
+}
+
+export interface UnifiedReportStage {
+  id: string;
+  title: string;
+  prompt?: string;
+  referenceText?: string;
+  referenceAudioUrl?: string;
+  tasks: UnifiedReportTask[];
 }
 
 export type StudentSubmissionStatus = "in_progress" | "submitted" | "pending_evaluation" | "reviewed" | "evaluated";

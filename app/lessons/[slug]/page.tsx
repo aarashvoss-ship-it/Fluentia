@@ -1830,6 +1830,9 @@ export default function LessonPage() {
                 stageRubricScales={evaluation?.stageRubricScales || {}}
                 taskScores={evaluation?.taskScores || {}}
                 taskRubricScales={evaluation?.taskRubricScales || {}}
+                taskAnswerOverrides={evaluation?.taskAnswerOverrides || {}}
+                taskModelAnswerOverrides={evaluation?.taskModelAnswerOverrides || {}}
+                taskOverrideAudit={evaluation?.taskOverrideAudit || {}}
                 globalRubricScale={evaluation?.globalRubricScale}
                 reportCardScoreOverrides={evaluation?.reportCardScoreOverrides || {}}
                 taskFeedback={evaluation?.taskFeedback || {}}
