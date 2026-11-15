@@ -1428,6 +1428,7 @@ export function SubmissionEvaluator({
           ...(evaluationContext.transcriptSource ? { transcript_source: evaluationContext.transcriptSource } : {}),
           ...(evaluationContext.referenceTranscript ? { reference_transcript: evaluationContext.referenceTranscript } : {}),
           audio_response_submitted: evaluationContext.audioResponseSubmitted === true,
+          ...(selectedTask.audioUrls?.[0] ? { audio_url: selectedTask.audioUrls[0] } : {}),
           instructorPrompt: evaluationContext.instructorPrompt,
           stageTaskContexts,
         }),

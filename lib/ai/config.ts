@@ -1,3 +1,5 @@
+import type { AiInputAudioPart } from "@/lib/ai/audio";
+
 export type AiTokenLimitParameter = "max_completion_tokens" | "max_tokens";
 export type AiModelVendor = "openai" | "gemini" | "other";
 export type AiStructuredOutputMode = "json_schema" | "json_object";
@@ -14,7 +16,7 @@ export interface AiModelProfile {
 
 export interface AiChatMessage {
   role: "system" | "user" | "assistant";
-  content: string;
+  content: string | Array<{ type: "text"; text: string } | AiInputAudioPart>;
 }
 
 const DEFAULT_CHAT_COMPLETIONS_ENDPOINT = "https://console.paasta.cloud/api/ai/v1/chat/completions";

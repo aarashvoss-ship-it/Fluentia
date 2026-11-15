@@ -8,9 +8,17 @@ import {
   getAiStructuredResponseFormat,
 } from "@/lib/ai/config";
 import {
+  createAiInputAudioPart,
+  getAiAudioFormat,
+  getAudioTranscriptionEndpoint,
+} from "@/lib/ai/audio";
+import type { AiChatMessage } from "@/lib/ai/config";
+import {
   standardAiAdapter,
   STANDARD_EVALUATION_RESPONSE_FORMAT,
 } from "@/lib/ai/adapter";
+import { getS3ObjectForUrl } from "@/lib/s3-storage";
+import { normalizeSubmissionAnswers } from "@/lib/submission-answers";
 import type { StandardEvaluationReport } from "@/lib/ai/types";
 import {
   formatAcademisAxisScore,
@@ -35,6 +43,8 @@ const MAX_INSTRUCTOR_PROMPT_LENGTH = 2500;
 const MAX_STAGE_CONTEXT_PROMPT_LENGTH = 1200;
 const MAX_STAGE_CONTEXT_RESPONSE_LENGTH = 2000;
 const MAX_STAGE_CONTEXT_TASKS = 8;
+const MAX_AUDIO_BYTES = 12 * 1024 * 1024;
+const MAX_AUDIO_URL_LENGTH = 2048;
 
 interface AcademisInsight {
   criteria_scores: Record<string, number | null>;
@@ -101,6 +111,53 @@ function isAcademisResource(value: unknown): value is AcademisResource {
 function limitSentences(value: string, maximum: number) {
   const sentences = value.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [];
   return sentences.slice(0, maximum).join(" ").trim();
+}
+
+function getSubmissionAudioUrls(submission: { answers: unknown; audio_url: string | null }) {
+  const answers = normalizeSubmissionAnswers(submission.answers, "ACADEMIS submission audio lookup");
+  return new Set([
+    submission.audio_url,
+    answers.speakingAudioUrl,
+    ...Object.values(answers.audioUploads || {}),
+  ].filter((url): url is string => typeof url === "string" && url.trim().length > 0));
+}
+
+async function transcribeAcademisAudio(
+  audio: { body: Uint8Array; contentType: string },
+  apiKey: string,
+): Promise<string> {
+  const endpoint = getAudioTranscriptionEndpoint(
+    ACADEMIS_EVAL_MODEL.endpoint,
+    process.env.ACADEMIS_STT_URL,
+  );
+  const model = process.env.ACADEMIS_STT_MODEL?.trim() || "whisper-1";
+  const fileExtension = getAiAudioFormat(audio.contentType) || "bin";
+  const form = new FormData();
+  form.append("model", model);
+  form.append(
+    "file",
+    new Blob([Buffer.from(audio.body)], { type: audio.contentType }),
+    `submission-audio.${fileExtension}`,
+  );
+  console.info("Transcribing ACADEMIS audio fallback:", {
+    contentType: audio.contentType,
+    bytes: audio.body.byteLength,
+    model,
+  });
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: form,
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok) {
+    throw new Error(`Speech-to-text provider returned ${response.status} ${response.statusText}.`);
+  }
+  const result: unknown = await response.json();
+  if (!isRecord(result) || typeof result.text !== "string" || !result.text.trim()) {
+    throw new Error("Speech-to-text provider returned no transcript.");
+  }
+  return result.text.trim().slice(0, MAX_STUDENT_RESPONSE_LENGTH);
 }
 
 function parseInsight(content: string, report: StandardEvaluationReport): AcademisInsight | null {
@@ -239,8 +296,11 @@ async function getAuthorizedSubmission(submissionId: string, userId: string, rol
     lesson_id: string;
     student_id: string;
     instructor_id: string | null;
+    answers: unknown;
+    audio_url: string | null;
   }>(
     `SELECT submissions.id::text, submissions.lesson_id::text, submissions.student_id::text,
+            submissions.answers, submissions.audio_url,
             lessons.instructor_id::text
      FROM public.submissions
      JOIN public.lessons ON lessons.id = submissions.lesson_id
@@ -467,6 +527,8 @@ export async function POST(request: Request) {
     || (body.transcript_source !== undefined
       && !["student", "task_answer", "shadowing_reference"].includes(body.transcript_source as string))
     || (body.audio_response_submitted !== undefined && typeof body.audio_response_submitted !== "boolean")
+    || (body.audio_url !== undefined
+      && (typeof body.audio_url !== "string" || !body.audio_url.trim() || body.audio_url.length > MAX_AUDIO_URL_LENGTH))
     || (body.stageTaskContexts !== undefined && !Array.isArray(body.stageTaskContexts))) {
     return NextResponse.json({ error: "Provide a valid task prompt, response, stage, and submission." }, { status: 400 });
   }
@@ -487,21 +549,110 @@ export async function POST(request: Request) {
     const submission = context.submission;
 
     const modelAnswer = typeof body.model_answer === "string" ? body.model_answer.trim() : "";
-    const studentTranscript = typeof body.student_transcript === "string" ? body.student_transcript.trim() : "";
+    let studentTranscript = typeof body.student_transcript === "string" ? body.student_transcript.trim() : "";
     const referenceTranscript = typeof body.reference_transcript === "string" ? body.reference_transcript.trim() : "";
     const transcriptSource = typeof body.transcript_source === "string" ? body.transcript_source : "";
     const audioResponseSubmitted = body.audio_response_submitted === true;
+    let audio: { body: Uint8Array; contentType: string } | null = null;
+    let audioPart: ReturnType<typeof createAiInputAudioPart> = null;
+    let audioPartAttached = false;
+    if (typeof body.audio_url === "string") {
+      if (!audioResponseSubmitted) {
+        return NextResponse.json({ error: "Audio can only be evaluated for a submitted audio response." }, { status: 400 });
+      }
+      if (!getSubmissionAudioUrls(submission).has(body.audio_url)) {
+        return NextResponse.json({ error: "The audio file is not part of this submission." }, { status: 403 });
+      }
+      try {
+        audio = await getS3ObjectForUrl(body.audio_url, MAX_AUDIO_BYTES);
+      } catch (error) {
+        const isOversized = error instanceof Error
+          && error.message.includes("evaluation limit");
+        console.error("Unable to retrieve ACADEMIS submission audio:", {
+          message: error instanceof Error ? error.message : String(error),
+        });
+        return NextResponse.json({
+          error: isOversized
+            ? "The submitted audio must be 12 MiB or smaller."
+            : "Unable to retrieve the submitted audio for evaluation.",
+        }, { status: isOversized ? 413 : 503 });
+      }
+      if (!audio) {
+        return NextResponse.json({ error: "The submitted audio is not stored in the configured PaasTA bucket." }, { status: 422 });
+      }
+      if (!audio.contentType.toLowerCase().startsWith("audio/")) {
+        console.error("ACADEMIS submission audio has a non-audio content type:", {
+          contentType: audio.contentType,
+          bytes: audio.body.byteLength,
+        });
+        return NextResponse.json({ error: "The submitted file is not a playable audio recording." }, { status: 415 });
+      }
+      audioPart = createAiInputAudioPart(
+        Buffer.from(audio.body).toString("base64"),
+        audio.contentType,
+      );
+      audioPartAttached = Boolean(audioPart);
+      if (!audioPart) {
+        console.error("ACADEMIS audio could not be represented as an input-audio content part:", {
+          contentType: audio.contentType,
+          bytes: audio.body.byteLength,
+        });
+      }
+      console.info("ACADEMIS audio payload prepared:", {
+        contentType: audio.contentType,
+        bytes: audio.body.byteLength,
+        format: audioPart?.input_audio.format,
+        attached: Boolean(audioPart),
+      });
+    } else if (audioResponseSubmitted) {
+      console.warn("ACADEMIS audio response was marked submitted but no stored audio URL was provided.", {
+        submissionId: submission.id,
+        taskId: body.taskId,
+      });
+    }
+    if (audio && !studentTranscript) {
+      try {
+        studentTranscript = await transcribeAcademisAudio(audio, apiKey);
+        console.info("ACADEMIS speech-to-text fallback completed:", {
+          transcriptCharacters: studentTranscript.length,
+        });
+      } catch (error) {
+        console.error("ACADEMIS speech-to-text fallback failed:", {
+          message: error instanceof Error ? error.message : String(error),
+          contentType: audio.contentType,
+          bytes: audio.body.byteLength,
+        });
+      }
+    }
     const audioResponsePlaceholder = /^audio response submitted(?:; transcript unavailable for grading)?\.?$/i.test(body.studentResponse.trim());
     const evaluationTranscript = studentTranscript
       || (transcriptSource === "shadowing_reference" || (body.stageId === "speaking" && audioResponsePlaceholder)
         ? referenceTranscript
         : "");
     const evaluationResponse = evaluationTranscript || body.studentResponse;
-    const isSpeakingEvaluation = body.stageId === "speaking" || Boolean(evaluationTranscript || referenceTranscript);
+    const isSpeakingEvaluation = body.stageId === "speaking"
+      || audioResponseSubmitted
+      || Boolean(evaluationTranscript || referenceTranscript);
     const model = ACADEMIS_EVAL_MODEL.model;
     let paastaResponse: Response;
     try {
-      const requestBody = buildAiChatCompletionBody(ACADEMIS_EVAL_MODEL, [
+      const userPrompt = JSON.stringify({
+        stage: body.stageTitle,
+        task: body.taskTitle,
+        task_prompt: body.taskPrompt,
+        ...(modelAnswer ? { model_answer: modelAnswer } : {}),
+        ...(referenceTranscript ? { reference_transcript: referenceTranscript } : {}),
+        ...(transcriptSource ? { transcript_source: transcriptSource } : {}),
+        audio_response_submitted: audioResponseSubmitted,
+        student_response: evaluationResponse,
+        ...(evaluationTranscript ? { student_transcript: evaluationTranscript } : {}),
+        stage_task_contexts: stageTaskContexts,
+        instructor_focus: typeof body.instructorPrompt === "string" ? body.instructorPrompt : "",
+      });
+      const userContent: AiChatMessage["content"] = audioPart
+        ? [{ type: "text", text: userPrompt }, audioPart]
+        : userPrompt;
+      const chatMessages: AiChatMessage[] = [
             {
               role: "system",
               content: [
@@ -537,27 +688,16 @@ export async function POST(request: Request) {
             },
             {
               role: "user",
-              content: JSON.stringify({
-                stage: body.stageTitle,
-                task: body.taskTitle,
-                task_prompt: body.taskPrompt,
-                ...(modelAnswer ? { model_answer: modelAnswer } : {}),
-                ...(referenceTranscript ? { reference_transcript: referenceTranscript } : {}),
-                ...(transcriptSource ? { transcript_source: transcriptSource } : {}),
-                audio_response_submitted: audioResponseSubmitted,
-                student_response: evaluationResponse,
-                ...(evaluationTranscript ? { student_transcript: evaluationTranscript } : {}),
-                stage_task_contexts: stageTaskContexts,
-                instructor_focus: typeof body.instructorPrompt === "string" ? body.instructorPrompt : "",
-              }),
+              content: userContent,
             },
-          ], {
+          ];
+      const requestBody = buildAiChatCompletionBody(ACADEMIS_EVAL_MODEL, chatMessages, {
             response_format: getAiStructuredResponseFormat(
               ACADEMIS_EVAL_MODEL,
               STANDARD_EVALUATION_RESPONSE_FORMAT,
             ),
           });
-      const signal = AbortSignal.timeout(100_000);
+      const signal = AbortSignal.timeout(80_000);
       const sendRequest = (payload: Record<string, unknown>) => fetch(ACADEMIS_EVAL_MODEL.endpoint, {
         method: "POST",
         headers: {
@@ -569,16 +709,29 @@ export async function POST(request: Request) {
       });
       paastaResponse = await sendRequest(requestBody);
       const appliedFallbacks = new Set<string>();
-      for (let attempt = 0; !paastaResponse.ok && attempt < 2; attempt += 1) {
+      for (let attempt = 0; !paastaResponse.ok && attempt < 3; attempt += 1) {
         if (paastaResponse.status !== 400 && paastaResponse.status !== 422) break;
         const providerError = await paastaResponse.clone().text();
+        const rejectsAudio = Boolean(audioPart)
+          && !appliedFallbacks.has("audio_text_fallback")
+          && /audio|input_audio|modality|multimodal|unsupported content|content type/i.test(providerError);
         const rejectsSchema = "response_format" in requestBody
           && (requestBody.response_format as { type?: string })?.type === "json_schema"
           && /response_format|json_schema|structured output/i.test(providerError);
         const rejectsCompletionTokenField = typeof requestBody.max_completion_tokens === "number"
           && /max_completion_tokens/i.test(providerError)
           && /unsupported|unknown|unrecognized|not allowed|not support/i.test(providerError);
-        if (rejectsSchema && !appliedFallbacks.has("json_object")) {
+        if (rejectsAudio && evaluationTranscript) {
+          appliedFallbacks.add("audio_text_fallback");
+          console.warn("PaasTA rejected ACADEMIS audio input; retrying with the available transcript.", {
+            model,
+            status: paastaResponse.status,
+            format: audioPart?.input_audio.format,
+            bytes: audio?.body.byteLength,
+          });
+          chatMessages[1].content = userPrompt;
+          audioPartAttached = false;
+        } else if (rejectsSchema && !appliedFallbacks.has("json_object")) {
           appliedFallbacks.add("json_object");
           console.warn("PaasTA rejected ACADEMIS JSON Schema mode; retrying with JSON object mode.");
           requestBody.response_format = { type: "json_object" };
@@ -593,7 +746,12 @@ export async function POST(request: Request) {
         paastaResponse = await sendRequest(requestBody);
       }
     } catch (error) {
-      console.error("ACADEMIS AI ERROR:", error);
+      console.error("ACADEMIS AI ERROR:", {
+        error,
+        audioAttached: audioPartAttached,
+        audioFormat: audioPart?.input_audio.format,
+        audioBytes: audio?.body.byteLength,
+      });
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (error instanceof Error && error.name === "TimeoutError") {
         return NextResponse.json({
@@ -619,9 +777,12 @@ export async function POST(request: Request) {
         model,
         status: paastaResponse.status,
         statusText: paastaResponse.statusText,
-        response: responseDetails,
+        ...(audio ? {} : { response: responseDetails }),
+        audioAttached: audioPartAttached,
+        audioFormat: audioPart?.input_audio.format,
+        audioBytes: audio?.body.byteLength,
       });
-      const errorMessage = `Academis AI provider returned ${paastaResponse.status} ${paastaResponse.statusText}${responseDetails ? `: ${responseDetails}` : ""}`;
+      const errorMessage = `Academis AI provider returned ${paastaResponse.status} ${paastaResponse.statusText}${responseDetails && !audio ? `: ${responseDetails}` : ""}`;
       console.error("ACADEMIS AI ERROR:", new Error(errorMessage));
       return NextResponse.json({
         error: process.env.NODE_ENV === "development"
@@ -635,7 +796,15 @@ export async function POST(request: Request) {
       rawResponseBody = await paastaResponse.text();
       completion = JSON.parse(rawResponseBody);
     } catch {
-      console.error("Raw AI Response:", rawResponseBody || "No response body was readable.");
+      if (audio) {
+        console.error("ACADEMIS audio evaluation returned invalid JSON:", {
+          responseCharacters: rawResponseBody.length,
+          audioFormat: audioPart?.input_audio.format,
+          audioBytes: audio?.body.byteLength,
+        });
+      } else {
+        console.error("Raw AI Response:", rawResponseBody || "No response body was readable.");
+      }
       return createEvaluationFallbackResponse("Academis returned a response that was not valid JSON.");
     }
     const { text: extractedContent, detail } = standardAiAdapter.extractText(completion);
@@ -644,7 +813,15 @@ export async function POST(request: Request) {
       const error = extractedContent.trim()
         ? "Academis returned a response that did not match the required structured evaluation schema."
         : detail || "Academis returned no structured grading content.";
-      console.error("Raw AI Response:", JSON.stringify(completion));
+      if (audio) {
+        console.error("ACADEMIS audio evaluation returned an invalid grading report:", {
+          detail: error,
+          audioFormat: audioPart?.input_audio.format,
+          audioBytes: audio?.body.byteLength,
+        });
+      } else {
+        console.error("Raw AI Response:", JSON.stringify(completion));
+      }
       return createEvaluationFallbackResponse(error);
     }
 

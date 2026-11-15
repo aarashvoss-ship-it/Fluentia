@@ -1,5 +1,6 @@
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
@@ -154,4 +155,35 @@ export async function deleteS3Object(url: string, ownerId: string, canDeleteAny:
     console.error("Paasta S3 deletion failed:", error);
     throw error;
   }
+}
+
+export async function getS3ObjectForUrl(
+  url: string,
+  maxBytes: number,
+): Promise<{ body: Uint8Array; contentType: string } | null> {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
+    throw new Error("A positive maximum object size is required.");
+  }
+  const configuration = getS3Configuration();
+  const key = objectKeyFromPublicUrl(url, configuration);
+  if (!key) return null;
+
+  const response = await configuration.client.send(new GetObjectCommand({
+    Bucket: configuration.bucket,
+    Key: key,
+  }));
+  if (response.ContentLength === undefined || response.ContentLength > maxBytes) {
+    throw new Error(`The submitted audio exceeds the ${maxBytes}-byte evaluation limit.`);
+  }
+  if (!response.Body) throw new Error("The submitted audio object has no readable content.");
+
+  const body = await response.Body.transformToByteArray();
+  if (body.byteLength === 0) throw new Error("The submitted audio object is empty.");
+  if (body.byteLength > maxBytes) {
+    throw new Error(`The submitted audio exceeds the ${maxBytes}-byte evaluation limit.`);
+  }
+  return {
+    body,
+    contentType: response.ContentType || "application/octet-stream",
+  };
 }
