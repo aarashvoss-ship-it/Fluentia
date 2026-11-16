@@ -25,15 +25,13 @@ export const STANDARD_EVALUATION_RESPONSE_FORMAT = {
             additionalProperties: false,
             properties: {
               index: { type: "string" },
-              axis: { type: "string" },
-              score: { type: "integer", minimum: 0, maximum: 100 },
+              axis_score: { type: "string" },
               actionable_feedback: { type: "string" },
               strengths_weaknesses_diagnostics: { type: "string" },
             },
             required: [
               "index",
-              "axis",
-              "score",
+              "axis_score",
               "actionable_feedback",
               "strengths_weaknesses_diagnostics",
             ],
