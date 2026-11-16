@@ -1475,6 +1475,7 @@ export function SubmissionEvaluator({
         report?: unknown;
         errorCode?: string;
         retryAfterText?: string;
+        requestId?: string;
       };
       try {
         payload = await response.json() as {
@@ -1486,6 +1487,7 @@ export function SubmissionEvaluator({
           report?: unknown;
           errorCode?: string;
           retryAfterText?: string;
+          requestId?: string;
         };
       } catch {
         throw new Error("Academis returned an invalid response.");
@@ -1495,7 +1497,10 @@ export function SubmissionEvaluator({
         setAcademisError(null);
         return;
       }
-      if (!response.ok) throw new Error(payload.error || "Academis could not complete the grading request.");
+      if (!response.ok) {
+        const message = payload.error || "Academis could not complete the grading request.";
+        throw new Error(payload.requestId ? `${message} (Reference: ${payload.requestId})` : message);
+      }
       if (!isAcademisInsight(payload.insight)) {
         throw new Error("Academis returned an incomplete grading result.");
       }

@@ -10,7 +10,8 @@ import {
   type AuthenticatedRole,
   type SessionUser,
 } from "@/lib/auth";
-import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
+import { getPostgresPool, initializeDatabase, logDatabaseError, shouldUseLocalSqlite } from "@/lib/db";
+import { createLocalUser } from "@/lib/local-sqlite.mjs";
 import { saveWaitlistRequest, WAITLIST_SUCCESS_MESSAGE } from "@/lib/waitlist-requests";
 
 export const runtime = "nodejs";
@@ -46,6 +47,39 @@ export async function POST(request: Request) {
   const password = typeof body.password === "string" ? body.password : "";
   if (!EMAIL_PATTERN.test(email) || email.length > 254 || !name || name.length > 120) {
     return NextResponse.json({ error: "Enter a valid name and email address." }, { status: 400 });
+  }
+
+  const useLocalSqlite = await shouldUseLocalSqlite();
+  if (useLocalSqlite) {
+    const passwordBytes = Buffer.byteLength(password, "utf8");
+    if (password.length < 12 || passwordBytes > 72) {
+      return NextResponse.json({ error: "Password must be at least 12 characters and no more than 72 UTF-8 bytes." }, { status: 400 });
+    }
+
+    const user: SessionUser = {
+      id: randomUUID(),
+      email,
+      role: coreAccount?.role ?? "student",
+      name,
+    };
+    try {
+      const token = await createSessionToken(user);
+      const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+      const created = await createLocalUser({
+        ...user,
+        token: randomUUID(),
+        passwordHash,
+      });
+      if (!created) {
+        return NextResponse.json({ error: "An account with that email already exists." }, { status: 409 });
+      }
+      const response = NextResponse.json({ user });
+      response.cookies.set(SESSION_COOKIE_NAME, token, sessionCookieOptions());
+      return response;
+    } catch (error) {
+      logDatabaseError("Local sign-up operation failed:", error);
+      return NextResponse.json({ error: "Sign-up is temporarily unavailable." }, { status: 503 });
+    }
   }
 
   const userId = randomUUID();

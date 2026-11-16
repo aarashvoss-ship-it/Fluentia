@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
+import { getPostgresPool, initializeDatabase, logDatabaseError, shouldUseLocalSqlite } from "@/lib/db";
 import { getServerSessionUser } from "@/lib/server/session";
 
 export const runtime = "nodejs";
@@ -23,6 +23,10 @@ export async function GET() {
   if ("response" in access) return access.response;
 
   try {
+    if (await shouldUseLocalSqlite()) {
+      return NextResponse.json({ tracks: [] });
+    }
+
     await initializeDatabase();
     const result = await getPostgresPool().query(
       `SELECT id, instructor_id, name, is_archived, created_at, updated_at

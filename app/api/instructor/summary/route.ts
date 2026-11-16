@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
+import { getPostgresPool, initializeDatabase, logDatabaseError, shouldUseLocalSqlite } from "@/lib/db";
+import { getLocalInstructorSummary } from "@/lib/local-sqlite.mjs";
 import { getServerSessionUser } from "@/lib/server/session";
 import { assignUnownedSampleLesson } from "@/lib/server/sample-lesson";
 import { normalizeSubmissionAnswers } from "@/lib/submission-answers";
@@ -14,6 +15,10 @@ export async function GET() {
   }
 
   try {
+    if (await shouldUseLocalSqlite()) {
+      return NextResponse.json(await getLocalInstructorSummary(user));
+    }
+
     await initializeDatabase();
     const pool = getPostgresPool();
     if (user.role === "instructor") {

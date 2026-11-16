@@ -6,19 +6,26 @@ import { RUNTIME_SCHEMA_SQL } from "../lib/runtime-schema.mjs";
 const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());
 
+if (process.env.NODE_ENV !== "production" && process.env.FLUENTIA_USE_LOCAL_SQLITE === "true") {
+  const { initializeLocalSqlite } = await import("../lib/local-sqlite.mjs");
+  await initializeLocalSqlite();
+  console.info("Local SQLite database is ready.");
+  process.exit(0);
+}
+
 let postgresConfig;
 try {
   postgresConfig = getPostgresConfig();
 } catch (error) {
-  if (!process.env.DATABASE_URL && !process.env.POSTGRES_URL
-    && !process.env.DATABASE_HOST && !process.env.POSTGRES_HOST && !process.env.PGHOST) {
-    console.warn(
-      "Skipping Fluentia database initialization: no PostgreSQL connection settings are configured.",
-    );
-    process.exit(0);
+  if (process.env.NODE_ENV === "production") {
+    console.error("Fluentia database connection configuration is invalid:", error);
+    process.exit(1);
   }
-  console.error("Fluentia database connection configuration is invalid:", error);
-  process.exit(1);
+  console.warn("PostgreSQL is not configured for local development; initializing SQLite.");
+  const { initializeLocalSqlite } = await import("../lib/local-sqlite.mjs");
+  await initializeLocalSqlite();
+  console.info("Local SQLite database is ready.");
+  process.exit(0);
 }
 
 const pool = new Pool({
@@ -27,27 +34,30 @@ const pool = new Pool({
   connectionTimeoutMillis: 10_000,
 });
 
-function isDnsResolutionError(error) {
-  return (
-    error !== null
-    && typeof error === "object"
-    && "code" in error
-    && (error.code === "ENOTFOUND" || error.code === "EAI_AGAIN")
-  );
-}
-
+let postgresAvailable = false;
 try {
-  console.info("Initializing Fluentia database schema...");
-  await pool.query(RUNTIME_SCHEMA_SQL);
-  console.info("Fluentia database schema is ready (users, profiles, waitlist_requests).");
+  await pool.query("SELECT 1");
+  postgresAvailable = true;
 } catch (error) {
-  if (isDnsResolutionError(error)) {
-    console.warn("Database unreachable in local mode, skipping init");
-    process.exit(0);
+  if (process.env.NODE_ENV === "production") {
+    console.error("PostgreSQL is unavailable; refusing to start without the production database:", error);
+    process.exitCode = 1;
+  } else {
+    console.warn("PostgreSQL is unavailable in local development; initializing SQLite.");
+    const { initializeLocalSqlite } = await import("../lib/local-sqlite.mjs");
+    await initializeLocalSqlite();
+    console.info("Local SQLite database is ready.");
   }
-
-  console.error("Fluentia database initialization failed:", error);
-  process.exitCode = 1;
-} finally {
-  await pool.end();
 }
+
+if (postgresAvailable) {
+  try {
+    console.info("Initializing Fluentia database schema...");
+    await pool.query(RUNTIME_SCHEMA_SQL);
+    console.info("Fluentia database schema is ready (users, profiles, waitlist_requests).");
+  } catch (error) {
+    console.error("Fluentia database initialization failed:", error);
+    process.exitCode = 1;
+  }
+}
+await pool.end();

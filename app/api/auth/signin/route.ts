@@ -7,7 +7,8 @@ import {
   sessionCookieOptions,
   type AuthenticatedRole,
 } from "@/lib/auth";
-import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
+import { getPostgresPool, initializeDatabase, shouldUseLocalSqlite } from "@/lib/db";
+import { findLocalUserByEmail } from "@/lib/local-sqlite.mjs";
 
 export const runtime = "nodejs";
 
@@ -48,6 +49,28 @@ export async function POST(request: Request) {
   }
 
   try {
+    if (await shouldUseLocalSqlite()) {
+      const user = await findLocalUserByEmail(email);
+      const storedPasswordMatches = user && isBcryptHash(user.password_hash)
+        ? await bcrypt.compare(password, user.password_hash)
+        : false;
+      if (!user || !storedPasswordMatches) {
+        return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
+      }
+
+      const token = await createSessionToken({
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        name: user.name,
+      });
+      const response = NextResponse.json({
+        user: { id: user.id, email: user.email, role: user.role, name: user.name },
+      });
+      response.cookies.set(SESSION_COOKIE_NAME, token, sessionCookieOptions());
+      return response;
+    }
+
     await initializeDatabase();
     const pool = getPostgresPool();
     const result = await pool.query<LoginUser>(
@@ -94,7 +117,28 @@ export async function POST(request: Request) {
     response.cookies.set(SESSION_COOKIE_NAME, token, sessionCookieOptions());
     return response;
   } catch (error) {
-    logDatabaseError("Native sign-in database operation failed:", error);
-    return NextResponse.json({ error: "Sign-in is temporarily unavailable." }, { status: 500 });
+    const message = error instanceof Error ? error.message : String(error);
+    const code = error !== null && typeof error === "object" && "code" in error
+      && typeof error.code === "string" ? error.code : undefined;
+    console.error("Native sign-in database operation failed:", {
+      message,
+      code,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
+    const connectionErrorCodes = new Set([
+      "ENOTFOUND",
+      "EAI_AGAIN",
+      "ECONNREFUSED",
+      "ECONNRESET",
+      "ETIMEDOUT",
+    ]);
+    const isDatabaseUnavailable = (code !== undefined && connectionErrorCodes.has(code))
+      || /DATABASE_URL|POSTGRES_URL|PostgreSQL host/i.test(message);
+    return NextResponse.json({
+      error: isDatabaseUnavailable
+        ? "The database is unreachable or misconfigured. Verify DATABASE_URL is accessible from this machine."
+        : "Sign-in is temporarily unavailable.",
+    }, { status: 503 });
   }
 }

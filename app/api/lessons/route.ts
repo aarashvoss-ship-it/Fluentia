@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import type { PoolClient } from "pg";
-import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
+import { getPostgresPool, initializeDatabase, logDatabaseError, shouldUseLocalSqlite } from "@/lib/db";
+import { getLocalLessons } from "@/lib/local-sqlite.mjs";
 import { getServerSessionUser } from "@/lib/server/session";
 import { assignUnownedSampleLesson } from "@/lib/server/sample-lesson";
 
@@ -514,6 +515,28 @@ export async function GET(request: Request) {
   }
 
   try {
+    if (await shouldUseLocalSqlite()) {
+      if (scope === "versions") {
+        const lessonId = params.get("lessonId")?.trim() || "";
+        if (!uuidPattern.test(lessonId)) return NextResponse.json({ error: "Invalid lesson ID." }, { status: 400 });
+        const versions = await getLocalLessons({ scope, user, identity: lessonId });
+        return NextResponse.json({ versions });
+      }
+
+      const lessons = await getLocalLessons({
+        scope,
+        user,
+        identity,
+        instructorId: params.get("instructorId")?.trim() || "",
+      });
+      if (scope === "one") {
+        return lessons[0]
+          ? NextResponse.json({ lesson: lessons[0] })
+          : NextResponse.json({ error: "Lesson not found." }, { status: 404 });
+      }
+      return NextResponse.json({ lessons });
+    }
+
     await initializeDatabase();
     const pool = getPostgresPool();
     if (scope === "instructor" && user.role === "instructor") {

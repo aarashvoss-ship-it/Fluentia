@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
+import { getPostgresPool, initializeDatabase, logDatabaseError, shouldUseLocalSqlite } from "@/lib/db";
 import { areAcademisPromptTitlesUnique } from "@/lib/academis-prompts";
 import { isAllowedRequestOrigin } from "@/lib/auth";
 import { getServerSessionUser } from "@/lib/server/session";
+import { deleteLocalPromptLibraryPreset, getLocalPromptLibrary, saveLocalPromptLibrary } from "@/lib/local-sqlite.mjs";
 
 export const runtime = "nodejs";
 
@@ -94,6 +95,10 @@ export async function GET() {
   if ("response" in access) return access.response;
 
   try {
+    if (await shouldUseLocalSqlite()) {
+      return NextResponse.json({ library: await getLocalPromptLibrary(access.user.id) });
+    }
+
     await initializeDatabase();
     const result = await getPostgresPool().query<{ library: unknown }>(
       "SELECT library FROM public.academis_prompt_libraries WHERE instructor_id = $1::uuid",
@@ -125,6 +130,11 @@ export async function PUT(request: Request) {
   }
 
   try {
+    if (await shouldUseLocalSqlite()) {
+      await saveLocalPromptLibrary(access.user.id, library);
+      return NextResponse.json({ library });
+    }
+
     await initializeDatabase();
     await getPostgresPool().query(
       `INSERT INTO public.academis_prompt_libraries (instructor_id, library, updated_at)
@@ -155,6 +165,19 @@ export async function DELETE(request: Request) {
   }
   if (!isRecord(body) || typeof body.presetId !== "string" || !body.presetId.trim() || body.presetId.length > 120) {
     return NextResponse.json({ error: "Provide a valid prompt to delete." }, { status: 400 });
+  }
+
+  if (await shouldUseLocalSqlite()) {
+    try {
+      const library = await deleteLocalPromptLibraryPreset(access.user.id, body.presetId);
+      if (!library) {
+        return NextResponse.json({ error: "That prompt no longer exists. Reload the library and try again." }, { status: 404 });
+      }
+      return NextResponse.json({ library });
+    } catch (error) {
+      logDatabaseError("Local Academis prompt deletion failed:", error);
+      return NextResponse.json({ error: "Unable to delete the Academis prompt from local SQLite." }, { status: 503 });
+    }
   }
 
   const client = await getPostgresPool().connect();

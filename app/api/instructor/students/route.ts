@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
-import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
+import { getPostgresPool, initializeDatabase, logDatabaseError, shouldUseLocalSqlite } from "@/lib/db";
+import { getLocalStudents } from "@/lib/local-sqlite.mjs";
 import { getServerSessionUser } from "@/lib/server/session";
 import { reconcileDailyCreditRule } from "@/lib/student-credit-ledger";
 
@@ -38,6 +39,19 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Only instructors can load the student directory." }, { status: 403 });
   }
   try {
+    if (await shouldUseLocalSqlite()) {
+      const students: Record<string, unknown>[] = await getLocalStudents();
+      if (identifier) {
+        const student = students.find((entry) => entry.id === identifier || entry.token === identifier);
+        if (!student) return NextResponse.json({ error: "Student profile not found." }, { status: 404 });
+        if (user.role === "student" && student.id !== user.id) {
+          return NextResponse.json({ error: "You can only load your own student profile." }, { status: 403 });
+        }
+        return NextResponse.json({ student });
+      }
+      return NextResponse.json({ students });
+    }
+
     await initializeDatabase();
     if (identifier) {
       const client = await getPostgresPool().connect();

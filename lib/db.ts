@@ -5,7 +5,27 @@ import { RUNTIME_SCHEMA_SQL } from "./runtime-schema.mjs";
 const globalForPostgres = globalThis as typeof globalThis & {
   fluentiaPostgresPool?: Pool;
   fluentiaPostgresInitialization?: Promise<void>;
+  fluentiaLocalSqliteMode?: Promise<boolean>;
 };
+
+export async function shouldUseLocalSqlite() {
+  if (process.env.NODE_ENV === "production") return false;
+  if (process.env.FLUENTIA_USE_LOCAL_SQLITE === "true") return true;
+  if (globalForPostgres.fluentiaLocalSqliteMode) {
+    return globalForPostgres.fluentiaLocalSqliteMode;
+  }
+
+  globalForPostgres.fluentiaLocalSqliteMode = (async () => {
+    try {
+      await getPostgresPool().query("SELECT 1");
+      return false;
+    } catch (error) {
+      logDatabaseError("PostgreSQL unavailable; using the local development SQLite database:", error);
+      return true;
+    }
+  })();
+  return globalForPostgres.fluentiaLocalSqliteMode;
+}
 
 export function getPostgresPool() {
   if (globalForPostgres.fluentiaPostgresPool) {

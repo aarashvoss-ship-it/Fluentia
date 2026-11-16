@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import type { Pool, PoolClient } from "pg";
-import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
+import { getPostgresPool, initializeDatabase, logDatabaseError, shouldUseLocalSqlite } from "@/lib/db";
 import { getServerSessionUser } from "@/lib/server/session";
+import { getLocalEvaluation, getLocalSubmission, getLocalSubmissions, saveLocalEvaluation } from "@/lib/local-sqlite.mjs";
 
 export const runtime = "nodejs";
 
@@ -15,7 +16,7 @@ function missingSchema(error: unknown) {
 }
 
 function databaseError(error: unknown) {
-  logDatabaseError("PostgreSQL evaluation request failed:", error);
+  logDatabaseError("Evaluation request failed:", error);
   return NextResponse.json({
     error: missingSchema(error)
       ? "Evaluation storage is not configured in PostgreSQL. Apply the instructor feedback and instructor evaluation drafts schema before saving or loading evaluations."
@@ -118,6 +119,32 @@ export async function GET(request: Request) {
   }
 
   try {
+    if (await shouldUseLocalSqlite()) {
+      if (evaluationId) return NextResponse.json({ evaluation: null });
+      if (instructorId && user.role === "instructor" && instructorId !== user.id) {
+        return NextResponse.json({ error: "You can only access evaluations for your own lessons." }, { status: 403 });
+      }
+      if (submissionId) {
+        const submission = await getLocalSubmission(submissionId);
+        if (!submission) return NextResponse.json({ error: "Submission not found." }, { status: 404 });
+        const permitted = user.role === "admin"
+          || (user.role === "instructor" && submission.instructor_id === user.id)
+          || (user.role === "student" && submission.student_id === user.id);
+        if (!permitted) return NextResponse.json({ error: "You do not have access to this submission." }, { status: 403 });
+        return NextResponse.json(await getLocalEvaluation(submission));
+      }
+      if (lessonId && studentId) {
+        const [submission] = await getLocalSubmissions({ user, lessonId, studentId });
+        if (!submission) return NextResponse.json({ draftEvaluation: null, publishedEvaluation: null });
+        if (user.role === "student" && submission.student_id !== user.id) {
+          return NextResponse.json({ error: "You do not have access to these evaluations." }, { status: 403 });
+        }
+        return NextResponse.json(await getLocalEvaluation(submission));
+      }
+      if (instructorId || lessonId) return NextResponse.json({ evaluations: [] });
+      return NextResponse.json({ error: "Provide a submission, evaluation, lesson/student, or instructor identifier." }, { status: 400 });
+    }
+
     await initializeDatabase();
     let submission: { id: string; lesson_id: string; student_id: string; instructor_id: string | null } | undefined;
     if (submissionId) {
@@ -244,6 +271,47 @@ export async function POST(request: Request) {
   if (!uuidPattern.test(submissionId) || !evaluation) {
     return NextResponse.json({ error: "Provide a submission identifier and evaluation object." }, { status: 400 });
   }
+  if (await shouldUseLocalSqlite()) {
+    try {
+      const submission = await getLocalSubmission(submissionId);
+      if (!submission) return NextResponse.json({ error: "Submission not found." }, { status: 404 });
+      if (user.role !== "admin" && submission.instructor_id !== user.id) {
+        return NextResponse.json({ error: "You do not have access to this submission." }, { status: 403 });
+      }
+      const scoreValue = Number(evaluation.totalScore ?? 0);
+      if (!Number.isFinite(scoreValue)) {
+        return NextResponse.json({ error: "Evaluation score must be a valid number." }, { status: 400 });
+      }
+      const savedEvaluation = {
+        ...evaluation,
+        taskAnswerOverrides: stringRecord(evaluation.taskAnswerOverrides),
+        taskModelAnswerOverrides: stringRecord(evaluation.taskModelAnswerOverrides),
+        taskOverrideAudit: taskOverrideAudit(evaluation.taskOverrideAudit, user.id),
+      };
+      const saved = await saveLocalEvaluation({
+        submission,
+        instructorId: user.id,
+        evaluation: savedEvaluation,
+        published,
+      });
+      if (!published) return NextResponse.json({ evaluation: saved, saved: true });
+      return NextResponse.json({
+        evaluation: saved,
+        saved: true,
+        record: {
+          submission_id: submission.id,
+          instructor_id: user.id,
+          feedback: typeof evaluation.comments === "string" ? evaluation.comments : "",
+          score: Math.round(scoreValue),
+          evaluated_at: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      logDatabaseError("Local evaluation persistence failed:", error);
+      return NextResponse.json({ error: "Unable to save the evaluation to local SQLite." }, { status: 503 });
+    }
+  }
+
   const client = await getPostgresPool().connect();
   try {
     await initializeDatabase();

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
+import { getPostgresPool, initializeDatabase, logDatabaseError, shouldUseLocalSqlite } from "@/lib/db";
 import { getServerSessionUser } from "@/lib/server/session";
+import { publishLocalAcademisReport } from "@/lib/local-sqlite.mjs";
 
 export const runtime = "nodejs";
 
@@ -39,6 +40,18 @@ export async function POST(request: Request) {
   }
 
   try {
+    if (await shouldUseLocalSqlite()) {
+      const report = await publishLocalAcademisReport({
+        reportId: body.reportId,
+        instructorId: user.id,
+        publishedContent: body.publishedContent,
+      });
+      if (!report) {
+        return NextResponse.json({ error: "Report not found or you do not have permission to publish it." }, { status: 404 });
+      }
+      return NextResponse.json({ report });
+    }
+
     await initializeDatabase();
     const result = await getPostgresPool().query<{
       id: string;

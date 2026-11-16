@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getPostgresPool, initializeDatabase, logDatabaseError } from "@/lib/db";
+import { getPostgresPool, initializeDatabase, logDatabaseError, shouldUseLocalSqlite } from "@/lib/db";
+import { getLocalLessons, getLocalSubmission, getLocalSubmissions, saveLocalStudentSubmission, updateLocalSubmission } from "@/lib/local-sqlite.mjs";
 import { getServerSessionUser } from "@/lib/server/session";
 import { normalizeSubmissionAnswers } from "@/lib/submission-answers";
 
@@ -66,6 +67,31 @@ export async function GET(request: Request) {
   }
 
   try {
+    if (await shouldUseLocalSqlite()) {
+      if (submissionId) {
+        const [submission] = await getLocalSubmissions({ user, lessonId, studentId, submissionId });
+        return NextResponse.json({ submission: submission ? normalizeSubmissionRow(submission) : null });
+      }
+
+      if (lessonId && user.role === "student" && studentId && studentId !== user.id) {
+        return NextResponse.json({ error: "You can only access your own submissions." }, { status: 403 });
+      }
+      if (lessonId && !(await getLocalLessons({ scope: "one", user, identity: lessonId })).length) {
+        return NextResponse.json({ error: "You do not have access to this lesson's submissions." }, { status: 403 });
+      }
+      if (!lessonId && studentId && user.role === "student" && studentId !== user.id) {
+        return NextResponse.json({ error: "You can only access your own submissions." }, { status: 403 });
+      }
+      if (!lessonId && !studentId) {
+        return NextResponse.json({ error: "Provide a lesson or student identifier." }, { status: 400 });
+      }
+      const submissions = await getLocalSubmissions({ user, lessonId, studentId });
+      if (lessonId && studentId) {
+        return NextResponse.json({ submission: submissions[0] ? normalizeSubmissionRow(submissions[0]) : null });
+      }
+      return NextResponse.json({ submissions: submissions.map(normalizeSubmissionRow) });
+    }
+
     await initializeDatabase();
     if (submissionId) {
       const result = await getPostgresPool().query(
@@ -152,6 +178,17 @@ export async function POST(request: Request) {
   }
 
   try {
+    if (await shouldUseLocalSqlite()) {
+      if (!(await getLocalLessons({ scope: "one", user, identity: lessonId })).length) {
+        return NextResponse.json({ error: "You are not assigned to this lesson." }, { status: 403 });
+      }
+      const submission = await saveLocalStudentSubmission({ lessonId, studentId: user.id, answers: body.answers, status });
+      if (!submission) {
+        return NextResponse.json({ error: "This submission is locked. Ask your instructor to allow resubmission before editing." }, { status: 403 });
+      }
+      return NextResponse.json({ submission });
+    }
+
     await initializeDatabase();
     if (!(await canAccessLesson(user, lessonId, user.id))) {
       return NextResponse.json({ error: "You are not assigned to this lesson." }, { status: 403 });
@@ -211,6 +248,34 @@ export async function PATCH(request: Request) {
   }
 
   try {
+    if (await shouldUseLocalSqlite()) {
+      if (body.allow_resubmission !== undefined && typeof body.allow_resubmission !== "boolean") {
+        return NextResponse.json({ error: "Allow resubmission must be a boolean." }, { status: 400 });
+      }
+      if (body.allow_resubmission !== undefined && user.role !== "instructor" && user.role !== "admin") {
+        return NextResponse.json({ error: "Only instructors can change resubmission access." }, { status: 403 });
+      }
+      const submission = await getLocalSubmission(id);
+      if (!submission) return NextResponse.json({ error: "Submission not found." }, { status: 404 });
+      if (!(await getLocalLessons({ scope: "one", user, identity: submission.lesson_id })).length) {
+        return NextResponse.json({ error: "You do not have access to this submission." }, { status: 403 });
+      }
+      const isFinalStatus = ["submitted", "pending_evaluation", "completed", "reviewed", "evaluated"].includes(submission.status);
+      if (user.role === "student" && isFinalStatus && !submission.allow_resubmission
+        && (body.answers !== undefined || body.status !== undefined)) {
+        return NextResponse.json({ error: "This submission is locked. Ask your instructor to allow resubmission before editing." }, { status: 403 });
+      }
+      if (body.answers === undefined && body.status === undefined && body.allow_resubmission === undefined) {
+        return NextResponse.json({ error: "Provide at least one submission field to update." }, { status: 400 });
+      }
+      const updated = await updateLocalSubmission(id, {
+        ...(body.answers !== undefined ? { answers: body.answers } : {}),
+        ...(body.status !== undefined ? { status: body.status } : {}),
+        ...(body.allow_resubmission !== undefined ? { allow_resubmission: body.allow_resubmission } : {}),
+      });
+      return NextResponse.json({ submission: updated });
+    }
+
     await initializeDatabase();
     if (body.allow_resubmission !== undefined && typeof body.allow_resubmission !== "boolean") {
       return NextResponse.json({ error: "Allow resubmission must be a boolean." }, { status: 400 });

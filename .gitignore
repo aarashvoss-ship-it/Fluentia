@@ -9,6 +9,7 @@ node_modules/
 
 # Production build
 /build
+/data/fluentia.local.sqlite*
 
 # Environment variables
 .env
