@@ -11,10 +11,11 @@ export type AiStructuredOutputMode = "json_schema" | "json_object";
 export interface AiModelProfile {
   model: string;
   vendor: AiModelVendor;
-  provider: "google-ai-studio" | "paasta";
+  provider: "google-ai-studio" | "openai-api" | "paasta";
   structuredOutputMode: AiStructuredOutputMode;
   endpoint: string;
   apiKeyEnv: string;
+  apiKeyFallbackEnv?: string;
   tokenLimitParameter: AiTokenLimitParameter;
   maxOutputTokens?: number;
 }
@@ -25,6 +26,7 @@ export interface AiChatMessage {
 }
 
 const DEFAULT_CHAT_COMPLETIONS_ENDPOINT = "https://console.paasta.cloud/api/ai/v1/chat/completions";
+const DEFAULT_OPENAI_CHAT_COMPLETIONS_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 
 function getModelVendor(model: string): AiModelVendor {
   const normalized = model.toLowerCase();
@@ -133,6 +135,10 @@ function getGoogleAiStudioEndpoint(model: string): string {
   return url.toString();
 }
 
+function getOpenAiChatCompletionsEndpoint(): string {
+  return DEFAULT_OPENAI_CHAT_COMPLETIONS_ENDPOINT;
+}
+
 export function getAcademisModelProfile(
   model: string,
   tier: AcademisTier,
@@ -143,18 +149,22 @@ export function getAcademisModelProfile(
   if (!option) return null;
 
   const vendor = getModelVendor(model);
-  const isFreeGoogle = tier === "free";
   const tokenParameterOverride = process.env.ACADEMIS_EVAL_TOKEN_LIMIT_PARAMETER?.trim()
     || process.env.AI_TOKEN_LIMIT_PARAMETER?.trim();
   return {
     model,
     vendor,
-    provider: isFreeGoogle ? "google-ai-studio" : "paasta",
+    provider: option.provider,
     structuredOutputMode: vendor === "openai" ? "json_schema" : "json_object",
-    endpoint: isFreeGoogle
+    endpoint: option.provider === "google-ai-studio"
       ? getGoogleAiStudioEndpoint(model)
-      : getPaastaChatCompletionsEndpoint(),
-    apiKeyEnv: isFreeGoogle ? "GOOGLE_AI_STUDIO_API_KEY" : "PAASTA_AI_API_KEY",
+      : option.provider === "openai-api"
+        ? getOpenAiChatCompletionsEndpoint()
+        : getPaastaChatCompletionsEndpoint(),
+    apiKeyEnv: option.apiKeyEnv,
+    ...("apiKeyFallbackEnv" in option
+      ? { apiKeyFallbackEnv: option.apiKeyFallbackEnv }
+      : {}),
     tokenLimitParameter: getTokenLimitParameter(model, vendor, tokenParameterOverride),
     maxOutputTokens: getOptionalPositiveInteger("ACADEMIS_EVAL_MAX_OUTPUT_TOKENS")
       ?? getOptionalPositiveInteger("AI_MAX_OUTPUT_TOKENS")
@@ -163,7 +173,9 @@ export function getAcademisModelProfile(
 }
 
 export function getAcademisAiApiKey(profile: AiModelProfile): string {
-  return process.env[profile.apiKeyEnv]?.trim() || "";
+  return process.env[profile.apiKeyEnv]?.trim()
+    || (profile.apiKeyFallbackEnv ? process.env[profile.apiKeyFallbackEnv]?.trim() : "")
+    || "";
 }
 
 export function getAiStructuredResponseFormat(profile: AiModelProfile, schema: unknown) {
@@ -178,7 +190,9 @@ export function buildAiChatCompletionBody(
   options: { response_format?: unknown } = {},
 ) {
   const body: Record<string, unknown> = {
-    model: profile.model,
+    model: profile.provider === "openai-api"
+      ? profile.model.replace(/^openai\//, "")
+      : profile.model,
     messages,
     ...options,
   };

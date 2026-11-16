@@ -46,7 +46,7 @@ export function extractAcademisCriterionLabel(value: string) {
 }
 
 export function parseAcademisCriterionScores(
-  rows: Array<{ index: string; status_axis: string }>,
+  rows: Array<{ index: string; status_axis: string; score?: number | null }>,
 ) {
   const scores: Record<string, number | null> = {};
   const usedKeys = new Set<string>();
@@ -57,7 +57,14 @@ export function parseAcademisCriterionScores(
     let key = label;
     if (usedKeys.has(key.toLocaleLowerCase())) key = `${label} (${rowIndex})`;
     usedKeys.add(key.toLocaleLowerCase());
-    scores[key] = extractAcademisPercentageScore(axis) ?? null;
+    scores[key] = row.score === undefined
+      ? extractAcademisPercentageScore(axis) ?? null
+      : typeof row.score === "number"
+        && Number.isInteger(row.score)
+        && row.score >= 0
+        && row.score <= 100
+        ? row.score
+        : null;
   });
   return scores;
 }

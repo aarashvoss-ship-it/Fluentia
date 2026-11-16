@@ -72,15 +72,25 @@ test("builds a native Gemini audio request and formats quota reset headers", () 
   );
 });
 
-test("provides model options for the supported vendor and tier combinations", () => {
+test("provides labeled model options with tier-specific credential mappings", () => {
   assert.deepEqual(
-    ACADEMIS_MODEL_OPTIONS.map(({ model, tier }) => [model, tier]),
+    ACADEMIS_MODEL_OPTIONS.map(({
+      model,
+      tier,
+      name,
+      tierLabel,
+      useCase,
+      provider,
+      apiKeyEnv,
+      apiKeyFallbackEnv,
+    }) => [model, tier, name, tierLabel, useCase, provider, apiKeyEnv, apiKeyFallbackEnv]),
     [
-      ["google/gemini-2.5-flash", "free"],
-      ["google/gemini-2.5-flash", "paid"],
-      ["google/gemini-3-flash-preview", "paid"],
-      ["openai/gpt-5", "paid"],
-      ["openai/gpt-5-mini", "paid"],
+      ["google/gemini-flash-latest", "free", "Gemini Flash Latest", "Free", "Speaking, Shadowing & Audio Analysis", "google-ai-studio", "GEMINI_API_KEY", "GEMINI_API_2ND_KEY"],
+      ["google/gemini-2.5-flash", "paid", "Gemini 2.5 Flash", "Paid", "Reliable high-speed Audio & Text fallback", "paasta", "PAASTA_GEMINI_2_5_FLASH_KEY", undefined],
+      ["google/gemini-3-flash-preview", "paid", "Gemini 3 Flash Preview", "Paid", "Multimodal & Advanced linguistic tasks", "paasta", "PAASTA_GEMINI_3_FLASH_KEY", undefined],
+      ["openai/gpt-4o-mini", "free", "GPT", "Free", "General free-tier text & reflection tasks", "openai-api", "OPENAI_API_KEY", "OPENAI_API_2ND_KEY"],
+      ["openai/gpt-5-mini", "paid", "GPT-5 Mini", "Paid", "Reflection & routine short tasks", "paasta", "PAASTA_GPT_5_MINI_KEY", undefined],
+      ["openai/gpt-5", "paid", "GPT-5", "Paid", "Deep writing analysis & strict grammar", "paasta", "PAASTA_GPT_5_KEY", undefined],
     ],
   );
 });

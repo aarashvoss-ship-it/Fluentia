@@ -218,9 +218,13 @@ function normalizeStandardEvaluationRow(value: unknown): StandardEvaluationRow |
       .replace(/\s*\(?\s*(?:100|[1-9]?\d)(?:\.\d+)?\s*(?:%|percent|\/\s*100)\s*\)?\s*$/i, "")
       .replace(/\s*[+-]\s*$/, "")
       .trim();
-    score = typeof value.score === "number"
-      ? value.score
-      : typeof value.score === "string" && value.score.trim() ? Number(value.score) : NaN;
+    const rawScore = typeof value.score === "number"
+      ? String(value.score)
+      : typeof value.score === "string" ? value.score.trim() : "";
+    const scoreMatch = rawScore.match(
+      /^((?:100|[1-9]?\d)(?:\.\d+)?)(?:\s*(?:%|percent|\/\s*100))?$/i,
+    );
+    score = scoreMatch ? Number(scoreMatch[1]) : NaN;
   } else if (isLegacyFormat && typeof value.axis_score === "string") {
     const legacyAxis = value.axis_score.trim();
     const scoreMatch = legacyAxis.match(

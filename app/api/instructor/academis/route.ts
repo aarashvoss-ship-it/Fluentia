@@ -186,7 +186,11 @@ function parseInsight(content: string, report: StandardEvaluationReport): Academ
     rows,
     markdown: formatAcademisDiagnosticTable(rows, true),
   };
-  const criteriaScores = parseAcademisCriterionScores(rows);
+  const criteriaScores = parseAcademisCriterionScores(report.rows.map((row) => ({
+    index: row.index,
+    status_axis: formatAcademisAxisScore(row.axis, row.score),
+    score: row.score,
+  })));
   const rawErrorPatterns = Array.isArray(diagnosticValue.key_error_patterns)
     ? diagnosticValue.key_error_patterns
     : Array.isArray(diagnosticValue.keyErrorPatterns) ? diagnosticValue.keyErrorPatterns : [];
@@ -563,10 +567,8 @@ export async function POST(request: Request) {
 
   const apiKey = getAcademisAiApiKey(profile);
   if (!apiKey) {
-    const keyName = profile.provider === "google-ai-studio"
-      ? "GOOGLE_AI_STUDIO_API_KEY"
-      : "PAASTA_AI_API_KEY";
-    return NextResponse.json({ error: `Academis is not configured. Set ${keyName} on the server.` }, { status: 503 });
+    const keyNames = [profile.apiKeyEnv, profile.apiKeyFallbackEnv].filter(Boolean).join(" or ");
+    return NextResponse.json({ error: `Academis is not configured. Set ${keyNames} on the server.` }, { status: 503 });
   }
 
   try {

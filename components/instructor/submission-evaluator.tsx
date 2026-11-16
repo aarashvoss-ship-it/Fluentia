@@ -2588,7 +2588,7 @@ export function SubmissionEvaluator({
               disabled={isAcademisLoading}
               className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Switch to Paid (PaasTA) &amp; Retry
+              Switch to Paid &amp; Retry
             </button>
           </div>}
           <label className="block rounded-md border border-border bg-background/60 p-2.5 text-[10px] text-stone-400">
