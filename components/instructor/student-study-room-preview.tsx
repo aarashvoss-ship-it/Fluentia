@@ -144,7 +144,7 @@ export function StudentStudyRoomPreview({
                 ))}
               </div>
             ) : undefined,
-            fullWidth: isFullWidthWhenSidebarEmpty(block) && linkedSidebarBlocks.length === 0,
+            fullWidth: isFullWidthWhenSidebarEmpty(block, linkedSidebarBlocks.length),
           };
         });
     return (

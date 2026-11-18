@@ -4515,7 +4515,7 @@ export default function InstructorWorkstationPage({
                 {linkedSidebarBlocks.map((sidebarItem) => <SidebarBlockCard key={sidebarItem.id} {...sidebarItem} />)}
               </>
             ) : undefined,
-            fullWidth: isFullWidthWhenSidebarEmpty(block) && linkedSidebarBlocks.length === 0,
+            fullWidth: isFullWidthWhenSidebarEmpty(block, linkedSidebarBlocks.length),
           };
         });
     return (

@@ -1469,7 +1469,7 @@ export default function LessonPage() {
           layoutMode: block.layoutMode || "global",
           main: article,
           sidebar: linkedSidebarBlocks.length > 0 ? sidebarContent : undefined,
-          fullWidth: isFullWidthWhenSidebarEmpty(block) && linkedSidebarBlocks.length === 0,
+          fullWidth: isFullWidthWhenSidebarEmpty(block, linkedSidebarBlocks.length),
         };
       });
     return (

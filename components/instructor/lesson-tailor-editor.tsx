@@ -966,13 +966,20 @@ export function LessonTailorEditor({
             </div>
             <div className="mb-3 grid gap-2 sm:grid-cols-3">
               <label className="text-[11px] text-stone-500">Layout mode
-                <select value={block.layoutMode || "global"} onChange={(event) => updateDynamicBlock(step, index, { layoutMode: event.target.value as "global" | "inline-row", sidebarBlockId: event.target.value === "global" ? undefined : block.sidebarBlockId })} className="mt-1 w-full rounded border border-border bg-background p-2 text-xs text-stone-200 [color-scheme:dark]" aria-label={`${block.type} block layout mode`}>
+                <select value={block.layoutMode || "global"} onChange={(event) => updateDynamicBlock(step, index, {
+                  layoutMode: event.target.value as "global" | "inline-row",
+                  sidebarBlockId: event.target.value === "global" ? undefined : block.sidebarBlockId || block.alignNextTo,
+                  alignNextTo: undefined,
+                })} className="mt-1 w-full rounded border border-border bg-background p-2 text-xs text-stone-200 [color-scheme:dark]" aria-label={`${block.type} block layout mode`}>
                   <option value="global">Global Column Mode</option>
                   <option value="inline-row">Inline Row Section Mode</option>
                 </select>
               </label>
               {block.layoutMode === "inline-row" && <label className="text-[11px] text-stone-500">Sidebar block
-                <select value={block.sidebarBlockId || ""} onChange={(event) => updateDynamicBlock(step, index, { sidebarBlockId: event.target.value || undefined })} className="mt-1 w-full rounded border border-border bg-background p-2 text-xs text-stone-200 [color-scheme:dark]" aria-label={`${block.type} block sidebar selection`}>
+                <select value={block.sidebarBlockId || block.alignNextTo || ""} onChange={(event) => updateDynamicBlock(step, index, {
+                  sidebarBlockId: event.target.value || undefined,
+                  alignNextTo: undefined,
+                })} className="mt-1 w-full rounded border border-border bg-background p-2 text-xs text-stone-200 [color-scheme:dark]" aria-label={`${block.type} block sidebar selection`}>
                   <option value="">No sidebar block</option>
                   {(sidebarBlocksByStep[step] || []).map((sidebarBlock) => <option key={sidebarBlock.id} value={sidebarBlock.id}>{sidebarBlock.title || "Untitled sidebar block"}</option>)}
                 </select>

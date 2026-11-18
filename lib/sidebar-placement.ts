@@ -13,8 +13,12 @@ export interface SidebarPlacementBlock {
   parentMainBlockId?: string;
 }
 
-export function isFullWidthWhenSidebarEmpty(mainBlock: SidebarPlacementMainBlock): boolean {
+export function isFullWidthWhenSidebarEmpty(
+  mainBlock: SidebarPlacementMainBlock,
+  sidebarBlockCount = 0,
+): boolean {
   return mainBlock.layoutMode === "inline-row"
+    && sidebarBlockCount === 0
     && (mainBlock.rowEmptyMode || mainBlock.whenEmpty || "full") === "full";
 }
 
@@ -51,8 +55,7 @@ export function mapSidebarBlocksToMainBlocks<T extends SidebarPlacementBlock>(
   if (mainBlocks.length === 0) return placements;
 
   const fallbackMainBlocks = mainBlocks.filter((mainBlock) =>
-    !isFullWidthWhenSidebarEmpty(mainBlock)
-    || placements.get(mainBlock.id)?.length,
+    !isFullWidthWhenSidebarEmpty(mainBlock, placements.get(mainBlock.id)?.length),
   );
   if (fallbackMainBlocks.length === 0) return placements;
 
