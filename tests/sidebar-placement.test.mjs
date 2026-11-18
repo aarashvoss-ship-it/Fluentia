@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mapSidebarBlocksToMainBlocks } from "../lib/sidebar-placement.ts";
+import {
+  isFullWidthWhenSidebarEmpty,
+  mapSidebarBlocksToMainBlocks,
+} from "../lib/sidebar-placement.ts";
 
-test("does not positionally attach an unlinked sidebar to a full-width empty row", () => {
+test("defaults an inline row with no saved empty mode to full width", () => {
+  assert.equal(isFullWidthWhenSidebarEmpty({ id: "full-width", layoutMode: "inline-row" }), true);
+
   const placements = mapSidebarBlocksToMainBlocks(
     [
-      { id: "full-width", layoutMode: "inline-row", rowEmptyMode: "full" },
+      { id: "full-width", layoutMode: "inline-row" },
       { id: "regular" },
     ],
     [{ id: "sidebar" }],

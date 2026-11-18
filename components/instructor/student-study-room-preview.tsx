@@ -17,7 +17,7 @@ import { Stepper } from "@/components/study-room/stepper";
 import { HeroBanner } from "@/components/shared/hero-banner";
 import { SidebarBlockCard } from "@/components/shared/sidebar-block-card";
 import { ImageBlockRenderer } from "@/components/shared/image-block-renderer";
-import { mapSidebarBlocksToMainBlocks } from "@/lib/sidebar-placement";
+import { isFullWidthWhenSidebarEmpty, mapSidebarBlocksToMainBlocks } from "@/lib/sidebar-placement";
 import type { BannerPosition } from "@/components/instructor/banner-manager";
 import { LearningSidebar } from "@/components/study-room/learning-sidebar";
 import type { StudyHubResource } from "@/components/shared/study-hub-resource-card";
@@ -113,7 +113,6 @@ export function StudentStudyRoomPreview({
     const sidebarBlocksByMainBlock = mapSidebarBlocksToMainBlocks(blocks, sidebarBlocks);
     const stageItems = blocks.map((block) => {
           const linkedSidebarBlocks = sidebarBlocksByMainBlock.get(block.id) || [];
-          const rowEmptyMode = block.rowEmptyMode || block.whenEmpty;
           const article = (
             <article key={block.id} className="flex h-auto min-h-fit flex-col overflow-visible rounded-xl border border-border bg-surface p-5 pb-8">
               {block.title && (
@@ -145,9 +144,7 @@ export function StudentStudyRoomPreview({
                 ))}
               </div>
             ) : undefined,
-            fullWidth: block.layoutMode === "inline-row"
-              && linkedSidebarBlocks.length === 0
-              && rowEmptyMode === "full",
+            fullWidth: isFullWidthWhenSidebarEmpty(block) && linkedSidebarBlocks.length === 0,
           };
         });
     return (

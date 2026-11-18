@@ -43,7 +43,7 @@ import { MembershipWalletPanel } from "@/components/instructor/membership-wallet
 import { DynamicLucideIcon, LucideIconPicker } from "@/components/shared/lucide-icon-picker";
 import { SidebarBlockCard } from "@/components/shared/sidebar-block-card";
 import { ImageBlockRenderer } from "@/components/shared/image-block-renderer";
-import { mapSidebarBlocksToMainBlocks } from "@/lib/sidebar-placement";
+import { isFullWidthWhenSidebarEmpty, mapSidebarBlocksToMainBlocks } from "@/lib/sidebar-placement";
 import { getStudyHubResourceHref, StudyHubDownloadButton, StudyHubFlashcardDeck, StudyHubResourceCard } from "@/components/shared/study-hub-resource-card";
 import { StudentStudyRoomPreview, STUDENT_PREVIEW_CHANNEL, type StudentPreviewSnapshot, type StudentPreviewStep } from "@/components/instructor/student-study-room-preview";
 import { LearningSidebar, type LearningTab } from "@/components/study-room/learning-sidebar";
@@ -4493,7 +4493,6 @@ export default function InstructorWorkstationPage({
     const sidebarBlocksByMainBlock = mapSidebarBlocksToMainBlocks(previewBlocks, previewSidebarBlocks);
     const stageItems = previewBlocks.map((block: ContentBlock) => {
         const linkedSidebarBlocks = sidebarBlocksByMainBlock.get(block.id) || [];
-        const rowEmptyMode = block.rowEmptyMode || block.whenEmpty;
         const article = (
         <article key={block.id} className="rounded-xl border border-border bg-surface p-5">
           {block.title && <h3 className="mb-3 font-sans text-xl font-semibold text-stone-100">{block.title}</h3>}
@@ -4516,7 +4515,7 @@ export default function InstructorWorkstationPage({
                 {linkedSidebarBlocks.map((sidebarItem) => <SidebarBlockCard key={sidebarItem.id} {...sidebarItem} />)}
               </>
             ) : undefined,
-            fullWidth: block.layoutMode === "inline-row" && linkedSidebarBlocks.length === 0 && rowEmptyMode === "full",
+            fullWidth: isFullWidthWhenSidebarEmpty(block) && linkedSidebarBlocks.length === 0,
           };
         });
     return (

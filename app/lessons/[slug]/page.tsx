@@ -36,7 +36,7 @@ import { DisplaySettingsControl } from "@/components/shared/display-settings";
 import { DynamicLucideIcon } from "@/components/shared/lucide-icon-picker";
 import { SidebarBlockCard } from "@/components/shared/sidebar-block-card";
 import { ImageBlockRenderer } from "@/components/shared/image-block-renderer";
-import { mapSidebarBlocksToMainBlocks } from "@/lib/sidebar-placement";
+import { isFullWidthWhenSidebarEmpty, mapSidebarBlocksToMainBlocks } from "@/lib/sidebar-placement";
 import { getQuizQuestionPrompt, parseFillInBlanks } from "@/lib/fill-in-blanks";
 import { uploadStudentAudio } from "@/services/storage-service";
 import {
@@ -1423,7 +1423,6 @@ export default function LessonPage() {
     );
     const stageItems = renderableBlocks.map((block) => {
         const linkedSidebarBlocks = sidebarBlocksByMainBlock.get(block.id) || [];
-        const rowEmptyMode = block.rowEmptyMode || block.whenEmpty;
         const article = (
         <article key={block.id} className="flex h-auto min-h-max flex-col overflow-visible rounded-xl border border-border bg-surface p-5 pb-8">
           {block.title && <h3 className="mb-3 flex items-center gap-2 font-sans text-xl font-semibold text-stone-100">{block.icon && <DynamicLucideIcon name={block.icon} className="h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />}{block.title}</h3>}
@@ -1470,9 +1469,7 @@ export default function LessonPage() {
           layoutMode: block.layoutMode || "global",
           main: article,
           sidebar: linkedSidebarBlocks.length > 0 ? sidebarContent : undefined,
-          fullWidth: block.layoutMode === "inline-row"
-            && linkedSidebarBlocks.length === 0
-            && rowEmptyMode === "full",
+          fullWidth: isFullWidthWhenSidebarEmpty(block) && linkedSidebarBlocks.length === 0,
         };
       });
     return (
