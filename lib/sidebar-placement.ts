@@ -4,6 +4,8 @@ export interface SidebarPlacementMainBlock {
   sidebarBlockId?: string;
   alignNextTo?: string;
   relatedMainBlockIds?: string[];
+  rowEmptyMode?: "full" | "empty";
+  whenEmpty?: "full" | "empty";
 }
 
 export interface SidebarPlacementBlock {
@@ -43,9 +45,16 @@ export function mapSidebarBlocksToMainBlocks<T extends SidebarPlacementBlock>(
 
   if (mainBlocks.length === 0) return placements;
 
+  const fallbackMainBlocks = mainBlocks.filter((mainBlock) =>
+    mainBlock.layoutMode !== "inline-row"
+    || (mainBlock.rowEmptyMode || mainBlock.whenEmpty) !== "full"
+    || placements.get(mainBlock.id)?.length,
+  );
+  if (fallbackMainBlocks.length === 0) return placements;
+
   sidebarBlocks.forEach((sidebarBlock, sidebarIndex) => {
     if (placedSidebarIds.has(sidebarBlock.id)) return;
-    const positionalMainBlock = mainBlocks[Math.min(sidebarIndex, mainBlocks.length - 1)];
+    const positionalMainBlock = fallbackMainBlocks[Math.min(sidebarIndex, fallbackMainBlocks.length - 1)];
     placeSidebarBlock(positionalMainBlock, sidebarBlock);
   });
 
