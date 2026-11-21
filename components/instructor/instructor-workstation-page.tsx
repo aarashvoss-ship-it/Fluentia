@@ -4828,13 +4828,13 @@ export default function InstructorWorkstationPage({
         <aside
           role="alert"
           aria-live="assertive"
-          className="sticky top-0 z-[90] border-b border-amber-400/50 bg-amber-950/95 px-4 py-3 text-amber-100 shadow-lg backdrop-blur"
+          className="sticky top-0 z-[90] border-b border-amber-300 bg-amber-400 px-4 py-3 text-stone-950 shadow-lg"
         >
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-sm font-semibold">{persistentSaveError || "Local draft backup needs attention."}</p>
-              {localDraftError && <p className="mt-1 text-xs text-amber-200">{localDraftError}</p>}
-              {consecutiveSaveFailures > 1 && <p className="mt-1 text-xs text-amber-200">Consecutive save failures: {consecutiveSaveFailures}</p>}
+              {localDraftError && <p className="mt-1 text-xs text-stone-900">{localDraftError}</p>}
+              {consecutiveSaveFailures > 1 && <p className="mt-1 text-xs text-stone-900">Consecutive save failures: {consecutiveSaveFailures}</p>}
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
               {persistentSaveError && (
@@ -4842,7 +4842,7 @@ export default function InstructorWorkstationPage({
                   type="button"
                   onClick={() => reauthenticationOpen ? setReauthenticationOpen(false) : void saveLessonChangesRef.current?.(lessonStatus)}
                   disabled={saveIndicator === "saving"}
-                  className="rounded-md border border-amber-300/50 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-400/10 disabled:opacity-50"
+                  className="rounded-md border border-stone-950/40 px-3 py-1.5 text-xs font-semibold text-stone-950 hover:bg-stone-950/10 disabled:opacity-50"
                 >
                   {reauthenticationOpen ? "Close sign-in" : "Retry Save"}
                 </button>
