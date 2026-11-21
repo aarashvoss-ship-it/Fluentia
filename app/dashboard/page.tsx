@@ -2026,9 +2026,6 @@ function DashboardContent() {
                   className="absolute inset-0 h-full w-full object-cover"
                 />
                 <div style={{ opacity: nextLessonBannerDimness / 100 }} className="absolute inset-0 bg-[linear-gradient(90deg,rgba(12,16,23,.72),rgba(12,16,23,.24)),linear-gradient(0deg,rgba(12,16,23,.92),transparent_65%)]" />
-                <span className="absolute left-5 top-4 z-10 rounded-md border-none bg-amber-500/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400">
-                  Module {activeModuleNumber ?? 1}
-                </span>
                 {nextLessonStatus && (
                   <span className={`absolute right-5 top-4 z-10 rounded-md border-none px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${
                     nextLessonStatus === "in-progress"
@@ -2044,7 +2041,12 @@ function DashboardContent() {
                 )}
                 <div className="relative flex h-full flex-col justify-end p-5 md:p-7">
                   <div className="max-w-3xl pr-28 md:pr-36">
-                    {nextLesson.track_name && <p className="mb-2 inline-flex max-w-full items-center gap-1.5 truncate rounded-md border border-amber-500/30 bg-black/30 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-amber-300"><Folder className="h-3 w-3 shrink-0" />{nextLesson.track_name}</p>}
+                    <div className="mb-2 flex flex-wrap items-center gap-2 pr-0">
+                      <span className="inline-flex rounded-md border-none bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-amber-400">
+                        Module {activeModuleNumber ?? 1}
+                      </span>
+                      {nextLesson.track_name && <p className="inline-flex max-w-full items-center gap-1.5 truncate rounded-md border border-amber-500/30 bg-black/30 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-amber-300"><Folder className="h-3 w-3 shrink-0" />{nextLesson.track_name}</p>}
+                    </div>
                     <div className="flex items-center gap-2 text-slate-400">
                       <BookOpen className="h-4 w-4" />
                       <span className="text-xs font-medium uppercase tracking-[0.14em]">
@@ -2274,16 +2276,18 @@ function DashboardContent() {
                           className="h-full w-full object-cover"
                         />
                         <div style={{ opacity: lessonBannerDimness / 100 }} className="absolute inset-0 bg-[linear-gradient(90deg,rgba(12,16,23,.72),rgba(12,16,23,.24)),linear-gradient(0deg,rgba(12,16,23,.92),transparent_65%)]" />
-                        <span className="absolute bottom-4 left-5 rounded-md border-none bg-amber-500/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-amber-400">
-                          Module {lesson.content?.moduleNumber || 1}
-                        </span>
                       </div>
                       <div className="flex flex-1 flex-col p-5">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex items-center gap-2 text-slate-400">
-                            <BookOpen className="h-4 w-4" />
-                            <span className="text-xs font-medium uppercase tracking-[0.14em]">
-                              Lesson
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex items-center gap-2 text-slate-400">
+                              <BookOpen className="h-4 w-4" />
+                              <span className="text-xs font-medium uppercase tracking-[0.14em]">
+                                Lesson
+                              </span>
+                            </div>
+                            <span className="rounded-md border-none bg-amber-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-amber-400">
+                              Module {lesson.content?.moduleNumber || lesson.module_number || 1}
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
